@@ -66,16 +66,18 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/desktop/pnpm-lock.yaml
 
-      - name: Verify
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          scripts/verify.sh
-
       - name: Install Playwright Chromium
         if: runner.os == 'Linux'
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
+          pnpm -C apps/desktop install --frozen-lockfile
           pnpm -C apps/desktop exec playwright install --with-deps chromium
+
+      - name: Verify
+        if: runner.os != 'Linux'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          scripts/verify.sh
 
       - name: Verify with web E2E
         if: runner.os == 'Linux'
