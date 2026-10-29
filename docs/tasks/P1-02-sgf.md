@@ -5,6 +5,7 @@ depends_on: [P1-01, P0-03]
 paths:
   - crates/sgf/**
   - fixtures/sgf/**
+  - tools/fixture-oracle/**
   - Cargo.toml
   - docs/ARCHITECTURE.md
 ---
@@ -20,7 +21,7 @@ paths:
 - 宽松模式：小写属性名、缺右括号、未转义的 `]` 这类能恢复的错误就恢复，并记一条 warning；不能恢复的返回带位置的错误。任何输入都不能 panic。
 - 属性名恢复规则（P0-03 已确定）：
   - 全小写的属性名（如 `b[aa]`）转成大写。
-  - 大小写混合的 FF3 长名（如 `AddBlack`）按 FF4 规则去掉小写字母，得到 `AB`。这一类在 `fixtures/sgf/` 里补一个语料文件，并手写期望值。
+  - 大小写混合的 FF3 长名（如 `AddBlack`）按 FF4 规则去掉小写字母，得到 `AB`。这一类在 `fixtures/sgf/` 里补一个语料文件，并手写期望值。新增的手写语料要在 `tools/fixture-oracle/` 的登记表里登记，保证 `generate.py --check` 继续通过。
 - 属性值保留原始文本（转义已解开）；未知属性（包括 `LZ`）原样保留。
 - `serialize(&Collection) -> String`：输出 UTF-8，根节点写 `CA[UTF-8]`，正确转义 `]` 和 `\`，换行统一为 `\n`。
 

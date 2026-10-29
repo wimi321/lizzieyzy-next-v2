@@ -48,12 +48,27 @@ katago-protocol ← fake-katago（engine-session / analysis / app-core / desktop
 
 ### 4.1 go-core
 
-- `Point { x: u8, y: u8 }`、`Color { Black, White }`、`Move { Play(Color, Point), Pass(Color) }`。
-- `BoardSize { width: u8, height: u8 }`：2..=25，允许非正方形（KataGo 默认编译只支持到 19，超出由引擎报错）。
-- `Rules`：劫（简单劫 / 位置超级劫 / 情境超级劫）、是否允许自杀、数子或数目。规则名（chinese、japanese 等）与 KataGo 规则串的映射放这里。
-- `Position::play(mv) -> Result<PlayOutcome, IllegalMove>`，`PlayOutcome` 含提子列表；`Position::play_unchecked_ko(mv)` 供 SGF 回放用（照常提子，不判劫）。
-- `Position::hash() -> u64`：Zobrist（盘面 + 轮走方），超级劫用历史哈希集合判断。
-- 坐标转换：`Point ⇄ GTP（"Q16"，跳过 I）⇄ SGF（"pd"）`。
+- `Point { x: u8, y: u8 }`：左上角原点、零起算；`Color { Black, White }`、`Move { Play(Color, Point), Pass(Color) }`。
+- `BoardSize { width: u8, height: u8 }`：2..=25，允许非正方形（KataGo 默认编译只支持到 19，超出由引擎报错）。`BoardSize::new` / `validate` 返回 `BoardSizeError`；局面构造和坐标转换也验证公开字段，不能靠直接构造绕过尺寸限制。
+- `Rules { ko: KoRule, allow_multi_stone_suicide: bool, scoring: ScoringRule }`：`KoRule::{Simple, PositionalSuperko, SituationalSuperko}`；`ScoringRule::{Area, Territory}`。这里不计算终局分数。
+- `RulePreset::from_name` 接受下表的精确小写名称，未知名称返回 `UnknownRules`；`rules()` 得到上述规则子集，`as_katago_str()` 得到同名 KataGo 规则串。预设身份独立保留，因为日本和韩国规则在本卡建模的字段相同；`Rules::from_name` 只取得规则子集。映射依据 [KataGo rules.cpp](https://github.com/lightvector/KataGo/blob/master/cpp/game/rules.cpp)。
+
+  | 名称 / KataGo 规则串 | 劫 | 允许多子自杀 | 计分方式 |
+  |---|---|---|---|
+  | chinese | 简单劫 | 否 | 数子 |
+  | japanese | 简单劫 | 否 | 数目 |
+  | korean | 简单劫 | 否 | 数目 |
+  | aga | 情境超级劫 | 否 | 数子 |
+  | tromp-taylor | 位置超级劫 | 是 | 数子 |
+  | new-zealand | 情境超级劫 | 是 | 数子 |
+
+- `Position::new(size, rules) -> Result<Position, BoardSizeError>` 创建黑先空盘；`with_setup(size, rules, to_play, stones)` 接受 `(Color, Point)` 序列，作为全新的历史起点，不执行提子。越界、重复点、零气块返回 `SetupError`。`stones()` 为左上到右下逐行的只读数组，`stone_at` / `liberties_at` 对空点或越界返回 `None`；后者计算整块的不同气点数。
+- `Position::play(mv) -> Result<PlayOutcome, IllegalMove>`：先提对方，再判断己方自杀，最后判断重复。`PlayOutcome.captured` 是对方被提点，`self_captured` 是自杀移除点（含本手新子），均按行排序。被占、自杀、劫、越界返回带原因的 `IllegalMove`，失败不改变棋盘、轮走方、哈希或历史。
+- `Position::play_unchecked_ko(mv)` 供 SGF 回放用，只跳过劫检查；仍判越界、被占和自杀，照常提子，并将结果记入历史。两个入口都采用 `Move` 指定的颜色，允许棋谱中连续同色着手，成功后轮走方为该颜色的对方；轮次约束由调用方决定。
+- 自杀语义与 KataGo 一致：单子自杀在任何规则下都非法；`allow_multi_stone_suicide` 对应 `multiStoneSuicideLegal`，只控制是否允许移除至少两颗己方棋子（含本手新子），合法多子自杀仍受劫规则限制。六种预设中仅 tromp-taylor 和 new-zealand 开启此项。正常落子和 `play_unchecked_ko` 都执行同样的自杀检查；预设字符串仍原样传递给引擎。
+- 简单劫禁止立即回提单子劫；pass 清除此限制。位置超级劫比较盘面，情境超级劫比较盘面加下一轮走方；历史哈希集合包含初始局面和每个成功着手的结果。pass 总是合法，也记入历史；连续 pass 不在本层关闭局面。
+- `Position::hash() -> u64`：固定种子生成的 Zobrist（尺寸 + 盘面 + 轮走方），落子和移除棋子以 XOR 增量更新；`recompute_hash()` 从棋盘重算。哈希不含规则和着手历史，不能代替 document 的 `AnalysisKey`。
+- 坐标方法：`Point::to_gtp(size)` / `Point::from_gtp(text, size)` 和 `to_sgf` / `from_sgf`；`Move` 提供同名方法，解析时额外传入颜色。19 路 `(15, 3) ⇄ GTP "Q16" ⇄ SGF "pd"`。GTP 跳过 I，按棋盘高度翻转行号，输入不区分大小写，拒绝空白和前导零；SGF 只接受小写坐标。pass 输出为 GTP `pass`、SGF 空值；宽高都 ≤19 时兼容 SGF `tt` 为 pass，更大棋盘按实际点或越界处理。`Point` 不表示 pass，解析 pass 返回 `CoordinateError::PassHasNoPoint`。
 
 ### 4.2 sgf
 
