@@ -19,6 +19,7 @@
 3. 对照任务卡逐条核对验收标准：每条都要有对应的测试或命令结果。抽查关键测试，确认它测的是行为；必要时临时破坏实现，看测试会不会失败（不提交）。
 4. 审 diff：是否符合 AGENTS.md 和 ARCHITECTURE.md（依赖方向、actor 规则、类型生成、文件职责、没有证据型代码）。
 5. 有手工项的任务，按卡里的步骤实际操作。
+6. 改到 `fixtures/sgf/` 的任务：在装了 sgfmill 的虚拟环境里运行 `tools/fixture-oracle/generate.py --check`，必须通过（这一步需要 sgfmill，所以不在 verify.sh 里）。
 
 Claude 自己实现的界面任务，同样要过门禁和范围检查，交付时附截图给维护者看。
 
