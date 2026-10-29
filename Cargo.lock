@@ -759,6 +759,11 @@ dependencies = [
 [[package]]
 name = "fake-katago"
 version = "0.1.0"
+dependencies = [
+ "katago-protocol",
+ "serde_json",
+ "thiserror 2.0.18",
+]
 
 [[package]]
 name = "fastrand"
@@ -1655,6 +1660,12 @@ dependencies = [
 [[package]]
 name = "katago-protocol"
 version = "0.1.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
 
 [[package]]
 name = "keyboard-types"
