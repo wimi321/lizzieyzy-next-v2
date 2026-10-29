@@ -1,0 +1,2 @@
+# Independent parser and rules oracle; production crates do not depend on it.
+sgfmill==1.1.1

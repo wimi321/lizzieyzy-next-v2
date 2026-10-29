@@ -1,0 +1,36 @@
+{"format_version":1,"katago_version":"v1.16.5","model":"kata1-b18c384nbt-s9996604416-d4316597426.bin.gz","model_sha256":"9d7a6afed8ff5b74894727e156f04f0cd36060a24824892008fbb6e0cba51f1d","backend":"Metal","config_sha256":"d50a2b30bd485bc14efd35a387c0c236a3a84a6eb574b0a206cfea115504cdff","analysis_threads":1,"report_perspective":"BLACK","scenario":"illegal-move"}
+{"dir":"in","t_ms":1.765,"line":"{\"id\":\"version\",\"action\":\"query_version\"}"}
+{"dir":"err","t_ms":46.125,"line":"2026-10-29 07:56:11-0700: Running with following config:"}
+{"dir":"err","t_ms":46.159,"line":"analysisPVLen = 8"}
+{"dir":"err","t_ms":46.163,"line":"maxVisits = 100"}
+{"dir":"err","t_ms":46.165,"line":"nnCacheSizePowerOfTwo = 18"}
+{"dir":"err","t_ms":46.166,"line":"nnMaxBatchSize = 1"}
+{"dir":"err","t_ms":46.168,"line":"nnMutexPoolSizePowerOfTwo = 14"}
+{"dir":"err","t_ms":46.169,"line":"nnRandomize = true"}
+{"dir":"err","t_ms":46.172,"line":"numAnalysisThreads = 1"}
+{"dir":"err","t_ms":46.175,"line":"numSearchThreads = 1"}
+{"dir":"err","t_ms":46.177,"line":"reportAnalysisWinratesAs = BLACK"}
+{"dir":"err","t_ms":46.179,"line":"warnUnusedFields = true"}
+{"dir":"err","t_ms":46.18,"line":""}
+{"dir":"err","t_ms":46.181,"line":"2026-10-29 07:56:11-0700: Analysis Engine starting..."}
+{"dir":"err","t_ms":46.182,"line":"2026-10-29 07:56:11-0700: KataGo v1.16.5"}
+{"dir":"err","t_ms":66.547,"line":"2026-10-29 07:56:11-0700: nnRandSeed0 = 17276255936191948477"}
+{"dir":"err","t_ms":66.635,"line":"2026-10-29 07:56:11-0700: After dedups: nnModelFile0 = main-model.bin.gz useFP16 auto useNHWC auto"}
+{"dir":"err","t_ms":66.643,"line":"2026-10-29 07:56:11-0700: Initializing neural net buffer to be size 19 * 19 allowing smaller boards"}
+{"dir":"err","t_ms":563.658,"line":"Metal backend 0: GPU mode - using MPSGraph (GPU)"}
+{"dir":"err","t_ms":606.839,"line":"Metal backend: MPSGraph initialized on Apple M4 Pro"}
+{"dir":"err","t_ms":606.868,"line":"Metal backend 0: Initialized MPSGraph GPU-only mode"}
+{"dir":"err","t_ms":606.875,"line":"2026-10-29 07:56:11-0700: Loaded config analysis.cfg"}
+{"dir":"err","t_ms":606.877,"line":"2026-10-29 07:56:11-0700: Loaded model main-model.bin.gz"}
+{"dir":"err","t_ms":607.426,"line":"2026-10-29 07:56:11-0700: Analyzing up to 1 positions at a time in parallel"}
+{"dir":"err","t_ms":607.436,"line":"2026-10-29 07:56:11-0700: Started, ready to begin handling requests"}
+{"dir":"out","t_ms":607.482,"line":"{\"action\":\"query_version\",\"git_hash\":\"<omitted>\",\"id\":\"version\",\"version\":\"1.16.5\"}"}
+{"dir":"in","t_ms":607.568,"line":"{\"id\":\"illegal\",\"moves\":[[\"B\",\"D4\"],[\"W\",\"D4\"]],\"rules\":\"chinese\",\"komi\":7.5,\"boardXSize\":19,\"boardYSize\":19,\"maxVisits\":100}"}
+{"dir":"err","t_ms":607.639,"line":"2026-10-29 07:56:11-0700: Error: {\"error\":\"Illegal move 1: D4\",\"field\":\"moves\",\"id\":\"illegal\"}"}
+{"dir":"out","t_ms":607.65,"line":"{\"error\":\"Illegal move 1: D4\",\"field\":\"moves\",\"id\":\"illegal\"}"}
+{"dir":"err","t_ms":608.187,"line":"2026-10-29 07:56:11-0700: main-model.bin.gz"}
+{"dir":"err","t_ms":608.215,"line":"2026-10-29 07:56:11-0700: NN rows: 0"}
+{"dir":"err","t_ms":608.227,"line":"2026-10-29 07:56:11-0700: NN batches: 0"}
+{"dir":"err","t_ms":608.233,"line":"2026-10-29 07:56:11-0700: NN avg batch size: nan"}
+{"dir":"err","t_ms":609.68,"line":"2026-10-29 07:56:11-0700: GPU -1 finishing, processed 0 rows 0 batches"}
+{"dir":"err","t_ms":610.291,"line":"2026-10-29 07:56:11-0700: All cleaned up, quitting"}
