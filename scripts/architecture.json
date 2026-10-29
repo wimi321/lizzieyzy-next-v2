@@ -1,0 +1,47 @@
+{
+  "_comment": "Acceptance gate owned by the maintainers; agents must not edit it (AGENTS.md). Read by scripts/check_budgets.py.",
+  "max_source_lines": 800,
+  "max_test_lines": 1200,
+  "scan_roots": ["crates", "apps/desktop/src", "apps/desktop/src-tauri/src", "apps/desktop/e2e", "tools"],
+  "source_extensions": [".rs", ".ts", ".tsx", ".py"],
+  "max_file_bytes": 1000000,
+  "max_file_bytes_by_prefix": {
+    "fixtures/": 3000000,
+    "apps/desktop/e2e/__screenshots__/": 500000
+  },
+  "forbidden_in_docs": [".png", ".jpg", ".jpeg", ".gif", ".pdf", ".json"],
+  "workspace_crates": {
+    "go-core": [],
+    "sgf": ["go-core"],
+    "document": ["go-core", "sgf"],
+    "katago-protocol": [],
+    "engine-session": ["katago-protocol"],
+    "analysis": ["go-core", "document", "katago-protocol", "engine-session"],
+    "app-core": ["go-core", "sgf", "document", "katago-protocol", "engine-session", "analysis"],
+    "lizzieyzy-desktop": ["app-core"],
+    "fake-katago": ["katago-protocol"]
+  },
+  "dev_allowed": {
+    "engine-session": ["fake-katago"],
+    "analysis": ["fake-katago"],
+    "app-core": ["fake-katago"],
+    "lizzieyzy-desktop": ["fake-katago"]
+  },
+  "pure_crates": ["go-core", "sgf", "document", "katago-protocol"],
+  "pure_forbidden_deps": ["tokio", "tauri", "reqwest", "rusqlite", "hyper", "async-std", "smol"],
+  "tauri_allowed_crates": ["lizzieyzy-desktop"],
+  "forbidden_patterns": [
+    {
+      "paths": ["crates/engine-session/src/", "crates/analysis/src/", "crates/app-core/src/"],
+      "pattern": "\\b(Mutex|RwLock)\\b|\\bAtomic[A-Z][A-Za-z0-9]*\\b|static\\s+mut\\b|lazy_static!|thread::spawn|thread::sleep",
+      "message": "engine-session/analysis/app-core use actors and channels only (AGENTS.md)"
+    },
+    {
+      "paths": ["apps/desktop/src/"],
+      "pattern": "from\\s+['\"][^'\"]*(e2e/|/mocks?/|\\.mock['\"])",
+      "message": "production UI code must not import test or mock code"
+    }
+  ],
+  "tauri_command_dir": "apps/desktop/src-tauri/src/commands/",
+  "max_tauri_commands_per_file": 15
+}
