@@ -466,6 +466,30 @@
         "kind": "constructed",
         "description": "Original synthetic position constructed for P0-03; no real players or accounts."
       }
+    },
+    {
+      "file": "ff3-mixed-case-properties.sgf",
+      "actual_encoding": "UTF-8",
+      "coverage": [
+        "FF3-mixed-case",
+        "unknown-properties",
+        "variations"
+      ],
+      "provenance": {
+        "kind": "constructed",
+        "description": "Original synthetic P1-02 fixture with an independent hand-authored expected result; no real players or accounts."
+      }
+    },
+    {
+      "file": "unescaped-closing-bracket.sgf",
+      "actual_encoding": "UTF-8",
+      "coverage": [
+        "unescaped-closing-bracket"
+      ],
+      "provenance": {
+        "kind": "constructed",
+        "description": "Original synthetic P1-02 fixture with an independent hand-authored expected result; no real players or accounts."
+      }
     }
   ]
 }
