@@ -1,20 +1,20 @@
 # Java 版功能清单
 
-供两位维护者决定新版取舍；所有层级均为建议，审阅后由维护者将「建议层级」改成「层级」。本清单记录 Java 版的用户行为、入口和依赖，不要求迁移 Java 的线程、全局状态或界面结构。
+新版的功能取舍清单。维护者已于 2026-10-29 按建议确认全部层级；以后调整直接改本表，并在 PR 里说明理由。本清单记录 Java 版的用户行为、入口和依赖，不要求迁移 Java 的线程、全局状态或界面结构。
 
 ## 阅读口径
 
 - 参考仓库：只读 `../lizzieyzy-next`，提交 [`993e288f6b6dab71e0476a1b44ecf416cba71cf5`](https://github.com/wimi321/lizzieyzy-next/tree/993e288f6b6dab71e0476a1b44ecf416cba71cf5)。功能条目以该源码快照为准，下载统计为独立的在线时间快照。
 - 功能名优先取 `src/main/resources/l10n/DisplayStrings_zh_CN.properties`；菜单路径省去快捷键和装饰字符。名称后的反引号 ID 是 `FunctionCatalog.entries()` 的稳定标识；`extra.*` 是本清单补充项，不冒充搜索目录 ID。
 - Java 源码列中 `gui/`、`rules/`、`analysis/`、`update/` 等路径均相对参考仓库的 `src/main/java/featurecat/lizzie/`；`scripts/`、`src/main/resources/` 则相对参考仓库根目录。`Menu.java` 的叶子动作及 `FunctionSearchController.java` 的路由可配合定位实现。
-- **MVP**：新版 [ROADMAP](../ROADMAP.md) P2「复盘 MVP / 2.0 预览版」必须具备的能力，包含 P1 主线；不是另建一个早于 P2 的发布阶段。**P2**：建议同阶段按余量补充的细化体验，不作为最小预览版阻塞项。**P3**：按需求补齐，含路线图明确后置的能力。**候选砍掉**：需要维护者决定是否删除、合并或改为可选组件，当前不会据此删除任何功能。
+- **MVP**：新版 [ROADMAP](../ROADMAP.md) P2「复盘 MVP / 2.0 预览版」必须具备的能力，包含 P1 主线；不是另建一个早于 P2 的发布阶段。**P2**：建议同阶段按余量补充的细化体验，不作为最小预览版阻塞项。**P3**：按需求补齐，含路线图明确后置的能力。**砍掉**：新版不迁移；理由里写了替代方式的（例如改用系统浏览器打开、改为按需组件），按替代方式处理。
 - 依赖列描述 Java 行为所需的引擎、网络、平台或本地资源；「本地」不代表已在三平台运行验收。Java 的 GTP 调用只作行为参考，新版 MVP 依照架构使用 KataGo analysis JSON 协议；GTP 对局后端仍在 P3。
 - 同一能力的多个入口保留各自 ID，便于逐项定级；这些行数不是互不重复的产品能力数。动态引擎名称、最近文件、用户自定义快速启动程序不逐个实例计数。
 - 搜索目录共 358 条：`FunctionCatalog.java` 直接声明 282 条（215 个菜单、44 个工具栏、21 个棋盘右键、2 个窗口条目），另由 `ConfigSettingTargets.java` 展开 76 条；以下逐 ID 列出。GUI、格式兼容和发布分发补充项另列，菜单栏及 36 个窗口/面板文件的导航索引见文末。
 
 ## 复盘与分析
 
-| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 建议层级 | 理由（一句话） |
+| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 层级 | 理由（一句话） |
 | --- | --- | --- | --- | --- | --- |
 | 交换落子顺序（`toolbar.change-turn`） | 顶部工具栏 → 交换落子顺序 | `gui/Menu.java`；`rules/Board.java` | 无；本地棋谱 | MVP | 属于 P2 SGF 编辑、起始局面与变化树的基本操作。 |
 | 标记工具（`toolbar.markup-tools`） | 顶部工具栏 → 标记工具 | `gui/Menu.java`；`rules/Board.java` | 无；本地棋谱 | MVP | 属于 P2 SGF 编辑、起始局面与变化树的基本操作。 |
@@ -235,7 +235,7 @@
 
 ## 引擎与设置
 
-| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 建议层级 | 理由（一句话） |
+| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 层级 | 理由（一句话） |
 | --- | --- | --- | --- | --- | --- |
 | 更新官方权重（`weights.download`） | 设置 → 引擎一键设置 → 权重管理 → 官方权重 | `gui/KataGoAutoSetupDialog.java` | 网络；KataGo 模型下载服务 | MVP | 引擎向导、权重和兼容运行时组件属于 ROADMAP P2 分发要求。 |
 | 英伟达显卡提速组件（`engine.acceleration`） | 设置 → 引擎一键设置 → 英伟达显卡提速组件 | `gui/KataGoAutoSetupDialog.java` | 网络；KataGo / 模型；提速组件限受支持 NVIDIA 平台 | MVP | 引擎向导、权重和兼容运行时组件属于 ROADMAP P2 分发要求。 |
@@ -274,15 +274,15 @@
 | HumanSL 模型下载与导入（`extra.gui.humansl-assets`） | 一键设置 → 权重管理 → HumanSL 模型；AI 陪练准备页 | `gui/KataGoAutoSetupDialog.java`、`gui/NewHumanSlGameDialog.java` | 支持 HumanSL 的 KataGo、模型；下载网络 | P3 | 模型服务于路线图 P3 的陪练和棋力评估。 |
 | 性能优化测速、推理与搜索速度展示（`extra.gui.engine-benchmark`） | 一键设置 → 性能优化 | `gui/KataGoAutoSetupDialog.java`、`gui/B11SpeedNoticePanel.java` | 本地 KataGo、对应 GPU / CPU 后端 | P2 | 基础引擎能用后再补测速，避免以速度数字代替棋力选择。 |
 | 实测报告导入、应用场景参数与恢复原配置（`extra.gui.measured-tuning`） | 一键设置 → 性能优化 → 导入实测报告 / 恢复原配置 | `gui/MeasuredTuningDialog.java`、`gui/KataGoAutoSetupDialog.java`、`util/MeasuredKataGoTuning.java` | 本地 JSON 测量报告、匹配的 KataGo 条目 | P3 | 高级调优需要可核对的机器实测，优先级低于引擎向导。 |
-| 实验后端安装及 Apple Silicon 实验性能调优（`extra.gui.experimental-backends`） | 一键设置 → 加速组件 / 性能优化中的实验选项 | `gui/KataGoAutoSetupDialog.java` | 特定 GPU / NPU、系统驱动和运行时；组件下载网络 | 候选砍掉 | 保留按需组件的可能性，暂不为实验后端承担默认发行成本。 |
+| 实验后端安装及 Apple Silicon 实验性能调优（`extra.gui.experimental-backends`） | 一键设置 → 加速组件 / 性能优化中的实验选项 | `gui/KataGoAutoSetupDialog.java` | 特定 GPU / NPU、系统驱动和运行时；组件下载网络 | 砍掉 | 保留按需组件的可能性，暂不为实验后端承担默认发行成本。 |
 | 第三方 GTP 引擎的可视化棋力设置（`extra.gui.gtp-strength-config`） | 设置 → 引擎 → 支持该能力的条目 → 棋力设置 | `gui/GtpEngineConfigDialog.java`、`gui/MoreEngines.java` | 提供配置 schema 的 GTP 引擎；旧 SSH 不支持自动检测 | P3 | 依赖路线图 P3 的第三方 GTP 后端。 |
 | 引擎与权重目录、完整性和运行时兼容检查 `extra.engine.distribution` | 设置 → 引擎一键设置 → 安装引擎 / 权重 | `util/KataGoAssetCatalog.java`、`util/KataGoAutoSetupHelper.java`、`src/main/resources/katago-assets.json` | 发布源网络；SHA-256；CPU/GPU 后端及对应运行时 | MVP | ROADMAP P2 要求共用分发组件，下载并加载的资源必须可校验。 |
-| 多个实验 GPU 完整分发包 `extra.engine.experimental-packages` | 发布下载页选择 DirectML / OpenVINO / ROCm 变体 | `util/KataGoAssetCatalog.java`；`scripts/package_windows_exe.sh`、`scripts/package_katago_source_windows.py` | Windows；指定 GPU/NPU 架构、驱动与实验后端 | 候选砍掉 | 保留硬件支持的评估入口，但优先研究按需组件而非承诺维护每种完整包。 |
-| Leela Zero 专用分析适配 `extra.engine.leela-zero` | 设置 → 引擎 → 配置并选择 Leela Zero 命令 | `gui/MoreEngines.java`、`analysis/Leelaz.java` | Leela Zero 可执行文件与权重；GTP / lz-analyze 扩展 | 候选砍掉 | 路线图明确将 Leela Zero 专用适配列为候选取舍，不与 P3 通用 GTP 后端绑定保留。 |
+| 多个实验 GPU 完整分发包 `extra.engine.experimental-packages` | 发布下载页选择 DirectML / OpenVINO / ROCm 变体 | `util/KataGoAssetCatalog.java`；`scripts/package_windows_exe.sh`、`scripts/package_katago_source_windows.py` | Windows；指定 GPU/NPU 架构、驱动与实验后端 | 砍掉 | 保留硬件支持的评估入口，但优先研究按需组件而非承诺维护每种完整包。 |
+| Leela Zero 专用分析适配 `extra.engine.leela-zero` | 设置 → 引擎 → 配置并选择 Leela Zero 命令 | `gui/MoreEngines.java`、`analysis/Leelaz.java` | Leela Zero 可执行文件与权重；GTP / lz-analyze 扩展 | 砍掉 | 路线图明确将 Leela Zero 专用适配列为候选取舍，不与 P3 通用 GTP 后端绑定保留。 |
 
 ## 对局与训练
 
-| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 建议层级 | 理由（一句话） |
+| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 层级 | 理由（一句话） |
 | --- | --- | --- | --- | --- | --- |
 | 暂停当前对局（`toolbar.game-pause`） | 顶部工具栏 → 暂停 | `gui/Menu.java`；`gui/LizzieFrame.java` | 引擎 / 模型；Genmove 模式依 GTP | P3 | 人机对局及其用时控制明确属于 ROADMAP P3。 |
 | 结束对局（`toolbar.game-stop`） | 顶部工具栏 → 结束对局 | `gui/Menu.java`；`gui/LizzieFrame.java` | 引擎 / 模型；Genmove 模式依 GTP | P3 | 人机对局及其用时控制明确属于 ROADMAP P3。 |
@@ -317,7 +317,7 @@
 | AI 陪练（`game.ai-coach`） | AI 陪练 | `gui/Menu.java`；`gui/NewHumanSlGameDialog.java` | KataGo 与 HumanSL 模型 | P3 | HumanSL 陪练明确属于 ROADMAP P3。 |
 | 人机对局（分析模式）（`menu.newAnalyzeModeGame`） | 棋局 → 新对局 → 人机对局（分析模式） | `gui/Menu.java`；`gui/NewAnaGameDialog.java` | 引擎 / 模型；Genmove 模式依 GTP | P3 | 人机对局及其用时控制明确属于 ROADMAP P3。 |
 | 对局时后台计算（`config.advanced.ponder`） | 设置 → 综合设置 → 高级选项 → 对局时后台计算 | `gui/ConfigDialog2.java`；`gui/LizzieFrame.java` | 引擎 / 模型；Genmove 模式依 GTP | P3 | 人机对局及其用时控制明确属于 ROADMAP P3。 |
-| 五子棋无提子规则（`config.advanced.no-capture`） | 设置 → 综合设置 → 高级选项 → 五子棋无提子规则 | `gui/ConfigDialog2.java`；`rules/Board.java` | 无；本地棋盘规则 | 候选砍掉 | 五子棋规则偏离围棋复盘核心，需独立需求证明后再考虑。 |
+| 五子棋无提子规则（`config.advanced.no-capture`） | 设置 → 综合设置 → 高级选项 → 五子棋无提子规则 | `gui/ConfigDialog2.java`；`rules/Board.java` | 无；本地棋盘规则 | 砍掉 | 五子棋规则偏离围棋复盘核心，需独立需求证明后再考虑。 |
 | 人机对局计时、让子、续弈与自动保存（`extra.gui.human-game-options`） | 棋局 → 新对局 → Genmove / 分析模式对局 | `gui/NewGameDialog.java`、`gui/NewAnaGameDialog.java` | 支持对应模式的引擎；本地棋谱 | P3 | 人机对局属于 P3，连同计时和让子规则一起设计。 |
 | 引擎比赛批量局数、开局棋谱、认输和双边用时（`extra.gui.engine-match-options`） | 棋局 → 新对局 → 引擎对局；底部详细工具栏 | `gui/NewEngineGameDialog.java`、`gui/BottomToolbar.java` | 两个引擎；本地开局 SGF | P3 | 批量比赛依附 P3 引擎对局，不纳入复盘 MVP。 |
 | 对局中分引擎调整 WRN / PDA（`extra.gui.engine-game-parameters`） | 引擎对局工具条 → 对局参数；引擎对局控制菜单 | `gui/EngineGameParametersDialog.java`、`gui/EngineGameParameterControls.java` | 正在进行的引擎对局；后端需支持对应参数 | P3 | 只对引擎比赛有意义，随 P3 对局参数能力补齐。 |
@@ -328,13 +328,13 @@
 
 ## 在线与同步
 
-| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 建议层级 | 理由（一句话） |
+| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 层级 | 理由（一句话） |
 | --- | --- | --- | --- | --- | --- |
 | 强制结束试下（`sync.exit-web-trial`） | 底部工具栏 → 强制结束试下 | `gui/BottomToolbar.java`；`gui/web/WebBoardManager.java` | 本地 HTTP / WebSocket 服务；浏览器 / 局域网 | P3 | 网页棋盘与旁观试下明确属于 ROADMAP P3。 |
 | 打开在线链接（`files.url`） | 文件 → 打开在线链接 | `gui/Menu.java`；`gui/OnlineDialog.java` | 网络；受支持的棋谱 URL 服务 | P3 | 通用在线链接依各棋谱服务适配，MVP 先覆盖明确的野狐入口。 |
 | 弈客直播（`menu.yikeLive`） | 同步 → 弈客直播 | `gui/Menu.java`；`gui/YikeLiveDialog.java` | 网络；弈客服务 | P3 | 弈客及实时同步明确列入 ROADMAP P3。 |
-| 打开弈客网页版（`menu.yikeLiveWeb`） | 同步 → 打开弈客网页版 | `gui/Menu.java`；`gui/BrowserFrame.java` | 网络；弈客网页 / 浏览器 | 候选砍掉 | 内嵌网页增加浏览器维护面，可评估改为系统浏览器链接。 |
-| 弈客大厅（`menu.yikeRoom`） | 同步 → 弈客大厅 | `gui/Menu.java`、`gui/BrowserFrame.java`、`gui/OnlineDialog.java` | 网络；弈客网页；JCEF 原生运行时 | 候选砍掉 | 内嵌大厅依赖浏览器运行时，可评估改为外部浏览器并保留 P3 同步需求。 |
+| 打开弈客网页版（`menu.yikeLiveWeb`） | 同步 → 打开弈客网页版 | `gui/Menu.java`；`gui/BrowserFrame.java` | 网络；弈客网页 / 浏览器 | 砍掉 | 内嵌网页增加浏览器维护面，可评估改为系统浏览器链接。 |
+| 弈客大厅（`menu.yikeRoom`） | 同步 → 弈客大厅 | `gui/Menu.java`、`gui/BrowserFrame.java`、`gui/OnlineDialog.java` | 网络；弈客网页；JCEF 原生运行时 | 砍掉 | 内嵌大厅依赖浏览器运行时，可评估改为外部浏览器并保留 P3 同步需求。 |
 | 野狐棋谱(输入野狐昵称获取)（`menu.foxKifu`） | 同步 → 野狐棋谱(输入野狐昵称获取) | `gui/Menu.java`；`gui/FoxKifuDownload.java` | 网络；野狐棋谱接口 | MVP | 野狐昵称抓谱明确列入 ROADMAP P2。 |
 | 腾讯棋谱（`menu.tencentKifu`） | 同步 → 腾讯棋谱 | `gui/Menu.java`；`gui/TencentKifuDownload.java` | 网络；腾讯棋谱接口 | P3 | 腾讯棋谱服务不在 P2 已确认的野狐昵称抓谱范围。 |
 | 棋盘同步工具（`sync.board`） | 同步 → 棋盘同步工具 | `gui/Menu.java`；`analysis/ReadBoard.java` | Windows；readboard 本地组件 / 目标棋盘 | P3 | readboard 桥接明确属于 ROADMAP P3。 |
@@ -355,43 +355,43 @@
 | 智子用量、余额与流水明细（`extra.gui.remote-account`） | 远程算力 → 智子账号 → 用量明细 / 收支明细 | `gui/ZhiziAccountDetailsDialog.java`、`gui/RemoteComputeDialog.java` | 智子账号与网络 API | P3 | 服务账号信息随远程算力功能一起补齐。 |
 | 智子充值、VIP 购买及支付状态（`extra.gui.remote-payment`） | 远程算力 → 充值 / 开通 VIP | `gui/ZhiziVipPurchaseDialog.java`、`gui/RemoteComputeDialog.java` | 智子商品 / 订单服务、扫码支付网络 | P3 | 付费服务入口不属于本地复盘所需能力。 |
 | 弈客直播分类、筛选、翻页与当前对局同步（`extra.gui.yike-live-list`） | 同步 → 弈客直播；底部直播按钮 | `gui/YikeLiveDialog.java`、`gui/OnlineDialog.java` | 弈客网络 API / SGF；分析需 KataGo | P3 | 路线图把弈客集成明确安排在 P3。 |
-| 内嵌网页浏览器与弈客网页同步（`extra.gui.embedded-browser`） | 同步 → 弈客直播网页版 / 弈客大厅 | `gui/BrowserFrame.java`、`gui/OnlineDialog.java` | JCEF 原生运行时、远端网页；系统架构 | 候选砍掉 | 路线图允许降级内嵌浏览器，可优先保留外部浏览器或独立同步能力。 |
+| 内嵌网页浏览器与弈客网页同步（`extra.gui.embedded-browser`） | 同步 → 弈客直播网页版 / 弈客大厅 | `gui/BrowserFrame.java`、`gui/OnlineDialog.java` | JCEF 原生运行时、远端网页；系统架构 | 砍掉 | 路线图允许降级内嵌浏览器，可优先保留外部浏览器或独立同步能力。 |
 | 野狐 AI 直连 `extra.sync.fox-direct` | 同步 → 野狐 AI 直连 | `gui/Menu.java`、`fox/FoxLiveSession.java`、`fox/FoxConnection.java`、`analysis/FoxEngineSession.java` | 127.0.0.1 TCP 桥接客户端、对局引擎及外部野狐服务 | P3 | 这是实时对局桥接，区别于 P2 的野狐昵称抓谱，应随对局与同步评估。 |
 
 ## 工具
 
-| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 建议层级 | 理由（一句话） |
+| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 层级 | 理由（一句话） |
 | --- | --- | --- | --- | --- | --- |
 | 自由涂鸦（`toolbar.painting`） | 顶部工具栏 → 自由涂鸦 | `gui/Menu.java` | 桌面绘图 | P3 | 自由涂鸦是讲棋辅助，MVP 先支持标准 SGF 标记。 |
-| 详细工具栏：自动分析设置（`legacy.auto-analysis`） | 底部工具栏 → 详细工具栏：自动分析设置（旧详细工具栏限中文） | `gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 候选砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
-| 详细工具栏：开始或停止自动分析（`legacy.auto-analysis-start`） | 底部工具栏 → 详细工具栏：开始或停止自动分析（旧详细工具栏限中文） | `gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 候选砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
-| 详细工具栏：自动落子设置（`legacy.auto-play`） | 底部工具栏 → 详细工具栏：自动落子设置（旧详细工具栏限中文） | `gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 候选砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
-| 自动播放(大)(秒)（`legacy.auto-main`） | 底部工具栏 → 自动播放(大)(秒)（旧详细工具栏限中文） | `gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 候选砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
-| 自动变化图(毫秒)（`legacy.auto-sub`） | 底部工具栏 → 自动变化图(毫秒)（旧详细工具栏限中文） | `gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 候选砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
+| 详细工具栏：自动分析设置（`legacy.auto-analysis`） | 底部工具栏 → 详细工具栏：自动分析设置（旧详细工具栏限中文） | `gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
+| 详细工具栏：开始或停止自动分析（`legacy.auto-analysis-start`） | 底部工具栏 → 详细工具栏：开始或停止自动分析（旧详细工具栏限中文） | `gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
+| 详细工具栏：自动落子设置（`legacy.auto-play`） | 底部工具栏 → 详细工具栏：自动落子设置（旧详细工具栏限中文） | `gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
+| 自动播放(大)(秒)（`legacy.auto-main`） | 底部工具栏 → 自动播放(大)(秒)（旧详细工具栏限中文） | `gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
+| 自动变化图(毫秒)（`legacy.auto-sub`） | 底部工具栏 → 自动变化图(毫秒)（旧详细工具栏限中文） | `gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
 | 保存主棋盘截图（`menu.saveMainBoardScreen`） | 文件 → 更多保存 → 保存主棋盘截图 | `gui/Menu.java`；`gui/LizzieFrame.java` | 文件系统 / 系统剪贴板；桌面渲染 | P2 | 图片分享提升复盘结果传播，优先级低于棋谱和分析数据保存。 |
 | 保存小棋盘截图（`menu.saveSubBoardScreen`） | 文件 → 更多保存 → 保存小棋盘截图 | `gui/Menu.java`；`gui/LizzieFrame.java` | 文件系统 / 系统剪贴板；桌面渲染 | P2 | 图片分享提升复盘结果传播，优先级低于棋谱和分析数据保存。 |
 | 保存胜率图截图（`menu.saveWinrate`） | 文件 → 更多保存 → 保存胜率图截图 | `gui/Menu.java`；`gui/LizzieFrame.java` | 文件系统 / 系统剪贴板；桌面渲染 | P2 | 图片分享提升复盘结果传播，优先级低于棋谱和分析数据保存。 |
 | 复制主棋盘到剪贴板（`menu.copyBoardScreen`） | 文件 → 复制主棋盘到剪贴板 | `gui/Menu.java`；`gui/LizzieFrame.java` | 文件系统 / 系统剪贴板；桌面渲染 | P2 | 图片分享提升复盘结果传播，优先级低于棋谱和分析数据保存。 |
 | 复制小棋盘到剪贴板（`menu.copySubBoardScreen`） | 文件 → 复制小棋盘到剪贴板 | `gui/Menu.java`；`gui/LizzieFrame.java` | 文件系统 / 系统剪贴板；桌面渲染 | P2 | 图片分享提升复盘结果传播，优先级低于棋谱和分析数据保存。 |
 | 快速启动外部程序（`tools.quick-start`） | 快速启动 → 已配置的程序；快速启动 → 设置 | `gui/Menu.java`、`gui/OtherPrograms.java`、`analysis/FastLink.java` | 用户配置的外部可执行程序及操作系统；是否联网由目标程序决定 | P2 | 外部程序启动是可选工具，可在基础复盘稳定后补充。 |
-| 详细工具栏（中文界面）（`toolbar.detailed`） | 显示 → 工具栏 → 底部工具栏 → 详细工具栏（中文界面） | `gui/Menu.java`；`gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 候选砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
+| 详细工具栏（中文界面）（`toolbar.detailed`） | 显示 → 工具栏 → 底部工具栏 → 详细工具栏（中文界面） | `gui/Menu.java`；`gui/BottomToolbar.java` | 依对应分析 / 自动播放功能；旧入口限中文 | 砍掉 | 保留对应分析能力，合并中文专属旧工具栏重复入口以降低维护成本。 |
 | 显示快速启动（`config.display.quick-links`） | 设置 → 综合设置 → 棋盘与显示 → 显示快速启动 | `gui/ConfigDialog2.java`、`gui/Menu.java`、`analysis/FastLink.java` | 桌面 UI；实际启动需用户配置的外部程序 | P2 | 外部程序启动菜单的显示偏好随该可选工具提供。 |
 | 离线功能搜索、分类浏览与设置定位（`extra.gui.function-search`） | 顶部搜索按钮；Ctrl+K，macOS Command+K | `gui/FunctionSearchDialog.java`、`search/FunctionCatalog.java`、`search/FunctionSearch.java` | 本地多语言词库；目标功能另有依赖 | P2 | 基本导航完成后，用离线搜索降低大型设置界面的查找成本。 |
 | 工具栏自动换行、底栏更多动作及详细栏展开（`extra.gui.toolbar-overflow`） | 顶部工具栏；底部「更多」及详细栏按钮 | `gui/TopHeaderPanel.java`、`gui/BottomToolbar.java`、`gui/Menu.java` | 桌面窗口空间；无网络 | P2 | 保留窄窗口入口可达性，具体布局交由新版 UI 设计。 |
 
 ## 系统与发布
 
-| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 建议层级 | 理由（一句话） |
+| 功能（中文名） | 用户入口 | Java 主要源码 | 外部依赖（引擎 / 网络 / 平台） | 层级 | 理由（一句话） |
 | --- | --- | --- | --- | --- | --- |
-| 强制退出（`menu.forceExit`） | 文件 → 强制退出 | `gui/Menu.java` | 操作系统进程 | 候选砍掉 | 强制退出是旧运行时的逃生入口，新版先依明确的关闭与恢复协议处理。 |
+| 强制退出（`menu.forceExit`） | 文件 → 强制退出 | `gui/Menu.java` | 操作系统进程 | 砍掉 | 强制退出是旧运行时的逃生入口，新版先依明确的关闭与恢复协议处理。 |
 | 退出（`menu.exit`） | 文件 → 退出 | `gui/Menu.java` | 桌面运行环境 | MVP | 正常退出与版本信息是桌面发布的基本能力。 |
 | 主棋盘/界面位置（`menu.mainBoardPos`） | 显示 → 主棋盘/界面位置 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
-| 棋盘样式（`menu.boardStyleMenu`） | 显示 → 外观主题 → 棋盘样式 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 候选砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
+| 棋盘样式（`menu.boardStyleMenu`） | 显示 → 外观主题 → 棋盘样式 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
 | 重置界面位置（`menu.deletePersistFile`） | 显示 → 重置界面位置 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
-| Apple 风格 UI（`menu.toggleAppleStyle`） | 显示 → 外观主题 → Apple 风格 UI | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 候选砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
-| 经典配色（原版 lizzieyzy）（`menu.toggleClassicColors`） | 显示 → 外观主题 → 经典配色（原版 lizzieyzy） | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 候选砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
-| 设置自定义棋盘背景...（`menu.setCustomBoard`） | 显示 → 外观主题 → 设置自定义棋盘背景... | `gui/Menu.java`；`gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 候选砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
-| 恢复默认棋盘背景（`menu.clearCustomBoard`） | 显示 → 外观主题 → 恢复默认棋盘背景 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 候选砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
+| Apple 风格 UI（`menu.toggleAppleStyle`） | 显示 → 外观主题 → Apple 风格 UI | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
+| 经典配色（原版 lizzieyzy）（`menu.toggleClassicColors`） | 显示 → 外观主题 → 经典配色（原版 lizzieyzy） | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
+| 设置自定义棋盘背景...（`menu.setCustomBoard`） | 显示 → 外观主题 → 设置自定义棋盘背景... | `gui/Menu.java`；`gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
+| 恢复默认棋盘背景（`menu.clearCustomBoard`） | 显示 → 外观主题 → 恢复默认棋盘背景 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
 | 放大小棋盘（`menu.largeSubBoard`） | 显示 → 主界面设置 → 放大小棋盘 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
 | 放大胜率图（`menu.largeWinrateGraph`） | 显示 → 主界面设置 → 放大胜率图 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
 | 总在最前（`menu.alwaysOnTop`） | 显示 → 主界面设置 → 总在最前 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
@@ -417,28 +417,28 @@
 | 检查更新（`menu.checkUpdate`） | 帮助 → 检查更新 | `gui/Menu.java` | 网络；发布服务 / 平台安装权限 | MVP | 自动更新与签名验证是 ROADMAP P2 发布闭环的一部分。 |
 | 清除所有个人数据（实际清除四类历史）（`menu.clearUserData`） | 帮助 → 清除所有个人数据 | `gui/Menu.java` | 本地配置中的野狐搜索、最近文件、批量分析及分享历史 | P2 | Java 此入口只清除四类历史记录，新版应明确清除范围而不沿用过宽名称。 |
 | 初始化设置（`menu.initSettings`） | 设置 → 初始化设置 | `gui/Menu.java` | 本地配置与数据文件 | P2 | 数据清除与恢复默认需明确范围，可在独立配置目录建立后补齐。 |
-| 主题（`menu.theme`） | 设置 → 主题 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 候选砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
+| 主题（`menu.theme`） | 设置 → 主题 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
 | 语言（`menu.language`） | 设置 → 语言 | `gui/Menu.java` | 本地翻译资源 | MVP | P2 明确要求中英文全界面；其余 Java 语言不自动进入 MVP。 |
 | 界面字体大小（`menu.frameFontSize`） | 设置 → 界面字体大小 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 系统字体 / DPI | P2 | 字体可读性设置有助于不同屏幕，默认可用字号先随 MVP 交付。 |
-| 界面外观（`menu.frameLooks`） | 设置 → 界面外观 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 候选砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
+| 界面外观（`menu.frameLooks`） | 设置 → 界面外观 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
 | 播放落子声（`menu.playSound`） | 设置 → 播放落子声 | `gui/Menu.java` | 系统音频输出 | P2 | 落子声为可选反馈，基础复盘流程无需音频即可完成。 |
 | 自定义布局 1（`menu.custom-layout-1`） | 显示 → 自定义布局 1 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
 | 自定义布局 2（`menu.custom-layout-2`） | 显示 → 自定义布局 2 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
 | 窗口总在最前（`config.display.always-on-top`） | 设置 → 综合设置 → 棋盘与显示 → 窗口总在最前 | `gui/ConfigDialog2.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
 | 显示状态面板（`config.display.status`） | 设置 → 综合设置 → 棋盘与显示 → 显示状态面板 | `gui/ConfigDialog2.java`；`gui/LizzieFrame.java` | 本地棋局 / 引擎状态 | MVP | 棋局与引擎状态可见性直接支撑 P1 可用性和故障定位。 |
-| 当前主题（`config.theme.current`） | 设置 → 综合设置 → 主题外观 → 当前主题 | `gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 候选砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
-| 棋子阴影大小（`config.theme.shadow`） | 设置 → 综合设置 → 主题外观 → 棋子阴影大小 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 候选砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
+| 当前主题（`config.theme.current`） | 设置 → 综合设置 → 主题外观 → 当前主题 | `gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
+| 棋子阴影大小（`config.theme.shadow`） | 设置 → 综合设置 → 主题外观 → 棋子阴影大小 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
 | 计算量及其他字体（`config.theme.info-font`） | 设置 → 综合设置 → 主题外观 → 计算量及其他字体 | `gui/ConfigDialog2.java` | 系统字体 / DPI | P2 | 字体可读性设置有助于不同屏幕，默认可用字号先随 MVP 交付。 |
 | UI 字体（`config.theme.ui-font`） | 设置 → 综合设置 → 主题外观 → UI 字体 | `gui/ConfigDialog2.java` | 系统字体 / DPI | P2 | 字体可读性设置有助于不同屏幕，默认可用字号先随 MVP 交付。 |
 | 胜率目数字体（`config.theme.winrate-font`） | 设置 → 综合设置 → 主题外观 → 胜率目数字体 | `gui/ConfigDialog2.java` | 系统字体 / DPI | P2 | 字体可读性设置有助于不同屏幕，默认可用字号先随 MVP 交付。 |
-| 背景图片（`config.theme.background-image`） | 设置 → 综合设置 → 主题外观 → 背景图片 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 候选砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
-| 棋盘图片（`config.theme.board-image`） | 设置 → 综合设置 → 主题外观 → 棋盘图片 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 候选砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
-| 黑子图片（`config.theme.black-stone-image`） | 设置 → 综合设置 → 主题外观 → 黑子图片 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 候选砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
-| 白子图片（`config.theme.white-stone-image`） | 设置 → 综合设置 → 主题外观 → 白子图片 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 候选砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
-| 面板背景模糊程度（`config.theme.background-blur`） | 设置 → 综合设置 → 主题外观 → 面板背景模糊程度 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 候选砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
+| 背景图片（`config.theme.background-image`） | 设置 → 综合设置 → 主题外观 → 背景图片 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
+| 棋盘图片（`config.theme.board-image`） | 设置 → 综合设置 → 主题外观 → 棋盘图片 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
+| 黑子图片（`config.theme.black-stone-image`） | 设置 → 综合设置 → 主题外观 → 黑子图片 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
+| 白子图片（`config.theme.white-stone-image`） | 设置 → 综合设置 → 主题外观 → 白子图片 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
+| 面板背景模糊程度（`config.theme.background-blur`） | 设置 → 综合设置 → 主题外观 → 面板背景模糊程度 | `gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
 | 评论字体大小（`config.theme.comment-font-size`） | 设置 → 综合设置 → 主题外观 → 评论字体大小 | `gui/ConfigDialog2.java` | 系统字体 / DPI | P2 | 字体可读性设置有助于不同屏幕，默认可用字号先随 MVP 交付。 |
 | 日志模块开关、限时全量跟踪与诊断包导出（`extra.gui.diagnostics-controls`） | 帮助 → 诊断与日志 | `gui/DiagnosticsDialog.java` | 本地日志；readboard 辅助诊断需相应平台工具 | MVP | P2 明确要求诊断包；同步专用日志部分随 P3 同步功能再补。 |
-| 旧同步诊断摘要窗口（`extra.gui.legacy-sync-diagnostics`） | 未发现生产代码创建入口；仅保留对话框类 | `gui/SyncDiagnosticsDialog.java` | readboard / 弈客诊断状态；本地导出 | 候选砍掉 | 不将未接入的旧窗口视为已可用入口，优先评估与统一诊断合并。 |
+| 旧同步诊断摘要窗口（`extra.gui.legacy-sync-diagnostics`） | 未发现生产代码创建入口；仅保留对话框类 | `gui/SyncDiagnosticsDialog.java` | readboard / 弈客诊断状态；本地导出 | 砍掉 | 不将未接入的旧窗口视为已可用入口，优先评估与统一诊断合并。 |
 | Windows 安装器及便携版、macOS DMG、Linux 分发包 `extra.release.platforms` | 官网 / GitHub Releases 下载并安装或解压 | `Lizzie.java`、`logging/WorkDirectoryResolver.java`；`scripts/package_windows_exe.sh`、`scripts/package_macos_dmg.sh`、`scripts/package_release.sh` | Windows / macOS / Linux；Java 旧包携带 Java runtime | MVP | P1 要三平台可打包，P2 公开预览版仍需清楚的安装入口但不照搬 JVM 包体。 |
 | macOS 发布签名与公证 `extra.release.signing` | 下载 DMG 后从 Finder 安装启动 | `scripts/sign_macos_release.sh`、`scripts/package_macos_dmg.sh`（发布层，无对应 Java 业务类） | macOS；官方流程需 Apple 签名及公证服务，本地无凭据构建可跳过 | MVP | ROADMAP P2 明确要求签名，正常安装链路需可信分发。 |
 | 签名清单、断点续传与下载哈希校验 `extra.update.integrity` | 帮助 → 检查更新 → 下载、暂停、继续 | `update/SignedUpdateEnvelope.java`、`update/ResumableDownloader.java` | 更新源网络；Ed25519 与 SHA-256 | MVP | 自动更新属于 P2 必需能力，执行下载内容前须校验其来源和完整性。 |
@@ -465,9 +465,9 @@
 | P2 设置与 Java 配置导入 | `settings.general`、`extra.system.user-data` | MVP 保留基本设置；Java→新版显式导入是新增需求，旧版目录迁移仅作来源参考。 |
 | P2 诊断包、自动更新与签名 | `menu.diagnosticsAndLogs`、`menu.checkUpdate`、`extra.update.*`、`extra.release.signing` | MVP；后台偏好和额外更新通道可 P2 后补，macOS / Linux 的 Java 更新流程不能误称为自动替换应用。 |
 | P3 GTP 对局、HumanSL、readboard、远程算力、弈客、棋力评估、AI 解说、死活题、网页棋盘 | 相应「对局与训练」「在线与同步」「工具」功能行 | P3；旧版现成不意味着新版提前实现。 |
-| 候选砍掉：Leela Zero 专用适配、历史主题、内嵌浏览器、低下载量 GPU 变体 | 相应引擎、主题、浏览器及 `extra.engine.experimental-packages` 行 | 仅供维护者取舍；下载次数不能单独证明某硬件用户不需要支持。 |
+| 砍掉：Leela Zero 专用适配、历史主题、内嵌浏览器、低下载量 GPU 变体 | 相应引擎、主题、浏览器及 `extra.engine.experimental-packages` 行 | 仅供维护者取舍；下载次数不能单独证明某硬件用户不需要支持。 |
 
-「建议层级」是供审阅的产品建议，既不替代下一阶段任务卡，也不表示新版已有实现。保留某设置的基本效果不必保留旧版的同名开关；尤其所有分析值仍须遵守新版固定黑方视角。
+「层级」是产品取舍，既不替代下一阶段任务卡，也不表示新版已有实现。保留某设置的基本效果不必保留旧版的同名开关；尤其所有分析值仍须遵守新版固定黑方视角。
 
 ## 顶层入口索引
 
