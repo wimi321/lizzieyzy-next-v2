@@ -74,7 +74,7 @@ katago-protocol ← fake-katago（engine-session / analysis / app-core / desktop
 
 - 请求 `AnalysisQuery`：`id`、`moves`、`initialStones`、`initialPlayer`、`rules`、`komi`、`boardXSize`、`boardYSize`、`analyzeTurns`、`maxVisits`、`includeOwnership`、`includePolicy`、`reportDuringSearchEvery`、`priority`、`overrideSettings`（serde 字段名与 KataGo 一致）。
 - 动作：`terminate`（`terminateId`）、`terminate_all`、`query_version`。
-- 响应 `AnalysisResponse`：`id`、`turnNumber`、`isDuringSearch`、`moveInfos`、`rootInfo`、`ownership`、`policy`；错误行（`error`、`id`、`field`）和警告行解析成各自的类型。
+- 响应 `AnalysisResponse`：`id`、`turnNumber`、`isDuringSearch`、`moveInfos`、`rootInfo`、`ownership`、`policy`；错误行（`error`、`id`、`field`）和警告行解析成各自的类型。排队中被取消的查询会返回 `noResults: true`，没有 `rootInfo` 和 `moveInfos`。
 - `parse_line(&str) -> Result<EngineLine, ProtocolError>`：一行一个 JSON；不认识的字段忽略；坏行返回错误，不 panic。
 - 以 KataGo 官方文档（KataGo 仓库 `docs/Analysis_Engine.md`）和 `fixtures/katago/` 的真实录制为准；本文与录制不一致时以录制为准，并更新本文。
 
@@ -104,7 +104,11 @@ pub enum EngineStatus {
 - 重启：指数退避，有次数上限。明显的配置错误（模型或配置文件不存在、启动即退出）直接 Failed，带 stderr 最后 200 行。重启后把进行中的请求用新 id 重发，订阅者收到一次 `Restarted` 后继续收结果。
 - 背压：订阅者跟不上时只保留最新一个 Partial；Final / Failed 永不丢。
 - 坏行：记录并计数，不崩溃；连续坏行超过阈值视为协议故障，触发重启。
-- terminate 之后 KataGo 仍可能为该 id 返回结果，由会话吞掉，订阅者只收到一次 `Terminated`。
+- terminate 的真实行为见 `fixtures/katago/terminate-*.jsonl`：
+  - 搜索中取消：先收到确认，再收到该查询的最终结果（`isDuringSearch:false`，带已有的 visits）；
+  - 排队中取消：先收到 `{id, turnNumber, isDuringSearch:false, noResults:true}`，之后才收到确认。
+
+  所以不能假设确认先到，也不能假设一定有 `moveInfos`。会话吞掉被取消查询的所有后续输出，订阅者只收到一次 `Terminated`。
 
 ### 4.6 analysis（协调器）
 

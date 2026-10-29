@@ -16,6 +16,9 @@ paths:
 
 - `GameDocument`：arena 树，`NodeId(u32)` 不复用，包含 `root`、`current`、`revision: u64`。
 - SGF 语义：`SZ`、`KM`、`RU`（经 go-core 预设映射；不认识的规则保留原文，使用默认规则）、`HA`、`AB/AW/AE`（任意节点）、`B/W`、`PL`、`C`。
+- 贴目换算与 Java 版一致，参照 `../lizzieyzy-next/src/main/java/featurecat/lizzie/rules/SGFParser.java` 的 `normalizeFoxSgfKomi`、`normalizeLegacySgfKomi`，野狐棋谱按它的 `isFoxSgf` 判定：
+  - 野狐棋谱：|KM| ≥ 50 时除以 100；中国规则下，结果在 ±4 以内再乘 2。`fixtures/sgf/fox-export-shape-synthetic.sgf` 的 `KM[375]` 必须得到 7.5。
+  - 其他棋谱：KM ≥ 200 时除以 100，结果在 ±4 以内再乘 2；以 .25 或 .75 结尾的贴目也乘 2。
 - 回放规则：
   - SGF 里记录的着手照常提子，但不判劫（`play_unchecked_ko`）。
   - 下在已有子处的节点标记为非法，它之后的局面返回带原因的错误。
@@ -38,3 +41,4 @@ paths:
    - 同一局面来自不同文档时 key 相同；贴目、规则、着手顺序不同时 key 不同。
    - 用硬编码的测试向量保证 key 不会悄悄变化。
 4. `to_sgf(from_sgf(x))` 保留未知属性和 `LZ`。
+5. 贴目换算的每条规则都有测试，覆盖野狐和其他棋谱两类。

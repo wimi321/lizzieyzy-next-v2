@@ -44,7 +44,7 @@
 
 ## P2 待细化（P1 验收后写卡）
 
-整盘分析（`analyzeTurns` + `priority`）与失误列表；SGF 编辑与变化树面板；SQLite 分析缓存；KataGo 分发组件（与 Java 版共用：构建、`katago-assets.json`、SHA-256、运行时兼容规则）；引擎向导与权重下载；野狐昵称抓谱；`LZ` 属性读写与 GIB 导入；中英文全界面；设置与 Java 配置导入；诊断包；自动更新与签名。
+整盘分析（`analyzeTurns` + `priority`）与失误列表；SGF 编辑与变化树面板；SQLite 分析缓存；KataGo 分发组件（与 Java 版共用：构建、`katago-assets.json`、SHA-256、运行时兼容规则）；引擎向导与权重下载；野狐昵称抓谱，同时补上真实的野狐、弈客棋谱样本（P0-03 遗留）；`LZ` 属性读写与 GIB 导入；中英文全界面；设置与 Java 配置导入；诊断包；自动更新与签名。
 
 ## P3 候选（按用户需求排序）
 
