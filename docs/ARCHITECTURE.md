@@ -87,11 +87,13 @@ katago-protocol ← fake-katago（engine-session / analysis / app-core / desktop
 
 ### 4.4 katago-protocol
 
-- 请求 `AnalysisQuery`：`id`、`moves`、`initialStones`、`initialPlayer`、`rules`、`komi`、`boardXSize`、`boardYSize`、`analyzeTurns`、`maxVisits`、`includeOwnership`、`includePolicy`、`reportDuringSearchEvery`、`priority`、`overrideSettings`（serde 字段名与 KataGo 一致）。
-- 动作：`terminate`（`terminateId`）、`terminate_all`、`query_version`。
-- 响应 `AnalysisResponse`：`id`、`turnNumber`、`isDuringSearch`、`moveInfos`、`rootInfo`、`ownership`、`policy`；错误行（`error`、`id`、`field`）和警告行解析成各自的类型。排队中被取消的查询会返回 `noResults: true`，没有 `rootInfo` 和 `moveInfos`。
-- `parse_line(&str) -> Result<EngineLine, ProtocolError>`：一行一个 JSON；不认识的字段忽略；坏行返回错误，不 panic。
-- 以 KataGo 官方文档（KataGo 仓库 `docs/Analysis_Engine.md`）和 `fixtures/katago/` 的真实录制为准；本文与录制不一致时以录制为准，并更新本文。
+- 请求 `AnalysisQuery`：`id`、`moves`、`initialStones`、`initialPlayer`、`rules`、`komi`、`boardXSize`、`boardYSize`、`analyzeTurns`、`maxVisits`、`includeOwnership`、`includePolicy`、`reportDuringSearchEvery`、`firstReportDuringSearchAfter`、`priority`、`priorities`、`overrideSettings`（serde 字段名与 KataGo 一致）。`priorities` 与 `analyzeTurns` 一一对应，录制中按优先级依次返回第 1、2、3、4、0 手。
+- `rules` 接受规则名或自定义 JSON 对象；着手为 `(Player, String)`，坐标和合法性留给引擎判断。可选字段用 `Option` 保留是否提供的区别；请求的未知扩展字段保留，以便语义完整地重放录制。
+- `Request` 区分 `Analysis` 和 `Action`；动作包含独立的 `id`：`terminate`（另含 `terminateId`）、`terminate_all`、`query_version`。动作确认由 `ActionResponse` 表达；版本回复还含 `version` 和 `git_hash`（下划线拼写）。
+- 响应 `AnalysisResponse`：`id`、`turnNumber`、`isDuringSearch`、`moveInfos`、`rootInfo`、可选的 `ownership`、`policy`。候选点与根节点保留录制中的统计字段；所有数值原样读取，黑方视角由引擎配置保证。
+- `EngineLine` 分别表示分析结果、`NoResults`、错误、警告、动作确认。错误行允许只有 `error`，`id` 和 `field` 可选；警告同理。排队中被取消的查询以独立的 `NoResultsResponse` 表达：`noResults: true`、`isDuringSearch: false`，没有 `rootInfo` 和 `moveInfos`，不能当成零 visits 的分析结果。
+- `parse_line(&str) -> Result<EngineLine, ProtocolError>`：一行一个 JSON；响应中不认识的字段忽略；坏行或缺失必要字段返回类型化错误，不 panic。
+- 以 [KataGo 官方协议文档](https://github.com/lightvector/KataGo/blob/master/docs/Analysis_Engine.md) 和 `fixtures/katago/` 的真实录制为准；本文与录制不一致时以录制为准，并更新本文。
 
 ### 4.5 engine-session
 
@@ -174,6 +176,19 @@ UI  ◀──Channel──    重绘候选点
 | 前端逻辑 | Vitest | 坐标换算、颜色映射、store |
 | 界面 | Playwright + mock 后端 | 交互、截图基线、主线程无长任务 |
 | 全栈 | tauri-driver（Linux / Windows CI）+ fake-katago | 主流程 |
+
+### fake-katago 测试进程约定
+
+- 启动形状为 `fake-katago analysis -config FILE -model FILE`；只接受路径参数，不读取模型或配置，也不调用真实 KataGo。输出明确标识版本为 `1.16.5-fake`。
+- 单个调度器管理排队与运行中的搜索；`--threads` 指定并发位置数（默认 1）。优先级高的先开始，相同优先级按输入顺序；已开始的搜索不会被抢占。stdin 关闭后排空正常搜索再退出。
+- 同一请求的 `analyzeTurns` 按手数去重、递增入队，重复手数采用最后一个对应优先级；`priority` 与 `priorities` 不得同时提供。只有 `firstReportDuringSearchAfter` 时仍输出一次首次中间报告。未指定初始玩家且无历史时，超过一颗初始黑子、没有白子则默认轮白，其余默认轮黑。
+- 候选点及评估由棋盘尺寸、初始摆子、着手序列和手数的固定哈希生成，与请求 id 无关。默认 `maxVisits=100`、`--visits-per-sec=1000`；visits 随模拟时间增长，最终结果达到上限，取消则保留已有 visits。评估和 ownership 均固定黑方视角。
+- `--time-scale` 表示每个真实秒经过多少模拟秒（默认 1，2 表示两倍速）；搜索、报告间隔、`--startup-delay-ms` 和 `--crash-after-ms` 都使用模拟时间。启动与定时崩溃从进程调度器初始化开始计时。
+- `--crash-after-queries N` / `--hang-after-queries N` 在接受第 N 个有效分析请求时触发，动作不计数，0 表示启动即触发。崩溃退出码为 1；挂起后连版本回复、取消确认也不再输出，直到进程被终止或定时崩溃触发。
+- `--fail-startup` 立即向 stderr 写入“模型找不到”并以退出码 1 退出；`--garbage-every N` 在每 N 条正常 stdout 协议行后额外插入一行坏数据，故意用于测试会话的坏行处理。
+- 取消顺序遵循录制：排队结果先 `noResults`，然后动作确认，最后是运行中查询的最终结果；`terminate_all` 同时取消所有排队与运行中的位置。
+- 假引擎检查坐标、已有棋子、提子、自杀和简单劫；不作为完整规则裁判，不模拟超级劫、真实搜索、模型设置或对称剪枝。录制对照比较公共字段与状态顺序；重复中间采样数量和条件性 `isSymmetryOf` 不要求与 GPU 搜索逐项相同。
+- 测试库函数 `fake_katago::binary_path() -> Result<PathBuf, BinaryPathError>` 首次调用执行 `cargo build -p fake-katago --bin fake-katago --locked`，从 Cargo JSON 消息取得可执行文件路径，尊重目标目录及平台后缀；后续复用仍存在的路径。仅供运行时测试调用，不用于构建脚本或产品代码。
 
 ## 8. 与 Java 版的兼容
 
