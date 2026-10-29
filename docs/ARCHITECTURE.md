@@ -72,10 +72,12 @@ katago-protocol ← fake-katago（engine-session / analysis / app-core / desktop
 
 ### 4.2 sgf
 
-- `parse(bytes: &[u8]) -> Result<Collection, SgfError>`：输入是字节，内部识别编码（BOM → 合法 UTF-8 → `CA` → GB18030 兜底）；宽松模式能恢复的错误记入 `warnings`。
-- 未知属性原样保留（包括 Java 版的 `LZ` 分析属性），序列化时写回。
-- `serialize(&Collection) -> String`：输出 UTF-8，根节点写 `CA[UTF-8]`。
-- 只保存属性的原始文本；坐标、贴目、规则的语义解析放在 document 层。
+- `parse(bytes: &[u8]) -> Result<Collection, SgfError>`：`Collection { games: Vec<GameTree>, encoding: String, warnings: Vec<Warning> }`。`GameTree { sequence: Vec<Node>, children: Vec<GameTree> }` 保留 SGF 的非空节点序列和有序变化；`Node { properties: Vec<Property> }`、`Property { identifier: String, values: Vec<String> }` 保留属性顺序、重复属性及非空值列表（值可以为空字符串）。
+- 编码顺序为 BOM → 合法 UTF-8 → 第一盘根节点的 `CA` → GB18030 兜底。支持 UTF-8 / UTF-16LE / UTF-16BE BOM；有 BOM 的损坏内容直接报错。`CA` 通过 `encoding_rs` 支持 GBK / GB18030、Big5、Shift_JIS、EUC-KR 等明确声明；不进行统计猜测。解码不插入替代字符；声明未知或与实际采用的解码器不一致记 warning。`encoding` 记录所用解码器，带 BOM 时加 `-BOM` 后缀；未声明的 GBK 字节无法与 GB18030 子集区分，统一报告 `GB18030`。整个 collection 使用同一个字节编码。
+- 宽松恢复：全小写属性名转大写，FF3 混合大小写长名仅保留大写字母；重复属性保留为独立条目。EOF 缺少树的右括号时补齐。未转义的 `]` 仅在后面不是合法 SGF 边界、且下一个未转义 `]` 位于 `;` / `(` / `)` 之前时作为文本恢复；有歧义时优先采用合法 SGF 结构，不跨节点猜测。每个恢复点记录 `Warning { position, kind }`。
+- `SgfError { position, kind }` 是带位置的类型化错误。位置是零起算字节偏移：语法错误和 warning 相对于去 BOM 后的 UTF-8 解码文本，解码错误相对于原始输入。缺失属性值、未闭合值、无节点的树、变化后继续同一序列等不可恢复语法返回错误。变化树最多嵌套 256 层（根为第 1 层），超限返回错误；普通着手序列扁平存储，解析和序列化使用显式栈。
+- 属性值仅做 SGF 反转义：反斜杠续行删除，CR / CRLF / LFCR 统一为 LF，其余空白及文本保留；不按 Text / SimpleText 类型裁剪。未知属性（包括 Java 版的 `LZ` 分析属性）同样保留。坐标、贴目、规则的语义解析放在 document 层。
+- `serialize(&Collection) -> String`：对合法构造的树输出 UTF-8，正确转义 `]` 和 `\`，换行统一为 LF；不修改传入数据。每盘根节点的第一个 `CA` 原位置写为 `CA[UTF-8]`，去除其余根 `CA`，缺失则追加；非根 `CA` 原样保留。往返树比较仅对根 `CA` 做这一必需的规范化，其余属性、值及变化结构逐项相同；解析后的 `LZ` 文本逐字节一致。
 
 ### 4.3 document
 
