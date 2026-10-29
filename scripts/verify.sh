@@ -28,6 +28,7 @@ step "frontend typecheck" pnpm -C apps/desktop run typecheck
 step "frontend lint" pnpm -C apps/desktop run lint
 step "frontend test" pnpm -C apps/desktop run test
 step "frontend build" pnpm -C apps/desktop run build
+step "desktop build" pnpm -C apps/desktop tauri build --debug --no-bundle
 if [ "${1:-}" = "--e2e" ]; then
   step "e2e (web, mock backend)" pnpm -C apps/desktop run e2e
 fi
