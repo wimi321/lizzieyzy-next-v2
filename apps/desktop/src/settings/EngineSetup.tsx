@@ -3,7 +3,9 @@ import type { Backend, EngineDiscovery, EngineFileKind, EngineProfile, EngineSet
 
 export interface SetupLabels {
   title: string;
+  titleCurrent: string;
   intro: string;
+  introCurrent: string;
   program: string;
   model: string;
   config: string;
@@ -13,6 +15,7 @@ export interface SetupLabels {
   notFound: string;
   detecting: string;
   start: string;
+  apply: string;
   starting: string;
   close: string;
   failed: string;
@@ -25,6 +28,8 @@ export interface EngineSetupProps {
   labels: SetupLabels;
   /** The saved profile, preselected when the panel is reopened. */
   current: EngineProfile | null;
+  /** The saved profile's engine is starting or ready, so applying it unchanged would do nothing. */
+  engineRunning: boolean;
   /** Called after the engine reached Ready and the profile was saved. */
   onConfigured(profile: EngineSetupProfile): void;
   onClose(): void;
@@ -33,7 +38,7 @@ export interface EngineSetupProps {
 type Phase = { kind: "editing" } | { kind: "starting" } | { kind: "failed"; message: string };
 
 /** Picks KataGo files and starts the engine before anything is saved (try-then-save). */
-export function EngineSetup({ backend, labels, current, onConfigured, onClose }: EngineSetupProps) {
+export function EngineSetup({ backend, labels, current, engineRunning, onConfigured, onClose }: EngineSetupProps) {
   const [discovery, setDiscovery] = useState<EngineDiscovery | null>(null);
   const [program, setProgram] = useState(current?.program ?? "");
   const [model, setModel] = useState(current?.model ?? "");
@@ -85,17 +90,19 @@ export function EngineSetup({ backend, labels, current, onConfigured, onClose }:
     unique([...found, ...extras[kind], ...(selected ? [selected] : [])]);
   const busy = phase.kind === "starting";
   const nothingFound = discovery !== null && discovery.programs.length === 0 && discovery.models.length === 0;
+  const unchanged = current !== null && program === current.program && model === current.model && config === current.config;
+  const intro = current ? labels.introCurrent : discovery === null ? labels.detecting : nothingFound ? labels.notFound : labels.intro;
 
   return (
     <div className="dialog-backdrop" role="presentation">
       <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="engine-setup-title" data-testid="engine-setup">
         <header className="dialog-header">
-          <h2 id="engine-setup-title">{labels.title}</h2>
+          <h2 id="engine-setup-title">{current ? labels.titleCurrent : labels.title}</h2>
           <button type="button" className="dialog-close" aria-label={labels.close} data-testid="setup-close" onClick={onClose} disabled={busy}>
             ×
           </button>
         </header>
-        <p className="dialog-intro">{discovery === null ? labels.detecting : nothingFound ? labels.notFound : labels.intro}</p>
+        <p className="dialog-intro">{intro}</p>
         <FileField
           kind="program"
           label={labels.program}
@@ -140,10 +147,10 @@ export function EngineSetup({ backend, labels, current, onConfigured, onClose }:
             type="button"
             className="primary-button"
             data-testid="setup-start"
-            disabled={busy || !program || !model}
+            disabled={busy || !program || !model || (unchanged && engineRunning)}
             onClick={() => void start()}
           >
-            {busy ? labels.starting : labels.start}
+            {busy ? labels.starting : current ? labels.apply : labels.start}
           </button>
         </footer>
       </section>

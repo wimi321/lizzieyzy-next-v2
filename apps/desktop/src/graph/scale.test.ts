@@ -6,6 +6,7 @@ import {
   analysedRanges,
   areaPaths,
   indexAtX,
+  isolatedIndices,
   linePaths,
   liveGraph,
   scoreRange,
@@ -87,6 +88,14 @@ describe("paths", () => {
     const areas = areaPaths(layout(5), points);
     expect(areas).toHaveLength(2);
     expect(areas.every((area) => area.endsWith("Z"))).toBe(true);
+  });
+
+  test("a lone analysed point draws no line, so it is listed for a dot", () => {
+    const lone = [point(0, 0.5), point(1, null), point(2, 0.6), point(3, 0.62), point(4, null), point(5, 0.4)];
+    expect(linePaths(layout(6), lone, (summary) => yForWinrate(layout(6), summary.winrate)).filter((path) => path.includes("L"))).toHaveLength(1);
+    expect(isolatedIndices(lone)).toEqual([0, 5]);
+    expect(isolatedIndices(points)).toEqual([]);
+    expect(isolatedIndices([point(0, null)])).toEqual([]);
   });
 
   test("coverage lists contiguous analysed runs", () => {

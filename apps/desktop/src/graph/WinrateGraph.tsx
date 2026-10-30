@@ -6,6 +6,7 @@ import {
   analysedRanges,
   areaPaths,
   indexAtX,
+  isolatedIndices,
   linePaths,
   liveGraph,
   plotHeight,
@@ -120,6 +121,17 @@ export function WinrateGraph({ graph, analysis, labels, onJump }: WinrateGraphPr
           {linePaths(layout, points, (summary) => yForWinrate(layout, summary.winrate)).map((path) => (
             <path key={path} className="graph-winrate" d={path} />
           ))}
+          {isolatedIndices(points).map((index) => {
+            const summary = points[index]?.summary;
+            if (!summary) return null;
+            const x = xForIndex(layout, index);
+            return (
+              <g key={index} className="graph-dot" data-testid="graph-dot" data-index={index}>
+                <circle className="graph-dot-score" cx={x} cy={yForScore(layout, summary.score_lead, range)} r={2} />
+                <circle className="graph-dot-winrate" cx={x} cy={yForWinrate(layout, summary.winrate)} r={2.5} />
+              </g>
+            );
+          })}
           {analysed.map(([from, to]) => (
             <rect
               key={from}

@@ -67,6 +67,35 @@ test("a failed start explains why and keeps the dialog open", async ({ page }) =
   await expect(page.getByTestId("setup-start")).toBeEnabled();
 });
 
+test("reopening working settings offers Apply only after a change", async ({ page }) => {
+  const saved = { program: KATAGO, model: KATA1, config: "/Users/me/Library/Application Support/LizzieYzy Next 2/analysis.cfg", extra_args: [] };
+  const script: MockScript = {
+    initialEvents: [
+      documentChanged(emptyNineteen(), 1),
+      { type: "EngineStatusChanged", data: { type: "Ready", data: { version: "KataGo 1.16.5" } } },
+    ],
+    commands: [
+      { command: "settings", result: { version: 1, engine: saved, pondering: true } },
+      { command: "detectEngines", result: FOUND },
+    ],
+  };
+  await page.addInitScript((initial) => {
+    window.__mockInitialScript = initial;
+  }, script);
+  await page.goto("/");
+  await expect(page.getByTestId("engine-status")).toHaveAttribute("data-state", "Ready");
+  await expect(page.getByTestId("engine-setup")).toBeHidden();
+
+  await page.getByTestId("open-setup").click();
+  const apply = page.getByTestId("setup-start");
+  await expect(page.getByTestId("engine-setup").getByRole("heading")).toHaveText("Engine settings");
+  await expect(page.getByTestId("setup-config")).toHaveValue(saved.config);
+  await expect(apply).toHaveText("Apply");
+  await expect(apply).toBeDisabled();
+  await page.getByTestId("setup-model").selectOption(G170);
+  await expect(apply).toBeEnabled();
+});
+
 test("setup can be reopened from the header and closed again", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(
