@@ -369,6 +369,7 @@ pub enum AppEvent {
     },
     AnalysisUpdated(AnalysisView),
     EngineStatusChanged(EngineStatus),
+    WholeGameProgress(crate::WholeGameProgress),
 }
 
 #[cfg(test)]

@@ -207,7 +207,7 @@ fn local_transport_forces_black_and_preserves_argument_boundaries() {
             "-model",
             "model with spaces.bin",
             "-override-config",
-            "numSearchThreads=2,reportAnalysisWinratesAs=BLACK"
+            "numSearchThreads=2,numAnalysisThreads=2,reportAnalysisWinratesAs=BLACK"
         ]
         .map(OsString::from)
     );
@@ -241,7 +241,7 @@ fn multiple_override_sources_merge_once_and_keep_other_arguments_in_order() {
         &args[5..],
         [
             "-override-config",
-            "numSearchThreads=2,nnCacheSizePowerOfTwo=20,nnMutexPoolSizePowerOfTwo=16,numSearchThreads=4,reportAnalysisWinratesAs=BLACK",
+            "numSearchThreads=2,nnCacheSizePowerOfTwo=20,nnMutexPoolSizePowerOfTwo=16,numSearchThreads=4,numAnalysisThreads=2,reportAnalysisWinratesAs=BLACK",
             "--first",
             "first value with spaces",
             "--middle",
@@ -257,7 +257,11 @@ fn transport_without_user_overrides_still_sets_black_once() {
     let TransportSpec::LocalProcess { args, .. } = EngineProfile::default().transport().unwrap();
     assert_eq!(
         &args[5..],
-        ["-override-config", "reportAnalysisWinratesAs=BLACK"].map(OsString::from)
+        [
+            "-override-config",
+            "numAnalysisThreads=2,reportAnalysisWinratesAs=BLACK"
+        ]
+        .map(OsString::from)
     );
 }
 
@@ -294,4 +298,17 @@ fn extra_arguments_cannot_override_profile_paths_or_black_perspective() {
             Err(SettingsError::InvalidProfile(_))
         ));
     }
+}
+
+#[test]
+fn transport_reserves_two_search_slots_even_with_single_thread_override() {
+    let profile = EngineProfile {
+        extra_args: vec!["-override-config=numAnalysisThreads=1".into()],
+        ..EngineProfile::default()
+    };
+    let TransportSpec::LocalProcess { args, .. } = profile.transport().expect("valid profile");
+    assert_eq!(
+        args[6],
+        "numAnalysisThreads=2,reportAnalysisWinratesAs=BLACK"
+    );
 }

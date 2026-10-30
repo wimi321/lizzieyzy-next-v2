@@ -11,7 +11,7 @@ use tokio::{
 };
 
 pub(crate) enum Input {
-    Focus(Box<Focus>),
+    Focus(Box<Focus>, Option<Box<katago_protocol::AnalysisResponse>>),
     SetPondering(bool),
     SetLiveSettings(LiveSettings),
     Shutdown,
@@ -121,10 +121,22 @@ async fn tick(deadline: Option<Instant>) {
 impl Actor {
     async fn command(&mut self, input: Input) -> Result<(), AnalysisError> {
         match input {
-            Input::Focus(focus) => {
+            Input::Focus(focus, cached) => {
                 // Validate before invalidating the currently usable focus.
                 request::build(&focus.position, &self.config.live)?;
+                if (self.last_published.is_none()
+                    || self.focus.as_ref().is_none_or(|current| {
+                        current.node_id != focus.node_id || current.key != focus.key
+                    }))
+                    && let Some(response) = cached
+                {
+                    self.cache
+                        .insert(focus.key, &self.config.engine_fingerprint, *response);
+                }
                 if self.focus.as_ref().map(Identity::from) == Some(Identity::from(focus.as_ref())) {
+                    if self.last_published.is_none() {
+                        self.offer_cached();
+                    }
                     if self.active.is_none()
                         && matches!(*self.status.borrow(), AnalysisStatus::Failed(_))
                     {
@@ -136,6 +148,9 @@ impl Actor {
                     current.node_id == focus.node_id && current.key == focus.key
                 }) {
                     self.rebase_focus(*focus);
+                    if self.last_published.is_none() {
+                        self.offer_cached();
+                    }
                     return Ok(());
                 }
                 self.output.clear();
@@ -145,18 +160,7 @@ impl Actor {
                 self.focus = Some(*focus);
                 // Cancel by stable subscription id, including across restarts.
                 self.cancel().await?;
-                if let Some(focus) = &self.focus
-                    && let Some(response) =
-                        self.cache.get(focus.key, &self.config.engine_fingerprint)
-                {
-                    self.offer(AnalysisSnapshot {
-                        revision: focus.revision,
-                        node_id: focus.node_id,
-                        key: focus.key,
-                        response,
-                        source: SnapshotSource::Cache,
-                    });
-                }
+                self.offer_cached();
                 self.start().await
             }
             Input::SetPondering(enabled) => {
@@ -187,6 +191,20 @@ impl Actor {
                 self.status.send_replace(AnalysisStatus::Stopped);
                 result
             }
+        }
+    }
+
+    fn offer_cached(&mut self) {
+        if let Some(focus) = &self.focus
+            && let Some(response) = self.cache.get(focus.key, &self.config.engine_fingerprint)
+        {
+            self.offer(AnalysisSnapshot {
+                revision: focus.revision,
+                node_id: focus.node_id,
+                key: focus.key,
+                response,
+                source: SnapshotSource::Cache,
+            });
         }
     }
 

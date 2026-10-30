@@ -11,6 +11,7 @@ document = { path = "../document" }
 engine-session = { path = "../engine-session" }
 go-core = { path = "../go-core" }
 sgf = { path = "../sgf" }
+katago-protocol = { path = "../katago-protocol" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
@@ -21,7 +22,6 @@ tempfile = "3"
 
 [dev-dependencies]
 fake-katago = { path = "../../tools/fake-katago" }
-katago-protocol = { path = "../katago-protocol" }
 tokio = { version = "1", features = ["test-util"] }
 
 [lints]
