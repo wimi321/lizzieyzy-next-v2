@@ -29,6 +29,10 @@ const events: AppEvent[] = [
       view: {
         board: null,
         tree: { root: 0, current: 0, main_line: [0], variation_count: 0 },
+        graph: {
+          points: [{ node_id: 0, move_number: 0, summary: null }],
+          current_index: 0,
+        },
         comment: null,
         warnings: [],
         position_error: "test position",
@@ -39,6 +43,7 @@ const events: AppEvent[] = [
     type: "AnalysisUpdated",
     data: {
       node_id: 0, revision: 1, winrate: 0.5, score_lead: 0, visits: 10,
+      summary: { winrate: 0.6, score_lead: 2, visits: 20 },
       candidates: [], ownership: null, is_during_search: false, source: "Live",
     },
   },

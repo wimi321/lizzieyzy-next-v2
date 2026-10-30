@@ -4,6 +4,8 @@ use document::{DocError, GameDocument, GamePosition};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::{AnalysisSummary, GraphView};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub enum ColorView {
     Black,
@@ -164,11 +166,12 @@ impl From<document::DocumentWarning> for DocumentWarningView {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct DocumentView {
     /// Invalid recorded positions remain navigable but have no invented board.
     pub board: Option<BoardView>,
     pub tree: TreeView,
+    pub graph: GraphView,
     pub comment: Option<String>,
     pub warnings: Vec<DocumentWarningView>,
     pub position_error: Option<String>,
@@ -195,6 +198,7 @@ impl DocumentView {
                 main_line,
                 variation_count: current.children().len(),
             },
+            graph: GraphView::from_document(document)?,
             comment: current.comment().map(str::to_owned),
             warnings: document.warnings().into_iter().map(Into::into).collect(),
             position_error,
@@ -233,6 +237,10 @@ pub struct AnalysisView {
     pub score_lead: f64,
     #[ts(type = "number")]
     pub visits: u64,
+    /// Best root evaluation for this node, document and engine fingerprint.
+    /// AppCore merges this independently of the current result above, so the
+    /// graph can retain deeper analysis while candidates and ownership update.
+    pub summary: AnalysisSummary,
     pub candidates: Vec<CandidateView>,
     /// Black-perspective values in BoardView::stones order, row-major from
     /// the top-left: index i corresponds to
@@ -286,6 +294,11 @@ impl AnalysisView {
             winrate: response.root_info.winrate,
             score_lead: response.root_info.score_lead,
             visits: response.root_info.visits,
+            summary: AnalysisSummary {
+                winrate: response.root_info.winrate,
+                score_lead: response.root_info.score_lead,
+                visits: response.root_info.visits,
+            },
             candidates,
             ownership: response.ownership,
             is_during_search: response.is_during_search,

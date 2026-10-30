@@ -3,11 +3,13 @@
 
 mod actor;
 mod delivery;
+mod graph;
 mod settings;
 mod storage;
 mod view;
 
 pub use delivery::AppSubscription;
+pub use graph::{AnalysisSummary, GraphPointView, GraphView};
 pub use settings::{EngineProfile, Settings, SettingsError};
 pub use view::*;
 
