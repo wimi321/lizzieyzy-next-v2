@@ -10,6 +10,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 
 mod problem_moves;
 mod review;
+mod strength_estimate;
 mod trial;
 use trial::PendingTrial;
 
@@ -26,6 +27,7 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    StrengthEstimate(oneshot::Sender<Result<crate::StrengthEstimateView, AppError>>),
     ProblemMoves(
         crate::ProblemMovesQuery,
         oneshot::Sender<Result<crate::ProblemMovesView, AppError>>,
@@ -86,6 +88,7 @@ struct Actor {
     tree: VariationTreeView,
     summaries: HashMap<NodeId, AnalysisSummary>,
     review: review::ReviewState,
+    strength: Option<strength::Estimator>,
     summary_fingerprint: Option<String>,
     revision: u64,
     directory: PathBuf,
@@ -109,6 +112,7 @@ pub(crate) async fn run(
         tree: VariationTreeView::default(),
         summaries: HashMap::new(),
         review: review::ReviewState::default(),
+        strength: None,
         summary_fingerprint: None,
         revision: 0,
         directory,
@@ -126,6 +130,7 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             command = commands.recv() => match command {
+                Some(Command::StrengthEstimate(reply)) => { let _ = reply.send(actor.strength_estimate()); }
                 Some(Command::ProblemMoves(query, reply)) => { let _ = reply.send(actor.problem_moves(query)); }
                 Some(Command::SetMoveRankSettings(settings, reply)) => { let _ = reply.send(actor.set_move_rank_settings(settings).await); }
                 Some(Command::Review(input, reply)) => { let _ = reply.send(actor.review_command(input).await); }
