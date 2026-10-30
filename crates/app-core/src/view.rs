@@ -4,7 +4,7 @@ use document::{DocError, GameDocument, GamePosition};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{AnalysisSummary, GraphView};
+use crate::{AnalysisSummary, GameInfoView, GraphView};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub enum ColorView {
@@ -113,6 +113,9 @@ impl From<&GamePosition> for BoardView {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct TreeView {
+    /// Fetch variation_tree only when this changes; independent of navigation.
+    #[ts(type = "number")]
+    pub structure_revision: u64,
     pub root: u32,
     pub current: u32,
     /// Root followed by each first child, including empty SGF nodes.
@@ -168,6 +171,8 @@ impl From<document::DocumentWarning> for DocumentWarningView {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct DocumentView {
+    /// Root SGF fields for the game information panel, independent of focus.
+    pub game_info: Box<GameInfoView>,
     /// Invalid recorded positions remain navigable but have no invented board.
     pub board: Option<BoardView>,
     pub tree: TreeView,
@@ -178,7 +183,11 @@ pub struct DocumentView {
 }
 
 impl DocumentView {
-    pub fn from_document(document: &GameDocument) -> Result<Self, DocError> {
+    /// The owning actor supplies its stable, application-wide tree version.
+    pub fn from_document(
+        document: &GameDocument,
+        structure_revision: u64,
+    ) -> Result<Self, DocError> {
         let current = document.node(document.current())?;
         let mut main_line = Vec::new();
         let mut next = Some(document.root());
@@ -191,8 +200,10 @@ impl DocumentView {
             Err(error) => (None, Some(error.to_string())),
         };
         Ok(Self {
+            game_info: Box::new(document.game_info()?.into()),
             board,
             tree: TreeView {
+                structure_revision,
                 root: document.root().0,
                 current: document.current().0,
                 main_line,
@@ -358,6 +369,7 @@ pub enum AppEvent {
     },
     AnalysisUpdated(AnalysisView),
     EngineStatusChanged(EngineStatus),
+    WholeGameProgress(crate::WholeGameProgress),
 }
 
 #[cfg(test)]

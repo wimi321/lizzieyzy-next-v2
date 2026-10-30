@@ -8,13 +8,14 @@ Options:\n\
   --time-scale N           Simulated seconds per real second (default 1)\n\
   --startup-delay-ms N     Delay readiness in simulated milliseconds\n\
   --startup-gate-file PATH Wait for an externally created file before readiness\n\
+  --request-log PATH      Append received protocol lines for behavioral assertions\n\
   --fail-startup           Report a missing model and exit with code 1\n\
   --crash-after-queries N  Exit on accepting the Nth analysis query\n\
   --crash-after-ms N       Exit after N simulated milliseconds\n\
   --hang-after-queries N   Silence output from the Nth analysis query\n\
   --fault-once-file PATH   Inject crash/hang/startup faults only when creating this marker\n\
   --garbage-every N        Insert an invalid line after every N output lines\n\
-  --threads N              Concurrent searches (default 1)\n\
+  --threads N              Concurrent searches (overrides numAnalysisThreads, default 1)\n\
   -override-config K=V,... One comma-separated list of configuration overrides\n\
   --default-perspective-to-play  Simulate an unset reportAnalysisWinratesAs\n\
 Config/model paths are accepted but are not read. Zero query thresholds fire immediately.";
@@ -36,6 +37,7 @@ pub struct Options {
     pub time_scale: f64,
     pub startup_delay_ms: u64,
     pub startup_gate_file: Option<PathBuf>,
+    pub request_log: Option<PathBuf>,
     pub fail_startup: bool,
     pub crash_after_queries: Option<u64>,
     pub crash_after_ms: Option<u64>,
@@ -54,6 +56,7 @@ impl Default for Options {
             time_scale: 1.0,
             startup_delay_ms: 0,
             startup_gate_file: None,
+            request_log: None,
             fail_startup: false,
             crash_after_queries: None,
             crash_after_ms: None,
@@ -81,6 +84,7 @@ impl Options {
         }
         let mut opts = Self::default();
         let mut seen = BTreeSet::new();
+        let mut explicit_threads = None;
         while let Some(key) = args.next() {
             if key == "--help" || key == "-h" {
                 return Ok(None);
@@ -108,6 +112,7 @@ impl Options {
                 "--time-scale" => opts.time_scale = positive_number(&key, &value)?,
                 "--startup-delay-ms" => opts.startup_delay_ms = integer(&key, &value)?,
                 "--startup-gate-file" => opts.startup_gate_file = Some(value.into()),
+                "--request-log" => opts.request_log = Some(value.into()),
                 "--crash-after-queries" => opts.crash_after_queries = Some(integer(&key, &value)?),
                 "--crash-after-ms" => opts.crash_after_ms = Some(integer(&key, &value)?),
                 "--hang-after-queries" => opts.hang_after_queries = Some(integer(&key, &value)?),
@@ -125,9 +130,13 @@ impl Options {
                         return Err(CliError("--threads must be in 1..=1024".into()));
                     }
                     opts.threads = n as usize;
+                    explicit_threads = Some(n as usize);
                 }
                 _ => return Err(CliError(format!("unknown option {key}"))),
             }
+        }
+        if let Some(threads) = explicit_threads {
+            opts.threads = threads;
         }
         Ok(Some(opts))
     }
@@ -166,6 +175,13 @@ impl Options {
                     }
                 });
             }
+            if key == "numAnalysisThreads" {
+                let threads = integer(key, value)?;
+                if threads == 0 || threads > 1024 {
+                    return Err(CliError("numAnalysisThreads must be in 1..=1024".into()));
+                }
+                self.threads = threads as usize;
+            }
         }
         Ok(())
     }
@@ -186,3 +202,6 @@ fn integer(key: &str, value: &str) -> Result<u64, CliError> {
         .parse()
         .map_err(|_| CliError(format!("invalid nonnegative integer for {key}")))
 }
+
+#[cfg(test)]
+mod tests;

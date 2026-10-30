@@ -1,6 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
-import type { AppEvent } from "./generated/AppEvent";
+import type { AppEvent as WireAppEvent } from "./generated/AppEvent";
+import type { ReviewCommands, WholeGameProgressListener } from "./review";
 import type { EngineProfile } from "./generated/EngineProfile";
 import type { EngineSetupProfile } from "./generated/EngineSetupProfile";
 import type { EngineDiscovery } from "./generated/EngineDiscovery";
@@ -11,8 +12,14 @@ import type { SubscriptionId } from "./generated/SubscriptionId";
 import type { FoxPage } from "./generated/FoxPage";
 import type { FoxQuery } from "./generated/FoxQuery";
 import type { FoxSearchResult } from "./generated/FoxSearchResult";
+import type { VariationPreviewView } from "./generated/VariationPreviewView";
+import type { VariationTreeView } from "./generated/VariationTreeView";
 
-export type { AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings };
+/** Existing UI consumers receive their original event set. The review UI uses
+ * subscribeWholeGameProgress; both subscriptions share one ordered IPC channel. */
+export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" }>;
+export type { WireAppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings };
+export * from "./review";
 export type { AnalysisSource } from "./generated/AnalysisSource";
 export type { AnalysisSummary } from "./generated/AnalysisSummary";
 export type { AnalysisView } from "./generated/AnalysisView";
@@ -24,8 +31,12 @@ export type { DocumentWarningView } from "./generated/DocumentWarningView";
 export type { EngineStatus } from "./generated/EngineStatus";
 export type { GraphPointView } from "./generated/GraphPointView";
 export type { GraphView } from "./generated/GraphView";
+export type { GameInfoView } from "./generated/GameInfoView";
 export type { PointView } from "./generated/PointView";
+export type { PreviewStoneView } from "./generated/PreviewStoneView";
 export type { TreeView } from "./generated/TreeView";
+export type { VariationNodeView } from "./generated/VariationNodeView";
+export type { VariationPreviewView, VariationTreeView };
 export type { WarningKindView } from "./generated/WarningKindView";
 export type { SubscriptionId };
 export type { FoxPage, FoxQuery, FoxSearchResult };
@@ -41,7 +52,7 @@ export type { CommandError } from "./generated/CommandError";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend {
+export interface Backend extends ReviewCommands {
   openBytes(bytes: number[]): Promise<Revision>;
   openPath(path: string): Promise<Revision>;
   save(path: string): Promise<void>;
@@ -50,6 +61,10 @@ export interface Backend {
   goTo(nodeId: number): Promise<Revision>;
   undo(): Promise<Revision>;
   redo(): Promise<Revision>;
+  /** Fetch when tree.structure_revision changes; keep only a matching reply. */
+  variationTree(): Promise<VariationTreeView>;
+  /** Read-only PV replay. Compare reply revision/node_id with the requested focus. */
+  previewVariation(nodeId: number, moves: MoveView[]): Promise<VariationPreviewView>;
   setPondering(enabled: boolean): Promise<void>;
   configureEngine(profile: EngineProfile | null): Promise<void>;
   detectEngines(): Promise<EngineDiscovery>;
@@ -64,6 +79,7 @@ export interface Backend {
   pickSavePath(): Promise<string | null>;
   pickEngineFile(kind: EngineFileKind): Promise<string | null>;
   subscribe(listener: EventListener): Promise<number>;
+  subscribeWholeGameProgress(listener: WholeGameProgressListener): Promise<number>;
   unsubscribe(id: number): Promise<void>;
 }
 
@@ -75,6 +91,9 @@ export const step: Backend["step"] = (count) => invoke("step", { count });
 export const goTo: Backend["goTo"] = (nodeId) => invoke("go_to", { nodeId });
 export const undo: Backend["undo"] = () => invoke("undo");
 export const redo: Backend["redo"] = () => invoke("redo");
+export const variationTree: Backend["variationTree"] = () => invoke("variation_tree");
+export const previewVariation: Backend["previewVariation"] = (nodeId, moves) =>
+  invoke("preview_variation", { nodeId, moves });
 export const setPondering: Backend["setPondering"] = (enabled) =>
   invoke("set_pondering", { enabled });
 export const configureEngine: Backend["configureEngine"] = (profile) =>
@@ -111,16 +130,16 @@ export const pickEngineFile: Backend["pickEngineFile"] = async (kind) => {
 };
 
 interface Connection {
-  channel: Channel<AppEvent>;
+  channel: Channel<WireAppEvent>;
   ready: Promise<SubscriptionId>;
 }
 
 let connection: Connection | undefined;
 let nextListenerId = 0;
-const listeners = new Map<number, EventListener>();
+const listeners = new Map<number, (event: WireAppEvent) => void>();
 
 function connect(): Connection {
-  const channel = new Channel<AppEvent>();
+  const channel = new Channel<WireAppEvent>();
   const current: Connection = {
     channel,
     // Install the handler before invoking: initial snapshots may precede the reply.
@@ -141,7 +160,7 @@ function connect(): Connection {
 }
 
 /** All listeners share one ordered AppEvent channel. Subscribe before commands. */
-export const subscribe: Backend["subscribe"] = async (listener) => {
+async function subscribeWire(listener: (event: WireAppEvent) => void): Promise<number> {
   const id = ++nextListenerId;
   listeners.set(id, listener);
   const current = connection ?? (connection = connect());
@@ -153,7 +172,19 @@ export const subscribe: Backend["subscribe"] = async (listener) => {
     if (connection === current) connection = undefined;
     throw error;
   }
-};
+}
+
+export const subscribe: Backend["subscribe"] = (listener) => subscribeWire((event) => {
+  if (event.type !== "WholeGameProgress") listener(event);
+});
+
+/** Progress shares transport/lifetime with document subscriptions. Subscribe
+ * before reading wholeGameProgress() for initial state. Unsubscribe its returned
+ * ID with the same unsubscribe function. No second Channel opens. */
+export const subscribeWholeGameProgress: Backend["subscribeWholeGameProgress"] =
+  (listener) => subscribeWire((event) => {
+    if (event.type === "WholeGameProgress") listener(event.data);
+  });
 
 /** Idempotent. Only the final listener detaches the Rust channel. */
 export const unsubscribe: Backend["unsubscribe"] = async (id) => {

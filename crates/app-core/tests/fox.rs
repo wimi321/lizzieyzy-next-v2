@@ -282,12 +282,13 @@ async fn recorded_nickname_search_fallback_and_open_preserve_moves_and_normalize
     assert_eq!(property("PW"), game.white.nickname);
     let document = document::GameDocument::from_sgf(tree).unwrap();
     assert_eq!(document.position_at(document.root()).unwrap().komi, 7.5);
-    let expected = DocumentView::from_document(&document).unwrap();
+    let expected = DocumentView::from_document(&document, revision).unwrap();
     assert_eq!(downloaded_view, expected);
     let last = *downloaded_view.tree.main_line.last().unwrap();
     let final_revision = within(app.go_to(last)).await.unwrap();
     let final_view = document_event(&mut events, final_revision).await;
     assert!(final_view.position_error.is_none());
+    assert_eq!(final_view.tree.structure_revision, revision);
     assert_eq!(
         final_view.board.unwrap().move_number,
         game.move_count as usize
@@ -315,9 +316,12 @@ async fn recorded_nickname_search_fallback_and_open_preserve_moves_and_normalize
         ["375"]
     );
     let local_revision = within(app.open_bytes(saved_bytes)).await.unwrap();
+    // Reopening identical SGF creates a new document namespace; its tree
+    // version advances even though the board and tree contents are unchanged.
+    assert!(local_revision > revision);
     assert_eq!(
         document_event(&mut events, local_revision).await,
-        downloaded_view
+        DocumentView::from_document(&document, local_revision).unwrap()
     );
     assert_eq!(
         within(app.settings()).await.unwrap().fox_history,

@@ -1,7 +1,7 @@
 use crate::AppEvent;
 use tokio::sync::watch;
 
-// Three latest-state slots keep delivery bounded without ever blocking edits.
+// Four latest-state slots keep delivery bounded without ever blocking edits.
 // Clearing analysis on a transition invalidates even an unread old result.
 #[derive(Clone, Default)]
 struct Mailbox {
@@ -9,13 +9,14 @@ struct Mailbox {
     document: Option<(u64, AppEvent)>,
     analysis: Option<(u64, AppEvent)>,
     engine: Option<(u64, AppEvent)>,
+    review: Option<(u64, AppEvent)>,
 }
 
 pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 3],
+    read: [Option<u64>; 4],
 }
 
 pub(crate) fn channel() -> (Delivery, AppSubscription) {
@@ -24,7 +25,7 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 3],
+            read: [None; 4],
         },
     )
 }
@@ -37,6 +38,7 @@ impl Delivery {
                 AppEvent::DocumentChanged { .. } => &mut mailbox.document,
                 AppEvent::AnalysisUpdated(_) => &mut mailbox.analysis,
                 AppEvent::EngineStatusChanged(_) => &mut mailbox.engine,
+                AppEvent::WholeGameProgress(_) => &mut mailbox.review,
             };
             *slot = Some((mailbox.serial, event));
         });
@@ -55,14 +57,17 @@ impl AppSubscription {
         loop {
             {
                 let mailbox = self.receiver.borrow_and_update();
-                let next = [&mailbox.document, &mailbox.analysis, &mailbox.engine]
-                    .into_iter()
-                    .enumerate()
-                    .filter_map(|(i, slot)| {
-                        slot.as_ref().map(|(serial, event)| (i, *serial, event))
-                    })
-                    .filter(|(i, serial, _)| self.read[*i] != Some(*serial))
-                    .min_by_key(|(_, serial, _)| *serial);
+                let next = [
+                    &mailbox.document,
+                    &mailbox.analysis,
+                    &mailbox.engine,
+                    &mailbox.review,
+                ]
+                .into_iter()
+                .enumerate()
+                .filter_map(|(i, slot)| slot.as_ref().map(|(serial, event)| (i, *serial, event)))
+                .filter(|(i, serial, _)| self.read[*i] != Some(*serial))
+                .min_by_key(|(_, serial, _)| *serial);
                 if let Some((i, serial, event)) = next {
                     self.read[i] = Some(serial);
                     return Some(event.clone());

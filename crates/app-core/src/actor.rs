@@ -1,6 +1,6 @@
 use crate::{
     AnalysisSummary, AnalysisView, AppConfig, AppError, AppEvent, DocumentView, EngineProfile,
-    EngineStatus, Settings, delivery::Delivery, storage,
+    EngineStatus, Settings, VariationPreviewView, VariationTreeView, delivery::Delivery, storage,
 };
 use analysis::{AnalysisHandle, AnalysisSnapshot, AnalysisStatus, AnalysisSubscription, Focus};
 use document::{AnalysisKey, GameDocument, NodeId};
@@ -9,6 +9,7 @@ use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
 mod fox;
+mod review;
 mod trial;
 use trial::PendingTrial;
 
@@ -26,6 +27,19 @@ pub(crate) enum Input {
 
 pub(crate) enum Command {
     Fox(crate::fox::Request),
+    Review(
+        crate::review::ReviewInput,
+        oneshot::Sender<Result<crate::WholeGameProgress, AppError>>,
+    ),
+    ReviewProgress(oneshot::Sender<Option<crate::WholeGameProgress>>),
+    ReviewResult(u32, oneshot::Sender<Result<Option<AnalysisView>, AppError>>),
+    ReviewAnalysis(u32, oneshot::Sender<Option<crate::StoredAnalysis>>),
+    VariationTree(oneshot::Sender<VariationTreeView>),
+    PreviewVariation(
+        u32,
+        Vec<go_core::Move>,
+        oneshot::Sender<Result<VariationPreviewView, AppError>>,
+    ),
     Apply(Input, oneshot::Sender<Result<u64, AppError>>),
     Settings(oneshot::Sender<Settings>),
     TryConfigureEngine(
@@ -62,7 +76,9 @@ struct ViewFocus {
 
 struct Actor {
     document: GameDocument,
+    tree: VariationTreeView,
     summaries: HashMap<NodeId, AnalysisSummary>,
+    review: review::ReviewState,
     summary_fingerprint: Option<String>,
     revision: u64,
     directory: PathBuf,
@@ -83,7 +99,9 @@ pub(crate) async fn run(
 ) {
     let mut actor = Actor {
         document: GameDocument::new(),
+        tree: VariationTreeView::default(),
         summaries: HashMap::new(),
+        review: review::ReviewState::default(),
         summary_fingerprint: None,
         revision: 0,
         directory,
@@ -102,6 +120,17 @@ pub(crate) async fn run(
         tokio::select! {
             command = commands.recv() => match command {
                 Some(Command::Fox(request)) => actor.fox_request(request).await,
+                Some(Command::Review(input, reply)) => { let _ = reply.send(actor.review_command(input).await); }
+                Some(Command::ReviewProgress(reply)) => { let _ = reply.send(actor.review.progress.clone()); }
+                Some(Command::ReviewResult(node, reply)) => { let _ = reply.send(actor.review_view(node)); }
+                Some(Command::ReviewAnalysis(node, reply)) => { let _ = reply.send(actor.stored_analysis(node)); }
+                Some(Command::VariationTree(reply)) => { let _ = reply.send(actor.tree.clone()); }
+                Some(Command::PreviewVariation(node_id, moves, reply)) => {
+                    let result = VariationPreviewView::from_document(
+                        &actor.document, actor.revision, node_id, &moves,
+                    ).map_err(AppError::from);
+                    let _ = reply.send(result);
+                }
                 Some(Command::Settings(reply)) => { let _ = reply.send(actor.settings.clone()); }
                 Some(Command::Apply(Input::Shutdown, reply)) => {
                     actor.cancel_trial().await;
@@ -118,6 +147,7 @@ pub(crate) async fn run(
                 None => { actor.cancel_trial().await; let _ = actor.stop_engine().await; break; }
             },
             signal = next_signal(&mut actor.running) => actor.signal(signal),
+            result = review::receive(&mut actor.review) => actor.review_signal(result).await,
             result = trial::wait(&mut actor.trial) => actor.finish_trial(result).await,
         }
     }
@@ -167,13 +197,15 @@ impl Actor {
     fn signal(&mut self, signal: Signal) {
         match signal {
             Signal::Snapshot(snapshot) => {
-                if self.settings.pondering
+                if (self.settings.pondering || snapshot.source == analysis::SnapshotSource::Cache)
                     && let Some(focus) = &self.focus
                     && (focus.revision, focus.node_id, focus.key)
                         == (snapshot.revision, snapshot.node_id.0, snapshot.key)
                 {
-                    match AnalysisView::from_snapshot(*snapshot, focus.size, focus.to_play) {
+                    match AnalysisView::from_snapshot(*snapshot.clone(), focus.size, focus.to_play)
+                    {
                         Ok(mut view) => {
+                            self.retain_analysis(&snapshot);
                             // Graph history must not gate current candidates:
                             // a coordinator cache miss can publish a shallower
                             // search while the graph retains its best result.
@@ -217,8 +249,9 @@ impl Actor {
         }
     }
 
-    fn publish_document(&self) -> Result<(), AppError> {
-        let mut view = DocumentView::from_document(&self.document)?;
+    fn publish_document(&mut self) -> Result<(), AppError> {
+        self.tree.refresh(&self.document, self.revision)?;
+        let mut view = DocumentView::from_document(&self.document, self.tree.revision)?;
         for point in &mut view.graph.points {
             point.summary = self.summaries.get(&NodeId(point.node_id)).copied();
         }
@@ -265,6 +298,12 @@ impl Actor {
                     settings.save(&self.directory).await?;
                     self.settings = settings;
                     self.output.clear_analysis();
+                    if enabled
+                        && self.review_running()
+                        && let Err(error) = self.stop_review_query().await
+                    {
+                        self.analysis_failed(error.to_string());
+                    }
                     if let Some(running) = &self.running {
                         // Invalid SGF positions remain inspectable but never analyzed.
                         if let Err(error) = running
@@ -274,6 +313,9 @@ impl Actor {
                         {
                             self.analysis_failed(error.to_string());
                         }
+                    }
+                    if enabled {
+                        self.continue_review().await;
                     }
                 }
             }
@@ -322,7 +364,12 @@ impl Actor {
         let tree = collection.games.first().ok_or(AppError::EmptyCollection)?;
         let document = GameDocument::from_sgf(tree)?;
         self.next_revision()?;
+        self.cancel_review().await;
+        self.invalidate_review();
         self.document = document;
+        // Opening even an identical game starts a new node-ID namespace.
+        // Every live document has a root, so clearing forces the next refresh.
+        self.tree.nodes.clear();
         self.summaries.clear();
         self.focus = None;
         self.output.clear_analysis();
@@ -350,7 +397,6 @@ impl Actor {
 
     async fn document_changed(&mut self) -> Result<(), AppError> {
         self.revision = self.next_revision()?;
-        self.focus = None;
         self.output.clear_analysis();
         self.publish_document()?;
         self.update_focus().await;
@@ -358,17 +404,28 @@ impl Actor {
     }
 
     async fn update_focus(&mut self) {
-        let Some(running) = &self.running else {
+        if self.running.is_none() {
             return;
-        };
+        }
         let node_id = self.document.current();
         let Ok(position) = self.document.position_at(node_id) else {
-            if let Err(error) = running.coordinator.set_pondering(false).await {
+            self.focus = None;
+            if let Some(running) = &self.running
+                && let Err(error) = running.coordinator.set_pondering(false).await
+            {
                 self.analysis_failed(error.to_string());
             }
             return;
         };
         let key = position.analysis_key();
+        let changed = self
+            .focus
+            .as_ref()
+            .is_none_or(|focus| focus.node_id != node_id.0 || focus.key != key);
+        let restart_review = changed && self.review_running();
+        if restart_review && let Err(error) = self.stop_review_query().await {
+            self.analysis_failed(error.to_string());
+        }
         let view_focus = ViewFocus {
             revision: self.revision,
             node_id: node_id.0,
@@ -376,26 +433,38 @@ impl Actor {
             size: position.board.size(),
             to_play: position.board.to_play(),
         };
+        let cached = self
+            .review
+            .results
+            .get(&node_id)
+            .filter(|stored| stored.key == key)
+            .map(|stored| stored.response.clone());
         let focus = Focus {
             revision: self.revision,
             node_id,
             position,
             key,
         };
-        // In particular, do not special-case comment/revision-only changes:
-        // the coordinator retains the query and republishes the current result.
-        match running.coordinator.focus(focus).await {
-            Ok(()) => {
-                self.focus = Some(view_focus);
-                if let Err(error) = running
-                    .coordinator
-                    .set_pondering(self.settings.pondering)
-                    .await
-                {
-                    self.analysis_failed(error.to_string());
+        if let Some(running) = &self.running {
+            // Cached review results establish the same depth floor as LRU hits.
+            // Submit live before rebuilding the low-priority batch, reserving a
+            // search slot even when background work occupied both threads.
+            match running.coordinator.focus_with_cached(focus, cached).await {
+                Ok(()) => {
+                    self.focus = Some(view_focus);
+                    if let Err(error) = running
+                        .coordinator
+                        .set_pondering(self.settings.pondering)
+                        .await
+                    {
+                        self.analysis_failed(error.to_string());
+                    }
                 }
+                Err(error) => self.analysis_failed(error.to_string()),
             }
-            Err(error) => self.analysis_failed(error.to_string()),
+        }
+        if restart_review {
+            self.continue_review().await;
         }
     }
 
@@ -455,6 +524,7 @@ impl Actor {
     fn set_summary_fingerprint(&mut self, fingerprint: Option<String>) {
         if self.summary_fingerprint != fingerprint {
             self.summary_fingerprint = fingerprint;
+            self.invalidate_review();
             if !self.summaries.is_empty() {
                 self.summaries.clear();
                 // Settings changes do not change the document revision, but
@@ -467,6 +537,7 @@ impl Actor {
     }
 
     async fn stop_engine(&mut self) -> Result<(), AppError> {
+        self.cancel_review().await;
         self.focus = None;
         self.output.clear_analysis();
         if let Some(running) = self.running.take() {

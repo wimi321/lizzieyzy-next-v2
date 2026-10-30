@@ -230,3 +230,49 @@ async fn restart_keeps_display_and_cache_but_resets_floor_even_after_revision_re
     assert_eq!(*actor.status.borrow(), AnalysisStatus::Idle);
     stop(actor).await;
 }
+
+#[tokio::test]
+async fn retained_seed_respects_deeper_lru_and_does_not_replace_published_same_focus() {
+    let (mut actor, mut output) = actor();
+    actor.config.pondering = false;
+    let cached = snapshot(&actor, 1000, SnapshotSource::Cache);
+    actor.cache.insert(
+        cached.key,
+        &actor.config.engine_fingerprint,
+        cached.response.clone(),
+    );
+    let seed = snapshot(&actor, 500, SnapshotSource::Cache);
+    let focus = actor.focus.clone().unwrap();
+    actor
+        .command(Input::Focus(
+            Box::new(focus.clone()),
+            Some(Box::new(seed.response)),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(immediately_available(&mut output).await, cached);
+
+    let newer = snapshot(&actor, 2000, SnapshotSource::Cache);
+    actor
+        .command(Input::Focus(
+            Box::new(focus.clone()),
+            Some(Box::new(newer.response.clone())),
+        ))
+        .await
+        .unwrap();
+    assert_no_output(&mut output).await;
+    assert_eq!(actor.last_published, Some(cached.clone()));
+    let mut revised = focus;
+    revised.revision += 1;
+    actor
+        .command(Input::Focus(
+            Box::new(revised.clone()),
+            Some(Box::new(newer.response)),
+        ))
+        .await
+        .unwrap();
+    let republished = immediately_available(&mut output).await;
+    assert_eq!(republished.response, cached.response);
+    assert_eq!(republished.revision, revised.revision);
+    stop(actor).await;
+}

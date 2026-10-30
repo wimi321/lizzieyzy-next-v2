@@ -11,7 +11,7 @@ async fn within<T>(future: impl std::future::Future<Output = T>) -> T {
         .expect("operation exceeded safety deadline")
 }
 
-fn actor() -> (Actor, AppSubscription) {
+pub(super) fn actor() -> (Actor, AppSubscription) {
     let document = GameDocument::new();
     let position = document.position_at(document.root()).unwrap();
     let (output, subscription) = delivery::channel();
@@ -25,7 +25,9 @@ fn actor() -> (Actor, AppSubscription) {
     (
         Actor {
             document,
+            tree: VariationTreeView::default(),
             summaries: HashMap::new(),
+            review: Default::default(),
             summary_fingerprint: None,
             revision: 0,
             directory: PathBuf::new(),
@@ -40,7 +42,7 @@ fn actor() -> (Actor, AppSubscription) {
     )
 }
 
-fn snapshot(actor: &Actor, visits: u64, winrate: f64) -> AnalysisSnapshot {
+pub(super) fn snapshot(actor: &Actor, visits: u64, winrate: f64) -> AnalysisSnapshot {
     AnalysisSnapshot {
         revision: actor.revision,
         node_id: actor.document.current(),
@@ -90,7 +92,7 @@ async fn final_analysis(actor: &mut Actor, output: &mut AppSubscription) -> Anal
 }
 
 #[tokio::test]
-async fn lru_eviction_forwards_shallow_live_analysis_with_the_previous_best_summary() {
+async fn lru_eviction_restores_persistent_analysis_with_the_previous_best_summary() {
     let directory = tempfile::tempdir().unwrap();
     let program = fake_katago::binary_path().unwrap();
     let profile = EngineProfile {
@@ -126,8 +128,8 @@ async fn lru_eviction_forwards_shallow_live_analysis_with_the_previous_best_summ
     assert_ne!(deep_b.node_id, deep_a.node_id);
 
     // B's completed query has evicted A from the one-entry cache. Limit the
-    // next query through the coordinator's real command API while paused, so
-    // even a busy machine must forward a shallow Final when revisiting A.
+    // next query through the coordinator's real command API while paused.
+    // Revisiting A must restore its document-owned payload before that query.
     // This is test-only access, with no production hook or profile change.
     within(actor.apply(Input::SetPondering(false)))
         .await
@@ -151,8 +153,9 @@ async fn lru_eviction_forwards_shallow_live_analysis_with_the_previous_best_summ
         .await
         .unwrap();
     let shallow_a = final_analysis(&mut actor, &mut output).await;
-    assert_eq!(shallow_a.source, crate::AnalysisSource::Live);
-    assert_eq!(shallow_a.visits, 1);
+    assert_eq!(shallow_a.source, crate::AnalysisSource::Cache);
+    assert_eq!(shallow_a.visits, deep_a.visits);
+    assert_eq!(shallow_a.candidates, deep_a.candidates);
     assert!(!shallow_a.candidates.is_empty());
     assert_eq!(shallow_a.ownership.as_ref().unwrap().len(), 81);
     assert_eq!(shallow_a.summary, deep_a.summary);
@@ -242,7 +245,7 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                     assert_eq!(view.graph.points[0].summary, None, "{rejection}");
                 }
                 AppEvent::AnalysisUpdated(_) => panic!("forwarded {rejection} snapshot"),
-                AppEvent::EngineStatusChanged(_) => {}
+                AppEvent::EngineStatusChanged(_) | AppEvent::WholeGameProgress(_) => {}
             }
         }
         assert_eq!(documents, 1);

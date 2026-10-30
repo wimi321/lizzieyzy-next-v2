@@ -3,7 +3,10 @@
 use std::{fs, path::Path};
 
 use app_core::fox::{FoxPage, FoxQuery, FoxSearchResult};
-use app_core::{AppEvent, EngineSetupProfile, MoveView, Settings, engine_setup::EngineDiscovery};
+use app_core::{
+    AppEvent, EngineSetupProfile, MoveView, Settings, VariationPreviewView, VariationTreeView,
+    WholeGameOptions, WholeGamePreset, engine_setup::EngineDiscovery,
+};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -19,6 +22,8 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     fs::create_dir_all(directory)?;
     AppEvent::export_all_to(directory)?;
     MoveView::export_all_to(directory)?;
+    VariationTreeView::export_all_to(directory)?;
+    VariationPreviewView::export_all_to(directory)?;
     Settings::export_all_to(directory)?;
     EngineSetupProfile::export_all_to(directory)?;
     EngineDiscovery::export_all_to(directory)?;
@@ -26,6 +31,8 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     FoxSearchResult::export_all_to(directory)?;
     FoxPage::export_all_to(directory)?;
     crate::error::CommandError::export_all_to(directory)?;
+    WholeGameOptions::export_all_to(directory)?;
+    WholeGamePreset::export_all_to(directory)?;
     Revision::export_all_to(directory)?;
     SubscriptionId::export_all_to(directory)?;
     Ok(())
