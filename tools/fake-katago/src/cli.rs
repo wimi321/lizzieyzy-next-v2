@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use thiserror::Error;
 
 pub const USAGE: &str = "Usage: fake-katago analysis -config FILE -model FILE [OPTIONS]\n\
@@ -5,10 +7,12 @@ Options:\n\
   --visits-per-sec N       Visits per simulated second (default 1000)\n\
   --time-scale N           Simulated seconds per real second (default 1)\n\
   --startup-delay-ms N     Delay readiness in simulated milliseconds\n\
+  --startup-gate-file PATH Wait for an externally created file before readiness\n\
   --fail-startup           Report a missing model and exit with code 1\n\
   --crash-after-queries N  Exit on accepting the Nth analysis query\n\
   --crash-after-ms N       Exit after N simulated milliseconds\n\
   --hang-after-queries N   Silence output from the Nth analysis query\n\
+  --fault-once-file PATH   Inject query faults only when creating this marker\n\
   --garbage-every N        Insert an invalid line after every N output lines\n\
   --threads N              Concurrent searches (default 1)\n\
 Config/model paths are accepted but are not read. Zero query thresholds fire immediately.";
@@ -22,10 +26,12 @@ pub struct Options {
     pub visits_per_sec: f64,
     pub time_scale: f64,
     pub startup_delay_ms: u64,
+    pub startup_gate_file: Option<PathBuf>,
     pub fail_startup: bool,
     pub crash_after_queries: Option<u64>,
     pub crash_after_ms: Option<u64>,
     pub hang_after_queries: Option<u64>,
+    pub fault_once_file: Option<PathBuf>,
     pub garbage_every: Option<u64>,
     pub threads: usize,
 }
@@ -36,10 +42,12 @@ impl Default for Options {
             visits_per_sec: 1000.0,
             time_scale: 1.0,
             startup_delay_ms: 0,
+            startup_gate_file: None,
             fail_startup: false,
             crash_after_queries: None,
             crash_after_ms: None,
             hang_after_queries: None,
+            fault_once_file: None,
             garbage_every: None,
             threads: 1,
         }
@@ -75,9 +83,11 @@ impl Options {
                 "--visits-per-sec" => opts.visits_per_sec = positive_number(&key, &value)?,
                 "--time-scale" => opts.time_scale = positive_number(&key, &value)?,
                 "--startup-delay-ms" => opts.startup_delay_ms = integer(&key, &value)?,
+                "--startup-gate-file" => opts.startup_gate_file = Some(value.into()),
                 "--crash-after-queries" => opts.crash_after_queries = Some(integer(&key, &value)?),
                 "--crash-after-ms" => opts.crash_after_ms = Some(integer(&key, &value)?),
                 "--hang-after-queries" => opts.hang_after_queries = Some(integer(&key, &value)?),
+                "--fault-once-file" => opts.fault_once_file = Some(value.into()),
                 "--garbage-every" => {
                     let n = integer(&key, &value)?;
                     if n == 0 {

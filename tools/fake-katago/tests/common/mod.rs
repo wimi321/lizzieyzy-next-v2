@@ -105,6 +105,10 @@ impl Engine {
         self.input.take();
     }
 
+    pub fn kill(&mut self) {
+        self.child.kill().expect("kill the test engine");
+    }
+
     /// Call only after EOF, so wait has no unbounded synchronization role.
     pub fn exited(&mut self) -> (ExitStatus, String) {
         let status = self.child.wait().expect("wait after EOF");
