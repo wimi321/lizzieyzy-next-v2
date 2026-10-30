@@ -1,5 +1,5 @@
 import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
-import type { AppEvent, Backend } from "./backend";
+import type { AppEvent, Backend, MoveRankSettings, Settings } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn(), channels: [] as FakeChannel[] }));
 
@@ -58,9 +58,12 @@ test("forwards every command with typed arguments and preserves results/errors",
   const backend = await import("./backend");
   const mv = { type: "Pass", data: { color: "Black" } } as const;
   const profile = { program: "engine", model: "model", config: "config", extra_args: [] };
-  const settings = { version: 1, engine: profile, pondering: true };
+  const settings = { version: 1, engine: profile, pondering: true, fox_history: [] };
   const setup = { ...profile, config: null };
   const discovery = { programs: ["engine"], models: ["model"], configs: [] };
+  const query = { type: "Nickname", value: "00123456" } as const;
+  const page = { games: [], next_cursor: null };
+  const search = { account: { uid: "123", nickname: "00123456" }, page };
   const cases: [() => Promise<unknown>, string, Record<string, unknown> | undefined, unknown][] = [
     [() => backend.openBytes([40, 59, 41]), "open_bytes", { bytes: [40, 59, 41] }, 1],
     [() => backend.openPath("棋谱.sgf"), "open_path", { path: "棋谱.sgf" }, 2],
@@ -75,6 +78,10 @@ test("forwards every command with typed arguments and preserves results/errors",
     [() => backend.configureEngine(null), "configure_engine", { profile: null }, undefined],
     [() => backend.detectEngines(), "detect_engines", undefined, discovery],
     [() => backend.tryConfigureEngine(setup), "try_configure_engine", { profile: setup }, undefined],
+    [() => backend.foxSearch(query), "fox_search", { query }, search],
+    [() => backend.foxNextPage("123", "cursor"), "fox_next_page", { uid: "123", cursor: "cursor" }, page],
+    [() => backend.foxOpenGame("game-id"), "fox_open_game", { gameId: "game-id" }, 8],
+    [() => backend.foxClearHistory(), "fox_clear_history", undefined, undefined],
     [() => backend.settings(), "settings", undefined, settings],
   ];
   for (const [call, command, args, result] of cases) {
@@ -84,6 +91,18 @@ test("forwards every command with typed arguments and preserves results/errors",
   }
   ipc.invoke.mockRejectedValueOnce("invalid SGF");
   await expect(backend.openBytes([])).rejects.toBe("invalid SGF");
+  const missing = { type: "Fox", data: { type: "UserNotFound" } };
+  ipc.invoke.mockRejectedValueOnce(missing);
+  await expect(backend.foxSearch(query)).rejects.toEqual(missing);
+});
+
+test.each(["Timeout", "Network"] as const)("preserves Fox %s errors for search and open", async (type) => {
+  const backend = await import("./backend");
+  const error = { type: "Fox", data: { type } } as const;
+  ipc.invoke.mockRejectedValueOnce(error);
+  await expect(backend.foxSearch({ type: "Nickname", value: "sample" })).rejects.toBe(error);
+  ipc.invoke.mockRejectedValueOnce(error);
+  await expect(backend.foxOpenGame("game-id")).rejects.toBe(error);
 });
 
 test("one channel preserves all event kinds, including snapshots before subscribe resolves", async () => {
@@ -249,4 +268,76 @@ test("mock rejects unexpected commands and scripted errors", async () => {
   await expect(mock.openPath("bad.sgf")).rejects.toThrow("invalid SGF");
   await expect(mock.save("saved.sgf")).resolves.toBeUndefined();
   await expect(mock.undo()).rejects.toThrow("Expected mock command (none), received undo");
+});
+
+test("mock scripts Fox search, pagination, open events, history and typed errors", async () => {
+  const mock = await loadMock();
+  const { foxSearchResult } = await import("../../e2e/fixtures");
+  const result = foxSearchResult();
+  const query = { type: "Nickname", value: result.account.nickname } as const;
+  const missing = { type: "Fox", data: { type: "UserNotFound" } } as const;
+  mock.setScript({ commands: [
+    { command: "foxSearch", result },
+    { command: "foxNextPage", result: { games: [], next_cursor: null } },
+    { command: "foxOpenGame", result: 1, events: [events[0]!] },
+    { command: "settings", result: { version: 1, engine: null, pondering: true, fox_history: [result.account] } },
+    { command: "foxClearHistory", result: undefined },
+    { command: "settings", result: { version: 1, engine: null, pondering: true } },
+    { command: "foxSearch", result, error: missing },
+  ] });
+  const listener = vi.fn();
+  const id = await mock.subscribe(listener);
+  expect(await mock.foxSearch(query)).toEqual(result);
+  expect(await mock.foxNextPage(result.account.uid, result.page.next_cursor!))
+    .toEqual({ games: [], next_cursor: null });
+  expect(await mock.foxOpenGame(result.page.games[0]!.id)).toBe(1);
+  expect(listener).toHaveBeenCalledExactlyOnceWith(events[0]);
+  expect((await mock.settings()).fox_history).toEqual([result.account]);
+  await mock.foxClearHistory();
+  expect((await mock.settings()).fox_history).toEqual([]);
+  await expect(mock.foxSearch(query)).rejects.toEqual(missing);
+  expect(mock.recordedCalls().slice(0, 3)).toEqual([
+    { command: "foxSearch", args: [query] },
+    { command: "foxNextPage", args: [result.account.uid, result.page.next_cursor] },
+    { command: "foxOpenGame", args: [result.page.games[0]!.id] },
+  ]);
+  await mock.unsubscribe(id);
+});
+
+test.each([
+  { history: false, rank: false },
+  { history: true, rank: false },
+  { history: false, rank: true },
+  { history: true, rank: true },
+])("mock independently defaults omitted settings fields (history: $history, rank: $rank)", async ({ history, rank }) => {
+  const mock = await loadMock();
+  const base = { version: 1, engine: null, pondering: false };
+  const customHistory = [
+    { uid: "200", nickname: "recent" },
+    { uid: "100", nickname: "earlier" },
+  ];
+  const customRank: MoveRankSettings = {
+    mode: "Winrate",
+    winrate_thresholds: [2, 4, 8, 16, 32],
+    score_thresholds: [1, 2, 4, 8, 16],
+  };
+  mock.setScript({ commands: [{
+    command: "settings",
+    result: {
+      ...base,
+      ...(history ? { fox_history: customHistory } : {}),
+      ...(rank ? { move_rank: customRank } : {}),
+    },
+  }] });
+  const result = await mock.settings();
+  expectTypeOf(result).toEqualTypeOf<Settings>();
+  expect(result).toEqual({
+    ...base,
+    fox_history: history ? customHistory : [],
+    move_rank: rank ? customRank : {
+      mode: "Auto",
+      winrate_thresholds: [1, 3, 6, 12, 24],
+      score_thresholds: [0.5, 1.5, 3, 6, 12],
+    },
+  });
 });

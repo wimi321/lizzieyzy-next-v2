@@ -490,6 +490,52 @@
         "kind": "constructed",
         "description": "Original synthetic P1-02 fixture with an independent hand-authored expected result; no real players or accounts."
       }
+    },
+    {
+      "file": "fox-java-reference-fragment.sgf",
+      "actual_encoding": "UTF-8",
+      "coverage": [
+        "fox-reference-fragment",
+        "consecutive-black-moves",
+        "scaled-komi"
+      ],
+      "provenance": {
+        "kind": "reference-test-fragment",
+        "description": "Exact eight-move SGF literal from Java GetFoxRequestTest.normalizeFoxSgfPayloadPromotesLeadingConsecutiveBlackMovesToHandicap. This is a reference test fragment, NOT a newly recorded response or a complete public game; the P1-19 live list request timed out.",
+        "reference_repository": "../lizzieyzy-next",
+        "reference_file": "src/test/java/featurecat/lizzie/analysis/GetFoxRequestTest.java"
+      }
+    },
+    {
+      "file": "fox-public-kisei-2019.sgf",
+      "actual_encoding": "UTF-8",
+      "coverage": [
+        "fox-public-game",
+        "full-game",
+        "duplicate-AP",
+        "scaled-komi"
+      ],
+      "provenance": {
+        "kind": "public-issue-sgf",
+        "description": "Complete 313-move Fox SGF posted in the public leela-zero issue #2285: Yamashita Keigo (Black), Iyama Yuta (White), 2019-03-15, W+6.50. Exact SGF bytes extracted from the issue body without rewriting; includes AP[foxwq]. This is an archived public sample, not a successful P1-19 live Fox API recording.",
+        "source_url": "https://github.com/leela-zero/leela-zero/issues/2285",
+        "input_sha256": "c8f8d33022ea45e66fb1d86f4e9f9a5692692c497387ac600d1199491d281d5e"
+      }
+    },
+    {
+      "file": "fox-recorded-2026-10-30.sgf",
+      "actual_encoding": "UTF-8",
+      "coverage": [
+        "fox-recorded-game",
+        "full-game",
+        "duplicate-AP",
+        "scaled-komi"
+      ],
+      "provenance": {
+        "kind": "recorded-http-redacted",
+        "description": "Complete 177-move Fox H5 SGF from maintainer-provided 2026-10-30 HTTP recordings. PB/PW replaced with stable pseudonyms matching fixtures/fox/games.json; moves, SGF structure and game metadata remain unchanged. JSON replay files separately redact account IDs and sensitive account/transport fields.",
+        "input_sha256": "d99f867d76b8e23ff3a7cd9708e458355716659bab5c0ceae8778514d568635d"
+      }
     }
   ]
 }

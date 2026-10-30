@@ -10,6 +10,9 @@ import type { MoveView } from "./generated/MoveView";
 import type { Revision } from "./generated/Revision";
 import type { Settings } from "./generated/Settings";
 import type { SubscriptionId } from "./generated/SubscriptionId";
+import type { FoxPage } from "./generated/FoxPage";
+import type { FoxQuery } from "./generated/FoxQuery";
+import type { FoxSearchResult } from "./generated/FoxSearchResult";
 import type { VariationPreviewView } from "./generated/VariationPreviewView";
 import type { VariationTreeView } from "./generated/VariationTreeView";
 
@@ -38,6 +41,16 @@ export type { VariationNodeView } from "./generated/VariationNodeView";
 export type { VariationPreviewView, VariationTreeView };
 export type { WarningKindView } from "./generated/WarningKindView";
 export type { SubscriptionId };
+export type { FoxPage, FoxQuery, FoxSearchResult };
+export type { FoxAccount } from "./generated/FoxAccount";
+export type { FoxGame } from "./generated/FoxGame";
+export type { FoxPlayer } from "./generated/FoxPlayer";
+export type { FoxResult } from "./generated/FoxResult";
+export type { FoxResultKind } from "./generated/FoxResultKind";
+export type { FoxColor } from "./generated/FoxColor";
+export type { FoxScoreUnit } from "./generated/FoxScoreUnit";
+export type { FoxFailure } from "./generated/FoxFailure";
+export type { CommandError } from "./generated/CommandError";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
@@ -58,6 +71,10 @@ export interface Backend extends ReviewCommands, ProblemMoveCommands {
   configureEngine(profile: EngineProfile | null): Promise<void>;
   detectEngines(): Promise<EngineDiscovery>;
   tryConfigureEngine(profile: EngineSetupProfile): Promise<void>;
+  foxSearch(query: FoxQuery): Promise<FoxSearchResult>;
+  foxNextPage(uid: string, cursor: string): Promise<FoxPage>;
+  foxOpenGame(gameId: string): Promise<Revision>;
+  foxClearHistory(): Promise<void>;
   settings(): Promise<Settings>;
   /** Native file dialogs; null when the user cancels. */
   pickOpenPath(): Promise<string | null>;
@@ -86,6 +103,11 @@ export const configureEngine: Backend["configureEngine"] = (profile) =>
 export const detectEngines: Backend["detectEngines"] = () => invoke("detect_engines");
 export const tryConfigureEngine: Backend["tryConfigureEngine"] = (profile) =>
   invoke("try_configure_engine", { profile });
+export const foxSearch: Backend["foxSearch"] = (query) => invoke("fox_search", { query });
+export const foxNextPage: Backend["foxNextPage"] = (uid, cursor) =>
+  invoke("fox_next_page", { uid, cursor });
+export const foxOpenGame: Backend["foxOpenGame"] = (gameId) => invoke("fox_open_game", { gameId });
+export const foxClearHistory: Backend["foxClearHistory"] = () => invoke("fox_clear_history");
 export const settings: Backend["settings"] = () => invoke("settings");
 
 const SGF_FILTERS = [{ name: "SGF", extensions: ["sgf"] }];
