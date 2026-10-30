@@ -1,13 +1,19 @@
-import type { Backend, AppEvent, EventListener } from "../src/api/backend";
+import type { Backend, AppEvent, CommandError, EventListener, Settings } from "../src/api/backend";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
   AnalysisSource, AnalysisSummary, AnalysisView, BoardView, CandidateView, ColorView, DocumentView,
   DocumentWarningView, EngineStatus, PointView, TreeView, WarningKindView, SubscriptionId,
   GraphPointView, GraphView,
+  FoxAccount, FoxGame, FoxPage, FoxQuery, FoxSearchResult,
+  FoxPlayer, FoxResult, FoxResultKind, FoxColor, FoxScoreUnit, FoxFailure, CommandError,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "unsubscribe">;
+// Existing non-Fox scenarios can omit the new history field in their fixtures.
+type MockResult<K extends CommandName> = K extends "settings"
+  ? Omit<Settings, "fox_history"> & Partial<Pick<Settings, "fox_history">>
+  : Awaited<ReturnType<Backend[K]>>;
 export type MockCall = {
   [K in CommandName]: { command: K; args: Parameters<Backend[K]> }
 }[CommandName];
@@ -15,9 +21,9 @@ export type MockCall = {
 export type MockCommand = {
   [K in CommandName]: {
     command: K;
-    result: Awaited<ReturnType<Backend[K]>>;
+    result: MockResult<K>;
     events?: AppEvent[];
-    error?: string;
+    error?: string | CommandError;
   }
 }[CommandName];
 
@@ -76,9 +82,14 @@ async function command<K extends CommandName>(
     throw new Error(`Expected mock command ${next?.command ?? "(none)"}, received ${name}`);
   }
   commands.shift();
-  if (next.error !== undefined) throw new Error(next.error);
+  if (next.error !== undefined) {
+    throw typeof next.error === "string" ? new Error(next.error) : structuredClone(next.error);
+  }
   pushEvents(next.events ?? []);
-  return structuredClone(next.result) as Awaited<ReturnType<Backend[K]>>;
+  const result = next.command === "settings"
+    ? { ...next.result, fox_history: next.result.fox_history ?? [] }
+    : next.result;
+  return structuredClone(result) as Awaited<ReturnType<Backend[K]>>;
 }
 
 export const openBytes: Backend["openBytes"] = (bytes) => command("openBytes", [bytes]);
@@ -95,6 +106,10 @@ export const configureEngine: Backend["configureEngine"] = (profile) =>
 export const detectEngines: Backend["detectEngines"] = () => command("detectEngines", []);
 export const tryConfigureEngine: Backend["tryConfigureEngine"] = (profile) =>
   command("tryConfigureEngine", [profile]);
+export const foxSearch: Backend["foxSearch"] = (query) => command("foxSearch", [query]);
+export const foxNextPage: Backend["foxNextPage"] = (uid, cursor) => command("foxNextPage", [uid, cursor]);
+export const foxOpenGame: Backend["foxOpenGame"] = (gameId) => command("foxOpenGame", [gameId]);
+export const foxClearHistory: Backend["foxClearHistory"] = () => command("foxClearHistory", []);
 export const settings: Backend["settings"] = () => command("settings", []);
 export const pickOpenPath: Backend["pickOpenPath"] = () => command("pickOpenPath", []);
 export const pickSavePath: Backend["pickSavePath"] = () => command("pickSavePath", []);

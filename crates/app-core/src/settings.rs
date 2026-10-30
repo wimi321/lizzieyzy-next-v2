@@ -29,6 +29,7 @@ pub struct Settings {
     pub version: u32,
     pub engine: Option<EngineProfile>,
     pub pondering: bool,
+    pub fox_history: Vec<crate::fox::FoxAccount>,
 }
 
 impl Default for Settings {
@@ -37,6 +38,7 @@ impl Default for Settings {
             version: SETTINGS_VERSION,
             engine: None,
             pondering: true,
+            fox_history: Vec::new(),
         }
     }
 }
@@ -100,6 +102,7 @@ impl Settings {
             return Err(SettingsError::FutureVersion(self.version));
         }
         self.version = SETTINGS_VERSION;
+        crate::fox::normalize_history(&mut self.fox_history);
         Ok(self)
     }
 }

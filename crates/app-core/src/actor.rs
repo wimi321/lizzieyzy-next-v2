@@ -8,6 +8,7 @@ use engine_session::EngineHandle;
 use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
+mod fox;
 mod trial;
 use trial::PendingTrial;
 
@@ -24,6 +25,7 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    Fox(crate::fox::Request),
     Apply(Input, oneshot::Sender<Result<u64, AppError>>),
     Settings(oneshot::Sender<Settings>),
     TryConfigureEngine(
@@ -99,6 +101,7 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             command = commands.recv() => match command {
+                Some(Command::Fox(request)) => actor.fox_request(request).await,
                 Some(Command::Settings(reply)) => { let _ = reply.send(actor.settings.clone()); }
                 Some(Command::Apply(Input::Shutdown, reply)) => {
                     actor.cancel_trial().await;

@@ -5,6 +5,7 @@ mod actor;
 mod delivery;
 pub mod engine_setup;
 mod engine_trial;
+pub mod fox;
 mod graph;
 mod settings;
 mod storage;
@@ -41,6 +42,8 @@ pub enum AppError {
     Session(#[from] engine_session::SessionError),
     #[error(transparent)]
     EngineSetup(#[from] EngineSetupError),
+    #[error(transparent)]
+    Fox(#[from] fox::FoxError),
 }
 
 /// Runtime tuning, separate from the versioned user settings. Defaults use the
@@ -50,6 +53,9 @@ pub struct AppConfig {
     pub session: engine_session::SessionConfig,
     pub analysis: analysis::AnalysisConfig,
     pub engine_setup_timeout: std::time::Duration,
+    /// Optional client with caller-provided endpoints and timeout. None uses
+    /// the public Fox endpoints, constructed lazily on the first Fox command.
+    pub fox_client: Option<fox::FoxClient>,
 }
 
 impl Default for AppConfig {
@@ -58,6 +64,7 @@ impl Default for AppConfig {
             session: Default::default(),
             analysis: Default::default(),
             engine_setup_timeout: std::time::Duration::from_secs(120),
+            fox_client: None,
         }
     }
 }

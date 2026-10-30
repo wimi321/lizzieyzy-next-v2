@@ -9,6 +9,7 @@ license.workspace = true
 analysis = { path = "../analysis" }
 document = { path = "../document" }
 engine-session = { path = "../engine-session" }
+fox-kifu = { path = "../fox-kifu" }
 go-core = { path = "../go-core" }
 sgf = { path = "../sgf" }
 serde = { version = "1", features = ["derive"] }
@@ -22,7 +23,7 @@ tempfile = "3"
 [dev-dependencies]
 fake-katago = { path = "../../tools/fake-katago" }
 katago-protocol = { path = "../katago-protocol" }
-tokio = { version = "1", features = ["test-util"] }
+tokio = { version = "1", features = ["test-util", "net", "io-util"] }
 
 [lints]
 workspace = true

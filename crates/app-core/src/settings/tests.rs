@@ -295,3 +295,49 @@ fn extra_arguments_cannot_override_profile_paths_or_black_perspective() {
         ));
     }
 }
+
+#[tokio::test]
+async fn fox_history_load_normalizes_identity_duplicates_invalid_uids_and_capacity() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut history = vec![
+        crate::fox::FoxAccount {
+            uid: "3".into(),
+            nickname: "new name".into(),
+        },
+        crate::fox::FoxAccount {
+            uid: "3".into(),
+            nickname: "old name".into(),
+        },
+        crate::fox::FoxAccount {
+            uid: "".into(),
+            nickname: "empty".into(),
+        },
+        crate::fox::FoxAccount {
+            uid: "４".into(),
+            nickname: "non-ASCII".into(),
+        },
+    ];
+    history.extend((1..=20).map(|uid| crate::fox::FoxAccount {
+        uid: uid.to_string(),
+        nickname: format!("name-{uid}"),
+    }));
+    fs::write(
+        directory.path().join("settings.json"),
+        serde_json::to_vec(&Settings {
+            fox_history: history,
+            ..Settings::default()
+        })
+        .unwrap(),
+    )
+    .unwrap();
+    let settings = Settings::load(directory.path()).await.unwrap();
+    assert_eq!(settings.fox_history.len(), 10);
+    assert_eq!(settings.fox_history[0].uid, "3");
+    assert_eq!(settings.fox_history[0].nickname, "new name");
+    let uids: Vec<_> = settings
+        .fox_history
+        .iter()
+        .map(|a| a.uid.as_str())
+        .collect();
+    assert_eq!(uids, ["3", "1", "2", "4", "5", "6", "7", "8", "9", "10"]);
+}

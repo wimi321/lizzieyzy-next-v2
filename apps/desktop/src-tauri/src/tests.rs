@@ -15,6 +15,8 @@ use tokio::sync::{mpsc, oneshot};
 
 const SAFETY: Duration = Duration::from_secs(5);
 
+mod fox;
+
 async fn within<T>(future: impl Future<Output = T>) -> T {
     tokio::time::timeout(SAFETY, future)
         .await

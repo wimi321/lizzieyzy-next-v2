@@ -6,11 +6,30 @@ import type {
   ColorView,
   DocumentView,
   GraphView,
+  FoxSearchResult,
   MoveView,
   PointView,
 } from "../src/api/backend";
 
 type Stone = [x: number, y: number, color: ColorView];
+
+/** Scripted Fox reply for UI tests; network parsing remains in Rust. */
+export function foxSearchResult(): FoxSearchResult {
+  return {
+    account: { uid: "123456", nickname: "测试棋手" },
+    page: {
+      games: [{
+        id: "202610300001",
+        start_time: "2026-10-30 12:00:00",
+        black: { uid: "123456", nickname: "测试棋手", rank: "9段" },
+        white: { uid: "654321", nickname: "对手", rank: "P1段" },
+        result: { winner: "Black", kind: "Resignation", score: null, unit: null },
+        move_count: 153,
+      }],
+      next_cursor: "202610300001",
+    },
+  };
+}
 
 export function boardView(
   width: number,

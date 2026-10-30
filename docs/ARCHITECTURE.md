@@ -20,6 +20,7 @@ crates/
   katago-protocol/         分析引擎 JSON 协议类型与解析（纯同步）
   engine-session/          每个引擎一个 actor：进程、请求表、重启（tokio）
   analysis/                分析协调：焦点变化、过期丢弃、缓存、节流（tokio）
+  fox-kifu/                野狐公开账号、分页棋谱及 SGF 的 HTTP 客户端（不依赖工作区 crate）
   app-core/                应用内核 actor：持有文档、协调器、设置；对外唯一入口（tokio，不依赖 tauri）
 apps/desktop/
   src-tauri/               Tauri 壳（包名 lizzieyzy-desktop）；commands/<领域>.rs 只做转发
@@ -39,6 +40,7 @@ docs/                      ARCHITECTURE / ROADMAP / ACCEPTANCE / decisions / tas
 ```
 go-core ← sgf ← document ←──────────── analysis ← app-core ← lizzieyzy-desktop
 katago-protocol ← engine-session ←───┘
+fox-kifu ← app-core
 katago-protocol ← fake-katago（engine-session / analysis / app-core / desktop 仅在测试里依赖它）
 ```
 
@@ -172,7 +174,7 @@ pub enum EngineStatus {
   - `AnalysisView`：node_id、revision、当前结果的根节点胜率 / 目差 / visits、最佳摘要 summary、候选点、可选所有权数组 `ownership`、is_during_search、Cache/Live 来源。`CandidateView` 保留显示用 GTP `coordinate`、visits、胜率、目差、先验、顺序，并提供 `point: Option<PointView>`（pass 为 None）与 `pv: Vec<MoveView>`。PV 每手带颜色和格点（或 pass），从当前候选手的轮走方开始逐手交替，pass 也切换颜色。Rust 使用 go-core 已有的 GTP 转换；TS 直接绘制 DTO，不解析坐标或推导围棋颜色。数值和 ownership 从协调器原样保留，不二次翻转。
   - `AnalysisView::from_snapshot(snapshot, size, to_play)` 返回 `Result<AnalysisView, go_core::CoordinateError>`，先用本次根评估初始化 summary，actor 在实际转发时合并历史最佳摘要。actor 在发送 Focus 时保留对应的棋盘尺寸、轮走方，确认输出的 revision/node/key 匹配后才用于转换；非法候选点或 PV 坐标报告错误，不伪造 pass 或格点。9×13 构造响应测试将 `stones`、`ownership`、候选点和 PV 的同一交叉点逐项对齐。
 - DTO 使用 `serde` + `ts-rs::TS`；带内容的事件/状态枚举以 `type`/`data` 判别，颜色为 Black/White，u64 revision/visits 的 TypeScript 类型为 number，与 JSON 数字一致。Tauri 层通过 `cargo run -p lizzieyzy-desktop --bin export-bindings` 递归导出事件、视图、落子参数、引擎档案及设置到 `apps/desktop/src/api/generated/`；一致性测试在临时目录重新生成，比较文件集合和内容，类型改动后须重新生成。
-- 设置保存在调用方目录下的 `settings.json`，`Settings { version, engine: Option<EngineProfile>, pondering }` 当前版本 1。缺字段默认、多余字段忽略；版本 0/1 读入后规范为 1，未来版本和损坏 JSON 报错，避免覆写未知格式。P1 保存一个活动档案，`None` 关闭引擎；配置和暂停状态修改成功时持久化。设置保存同样使用临时文件替换。
+- 设置保存在调用方目录下的 `settings.json`，`Settings { version, engine: Option<EngineProfile>, pondering, fox_history: Vec<FoxAccount> }` 当前版本 1。缺字段默认、多余字段忽略；旧配置缺少野狐历史时采用空列表。版本 0/1 读入后规范为 1，未来版本和损坏 JSON 报错，避免覆写未知格式。P1 保存一个活动档案，`None` 关闭引擎；配置和暂停状态修改成功时持久化。设置保存同样使用临时文件替换。
 - `EngineProfile { program, model, config, extra_args }` 的指纹为程序/模型/配置的路径、普通文件大小、修改时间（秒及纳秒）和额外参数的版本化 JSON 编码的 BLAKE3。它是缓存身份，不是文件内容校验和。改变档案或重新配置时发现元数据变化，会先关闭旧协调器和会话，再创建新的；同一有效档案幂等，失败会话允许重新配置重试。文件不存在发出包含用途和路径的 Failed，文档编辑仍正常。
 - **数值一律黑方视角**：应用自带的 `resources/katago/analysis.cfg` 显式设置 `reportAnalysisWinratesAs = BLACK`。`TransportSpec::LocalProcess` 启动参数为 `analysis -config <配置> -model <模型> -override-config <合并值>`，整个命令中 `-override-config` 只出现一次，以符合 KataGo 的 TCLAP ValueArg 约束。档案额外参数里的各个 `-override-config VALUE` / `-override-config=VALUE` 被提取并按原顺序合并为逗号列表，显式 BLACK 项去重，末尾追加唯一 `reportAnalysisWinratesAs=BLACK`；其它非 override 参数保留边界及相对次序。额外参数仍不得覆写模型/配置路径，也不得把视角改成非 BLACK。
 - 首次设置使用 `EngineSetupProfile { program, model, config: Option<PathBuf>, extra_args }` 和 `AppCore::try_configure_engine(profile, default_config_source)`；已有 `EngineProfile` 的持久化格式和 `configure_engine` 的先存后启语义不变。`config=None` 时从调用方指定的模板复制到设置目录的 `analysis.cfg`，用同目录临时文件原子发布且不覆盖已有普通文件；拒绝目标为目录或符号链接。失败尝试可能留下已复制的默认配置，但不改变 `settings.json` 或活动档案。Tauri 将 `resources/katago/analysis.cfg` 映射为 `katago/analysis.cfg` 资源，从 `resource_dir` 解析来源；app-core 不依赖 Tauri。
@@ -184,6 +186,19 @@ pub enum EngineStatus {
 - `subscribe` / `unsubscribe` 管理传输订阅。三种 `AppEvent` 共用一个 `tauri::ipc::Channel<AppEvent>`，由单个转发任务按 `AppSubscription::recv()` 的顺序发送；不分事件种类并发转发，确保 revision N 的 `DocumentChanged` 在其 `AnalysisUpdated` 之前。转发任务保留最近的文档、引擎状态两条事件，按原收取顺序回放给新订阅，不缓存或回放分析；分析的有效性仍由 AppCore 决定。没有活跃 Channel 时暂停读取 `AppSubscription`，由 AppCore 的有界邮箱保留最新有效事件并清除过期分析；首次订阅前或断连期间产生的有效最终结果不会被壳层提前消费丢弃。仅有一个活跃 Channel，新订阅替换旧订阅；订阅 ID 是单调递增的 u32，耗尽时报错，过期 ID 的取消操作幂等且不影响新订阅。前端 `src/api/backend.ts` 是唯一业务入口，封装命令和订阅生命周期；多个界面监听者共享同一传输订阅。
 - 启动默认使用 Tauri 的应用配置目录，可用 `--config-dir <路径>` 或 `--config-dir=<路径>` 覆盖；棋谱路径可用一个位置参数或 `--open=<路径>` 指定，交给 `AppCore::open_path`。等号写法将选项和路径放在同一个原生参数中，兼容将每项参数都视为 Chromium 开关的 Windows WebDriver；桌面 E2E 在所有平台统一采用等号写法。参数顺序不受限，`--` 后的参数仅作棋谱路径，不再识别选项；未知选项、重复配置目录、多个棋谱和缺少或空路径均报错，混用两种写法仍按同一配置目录／棋谱参数检查重复。路径保持原生 OS 编码；启动打开失败时等待 AppCore 关闭后返回错误，不留下后台引擎。
 - 主窗口 capability 仅匹配本地 `main` 窗口，逐项允许应用命令和 `dialog:allow-open` / `dialog:allow-save`；不授权远程页面或宽泛 core / shell / fs 权限。`tauri-build::AppManifest::commands` 为应用命令生成 ACL 定义，确保命令同样受 capability 约束；生成的 permissions 与 schemas 不入库。Channel 内部的数据提取命令由 Tauri 自身处理，不需要额外的 core capability。
+
+### 4.8 野狐公开棋谱
+
+- `fox-kifu` 不依赖其他工作区 crate，使用 reqwest 的 rustls 后端访问公开 HTTP 接口，不需要账号登录、Cookie 或外部 JAR。`FoxClient::search(&FoxQuery)` 返回 `FoxSearchResult { account, page }`；`FoxQuery::{Nickname(String), Uid(String)}` 在 IPC 中使用 `type/value` 判别，数字昵称不会被自动解释为 UID。UID 只接受 ASCII 数字。
+- `FoxAccount { uid, nickname }` 保留账号身份；`FoxPage { games, next_cursor }` 的每项 `FoxGame` 包含对局 id、开始时间、黑白 `FoxPlayer { uid, nickname, rank }`、结果和手数。结果由胜方、胜负方式、可选分值及子/目单位组成，区分中盘、超时、点数和其他胜负；显示文案留给界面本地化。段位沿用 Java 的数值偏移及职业 `P` 规则。
+- `FoxClient::list(uid, cursor)` 使用服务端最后一项对局 id 翻页，每页上限 100；不足 100 项（包括空页）表示没有下一页，重复游标报错。`download(game_id)` 先用 okhttp UA 依次 POST 主、备用棋谱 CGI，再回退到 H5 GET；HTTP 错误、非 JSON、非零结果或空棋谱均继续下一接口。
+- HTTP 使用独立的 20 秒连接超时、默认 25 秒读取空闲超时；持续收到数据会重置读取期限，慢响应不会因总传输超过 25 秒而失败。每次操作（含重试和退避）另有 3 分钟上限、每份响应最多 4 MiB。只有超时、连接和正文传输错误最多尝试 3 次，重试前依次等待 350/700ms；HTTP 状态、JSON、API 和大小错误不重试。`with_endpoints` 的 Duration 参数仅覆盖读取空闲超时，供本地 HTTP 测试注入。
+- 下载成功后删除 BOM 和 SGF 属性值外的反斜杠，再按 Java 的确定性规则选择首个含着手的变化、合并根信息和整理着手为主线。保留所选主线的注释、未知属性和值内转义，不依赖全局棋盘去推测拼接窗口碎片。原始 `KM` 保持不变，贴目解释仍由 document 执行；例如 `AP[foxwq]`、中国规则的 `KM[375]` 打开后是 7.5 目。损坏结构返回类型化错误供接口回退。
+- 所有失败返回 `FoxError`；确认的无账号响应（101201 且 UID 空或 0）与 HTTP、网络、其他 API 或格式错误分开，未知非零码保守作为 API 错误。
+- `AppCore::{fox_search, fox_next_page, fox_open_game, fox_clear_history}` 是壳层唯一入口。调用 future 执行 HTTP，应用 actor 只处理客户端取得、历史持久化和下载完成后的 `open_bytes`，慢网络不会占住文档/设置命令。分页参数显式传入，不共享可覆盖的全局游标；下载后沿用本地 SGF 的打开事务、事件及焦点更新流程，失败保留当前文档。
+- 成功取得账号和第一页后，才把 `FoxAccount` 记入 `Settings.fox_history`，按 UID 去重、最近成功完成的搜索在前、最多 10 条；加载设置也规范化历史，清空通过同一原子保存流程持久化。`AppConfig.fox_client` 可注入本地测试端点，默认客户端惰性创建。
+- Tauri 的 `commands/fox.rs` 提供 `fox_search(query)`、`fox_next_page(uid, cursor)`、`fox_open_game(gameId)`、`fox_clear_history()`，仅授权本地 main 窗口。`CommandError::Fox(FoxFailure)` 保留可本地化的错误分类及 HTTP/API 状态码；其余错误维持原有应用错误边界。所有野狐 DTO 和错误类型由 Rust 递归生成 TS，前端 backend 与 E2E mock 仅转发或回放命令，不实现网络协议或解析。
+- 普通测试使用 `fixtures/fox/` 的真实录制和本地假 HTTP 服务；列表裁为 5 盘，昵称、UID 及 SGF 的 PB/PW 一致脱敏，保留字段类型和业务结果，清理敏感字段。录制日期和接口在测试注释中注明。`fox-recorded-2026-10-30.sgf` 保留录制的 177 手棋谱；此外保留 Java 八手回归片段和 [Leela Zero #2285](https://github.com/leela-zero/leela-zero/issues/2285) 公开发布的 313 手完整野狐棋谱；SGF 样本由独立 oracle 校验。`app-core/tests/fox_live.rs` 的联网验收显式 `#[ignore]`，经生产 AppCore 完成昵称、列表、CGI/H5 下载和打开，报告列表盘数、对局 id、手数和贴目，仅使用临时目录，不把未脱敏网络响应写入仓库。
 
 ## 5. 主流程时序（导航到下一手）
 
