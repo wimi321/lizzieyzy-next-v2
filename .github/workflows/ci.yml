@@ -84,3 +84,197 @@ jobs:
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           scripts/verify.sh --e2e
+
+      # verify.sh already builds the real, embedded-frontend application with
+      # `pnpm -C apps/desktop tauri build --debug --no-bundle` and fake-katago.
+      # Keep compilation outside the five-minute desktop E2E job.
+      - name: Prepare desktop E2E binaries
+        if: runner.os != 'macOS'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo install tauri-driver --locked --version '=2.1.0'
+          artifact_suffix=""
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            artifact_suffix=".exe"
+          fi
+          mkdir -p "$RUNNER_TEMP/tauri-e2e/katago"
+          cp "target/debug/lizzieyzy-desktop${artifact_suffix}" \
+            "target/debug/fake-katago${artifact_suffix}" \
+            "$HOME/.cargo/bin/tauri-driver${artifact_suffix}" \
+            "$RUNNER_TEMP/tauri-e2e/"
+          cp resources/katago/analysis.cfg "$RUNNER_TEMP/tauri-e2e/katago/"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            # No Cargo dependencies: compile and test the logging adapter here,
+            # outside the five-minute E2E job, then ship only its executable.
+            rustc --edition 2024 -D warnings apps/desktop/e2e/tauri/native-driver.rs \
+              -o "$RUNNER_TEMP/tauri-e2e/e2e-native-driver.exe"
+            rustc --edition 2024 -D warnings apps/desktop/e2e/tauri/fixtures/native-driver-child.rs \
+              -o "$RUNNER_TEMP/native-driver-child.exe"
+            "$PYTHON" apps/desktop/e2e/tauri/native-driver.test.py \
+              "$RUNNER_TEMP/tauri-e2e/e2e-native-driver.exe" "$RUNNER_TEMP/native-driver-child.exe"
+          fi
+
+      - name: Upload desktop E2E binaries
+        if: runner.os != 'macOS'
+        uses: actions/upload-artifact@v6
+        with:
+          name: tauri-e2e-${{ runner.os }}
+          path: ${{ runner.temp }}/tauri-e2e/
+          if-no-files-found: error
+          retention-days: 1
+
+  e2e:
+    name: Desktop E2E (${{ matrix.os }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows is tracked in docs/tasks/P1-15-windows-webdriver.md: msedgedriver launches the
+        # app but never finds DevToolsActivePort, so the session cannot attach. Its build and
+        # diagnostics steps stay in place for that card.
+        os: [ubuntu-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      WEBKIT_DISABLE_DMABUF_RENDERER: '1'
+    steps:
+      - name: Start desktop E2E clock
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "TAURI_E2E_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Linux native WebDriver and runtime
+        if: runner.os == 'Linux'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-0 libayatana-appindicator3-1 libxdo3 \
+            webkit2gtk-driver xvfb xauth dbus-x11
+
+      - name: Install WebView2-matched Microsoft Edge WebDriver
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$HOME/.cargo/bin;$env:PATH"
+          $diagnostics = Join-Path $env:GITHUB_WORKSPACE 'apps/desktop/test-results/tauri'
+          New-Item -ItemType Directory -Path $diagnostics -Force | Out-Null
+          $versions = [System.Collections.Generic.List[string]]::new()
+          $edgeVersion = 'not found'
+          $runtimeVersion = 'not found'
+          $driverVersion = 'not installed'
+          try {
+            $edgePaths = @(
+              "${env:ProgramFiles(x86)}/Microsoft/Edge/Application/msedge.exe",
+              "$env:ProgramFiles/Microsoft/Edge/Application/msedge.exe"
+            )
+            $edge = $edgePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+            if ($edge) { $edgeVersion = (Get-Item $edge).VersionInfo.ProductVersion }
+            # The app embeds WebView2; Edge's independently updated version is diagnostic only.
+            $runtimeKeys = @(
+              'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+              'HKCU:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+              # Microsoft's documented per-user location on 64-bit Windows has no WOW6432Node.
+              'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+            )
+            foreach ($key in $runtimeKeys) {
+              $candidate = Get-ItemPropertyValue -Path $key -Name pv -ErrorAction SilentlyContinue
+              $versions.Add("WebView2 registry: $key; pv=$candidate")
+              if ($candidate -match '^\d+\.\d+\.\d+\.\d+$' -and $candidate -ne '0.0.0.0') {
+                $runtimeVersion = $candidate
+                break
+              }
+            }
+            if ($runtimeVersion -eq 'not found') { throw 'WebView2 Runtime version was not found in the registry' }
+            $driverDirectory = Join-Path $env:RUNNER_TEMP 'msedgedriver'
+            $driverArchive = Join-Path $env:RUNNER_TEMP 'edgedriver.zip'
+            Invoke-WebRequest -Uri "https://msedgedriver.microsoft.com/$runtimeVersion/edgedriver_win64.zip" -OutFile $driverArchive
+            Expand-Archive -Path $driverArchive -DestinationPath $driverDirectory
+            $driver = Join-Path $driverDirectory 'msedgedriver.exe'
+            $signature = Get-AuthenticodeSignature $driver
+            $versions.Add("WebDriver signature: $($signature.Status)")
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+              throw 'Microsoft Edge WebDriver signature is invalid'
+            }
+            $driverVersion = (& $driver --version | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0 -or $driverVersion -notmatch '^Microsoft Edge WebDriver (\d+\.\d+\.\d+)\.') {
+              throw "Invalid Microsoft Edge WebDriver version: $driverVersion"
+            }
+            if ($Matches[1] -ne (($runtimeVersion -split '\.')[0..2] -join '.')) {
+              throw "WebView2 Runtime $runtimeVersion does not match WebDriver $driverVersion"
+            }
+            $driverDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            "TAURI_E2E_NATIVE_DRIVER=$driver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } catch {
+            $versions.Add("Driver installation failed: $($_.Exception.Message)")
+            throw
+          } finally {
+            $versions.Add("Microsoft Edge: $edgeVersion")
+            $versions.Add("WebView2 Runtime: $runtimeVersion")
+            $versions.Add("msedgedriver: $driverVersion")
+            $versions | Tee-Object -FilePath (Join-Path $diagnostics 'windows-versions.txt')
+          }
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/desktop/package.json
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+
+      - name: Download verified desktop binaries
+        uses: actions/download-artifact@v7
+        with:
+          name: tauri-e2e-${{ runner.os }}
+          path: target/debug/
+
+      - name: Install dependencies and check E2E helpers
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          pnpm -C apps/desktop install --frozen-lockfile
+          pnpm -C apps/desktop e2e:tauri:check
+
+      - name: Desktop WebDriver E2E (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PWD/target/debug:$PATH"
+          chmod +x target/debug/lizzieyzy-desktop target/debug/fake-katago target/debug/tauri-driver
+          dbus-run-session -- xvfb-run -a --server-args='-screen 0 1280x1024x24' \
+            pnpm -C apps/desktop e2e:tauri
+
+      - name: Desktop WebDriver E2E (Windows)
+        if: runner.os == 'Windows'
+        env:
+          TAURI_E2E_NATIVE_DRIVER_WRAPPER: ${{ github.workspace }}/target/debug/e2e-native-driver.exe
+        run: |
+          export PATH="$HOME/.cargo/bin:$PWD/target/debug:$PATH"
+          pnpm -C apps/desktop e2e:tauri
+
+      - name: Upload desktop E2E diagnostics
+        if: always() && (runner.os == 'Windows' || failure())
+        uses: actions/upload-artifact@v6
+        with:
+          name: tauri-e2e-diagnostics-${{ runner.os }}
+          path: apps/desktop/test-results/tauri/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Report desktop E2E elapsed time
+        if: always()
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          tauri_e2e_elapsed=$(( $(date +%s) - TAURI_E2E_STARTED_AT ))
+          printf 'Desktop E2E steps, including setup and diagnostics: %s seconds (job limit: 300 seconds).\n' \
+            "$tauri_e2e_elapsed" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$tauri_e2e_elapsed" -lt 300

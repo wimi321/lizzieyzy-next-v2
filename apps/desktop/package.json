@@ -14,6 +14,8 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "e2e": "playwright test",
+    "e2e:tauri": "tsc -p e2e/tauri/tsconfig.json && node test-results/tauri-runner/main.wdio.js",
+    "e2e:tauri:check": "vitest run --config e2e/tauri/vitest.config.ts",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -39,7 +41,8 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.54.0",
     "vite": "^7.3.1",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "webdriverio": "9.27.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
