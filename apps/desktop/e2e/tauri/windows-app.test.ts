@@ -3,6 +3,7 @@ import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { startWindowsApp, type WindowsApp } from "./windows-app.js";
 
@@ -60,14 +61,41 @@ function launchApp(options: Parameters<typeof startWindowsApp>[0]): Promise<Wind
   return attempt;
 }
 
-async function listen(server: Server): Promise<number> {
+async function listen(server: Server, port = 0): Promise<number> {
   await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    const cleanup = () => {
+      server.off("error", onError);
+      server.off("listening", onListening);
+    };
+    const onError = (error: unknown) => { cleanup(); reject(error); };
+    const onListening = () => { cleanup(); resolve(); };
+    server.once("error", onError);
+    server.once("listening", onListening);
+    try { server.listen(port, "127.0.0.1"); } catch (error) { onError(error); }
   });
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("missing fixture port");
   return address.port;
+}
+
+async function listenAfterExit(server: Server, port: number): Promise<void> {
+  const deadline = performance.now() + 5000;
+  let cause: unknown;
+  do {
+    try {
+      await listen(server, port);
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") throw error;
+      cause = error;
+    }
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) break;
+    // Process exit can precede socket release on Windows. Retry the bind itself
+    // so the replacement retains the port as soon as it becomes available.
+    await delay(Math.min(25, remaining));
+  } while (performance.now() < deadline);
+  throw new Error(`Replacement could not bind 127.0.0.1:${port} within 5s`, { cause });
 }
 
 async function freePort(): Promise<number> {
@@ -240,10 +268,7 @@ test("cleanup reports an occupied former CDP port without killing its new owner"
     try { process.kill(probe.pid, 0); return false; } catch { return true; }
   }, { timeout: 1000 }).toBe(true);
   const replacement = createServer((_, response) => response.end("replacement owner"));
-  await new Promise<void>((resolve, reject) => {
-    replacement.once("error", reject);
-    replacement.listen(port, "127.0.0.1", resolve);
-  });
+  await listenAfterExit(replacement, port);
   try {
     // Advance only the cleanup deadline; socket binding and processes remain real.
     let now = 0;
@@ -258,4 +283,57 @@ test("cleanup reports an occupied former CDP port without killing its new owner"
     replacement.closeAllConnections();
     await new Promise<void>((resolve) => replacement.close(() => resolve()));
   }
+});
+
+test("replacement binding retries occupied ports until release without retaining attempt listeners", async () => {
+  const owner = createServer();
+  const port = await listen(owner);
+  const replacement = createServer((_, response) => response.end("replacement owner"));
+  const listening = replacement.listeners("listening");
+  let collisions = 0;
+  const release = () => { if (++collisions === 2) owner.close(); };
+  replacement.on("error", release);
+  try {
+    await listenAfterExit(replacement, port);
+    expect(collisions).toBeGreaterThanOrEqual(2);
+    expect(replacement.listeners("error")).toEqual([release]);
+    expect(replacement.listeners("listening")).toEqual(listening);
+    expect(await (await fetch(`http://127.0.0.1:${port}`)).text()).toBe("replacement owner");
+  } finally {
+    replacement.closeAllConnections();
+    await new Promise<void>((resolve) => replacement.close(() => resolve()));
+    await new Promise<void>((resolve) => owner.close(() => resolve()));
+  }
+});
+
+test("replacement binding fails at its five-second deadline if the port stays occupied", async () => {
+  const owner = createServer();
+  const port = await listen(owner);
+  const replacement = createServer();
+  const listening = replacement.listeners("listening");
+  const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+  replacement.once("error", () => { clock.mockReturnValue(5000); });
+  const binding = vi.spyOn(replacement, "listen");
+  try {
+    await expect(listenAfterExit(replacement, port)).rejects.toMatchObject({
+      message: `Replacement could not bind 127.0.0.1:${port} within 5s`,
+      cause: { code: "EADDRINUSE" },
+    });
+    expect(binding).toHaveBeenCalledTimes(1);
+    expect(replacement.listeners("error")).toEqual([]);
+    expect(replacement.listeners("listening")).toEqual(listening);
+    expect(owner.listening).toBe(true);
+  } finally {
+    await new Promise<void>((resolve) => owner.close(() => resolve()));
+  }
+});
+
+test("replacement binding fails immediately for errors other than EADDRINUSE", async () => {
+  const replacement = createServer();
+  const listening = replacement.listeners("listening");
+  const binding = vi.spyOn(replacement, "listen");
+  await expect(listenAfterExit(replacement, -1)).rejects.toMatchObject({ code: "ERR_SOCKET_BAD_PORT" });
+  expect(binding).toHaveBeenCalledTimes(1);
+  expect(replacement.listeners("error")).toEqual([]);
+  expect(replacement.listeners("listening")).toEqual(listening);
 });
