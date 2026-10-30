@@ -142,11 +142,18 @@ pub enum EngineStatus {
 
 ### 4.6 analysis（协调器）
 
-- 输入：`Focus { revision, node_id, position, key }`、`SetPondering(bool)`、`SetLiveSettings { … }`；输出 `AnalysisSnapshot`。
-- 焦点变化：terminate 旧的实时请求 → 先推缓存里该 key 的最好结果 → 发新的实时请求（`reportDuringSearchEvery`，默认 0.15 秒，可配置）。
-- 只转发 (revision, node_id) 等于当前焦点的结果，其余丢弃。这是"旧局面分析串到新局面"的根治手段。
-- 节流：每个焦点最多 20 次/秒。
-- 缓存：P1 用内存 LRU（AnalysisKey + 引擎指纹，保留 visits 最多的结果），P2 换 SQLite。
+- `analysis::spawn(engine: EngineHandle, config: AnalysisConfig) -> Result<(AnalysisHandle, AnalysisSubscription), AnalysisError>` 在 Tokio runtime 内启动一个协调 actor；直接消费 engine-session 的 `QuerySubscription` / `QueryEvent`，不另起进程管理或结果转发任务。
+- `AnalysisHandle` 可 clone，提供异步 `focus(Focus)`、`set_pondering(bool)`、`set_live_settings(LiveSettings)` 和 `shutdown(self)`，均返回 `Result<(), AnalysisError>`；成功返回表示命令已经应用。`Focus { revision, node_id, position: GamePosition, key: AnalysisKey }` 的 key 必须匹配 position；相同 revision/node/key 的重复焦点命令幂等；当前请求失败时可重复该命令重试。无效输入不改变已有焦点、查询或状态。
+- `AnalysisConfig` 包含 `engine_fingerprint: String`、`cache_capacity: usize`（默认 128，必须大于 0）、`live: LiveSettings` 和 `pondering: bool`（默认开启）。指纹由调用方标识引擎版本、模型和影响评估的配置，在协调器生命周期内固定；更换这些内容必须新建协调器。默认空指纹仅适合单个引擎会话，不表示跨引擎结果可复用。
+- `LiveSettings { max_visits: u64, report_interval: Duration, include_ownership: bool, include_policy: bool }` 默认分别为 `u32::MAX`、150ms、true、false；visits 必须大于 0，报告间隔必须在 `(0, 24h]`。达到访问上限后结束该请求，不自动循环提交。实际修改设置清除当前焦点的已发布快照记录和 visits 下限，取消旧请求，再用新设置提交；相同设置是无操作，无效设置不改变已有状态。暂停取消当前请求并清掉未读输出，恢复为同一焦点分配新请求；暂停/恢复保留已发布快照记录及 visits 下限。
+- 请求使用 `GamePosition.analysis_moves` 配合 `initial_stones`、`initial_player` 重放到当前局面；完整 `moves` 不能用于中途摆子或 PL 重置后的请求。规则使用有效预设字符串，贴目使用文档已规范化值，尺寸来自 board；GTP 坐标由 go-core 转换。只分析最后一手，priority 为 0。文档 warning 仍由 `GameDocument::warnings()` 提供，协调器不重复解析元数据或生成 warning。数值依赖 4.7 的引擎 BLACK 配置，响应原样保留，不按轮走方二次转换。
+- node_id 或 key 变化：清除未读的旧焦点输出、待节流结果和已发布快照记录 → 用订阅的稳定 id terminate 旧实时请求 → 先推缓存里该 key 的最好结果 → 发新实时请求（`reportDuringSearchEvery` 和 `firstReportDuringSearchAfter` 均使用 report_interval）。关闭或丢弃最后一个 handle 也取消其当前请求，但不关闭共享的 engine-session。
+- 仅 revision 变化、node_id/key 不变：不 terminate、不 submit，保留原订阅并更新查询身份；清掉未读的旧 revision 输出，立即用新 revision 重发最近一次已发布快照（如果有，response 和 source 不变）。待节流结果也更新 revision，包括查询已经完成但尚未发布的 Final；此后所有输出均使用新 revision。已发布快照的 visits 下限不变，查询已完成时也不因 revision 变化重新搜索。
+- `AnalysisSubscription::recv(&mut self) -> Option<AnalysisSnapshot>` 是取消安全的输出入口。`AnalysisSnapshot { revision, node_id, key, response: AnalysisResponse, source: SnapshotSource }` 的 source 区分 Cache / Live；仅发布 revision/node/key 都匹配当前焦点的数据。输出使用有界 watch 邮箱，保留一个未读缓存结果及一个最新实时结果；慢消费者仍先收到缓存，实时中间结果合并，最终结果保留到新命令使其失效。焦点命令成功返回后，旧焦点尚未消费的数据也不可再读到。
+- 显示深度：记录当前焦点实际已发布的最新快照，缓存快照也计入。实时结果 root visits 小于这条快照时直接抑制，不进入待节流槽；相等或更大时正常发布。仅收到但尚未发布的结果不抬高该下限。引擎重启和暂停/恢复均保留下限，重放查询追平后才能更新显示；更浅的 Final 也不发布，但请求正常结束。只有实际改设置或 node_id/key 变化清除当前记录，返回局面后新发布的缓存重新建立下限。
+- 节流：同一 revision 的正常分析输出至少间隔 50ms，最多 20 次/秒，缓存也占一次；首条立即发布，中间结果合并到最新，符合显示深度条件的最终结果延后到下个允许时刻发布。忙时不补发错过的时钟。仅 revision 变化时的快照重发是新 revision 的首条，立即发送；保留待发结果并把后续正常输出推迟至少 50ms，没有历史快照可重发时则保留原期限。暂停/恢复及改设置不重置节流时钟；node_id/key 变化清掉旧时钟与待发数据。
+- 缓存：P1 用有界内存 LRU（AnalysisKey + 引擎指纹，保留 root visits 最多的结果，相同 visits 更新为后来结果）；读取或刷新提升最近使用顺序，浅结果不会覆盖深结果。缓存使用所有收到的当前查询结果，独立于输出节流。P2 换 SQLite。
+- `status()` 返回 `watch::Receiver<AnalysisStatus>`，状态为 Idle / Analyzing / Restarting / Failed(AnalysisError) / Stopped。查询故障以类型化错误报告，不伪造分析值；收到 Restarted 清掉待节流的旧 Partial，保留已发布快照及 visits 下限，继续读取原订阅，由 engine-session 自动重发，协调器不重复提交。
 - 整盘分析（P2）：`analyzeTurns` 批量提交，`priority` 低于实时请求。
 
 ### 4.7 app-core 与 Tauri 层
