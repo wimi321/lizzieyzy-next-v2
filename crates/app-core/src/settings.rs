@@ -29,6 +29,7 @@ pub struct Settings {
     pub version: u32,
     pub engine: Option<EngineProfile>,
     pub pondering: bool,
+    pub fox_history: Vec<crate::fox::FoxAccount>,
     pub move_rank: crate::MoveRankSettings,
 }
 
@@ -38,6 +39,7 @@ impl Default for Settings {
             version: SETTINGS_VERSION,
             engine: None,
             pondering: true,
+            fox_history: Vec::new(),
             move_rank: crate::MoveRankSettings::default(),
         }
     }
@@ -104,6 +106,7 @@ impl Settings {
             return Err(SettingsError::FutureVersion(self.version));
         }
         self.version = SETTINGS_VERSION;
+        crate::fox::normalize_history(&mut self.fox_history);
         self.move_rank.validate()?;
         Ok(self)
     }

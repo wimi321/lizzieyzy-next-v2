@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>提示</title>
+		<!-- Bootstrap -->
+		<link rel="stylesheet" href="/Public/Boot3/css/bootstrap.min.css">
+
+		<!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+		<!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+		<!--[if lt IE 9]>
+		<script src="/Public/Boot3/js/html5shiv.min.js"></script>
+		<script src="/Public/Boot3/js/respond.min.js"></script>
+		<![endif]-->
+		<style type="text/css">
+			.container{
+				margin-top: 40px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<div class="row">
+				<div class="col-md-6 col-md-offset-3">
+											<div class="alert alert-success text-center">
+							<h2><span class="glyphicon glyphicon-ok"></span> 您所访问的页面不存在或者已删除。</h2>
+							<p class="jump">页面自动 <a id="href" href="https://cgi.foxwq.com">跳转</a> 等待时间： <b id="wait">3</b>
+						</div>				</div>
+			</div>
+		</div>
+		<script type="text/javascript">
+			(function(){
+			var wait = document.getElementById('wait'),href = document.getElementById('href').href;
+			var interval = setInterval(function(){
+				var time = --wait.innerHTML;
+				if(time <= 0) {
+					location.href = href;
+					clearInterval(interval);
+				};
+			}, 1000);
+			})();
+		</script>
+	</body>
+</html>
