@@ -114,6 +114,13 @@ jobs:
               "$RUNNER_TEMP/tauri-e2e/e2e-native-driver.exe" "$RUNNER_TEMP/native-driver-child.exe"
           fi
 
+      - name: Test Windows WebView2 policy restoration
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$HOME/.cargo/bin;$env:PATH"
+          & ./apps/desktop/e2e/tauri/windows-policy.test.ps1
+
       - name: Upload desktop E2E binaries
         if: runner.os != 'macOS'
         uses: actions/upload-artifact@v6
@@ -131,10 +138,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Windows is tracked in docs/tasks/P1-15-windows-webdriver.md: msedgedriver launches the
-        # app but never finds DevToolsActivePort, so the session cannot attach. Its build and
-        # diagnostics steps stay in place for that card.
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, windows-latest]
     defaults:
       run:
         shell: bash
@@ -149,6 +153,22 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Download verified desktop binaries
+        uses: actions/download-artifact@v7
+        with:
+          name: tauri-e2e-${{ runner.os }}
+          path: target/debug/
+
+      - name: Diagnose Windows application without WebDriver
+        if: runner.os == 'Windows'
+        # A diagnostic failure must not hide the real WebDriver result.
+        continue-on-error: true
+        timeout-minutes: 1
+        shell: pwsh
+        run: |
+          $env:PATH = "$HOME/.cargo/bin;$env:PATH"
+          & ./apps/desktop/e2e/tauri/windows-direct-launch.ps1
 
       - name: Install Linux native WebDriver and runtime
         if: runner.os == 'Linux'
@@ -233,12 +253,6 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/desktop/pnpm-lock.yaml
 
-      - name: Download verified desktop binaries
-        uses: actions/download-artifact@v7
-        with:
-          name: tauri-e2e-${{ runner.os }}
-          path: target/debug/
-
       - name: Install dependencies and check E2E helpers
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
@@ -255,11 +269,19 @@ jobs:
 
       - name: Desktop WebDriver E2E (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         env:
           TAURI_E2E_NATIVE_DRIVER_WRAPPER: ${{ github.workspace }}/target/debug/e2e-native-driver.exe
         run: |
-          export PATH="$HOME/.cargo/bin:$PWD/target/debug:$PATH"
-          pnpm -C apps/desktop e2e:tauri
+          $env:PATH = "$HOME/.cargo/bin;$env:GITHUB_WORKSPACE/target/debug;$env:PATH"
+          & ./apps/desktop/e2e/tauri/windows-webdriver.ps1
+
+      - name: Restore Windows WebView2 policy
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$HOME/.cargo/bin;$env:PATH"
+          & ./apps/desktop/e2e/tauri/windows-webdriver.ps1 -Action Restore
 
       - name: Upload desktop E2E diagnostics
         if: always() && (runner.os == 'Windows' || failure())

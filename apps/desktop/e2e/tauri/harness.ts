@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Browser } from "webdriverio";
 import { readProbe } from "./probe.js";
-import { openSession, TIMEOUT } from "./session.js";
+import { appCapabilities, openSession, TIMEOUT } from "./session.js";
 import { recordWindowsProcesses } from "./diagnostics.js";
+import { startWindowsApp } from "./windows-app.js";
 
 export { TIMEOUT } from "./session.js";
 export const VISITS_PER_SECOND = 10_000;
@@ -16,6 +17,8 @@ const application = resolve(process.env.TAURI_E2E_APP ?? `../../target/debug/liz
 const engine = resolve(process.env.TAURI_E2E_ENGINE ?? `../../target/debug/fake-katago${suffix}`);
 const sgf = resolve("e2e/tauri/fixtures/mainline.sgf");
 const temporaryDirectories = new Set<string>();
+const windowsApps = new Set<ReturnType<typeof startWindowsApp>>();
+let appAbort = new AbortController();
 
 /** Conditional polling only; the timer bounds failure, never sequences the app. */
 async function poll(check: () => Promise<boolean>, message: string): Promise<void> {
@@ -28,9 +31,14 @@ async function poll(check: () => Promise<boolean>, message: string): Promise<voi
 
 export async function startDriver(): Promise<() => Promise<void>> {
   await mkdir(diagnostics, { recursive: true });
-  const executable = process.env.TAURI_DRIVER ?? "tauri-driver";
-  const args = ["--port", "4444", "--native-port", "4445"];
-  if (process.env.TAURI_E2E_NATIVE_DRIVER_WRAPPER) {
+  appAbort = new AbortController();
+  const windows = process.platform === "win32";
+  const executable = windows ? process.env.TAURI_E2E_NATIVE_DRIVER_WRAPPER : process.env.TAURI_DRIVER ?? "tauri-driver";
+  assert.ok(executable, "Windows E2E requires TAURI_E2E_NATIVE_DRIVER_WRAPPER; use windows-webdriver.ps1");
+  // Windows talks directly to msedgedriver through the existing logging adapter.
+  // Linux keeps tauri-driver's native-driver translation and launch behavior.
+  const args = windows ? ["--port=4444"] : ["--port", "4444", "--native-port", "4445"];
+  if (!windows && process.env.TAURI_E2E_NATIVE_DRIVER_WRAPPER) {
     args.push("--native-driver", process.env.TAURI_E2E_NATIVE_DRIVER_WRAPPER);
   }
   const driver = spawn(executable, args, {
@@ -49,7 +57,18 @@ export async function startDriver(): Promise<() => Promise<void>> {
   const cleanup = (): Promise<void> => {
     cleanupPromise ??= (async () => {
       try {
-        await stopDriver(driver);
+        appAbort.abort();
+        try {
+          for (const pending of windowsApps) {
+            // A failed launch already cleans up before rejecting. A ready app
+            // still belongs to us even after WebDriver deletes its session.
+            const app = await pending.catch(() => undefined);
+            await app?.stop();
+          }
+          windowsApps.clear();
+        } finally {
+          await stopDriver(driver);
+        }
         for (const directory of temporaryDirectories) await rm(directory, { recursive: true, force: true });
         temporaryDirectories.clear();
       } finally {
@@ -74,7 +93,7 @@ export async function startDriver(): Promise<() => Promise<void>> {
   try {
     await poll(async () => {
       if (spawnError) throw spawnError;
-      assert.equal(driver.exitCode, null, `tauri-driver exited: ${output}`);
+      assert.equal(driver.exitCode, null, `WebDriver exited: ${output}`);
       try {
         const response = await fetch("http://127.0.0.1:4444/status", { signal: AbortSignal.timeout(500) });
         const body = await response.json() as { value?: { ready?: boolean } };
@@ -82,7 +101,7 @@ export async function startDriver(): Promise<() => Promise<void>> {
       } catch {
         return false;
       }
-    }, `tauri-driver did not become ready: ${output}`);
+    }, `WebDriver did not become ready: ${output}`);
     return cleanup;
   } catch (error) {
     await cleanup();
@@ -110,6 +129,7 @@ export async function withApp(
   name: string,
   extraArgs: string[],
   run: (browser: Browser, context: { faultMarker: string }) => Promise<void>,
+  options: { deferFault?: boolean } = {},
 ): Promise<void> {
   const started = performance.now();
   for (const file of [application, engine, sgf]) assert.ok((await stat(file)).isFile(), `missing file: ${file}`);
@@ -117,10 +137,12 @@ export async function withApp(
   const directory = await mkdtemp(join(tmpdir(), "lizzie e2e "));
   temporaryDirectories.add(directory);
   let browser: Browser | undefined;
+  let windowsApp: ReturnType<typeof startWindowsApp> | undefined;
   try {
     const model = join(directory, "placeholder model.bin.gz");
     const config = join(directory, "analysis.cfg");
     const faultMarker = join(directory, "fault claimed");
+    if (options.deferFault) await writeFile(faultMarker, "Fault suppressed until the UI observer is ready\n");
     await writeFile(model, "fake-katago does not load model contents\n");
     await writeFile(config, "reportAnalysisWinratesAs = BLACK\n");
     await writeFile(join(directory, "settings.json"), JSON.stringify({
@@ -131,14 +153,14 @@ export async function withApp(
       },
       pondering: true,
     }));
-    const capabilities: WebdriverIO.Capabilities & {
-      "tauri:options": { application: string; args: string[] };
-    } = {
-      "wdio:enforceWebDriverClassic": true,
-      // Edge WebDriver treats every argument as a Chromium-style switch.
-      "tauri:options": { application, args: [`--config-dir=${directory}`, `--open=${sgf}`] },
-    };
-    browser = await openSession(name, capabilities);
+    const args = [`--config-dir=${directory}`, `--open=${sgf}`];
+    let debuggerAddress: string | undefined;
+    if (process.platform === "win32") {
+      windowsApp = startWindowsApp({ application, args, diagnostics, name, signal: appAbort.signal });
+      windowsApps.add(windowsApp);
+      debuggerAddress = (await windowsApp).debuggerAddress;
+    }
+    browser = await openSession(name, appCapabilities(application, args, debuggerAddress));
     // After session creation, restore the normal page-load/script budgets.
     await browser.setTimeout({ implicit: 0, pageLoad: TIMEOUT, script: TIMEOUT });
     await run(browser, { faultMarker });
@@ -163,6 +185,11 @@ export async function withApp(
     try {
       await browser?.deleteSession();
     } finally {
+      if (windowsApp) {
+        const app = await windowsApp.catch(() => undefined);
+        await app?.stop();
+        windowsApps.delete(windowsApp);
+      }
       await rm(directory, { recursive: true, force: true });
       temporaryDirectories.delete(directory);
     }
