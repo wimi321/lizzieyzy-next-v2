@@ -186,6 +186,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           backend={backend}
           labels={messages.setup}
           current={profile}
+          engineRunning={engine.type === "Starting" || engine.type === "Ready" || engine.type === "Restarting"}
           onConfigured={(configured) => {
             setProfile({ ...configured, config: configured.config ?? "" });
             setSetupOpen(false);

@@ -116,6 +116,13 @@ export function analysedRanges(points: readonly GraphPointView[]): Array<[number
   return ranges;
 }
 
+/** Analysed points with no analysed neighbour: a run of one draws no line or area, so it gets a dot. */
+export function isolatedIndices(points: readonly GraphPointView[]): number[] {
+  return analysedRanges(points)
+    .filter(([from, to]) => from === to)
+    .map(([index]) => index);
+}
+
 function round(value: number): number {
   return Math.round(value * 10) / 10;
 }
