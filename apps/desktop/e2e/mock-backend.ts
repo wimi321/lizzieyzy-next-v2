@@ -1,10 +1,12 @@
-import type { Backend, DocumentView, Settings, VariationNodeView, VariationTreeView, WireAppEvent } from "../src/api/backend";
+import type { Backend, CommandError, DocumentView, Settings, VariationNodeView, VariationTreeView, WireAppEvent } from "../src/api/backend";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
   AnalysisSource, AnalysisSummary, AnalysisView, BoardView, CandidateView, ColorView, DocumentView,
   DocumentWarningView, EngineStatus, PointView, TreeView, WarningKindView, SubscriptionId,
   GraphPointView, GraphView,
+  FoxAccount, FoxGame, FoxPage, FoxQuery, FoxSearchResult,
+  FoxPlayer, FoxResult, FoxResultKind, FoxColor, FoxScoreUnit, FoxFailure, CommandError,
   GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
   WireAppEvent, WholeGameOptions, WholeGamePreset, WholeGameProgress, WholeGameStatus,
   WholeGameProgressListener,
@@ -14,6 +16,16 @@ export type {
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "unsubscribe">;
+// Older UI fixtures can omit either new settings field without weakening the
+// production Settings DTO. These are fixture defaults, not ranking logic.
+type MockResult<K extends CommandName> = K extends "settings"
+  ? Omit<Settings, "fox_history" | "move_rank"> & Partial<Pick<Settings, "fox_history" | "move_rank">>
+  : Awaited<ReturnType<Backend[K]>>;
+const defaultMoveRank: Settings["move_rank"] = {
+  mode: "Auto",
+  winrate_thresholds: [1, 3, 6, 12, 24],
+  score_thresholds: [0.5, 1.5, 3, 6, 12],
+};
 export type MockCall = {
   [K in CommandName]: { command: K; args: Parameters<Backend[K]> }
 }[CommandName];
@@ -21,13 +33,9 @@ export type MockCall = {
 export type MockCommand = {
   [K in CommandName]: {
     command: K;
-    // Older UI scripts do not exercise move ranks. Keep those settings fixtures
-    // valid without weakening the production Settings DTO or deriving analysis.
-    result: K extends "settings"
-      ? Omit<Settings, "move_rank"> & Partial<Pick<Settings, "move_rank">>
-      : Awaited<ReturnType<Backend[K]>>;
+    result: MockResult<K>;
     events?: WireAppEvent[];
-    error?: string;
+    error?: string | CommandError;
   }
 }[CommandName];
 
@@ -89,9 +97,18 @@ async function command<K extends CommandName>(
     throw new Error(`Expected mock command ${next?.command ?? "(none)"}, received ${name}`);
   }
   commands.shift();
-  if (next.error !== undefined) throw new Error(next.error);
+  if (next.error !== undefined) {
+    throw typeof next.error === "string" ? new Error(next.error) : structuredClone(next.error);
+  }
   pushEvents(next.events ?? []);
-  return structuredClone(next.result) as Awaited<ReturnType<Backend[K]>>;
+  const result = next.command === "settings"
+    ? {
+      ...next.result,
+      fox_history: next.result.fox_history ?? [],
+      move_rank: next.result.move_rank ?? defaultMoveRank,
+    }
+    : next.result;
+  return structuredClone(result) as Awaited<ReturnType<Backend[K]>>;
 }
 
 export const openBytes: Backend["openBytes"] = (bytes) => command("openBytes", [bytes]);
@@ -159,6 +176,10 @@ export const configureEngine: Backend["configureEngine"] = (profile) =>
 export const detectEngines: Backend["detectEngines"] = () => command("detectEngines", []);
 export const tryConfigureEngine: Backend["tryConfigureEngine"] = (profile) =>
   command("tryConfigureEngine", [profile]);
+export const foxSearch: Backend["foxSearch"] = (query) => command("foxSearch", [query]);
+export const foxNextPage: Backend["foxNextPage"] = (uid, cursor) => command("foxNextPage", [uid, cursor]);
+export const foxOpenGame: Backend["foxOpenGame"] = (gameId) => command("foxOpenGame", [gameId]);
+export const foxClearHistory: Backend["foxClearHistory"] = () => command("foxClearHistory", []);
 export const settings: Backend["settings"] = () => command("settings", []);
 export const pickOpenPath: Backend["pickOpenPath"] = () => command("pickOpenPath", []);
 export const pickSavePath: Backend["pickSavePath"] = () => command("pickSavePath", []);

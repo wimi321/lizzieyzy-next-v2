@@ -1,0 +1,154 @@
+{
+  "result": 0,
+  "uid": "900001",
+  "accounttype": 5,
+  "clienttype": 32,
+  "username": "样本棋手甲",
+  "englishname": "样本棋手甲",
+  "country": 86,
+  "registertime": "1715189392",
+  "gender": 1,
+  "gameuin": "0",
+  "money": "3013540",
+  "dan": 24,
+  "qili": 0,
+  "totalwin": 86,
+  "totallost": 28,
+  "totalequal": 0,
+  "danrecentroundinfo": "01101100011100101011",
+  "occupation": 0,
+  "surename": "",
+  "sureuid": "0",
+  "suregrade": 0,
+  "mark": 0,
+  "fansnum": 8,
+  "platalbum": "",
+  "avatarid": 7,
+  "avatar_md5": "",
+  "friendtype": 0,
+  "cond1": 18,
+  "cond2": 8,
+  "cond3": 6,
+  "cond4": 15,
+  "ai": 0,
+  "ye6": 0,
+  "openid": "",
+  "member_type": 0,
+  "member_end_date": "0",
+  "avatar_url": "",
+  "fly_cutter": {
+    "uid": "0",
+    "grade": 0,
+    "grade_desc": "",
+    "grade_url": "",
+    "last_perf": "",
+    "total_win": 0,
+    "total_lost": 0,
+    "total_draw": 0,
+    "promotion_win": 0,
+    "promotion_lost": 0,
+    "promotion_draw": 0,
+    "friendly_win": 0,
+    "friendly_lost": 0,
+    "friendly_draw": 0,
+    "occupation": 0
+  },
+  "fly_cutter_grade_up_down": {
+    "total": 0,
+    "up1": 0,
+    "up2": 0,
+    "down1": 0,
+    "down2": 0
+  },
+  "fly_cutter_up_down_condition": {
+    "upgrade1": 0,
+    "upgrade2": 0,
+    "downgrade1": 0,
+    "downgrade2": 0
+  },
+  "rp": 0,
+  "yp": 0,
+  "hide_game_record": 0,
+  "fly_cutter_occupation": 0,
+  "follow_count": 20,
+  "signature": "",
+  "money_level": 3,
+  "state": 0,
+  "state_info": [],
+  "promotion_win": 73,
+  "promotion_lost": 27,
+  "promotion_draw": 0,
+  "friendly_win": 13,
+  "friendly_lost": 1,
+  "friendly_draw": 0,
+  "match_win": 0,
+  "match_lost": 0,
+  "match_draw": 0,
+  "rank_list": [
+    {
+      "name": "刀神榜",
+      "rank": 99999
+    },
+    {
+      "name": "人气榜",
+      "rank": 99999
+    },
+    {
+      "name": "粉丝榜",
+      "rank": 99999
+    },
+    {
+      "name": "狐币排行榜",
+      "rank": 99999
+    },
+    {
+      "name": "职业支持榜",
+      "rank": 99999
+    },
+    {
+      "name": "每日支持榜",
+      "rank": 99999
+    }
+  ],
+  "qi_feng_info": {
+    "medal_url": "",
+    "is_hide": 0
+  },
+  "rank_list_v2": [
+    {
+      "name": "飞刀积分榜",
+      "rank": 99999
+    },
+    {
+      "name": "刀神榜",
+      "rank": 99999
+    },
+    {
+      "name": "人气榜",
+      "rank": 99999
+    },
+    {
+      "name": "粉丝榜",
+      "rank": 99999
+    },
+    {
+      "name": "狐币排行榜",
+      "rank": 99999
+    },
+    {
+      "name": "职业支持榜",
+      "rank": 99999
+    },
+    {
+      "name": "每日支持榜",
+      "rank": 99999
+    }
+  ],
+  "chess_vip": 0,
+  "chess_vip_deadline": "0",
+  "display_champion_rank": false,
+  "occupation_additional": 0,
+  "match_recent_round_info": "",
+  "server_time": "1793371916",
+  "trans": ""
+}

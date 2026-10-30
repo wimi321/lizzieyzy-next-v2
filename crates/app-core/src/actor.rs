@@ -8,6 +8,7 @@ use engine_session::EngineHandle;
 use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
+mod fox;
 mod problem_moves;
 mod review;
 mod strength_estimate;
@@ -28,6 +29,7 @@ pub(crate) enum Input {
 
 pub(crate) enum Command {
     StrengthEstimate(oneshot::Sender<Result<crate::StrengthEstimateView, AppError>>),
+    Fox(crate::fox::Request),
     ProblemMoves(
         crate::ProblemMovesQuery,
         oneshot::Sender<Result<crate::ProblemMovesView, AppError>>,
@@ -131,6 +133,7 @@ pub(crate) async fn run(
         tokio::select! {
             command = commands.recv() => match command {
                 Some(Command::StrengthEstimate(reply)) => { let _ = reply.send(actor.strength_estimate()); }
+                Some(Command::Fox(request)) => actor.fox_request(request).await,
                 Some(Command::ProblemMoves(query, reply)) => { let _ = reply.send(actor.problem_moves(query)); }
                 Some(Command::SetMoveRankSettings(settings, reply)) => { let _ = reply.send(actor.set_move_rank_settings(settings).await); }
                 Some(Command::Review(input, reply)) => { let _ = reply.send(actor.review_command(input).await); }

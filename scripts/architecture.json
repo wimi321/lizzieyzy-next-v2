@@ -17,9 +17,10 @@
     "katago-protocol": [],
     "engine-session": ["katago-protocol"],
     "analysis": ["go-core", "document", "katago-protocol", "engine-session"],
-    "app-core": ["go-core", "sgf", "document", "katago-protocol", "engine-session", "analysis", "strength"],
+    "app-core": ["go-core", "sgf", "document", "katago-protocol", "engine-session", "analysis", "fox-kifu", "strength"],
     "lizzieyzy-desktop": ["app-core"],
     "fake-katago": ["katago-protocol"],
+    "fox-kifu": [],
     "strength": []
   },
   "dev_allowed": {

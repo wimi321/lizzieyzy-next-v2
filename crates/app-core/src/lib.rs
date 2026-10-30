@@ -5,6 +5,7 @@ mod actor;
 mod delivery;
 pub mod engine_setup;
 mod engine_trial;
+pub mod fox;
 mod graph;
 mod inspection;
 mod move_rank;
@@ -54,6 +55,8 @@ pub enum AppError {
     #[error(transparent)]
     EngineSetup(#[from] EngineSetupError),
     #[error(transparent)]
+    Fox(#[from] fox::FoxError),
+    #[error(transparent)]
     WholeGame(#[from] WholeGameError),
     #[error(transparent)]
     MoveRank(#[from] MoveRankError),
@@ -68,6 +71,9 @@ pub struct AppConfig {
     pub session: engine_session::SessionConfig,
     pub analysis: analysis::AnalysisConfig,
     pub engine_setup_timeout: std::time::Duration,
+    /// Optional client with caller-provided endpoints and timeout. None uses
+    /// the public Fox endpoints, constructed lazily on the first Fox command.
+    pub fox_client: Option<fox::FoxClient>,
 }
 
 impl Default for AppConfig {
@@ -76,6 +82,7 @@ impl Default for AppConfig {
             session: Default::default(),
             analysis: Default::default(),
             engine_setup_timeout: std::time::Duration::from_secs(120),
+            fox_client: None,
         }
     }
 }

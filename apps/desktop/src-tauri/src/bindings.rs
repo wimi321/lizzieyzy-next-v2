@@ -2,6 +2,7 @@
 
 use std::{fs, path::Path};
 
+use app_core::fox::{FoxPage, FoxQuery, FoxSearchResult};
 use app_core::{
     AppEvent, EngineSetupProfile, MoveView, ProblemMovesQuery, ProblemMovesView, Settings,
     StrengthEstimateView, VariationPreviewView, VariationTreeView, WholeGameOptions,
@@ -27,6 +28,10 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     Settings::export_all_to(directory)?;
     EngineSetupProfile::export_all_to(directory)?;
     EngineDiscovery::export_all_to(directory)?;
+    FoxQuery::export_all_to(directory)?;
+    FoxSearchResult::export_all_to(directory)?;
+    FoxPage::export_all_to(directory)?;
+    crate::error::CommandError::export_all_to(directory)?;
     WholeGameOptions::export_all_to(directory)?;
     WholeGamePreset::export_all_to(directory)?;
     ProblemMovesQuery::export_all_to(directory)?;

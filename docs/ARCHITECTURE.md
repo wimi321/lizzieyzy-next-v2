@@ -21,6 +21,7 @@ crates/
   engine-session/          每个引擎一个 actor：进程、请求表、重启（tokio）
   analysis/                分析协调：焦点变化、过期丢弃、缓存、节流（tokio）
   strength/                棋力特征、XGBoost 推理、残差校准与统计（纯同步）
+  fox-kifu/                野狐公开账号、分页棋谱及 SGF 的 HTTP 客户端（不依赖工作区 crate）
   app-core/                应用内核 actor：持有文档、协调器、设置；对外唯一入口（tokio，不依赖 tauri）
 apps/desktop/
   src-tauri/               Tauri 壳（包名 lizzieyzy-desktop）；commands/<领域>.rs 只做转发
@@ -40,6 +41,7 @@ docs/                      ARCHITECTURE / ROADMAP / ACCEPTANCE / decisions / tas
 ```
 go-core ← sgf ← document ←──────────── analysis ← app-core ← lizzieyzy-desktop
 katago-protocol ← engine-session ←───┘
+fox-kifu ← app-core
 katago-protocol ← fake-katago（engine-session / analysis / app-core / desktop 仅在测试里依赖它）
 strength ← app-core（strength 无 workspace 内部依赖）
 ```
@@ -189,7 +191,7 @@ pub enum EngineStatus {
 - `MoveRankSettings { mode, winrate_thresholds: [f64;5], score_thresholds: [f64;5] }` 默认阈值分别为 `[1,3,6,12,24]` 个百分点和 `[0.5,1.5,3,6,12]` 目，包含等号，从重到轻判定，产生 `Best/Good/Normal/Inaccuracy/Mistake/Blunder` 六档（严重度 0..5）。遵循当前 Java `MoveRankDefinition` / `MoveRankEvaluationMode` 的四模式：Winrate 只看胜率，Score 只看目差，Combined 取更严重的结果，默认 Auto 以目差为主、仅在胜率达到 Mistake/Blunder 时兜底；无目差时 Auto 回退胜率、Score 为 Best。KataGo 完整结果必有目差；纯评级接口保留 Java 的可缺目差语义。
 - `ProblemMovesQuery { minimum_rank, color, sort }` 默认 Inaccuracy、双方、LossDesc。`entries: ProblemMoveView[]` 只含已计算、非首选且达到最低等级和颜色条件的手，每项给出 node_id、move_number、color、GTP coordinate、完整 loss。遵循 Java `ProblemListSort`：LossDesc 按胜率损失降序、相同损失按手数升序，独立于评级模式；另支持 MoveAsc/MoveDesc。任务卡的等级筛选替代 Java 旧面板的胜率门槛；API 不继承旧面板默认仅黑方或跳过首手的展示限制。`error_bar: MistakeBarPoint[]` 与 `GraphView.points` 严格同线同索引，含 node_id、move_number、mv 和可空 loss；根/空节点保留占位，已分析的首选显示零损失，列表筛选不裁剪失误条。
 - `AppCore::set_move_rank_settings(settings)` / Tauri `set_move_rank_settings(settings)` / TS `setMoveRankSettings(settings)` 验证两个阈值数组均为正、有限且严格递增，胜率阈值不超过 100。先原子保存设置再生效，失败保留旧设置；成功变化发布同一 revision 的 DocumentChanged，重读立即按新阈值评级，无需重新搜索。界面先订阅现有 DocumentChanged、AnalysisUpdated 和 WholeGameProgress，再读取问题手；这些事件也覆盖整盘每次结果合入、导航、换谱和引擎失效。刷新须核对最新请求序号及文档 revision（分析/设置更新不增加 revision）；回复回显查询和实际设置。两个新命令只授权本地 main 窗口，DTO 由 ts-rs 生成，`api/problem-moves.ts` 与 mock 只转发命令或脚本数据。
-- 设置保存在调用方目录下的 `settings.json`，`Settings { version, engine: Option<EngineProfile>, pondering, move_rank: MoveRankSettings }` 当前版本仍为 1。缺字段默认（旧文件自动使用默认评级）、多余字段忽略；版本 0/1 读入后规范为 1，未来版本、损坏 JSON 和无效评级阈值报错，避免覆写未知或不可用格式。P1 保存一个活动档案，`None` 关闭引擎；配置、暂停状态和评级修改成功时持久化。设置保存同样使用临时文件替换。
+- 设置保存在调用方目录下的 `settings.json`，`Settings { version, engine: Option<EngineProfile>, pondering, fox_history: Vec<FoxAccount>, move_rank: MoveRankSettings }` 当前版本仍为 1。缺字段分别默认（旧文件的野狐历史为空列表，问题手使用默认阈值和 Auto 模式；只有其中一类字段的文件也补齐另一类）、多余字段忽略；版本 0/1 读入后规范为 1，未来版本、损坏 JSON 和无效评级阈值报错，避免覆写未知或不可用格式。P1 保存一个活动档案，`None` 关闭引擎；配置、暂停状态和评级修改成功时持久化。设置保存同样使用临时文件替换。
 - `EngineProfile { program, model, config, extra_args }` 的指纹为程序/模型/配置的路径、普通文件大小、修改时间（秒及纳秒）和额外参数的版本化 JSON 编码的 BLAKE3；P1-23 使用前缀 `lizzieyzy-next2:engine-profile:v2-two-search-slots` 标识强制双搜索槽的启动语义。它是缓存身份，不是文件内容校验和。改变档案或重新配置时发现元数据变化，会先关闭旧协调器和会话，再创建新的；同一有效档案幂等，失败会话允许重新配置重试。文件不存在发出包含用途和路径的 Failed，文档编辑仍正常。
 - **数值一律黑方视角**：应用自带的 `resources/katago/analysis.cfg` 显式设置 `reportAnalysisWinratesAs = BLACK`。`TransportSpec::LocalProcess` 启动参数为 `analysis -config <配置> -model <模型> -override-config <合并值>`，整个命令中 `-override-config` 只出现一次，以符合 KataGo 的 TCLAP ValueArg 约束。档案额外参数里的各个 `-override-config VALUE` / `-override-config=VALUE` 被提取并按原顺序合并为逗号列表，显式 BLACK 和 numAnalysisThreads 项去重，末尾追加唯一 `numAnalysisThreads=2,reportAnalysisWinratesAs=BLACK`；其它非 override 参数保留边界及相对次序。额外参数仍不得覆写模型/配置路径，也不得把视角改成非 BLACK。
 - 双搜索槽用于让持续实时请求与整盘批次共存；配置文件和额外 override 中的 numAnalysisThreads 均由启动参数固定为 2，不改写原配置文件。优先级只决定排队顺序，不能抢占已开始的搜索：实际焦点 node/key 改变，或重新开启实时分析时，app actor 先 terminate 整盘剩余查询，提交新实时请求，再按保留结果重建剩余批次，防止后台曾占满两槽时阻塞新焦点。已接收完成的节点不重算；仅 revision/注释变化不打断查询。具体吞吐和交互延迟仍取决于实际模型、GPU 与每位置搜索线程配置，fake-katago 测试验证调度与持续事件，不代替真实 GPU 性能验收。
@@ -211,6 +213,19 @@ pub enum EngineStatus {
 - `SideReport` 返回原始 29 项特征、校准段位、中英文段位文字 `rank_label_zh/en`、固定预测 sigma、样本、严格首选率、前三/前五率、Java 加权吻合度、平均胜率/目差损失、加权损失、失误率、阶段统计和可信度。阶段按整盘手数分为 1..60、61..160、161 以后；无该阶段样本时，特征用的阶段加权损失和好手率回退整体值，并同时返回零样本数。显示等级使用现有 `MoveRankSettings::classify_losses` 对棋力评估实际采用的损失重新分类；`tier_counts` 只把严格首选放入 Best，其余 Best 归 Good；显示评级好手率仅统计 Best/Good，与按目损失划分的 `good_move_rate` 分别保留。
 - 整体不足 6 个有效样本时 `has_enough_data=false`；有少量样本仍保留 Java 的低可信估计。单方样本少于 16 为 Low，至少 16 为 Medium，至少 40 且 70% 有目差为 High。完全没有样本的段位及 sigma 为 null，缺少目差的均值/中位数为 null，避免把缺失当作零损失。`total_moves` / `analyzed_moves` 单独公开覆盖率，不把局部分析声称为整盘完成。
 - `AppCore::strength_estimate()` / Tauri `strength_estimate()` / TS `strengthEstimate()` 返回 `StrengthEstimateView { revision, report, total_moves, analyzed_moves }`。读取与图和问题手相同的当前显示线，复用 P1-23 保留结果和 P1-24 有效性检查；不导航、不编辑、不启动分析。app actor 仅缓存不可变模型，每次查询从当前保留结果重算报告，因此整盘/实时结果、分支切换、换谱、换引擎后立即反映变化，不维护另一份过期报告缓存。调用方先订阅 `DocumentChanged`、`AnalysisUpdated`、`WholeGameProgress` 再读取，按最新请求序号及 revision 丢弃旧回复（分析更新不增加 revision）。命令仅授权本地 main 窗口；全部 DTO 经 ts-rs 生成，mock 只返回脚本数据；界面和 HumanSL 不属于此接口实现范围。
+
+### 4.9 野狐公开棋谱
+
+- `fox-kifu` 不依赖其他工作区 crate，使用 reqwest 的 rustls 后端访问公开 HTTP 接口，不需要账号登录、Cookie 或外部 JAR。`FoxClient::search(&FoxQuery)` 返回 `FoxSearchResult { account, page }`；`FoxQuery::{Nickname(String), Uid(String)}` 在 IPC 中使用 `type/value` 判别，数字昵称不会被自动解释为 UID。UID 只接受 ASCII 数字。
+- `FoxAccount { uid, nickname }` 保留账号身份；`FoxPage { games, next_cursor }` 的每项 `FoxGame` 包含对局 id、开始时间、黑白 `FoxPlayer { uid, nickname, rank }`、结果和手数。结果由胜方、胜负方式、可选分值及子/目单位组成，区分中盘、超时、点数和其他胜负；显示文案留给界面本地化。段位沿用 Java 的数值偏移及职业 `P` 规则。
+- `FoxClient::list(uid, cursor)` 使用服务端最后一项对局 id 翻页，每页上限 100；不足 100 项（包括空页）表示没有下一页，重复游标报错。`download(game_id)` 先用 okhttp UA 依次 POST 主、备用棋谱 CGI，再回退到 H5 GET；HTTP 错误、非 JSON、非零结果或空棋谱均继续下一接口。
+- HTTP 使用独立的 20 秒连接超时、默认 25 秒读取空闲超时；持续收到数据会重置读取期限，慢响应不会因总传输超过 25 秒而失败。每次操作（含重试和退避）另有 3 分钟上限、每份响应最多 4 MiB。只有超时、连接和正文传输错误最多尝试 3 次，重试前依次等待 350/700ms；HTTP 状态、JSON、API 和大小错误不重试。`with_endpoints` 的 Duration 参数仅覆盖读取空闲超时，供本地 HTTP 测试注入。
+- 下载成功后删除 BOM 和 SGF 属性值外的反斜杠，再按 Java 的确定性规则选择首个含着手的变化、合并根信息和整理着手为主线。保留所选主线的注释、未知属性和值内转义，不依赖全局棋盘去推测拼接窗口碎片。原始 `KM` 保持不变，贴目解释仍由 document 执行；例如 `AP[foxwq]`、中国规则的 `KM[375]` 打开后是 7.5 目。损坏结构返回类型化错误供接口回退。
+- 所有失败返回 `FoxError`；`is_retryable_transport()` 是跨平台的网络重试判定，连接失败、连接/读取超时和正文中断均属于这一类，不依赖系统错误码。保留 `Timeout` 与 `Transport` 诊断区别；reqwest 在连接完成前也检查读取期限，因此短期限下 Windows 的连接拒绝可能表现为 `Timeout`。网络错误的 Display 使用可读文案，底层细节只保留在错误源/Debug 中。确认的无账号响应（101201 且 UID 空或 0）与 HTTP、网络、其他 API 或格式错误分开，未知非零码保守作为 API 错误。
+- `AppCore::{fox_search, fox_next_page, fox_open_game, fox_clear_history}` 是壳层唯一入口。调用 future 执行 HTTP，应用 actor 只处理客户端取得、历史持久化和下载完成后的 `open_bytes`，慢网络不会占住文档/设置命令。分页参数显式传入，不共享可覆盖的全局游标；下载后沿用本地 SGF 的打开事务、事件及焦点更新流程，失败保留当前文档。
+- 成功取得账号和第一页后，才把 `FoxAccount` 记入 `Settings.fox_history`，按 UID 去重、最近成功完成的搜索在前、最多 10 条；加载设置也规范化历史，清空通过同一原子保存流程持久化。`AppConfig.fox_client` 可注入本地测试端点，默认客户端惰性创建。
+- Tauri 的 `commands/fox.rs` 提供 `fox_search(query)`、`fox_next_page(uid, cursor)`、`fox_open_game(gameId)`、`fox_clear_history()`，仅授权本地 main 窗口。`CommandError::Fox(FoxFailure)` 保留可本地化的 `Network`（网络错误）、`Timeout`（网络超时）分类及 HTTP/API 状态码；下载回退耗尽时若包含网络原因，仍返回网络分类（优先 Network，其次 Timeout），纯协议失败才返回 DownloadFailed。IPC 只传类型和数据，不暴露平台错误文本；最终提示由界面本地化。其余错误维持原有应用错误边界。所有野狐 DTO 和错误类型由 Rust 递归生成 TS，前端 backend 与 E2E mock 仅转发或回放命令，不实现网络协议或解析。
+- 普通测试使用 `fixtures/fox/` 的真实录制和本地假 HTTP 服务；列表裁为 5 盘，昵称、UID 及 SGF 的 PB/PW 一致脱敏，保留字段类型和业务结果，清理敏感字段。录制日期和接口在测试注释中注明。`fox-recorded-2026-10-30.sgf` 保留录制的 177 手棋谱；此外保留 Java 八手回归片段和 [Leela Zero #2285](https://github.com/leela-zero/leela-zero/issues/2285) 公开发布的 313 手完整野狐棋谱；SGF 样本由独立 oracle 校验。`app-core/tests/fox_live.rs` 的联网验收显式 `#[ignore]`，经生产 AppCore 完成昵称、列表、CGI/H5 下载和打开，报告列表盘数、对局 id、手数和贴目，仅使用临时目录，不把未脱敏网络响应写入仓库。
 
 ## 5. 主流程时序（导航到下一手）
 

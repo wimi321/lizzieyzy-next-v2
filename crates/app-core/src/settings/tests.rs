@@ -62,6 +62,172 @@ async fn legacy_settings_default_missing_fields_and_ignore_unknown_fields() {
 }
 
 #[tokio::test]
+async fn supported_settings_versions_default_missing_fox_history_and_move_rank() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("settings.json");
+    for bytes in [b"{}".as_slice(), br#"{"version":0}"#, br#"{"version":1}"#] {
+        fs::write(&path, bytes).unwrap();
+        let settings = Settings::load(directory.path()).await.unwrap();
+        assert_eq!(settings, Settings::default());
+        assert_eq!(settings.version, 1);
+        assert!(settings.fox_history.is_empty());
+        assert_eq!(settings.move_rank, crate::MoveRankSettings::default());
+    }
+}
+
+#[tokio::test]
+async fn settings_preserve_fox_only_or_rank_only_fields_across_supported_versions() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("settings.json");
+    let history = vec![crate::fox::FoxAccount {
+        uid: "123".into(),
+        nickname: "saved account".into(),
+    }];
+    let rank = crate::MoveRankSettings {
+        mode: crate::MoveRankEvaluationMode::Combined,
+        winrate_thresholds: [2.0, 4.0, 8.0, 16.0, 32.0],
+        score_thresholds: [1.0, 2.0, 4.0, 8.0, 16.0],
+    };
+    for version in [None, Some(0), Some(1)] {
+        for (field, value, expected) in [
+            (
+                "fox_history",
+                serde_json::to_value(&history).unwrap(),
+                Settings {
+                    fox_history: history.clone(),
+                    ..Settings::default()
+                },
+            ),
+            (
+                "move_rank",
+                serde_json::to_value(&rank).unwrap(),
+                Settings {
+                    move_rank: rank.clone(),
+                    ..Settings::default()
+                },
+            ),
+        ] {
+            let mut document = serde_json::json!({});
+            document[field] = value;
+            if let Some(version) = version {
+                document["version"] = version.into();
+            }
+            fs::write(&path, serde_json::to_vec(&document).unwrap()).unwrap();
+            let loaded = Settings::load(directory.path()).await.unwrap();
+            assert_eq!(loaded, expected, "version={version:?}, field={field}");
+            loaded.save(directory.path()).await.unwrap();
+            assert_eq!(Settings::load(directory.path()).await.unwrap(), expected);
+        }
+    }
+}
+
+#[tokio::test]
+async fn fox_history_and_move_rank_round_trip_together_with_history_normalization() {
+    let directory = tempfile::tempdir().unwrap();
+    let latest = crate::fox::FoxAccount {
+        uid: "123".into(),
+        nickname: "latest nickname".into(),
+    };
+    let settings = Settings {
+        version: 0,
+        pondering: false,
+        engine: Some(profile(directory.path())),
+        fox_history: vec![
+            latest.clone(),
+            crate::fox::FoxAccount {
+                nickname: "previous nickname".into(),
+                ..latest.clone()
+            },
+            crate::fox::FoxAccount {
+                uid: "invalid".into(),
+                nickname: "discarded".into(),
+            },
+        ],
+        move_rank: crate::MoveRankSettings {
+            mode: crate::MoveRankEvaluationMode::Score,
+            winrate_thresholds: [2.0, 4.0, 8.0, 16.0, 32.0],
+            score_thresholds: [1.0, 2.0, 4.0, 8.0, 16.0],
+        },
+    };
+    settings.save(directory.path()).await.unwrap();
+    // Saving normalizes the stored copy without mutating the caller's settings.
+    assert_eq!(settings.version, 0);
+    assert_eq!(settings.fox_history.len(), 3);
+    let expected = Settings {
+        version: 1,
+        fox_history: vec![latest],
+        ..settings
+    };
+    assert_eq!(Settings::load(directory.path()).await.unwrap(), expected);
+    let stored: serde_json::Value =
+        serde_json::from_slice(&fs::read(directory.path().join("settings.json")).unwrap()).unwrap();
+    assert_eq!(stored["version"], 1);
+    assert_eq!(
+        stored["fox_history"],
+        serde_json::to_value(&expected.fox_history).unwrap()
+    );
+    assert_eq!(
+        stored["move_rank"],
+        serde_json::to_value(&expected.move_rank).unwrap()
+    );
+}
+
+#[tokio::test]
+async fn invalid_rank_settings_are_rejected_without_overwriting_fox_history() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("settings.json");
+    let original = Settings {
+        fox_history: vec![crate::fox::FoxAccount {
+            uid: "123".into(),
+            nickname: "retained account".into(),
+        }],
+        move_rank: crate::MoveRankSettings {
+            mode: crate::MoveRankEvaluationMode::Winrate,
+            ..crate::MoveRankSettings::default()
+        },
+        ..Settings::default()
+    };
+    original.save(directory.path()).await.unwrap();
+    let saved = fs::read(&path).unwrap();
+    for (rank, expected_error) in [
+        (
+            crate::MoveRankSettings {
+                winrate_thresholds: [1.0, 3.0, 6.0, 12.0, 101.0],
+                ..original.move_rank.clone()
+            },
+            crate::MoveRankError::InvalidWinrateThresholds,
+        ),
+        (
+            crate::MoveRankSettings {
+                score_thresholds: [0.5, 1.5, 1.5, 6.0, 12.0],
+                ..original.move_rank.clone()
+            },
+            crate::MoveRankError::InvalidScoreThresholds,
+        ),
+    ] {
+        let invalid = Settings {
+            move_rank: rank,
+            ..original.clone()
+        };
+        assert!(matches!(
+            invalid.save(directory.path()).await,
+            Err(SettingsError::MoveRank(error)) if error == expected_error
+        ));
+        assert_eq!(fs::read(&path).unwrap(), saved);
+        assert_eq!(Settings::load(directory.path()).await.unwrap(), original);
+
+        let malformed = serde_json::to_vec(&invalid).unwrap();
+        fs::write(&path, &malformed).unwrap();
+        assert!(matches!(
+            Settings::load(directory.path()).await,
+            Err(SettingsError::MoveRank(error)) if error == expected_error
+        ));
+        assert_eq!(fs::read(&path).unwrap(), malformed);
+        fs::write(&path, &saved).unwrap();
+    }
+}
+
+#[tokio::test]
 async fn future_or_malformed_settings_are_errors_and_failed_save_preserves_file() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("settings.json");
@@ -298,6 +464,52 @@ fn extra_arguments_cannot_override_profile_paths_or_black_perspective() {
             Err(SettingsError::InvalidProfile(_))
         ));
     }
+}
+
+#[tokio::test]
+async fn fox_history_load_normalizes_identity_duplicates_invalid_uids_and_capacity() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut history = vec![
+        crate::fox::FoxAccount {
+            uid: "3".into(),
+            nickname: "new name".into(),
+        },
+        crate::fox::FoxAccount {
+            uid: "3".into(),
+            nickname: "old name".into(),
+        },
+        crate::fox::FoxAccount {
+            uid: "".into(),
+            nickname: "empty".into(),
+        },
+        crate::fox::FoxAccount {
+            uid: "４".into(),
+            nickname: "non-ASCII".into(),
+        },
+    ];
+    history.extend((1..=20).map(|uid| crate::fox::FoxAccount {
+        uid: uid.to_string(),
+        nickname: format!("name-{uid}"),
+    }));
+    fs::write(
+        directory.path().join("settings.json"),
+        serde_json::to_vec(&Settings {
+            fox_history: history,
+            ..Settings::default()
+        })
+        .unwrap(),
+    )
+    .unwrap();
+    let settings = Settings::load(directory.path()).await.unwrap();
+    assert_eq!(settings.fox_history.len(), 10);
+    assert_eq!(settings.fox_history[0].uid, "3");
+    assert_eq!(settings.fox_history[0].nickname, "new name");
+    let uids: Vec<_> = settings
+        .fox_history
+        .iter()
+        .map(|a| a.uid.as_str())
+        .collect();
+    assert_eq!(uids, ["3", "1", "2", "4", "5", "6", "7", "8", "9", "10"]);
 }
 
 #[test]

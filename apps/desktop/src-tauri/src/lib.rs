@@ -4,6 +4,7 @@ pub mod commands;
 pub mod engine_setup;
 pub mod error;
 pub mod events;
+pub mod fox_error;
 pub mod startup;
 
 use app_core::{AppCore, AppSubscription};
@@ -53,6 +54,10 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::engine::configure_engine,
             commands::engine::detect_engines,
             commands::engine::try_configure_engine,
+            commands::fox::fox_search,
+            commands::fox::fox_next_page,
+            commands::fox::fox_open_game,
+            commands::fox::fox_clear_history,
             commands::settings::settings,
         ])
 }
