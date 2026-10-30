@@ -1,18 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import * as backend from "@/api/backend";
-import type { EngineProfile, PointView } from "@/api/backend";
+import type { EngineProfile, PointView, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
 import { formatVisits } from "./board/format";
 import { liveGraph } from "./graph/scale";
 import { WinrateGraph } from "./graph/WinrateGraph";
-import { type MenuDefinition, MenuBar } from "./layout/MenuBar";
 import { getMessages } from "./locales";
 import { CandidateTable } from "./panels/CandidateTable";
 import { InfoPanel } from "./panels/InfoPanel";
-import { MoveList } from "./panels/MoveList";
+import { MoveTree } from "./panels/MoveTree";
 import { EngineSetup } from "./settings/EngineSetup";
 import { connect, createStore, type Store, useAppState } from "./state/store";
-import { EngineLight, JUMP, Toolbar } from "./toolbar/Toolbar";
+import { JUMP, TopBar } from "./toolbar/Toolbar";
 
 export { JUMP };
 
@@ -29,7 +28,7 @@ function report(error: unknown) {
   console.error("Backend command failed", error);
 }
 
-/** LizzieYzy Next's window: menu and tool rows, info and graph left, board centre, moves and candidates right. */
+/** LizzieYzy Next's window: info and graph left, board centre, candidates and the game tree right. */
 export default function App({ store: provided }: { store?: Store } = {}) {
   const [store] = useState(() => provided ?? createStore());
   useEffect(() => connect(store, backend), [store]);
@@ -47,6 +46,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [setupOpen, setSetupOpen] = useState(false);
   // A preview belongs to one position: once the current node changes it no longer applies.
   const [preview, setPreview] = useState<{ node: number; point: PointView } | null>(null);
+  const [tree, setTree] = useState<VariationTreeView | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -64,6 +64,22 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       active = false;
     };
   }, []);
+
+  // The tree is fetched only when its structure changes, never on plain navigation.
+  const structure = document?.tree.structure_revision;
+  useEffect(() => {
+    if (structure === undefined) return;
+    let active = true;
+    backend
+      .variationTree()
+      .then((view) => {
+        if (active && view.revision === structure) setTree(view);
+      })
+      .catch(report);
+    return () => {
+      active = false;
+    };
+  }, [structure]);
 
   const step = (steps: number) => {
     backend.step(steps).catch(report);
@@ -85,9 +101,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   }, []);
 
   const board = document?.board ?? null;
-  const previewPoint = preview && document && preview.node === document.tree.current ? preview.point : null;
   const points = useMemo(() => (document ? liveGraph(document.graph, analysis) : []), [document, analysis]);
+  const line = useMemo(() => points.map((point) => point.node_id), [points]);
   const currentIndex = document?.graph.current_index ?? 0;
+  const previewPoint = preview && document && preview.node === document.tree.current ? preview.point : null;
+  const info = document?.game_info ?? null;
   const play = (point: PointView) => {
     if (!board) return;
     backend.play({ type: "Play", data: { color: board.to_play, point } }).catch(report);
@@ -111,122 +129,72 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     backend.goTo(nodeId).catch(report);
   };
 
-  const menus: MenuDefinition[] = [
-    {
-      label: messages.menu.file,
-      testId: "menu-file",
-      items: [
-        { kind: "action", label: messages.menu.open, testId: "menu-open", onSelect: () => void openFile().catch(report) },
-        { kind: "action", label: messages.menu.save, testId: "menu-save", disabled: document === null, onSelect: () => void saveFile().catch(report) },
-      ],
-    },
-    {
-      label: messages.menu.view,
-      testId: "menu-view",
-      items: [
-        { kind: "check", label: messages.menu.coordinates, testId: "menu-coordinates", checked: coordinates, onSelect: () => setCoordinates((value) => !value) },
-        { kind: "check", label: messages.menu.ownership, testId: "menu-ownership", checked: ownership, onSelect: () => setOwnership((value) => !value) },
-        { kind: "separator", key: "candidates" },
-        ...CANDIDATE_LIMITS.map(
-          (limit): MenuDefinition["items"][number] => ({
-            kind: "check",
-            label: `${messages.menu.candidates}: ${limit === 361 ? messages.board.candidatesAll : limit}`,
-            testId: `menu-candidates-${limit}`,
-            checked: maxCandidates === limit,
-            onSelect: () => setMaxCandidates(limit),
-          }),
-        ),
-      ],
-    },
-    {
-      label: messages.menu.game,
-      testId: "menu-game",
-      items: [
-        { kind: "action", label: messages.menu.first, testId: "menu-first", onSelect: () => step(-JUMP) },
-        { kind: "action", label: messages.menu.previous, testId: "menu-previous", onSelect: () => step(-1) },
-        { kind: "action", label: messages.menu.next, testId: "menu-next", onSelect: () => step(1) },
-        { kind: "action", label: messages.menu.last, testId: "menu-last", onSelect: () => step(JUMP) },
-      ],
-    },
-    {
-      label: messages.menu.analysis,
-      testId: "menu-analysis",
-      items: [
-        { kind: "action", label: pondering ? messages.menu.pause : messages.menu.resume, testId: "menu-pondering", onSelect: togglePondering },
-      ],
-    },
-    {
-      label: messages.menu.settings,
-      testId: "menu-settings",
-      items: [{ kind: "action", label: messages.menu.engine, testId: "menu-engine", onSelect: () => setSetupOpen(true) }],
-    },
-  ];
-
   return (
     <main className="app">
       <h1 className="visually-hidden">{messages.app.title}</h1>
-      <MenuBar menus={menus}>
-        <EngineLight status={engine} labels={messages.engine} />
-      </MenuBar>
-      <div className="tool-row">
-        <Toolbar
-          labels={messages.toolbar}
-          moveNumber={board ? board.move_number : null}
-          pondering={pondering}
-          canSave={document !== null}
-          onOpen={() => void openFile().catch(report)}
-          onSave={() => void saveFile().catch(report)}
-          onStep={step}
-          onTogglePondering={togglePondering}
-        />
-        <span className="status" title={analysis ? messages.board.visits.replace("{visits}", String(analysis.visits)) : undefined}>
-          {messages.board.analysis}
-          <strong data-testid="analysis-move" data-node-id={analysis?.node_id} data-revision={analysis?.revision}>
-            {analysis && board ? `${board.move_number} · ${formatVisits(analysis.visits)}` : messages.board.noAnalysis}
-          </strong>
-        </span>
-        <span className="controls">
-          <button
-            type="button"
-            className="toggle"
-            aria-pressed={coordinates}
-            data-testid="toggle-coordinates"
-            onClick={() => setCoordinates((value) => !value)}
-          >
-            {messages.board.coordinates}
-          </button>
-          <button
-            type="button"
-            className="toggle"
-            aria-pressed={ownership}
-            data-testid="toggle-ownership"
-            onClick={() => setOwnership((value) => !value)}
-          >
-            {messages.board.ownership}
-          </button>
-          <label className="status">
-            {messages.board.candidates}
-            <select data-testid="max-candidates" value={maxCandidates} onChange={(event) => setMaxCandidates(Number(event.target.value))}>
-              {CANDIDATE_LIMITS.map((limit) => (
-                <option key={limit} value={limit}>
-                  {limit === 361 ? messages.board.candidatesAll : limit}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="button" className="toggle" data-testid="open-setup" onClick={() => setSetupOpen(true)}>
-            {messages.setup.open}
-          </button>
-        </span>
-      </div>
+      <TopBar
+        labels={{
+          ...messages.toolbar,
+          coordinates: messages.board.coordinates,
+          ownership: messages.board.ownership,
+          candidates: messages.board.candidates,
+          candidatesAll: messages.board.candidatesAll,
+          settings: messages.setup.titleCurrent,
+        }}
+        engineLabels={messages.engine}
+        moveNumber={board ? board.move_number : null}
+        lastMoveNumber={points.length > 0 ? (points[points.length - 1]?.move_number ?? null) : null}
+        pondering={pondering}
+        analysis={
+          analysis && board
+            ? {
+                nodeId: analysis.node_id,
+                revision: analysis.revision,
+                text: `${board.move_number} · ${formatVisits(analysis.visits)}`,
+                title: messages.board.visits.replace("{visits}", String(analysis.visits)),
+              }
+            : null
+        }
+        noAnalysis={messages.board.noAnalysis}
+        canSave={document !== null}
+        coordinates={coordinates}
+        ownership={ownership}
+        maxCandidates={maxCandidates}
+        candidateLimits={CANDIDATE_LIMITS}
+        engine={engine}
+        onOpen={() => void openFile().catch(report)}
+        onSave={() => void saveFile().catch(report)}
+        onStep={step}
+        onTogglePondering={togglePondering}
+        onToggleCoordinates={() => setCoordinates((value) => !value)}
+        onToggleOwnership={() => setOwnership((value) => !value)}
+        onMaxCandidates={setMaxCandidates}
+        onOpenSettings={() => setSetupOpen(true)}
+      />
       <div className="workspace">
         <aside className="side side-left">
-          <InfoPanel board={board} points={points} currentIndex={currentIndex} labels={messages.info} />
-          <div className="graph-wrap">
-            {document ? <WinrateGraph graph={document.graph} analysis={analysis} labels={messages.graph} onJump={jump} /> : null}
-          </div>
+          <InfoPanel
+            board={board}
+            black={{ name: info?.black_name ?? null, rank: info?.black_rank ?? null }}
+            white={{ name: info?.white_name ?? null, rank: info?.white_rank ?? null }}
+            points={points}
+            currentIndex={currentIndex}
+            labels={messages.info}
+          />
+          <section className="section graph-section" aria-label={messages.graph.title}>
+            <div className="section-header">
+              <h2 className="section-title">{messages.graph.title}</h2>
+              <span className="legend" aria-hidden="true">
+                <span>{messages.graph.legendWinrate}</span>
+                <span className="score">{messages.graph.legendScore}</span>
+              </span>
+            </div>
+            <div className="graph-wrap">
+              {document ? <WinrateGraph graph={document.graph} analysis={analysis} labels={messages.graph} onJump={jump} /> : null}
+            </div>
+          </section>
           {document?.comment ? (
-            <section className="comment" aria-label={messages.info.comment} data-testid="comment">
+            <section className="section comment" aria-label={messages.info.comment} data-testid="comment">
               <p>{document.comment}</p>
             </section>
           ) : null}
@@ -252,13 +220,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           )}
         </section>
         <aside className="side side-right">
-          <MoveList
-            points={points}
-            currentIndex={currentIndex}
-            variationCount={document?.tree.variation_count ?? 0}
-            labels={messages.tree}
-            onJump={jump}
-          />
           <CandidateTable
             analysis={analysis}
             toPlay={board?.to_play ?? null}
@@ -266,6 +227,15 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             labels={messages.table}
             onPreview={(point) => setPreview(point && document ? { node: document.tree.current, point } : null)}
             onPlay={play}
+          />
+          <MoveTree
+            tree={tree}
+            current={document?.tree.current ?? -1}
+            line={line}
+            boardSize={board?.width ?? 19}
+            variationCount={document?.tree.variation_count ?? 0}
+            labels={messages.tree}
+            onJump={jump}
           />
         </aside>
       </div>

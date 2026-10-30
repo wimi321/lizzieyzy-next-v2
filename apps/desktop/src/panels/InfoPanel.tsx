@@ -13,16 +13,24 @@ export interface InfoLabels {
   noAnalysis: string;
 }
 
+/** A player as recorded in the game; null fields fall back to the colour's name. */
+export interface PlayerInfo {
+  name: string | null;
+  rank: string | null;
+}
+
 export interface InfoPanelProps {
   board: BoardView | null;
+  black: PlayerInfo;
+  white: PlayerInfo;
   /** The displayed line with the newest summary of the current node merged in. */
   points: readonly GraphPointView[];
   currentIndex: number;
   labels: InfoLabels;
 }
 
-/** Players, captures, the winrate bar and the lead line at the top of the left column. */
-export function InfoPanel({ board, points, currentIndex, labels }: InfoPanelProps) {
+/** The players, then the evaluation: both winrates, the bar, the lead and the last move's change. */
+export function InfoPanel({ board, black, white, points, currentIndex, labels }: InfoPanelProps) {
   const summary = points[currentIndex]?.summary ?? null;
   const change = board ? lastMoveChange(points, currentIndex, board.last_move) : null;
   const lead = summary ? leadOf(summary) : null;
@@ -38,34 +46,63 @@ export function InfoPanel({ board, points, currentIndex, labels }: InfoPanelProp
         .replace("{winrate}", signed(change.winrate))
         .replace("{score}", signed(change.score))
     : null;
-  const black = summary ? summary.winrate : 0.5;
+  const trend = change === null ? undefined : change.winrate <= -0.05 ? "worse" : change.winrate >= 0.05 ? "better" : "even";
+  const blackShare = summary ? summary.winrate : 0.5;
 
   return (
-    <section className="info-panel" data-testid="info-panel">
-      <div className="players">
-        <Player color="black" name={labels.black} captures={labels.captures.replace("{n}", String(board?.captured_black ?? 0))} toPlay={board?.to_play === "Black"} />
-        <Player color="white" name={labels.white} captures={labels.captures.replace("{n}", String(board?.captured_white ?? 0))} toPlay={board?.to_play === "White"} />
-      </div>
-      <div className="winrate-bar" data-testid="winrate-bar" data-black={summary ? formatWinrate(black) : ""}>
-        <div className="winrate-black" style={{ width: `${black * 100}%` }}>
-          {summary ? `${formatWinrate(black)}%` : ""}
+    <div className="info-panel" data-testid="info-panel">
+      <section className="section players">
+        <Player
+          color="black"
+          name={black.name || labels.black}
+          rank={black.rank}
+          captures={labels.captures.replace("{n}", String(board?.captured_black ?? 0))}
+          toPlay={board?.to_play === "Black"}
+        />
+        <Player
+          color="white"
+          name={white.name || labels.white}
+          rank={white.rank}
+          captures={labels.captures.replace("{n}", String(board?.captured_white ?? 0))}
+          toPlay={board?.to_play === "White"}
+        />
+      </section>
+      <section className="section evaluation">
+        <div className="eval-numbers">
+          <span className="eval-number black">
+            {summary ? formatWinrate(blackShare) : "—"}
+            <small>%</small>
+          </span>
+          <span className="eval-number white">
+            {summary ? formatWinrate(1 - blackShare) : "—"}
+            <small>%</small>
+          </span>
         </div>
-        <div className="winrate-white">{summary ? `${formatWinrate(1 - black)}%` : ""}</div>
-      </div>
-      <p className="lead-line" data-testid="lead-line">
-        <span>{leadText}</span>
-        {changeText ? <span className={change && change.winrate < 0 ? "move-change worse" : "move-change"}>{changeText}</span> : null}
-      </p>
-    </section>
+        <div className="winrate-bar" data-testid="winrate-bar" data-black={summary ? formatWinrate(blackShare) : ""}>
+          <div className="winrate-black" style={{ width: `${blackShare * 100}%` }} />
+        </div>
+        <p className="eval-meta" data-testid="lead-line">
+          <span className="lead">{leadText}</span>
+          {changeText ? (
+            <span className="move-change" data-trend={trend}>
+              {changeText}
+            </span>
+          ) : null}
+        </p>
+      </section>
+    </div>
   );
 }
 
-function Player({ color, name, captures, toPlay }: { color: "black" | "white"; name: string; captures: string; toPlay: boolean }) {
+function Player(props: { color: "black" | "white"; name: string; rank: string | null; captures: string; toPlay: boolean }) {
   return (
-    <div className={`player ${color}`} data-to-play={toPlay}>
-      <span className={`stone-icon ${color}`} aria-hidden="true" />
-      <span className="player-name">{name}</span>
-      <span className="player-captures">{captures}</span>
+    <div className="player" data-to-play={props.toPlay}>
+      <span className={`stone-icon ${props.color}`} aria-hidden="true" />
+      <span className="player-name">
+        {props.name}
+        {props.rank ? <span className="player-rank">{props.rank}</span> : null}
+      </span>
+      <span className="player-captures">{props.captures}</span>
     </div>
   );
 }

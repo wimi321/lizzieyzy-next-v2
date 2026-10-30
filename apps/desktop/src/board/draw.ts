@@ -3,7 +3,7 @@ import { candidateTier, columnLabel, formatScore, formatVisits, formatWinrate, f
 import { type Geometry, pointIndex, pointToPixel, starPoints } from "./geometry";
 import type { Palette } from "./palette";
 
-const FONT = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+const FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
 const STONE_RADIUS = 0.48;
 const CANDIDATE_RADIUS = 0.46;
 
@@ -27,13 +27,20 @@ export function drawBackground(context: CanvasRenderingContext2D, geometry: Geom
   const top = originY - margin;
   const width = cell * (columns - 1) + margin * 2;
   const height = cell * (rows - 1) + margin * 2;
+  const radius = Math.min(6, cell * 0.16);
   const wood = context.createLinearGradient(left, top, left + width, top + height);
   wood.addColorStop(0, palette.wood);
   wood.addColorStop(1, palette.woodEdge);
+  context.save();
+  context.shadowColor = palette.boardShadow;
+  context.shadowBlur = Math.max(12, cell * 0.9);
+  context.shadowOffsetY = Math.max(4, cell * 0.3);
   context.fillStyle = wood;
   context.beginPath();
-  context.roundRect(left, top, width, height, Math.min(8, cell * 0.2));
+  context.roundRect(left, top, width, height, radius);
   context.fill();
+  context.restore();
+  drawGrain(context, left, top, width, height, radius, palette);
 
   context.strokeStyle = palette.line;
   context.lineCap = "square";
@@ -82,6 +89,63 @@ export function drawBackground(context: CanvasRenderingContext2D, geometry: Geom
   }
 }
 
+/**
+ * Straight-grained kaya: long, faint, slightly wavy fibres plus a soft edge
+ * vignette. Seeded, so every redraw paints the same board.
+ */
+function drawGrain(
+  context: CanvasRenderingContext2D,
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+  radius: number,
+  palette: Palette,
+) {
+  context.save();
+  context.beginPath();
+  context.roundRect(left, top, width, height, radius);
+  context.clip();
+  let seed = 20_261_030;
+  const random = () => {
+    seed = (seed * 16_807) % 2_147_483_647;
+    return seed / 2_147_483_647;
+  };
+  context.strokeStyle = palette.woodGrain;
+  const fibres = Math.max(18, Math.round(height / 4.5));
+  for (let index = 0; index < fibres; index++) {
+    const baseline = top + (index / fibres) * height + random() * 4;
+    const amplitude = 0.8 + random() * 3.2;
+    const wavelength = width * (0.5 + random() * 1.1);
+    const phase = random() * Math.PI * 2;
+    // Mostly hairlines; an occasional wider, still faint band reads as a growth ring.
+    const ring = random() < 0.12;
+    context.globalAlpha = ring ? 0.035 + random() * 0.03 : 0.012 + random() * 0.03;
+    context.lineWidth = ring ? 2.5 + random() * 3 : 0.5 + random() * 0.9;
+    context.beginPath();
+    for (let x = 0; x <= width + 6; x += 6) {
+      const y = baseline + Math.sin((x / wavelength) * Math.PI * 2 + phase) * amplitude;
+      if (x === 0) context.moveTo(left + x, y);
+      else context.lineTo(left + x, y);
+    }
+    context.stroke();
+  }
+  context.globalAlpha = 1;
+  const vignette = context.createRadialGradient(
+    left + width / 2,
+    top + height / 2,
+    Math.min(width, height) * 0.35,
+    left + width / 2,
+    top + height / 2,
+    Math.max(width, height) * 0.75,
+  );
+  vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+  vignette.addColorStop(1, palette.woodVignette);
+  context.fillStyle = vignette;
+  context.fillRect(left, top, width, height);
+  context.restore();
+}
+
 export function drawStones(context: CanvasRenderingContext2D, geometry: Geometry, palette: Palette, board: BoardView) {
   const { cell } = geometry;
   if (cell <= 0) return;
@@ -94,9 +158,9 @@ export function drawStones(context: CanvasRenderingContext2D, geometry: Geometry
   if (last?.type === "Play") {
     const { x, y } = pointToPixel(geometry, last.data.point);
     context.strokeStyle = last.data.color === "Black" ? palette.lastMoveOnBlack : palette.lastMoveOnWhite;
-    context.lineWidth = Math.max(1.5, cell * 0.065);
+    context.lineWidth = Math.max(1.6, cell * 0.075);
     context.beginPath();
-    context.arc(x, y, cell * 0.22, 0, Math.PI * 2);
+    context.arc(x, y, cell * 0.19, 0, Math.PI * 2);
     context.stroke();
   }
 }
@@ -112,22 +176,30 @@ function drawStone(
   const { cell } = geometry;
   const { x, y } = pointToPixel(geometry, point);
   const radius = cell * STONE_RADIUS;
-  const [light, dark] = color === "Black" ? palette.blackStone : palette.whiteStone;
-  const gradient = context.createRadialGradient(x - radius * 0.32, y - radius * 0.36, radius * 0.08, x, y, radius * 1.05);
+  const [light, middle, dark] = color === "Black" ? palette.blackStone : palette.whiteStone;
+  const gradient = context.createRadialGradient(x - radius * 0.36, y - radius * 0.42, radius * 0.05, x, y, radius * 1.02);
   gradient.addColorStop(0, light);
+  gradient.addColorStop(0.42, middle);
   gradient.addColorStop(1, dark);
   context.save();
   context.globalAlpha = alpha;
   if (alpha === 1) {
     context.shadowColor = palette.stoneShadow;
-    context.shadowBlur = cell * 0.09;
-    context.shadowOffsetX = cell * 0.03;
-    context.shadowOffsetY = cell * 0.05;
+    context.shadowBlur = cell * 0.13;
+    context.shadowOffsetX = cell * 0.035;
+    context.shadowOffsetY = cell * 0.065;
   }
   context.fillStyle = gradient;
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.fill();
+  context.shadowColor = "transparent";
+  if (color === "White") {
+    // A hairline keeps white stones crisp against the light wood.
+    context.strokeStyle = palette.whiteStoneEdge;
+    context.lineWidth = Math.max(0.6, cell * 0.018);
+    context.stroke();
+  }
   context.restore();
 }
 
@@ -203,15 +275,19 @@ function drawCandidate(
   const { x, y } = pointToPixel(geometry, candidate.point);
   const radius = cell * CANDIDATE_RADIUS;
   context.save();
-  context.globalAlpha = 0.92;
+  context.shadowColor = palette.candidateShadow;
+  context.shadowBlur = cell * 0.12;
+  context.shadowOffsetY = cell * 0.03;
+  context.globalAlpha = 0.94;
   context.fillStyle = palette.tiers[Math.min(tier, palette.tiers.length - 1)] ?? palette.tiers[0] ?? "#888";
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.fill();
+  context.shadowColor = "transparent";
   context.globalAlpha = 1;
   if (tier === 0) {
     context.strokeStyle = palette.bestRing;
-    context.lineWidth = Math.max(1.5, cell * 0.07);
+    context.lineWidth = Math.max(1.5, cell * 0.06);
     context.beginPath();
     context.arc(x, y, radius - context.lineWidth / 2, 0, Math.PI * 2);
     context.stroke();
@@ -222,23 +298,25 @@ function drawCandidate(
     context.textBaseline = "middle";
     const winrate = formatWinrate(forMover(candidate.winrate, toPlay, "winrate"));
     if (cell < 26) {
-      context.font = `600 ${cell * 0.32}px ${FONT}`;
-      context.fillText(winrate, x, y);
+      context.font = `700 ${cell * 0.31}px ${FONT}`;
+      context.fillText(winrate, x, y + cell * 0.01);
     } else {
-      context.font = `650 ${cell * 0.27}px ${FONT}`;
-      context.fillText(winrate, x, y - cell * 0.2);
-      context.font = `500 ${cell * 0.2}px ${FONT}`;
-      context.fillText(formatVisits(candidate.visits), x, y + cell * 0.04);
+      context.font = `700 ${cell * 0.27}px ${FONT}`;
+      context.fillText(winrate, x, y - cell * 0.19);
+      context.globalAlpha = 0.78;
+      context.font = `600 ${cell * 0.185}px ${FONT}`;
+      context.fillText(formatVisits(candidate.visits), x, y + cell * 0.045);
       context.fillText(formatScore(forMover(candidate.score_lead, toPlay, "score")), x, y + cell * 0.25);
+      context.globalAlpha = 1;
     }
   }
   if (cell >= 22) {
     // The engine's ranking, top right of the circle, as LizzieYzy Next shows it.
     context.fillStyle = palette.candidateOrder;
-    context.font = `700 ${cell * 0.24}px ${FONT}`;
+    context.font = `700 ${cell * 0.2}px ${FONT}`;
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.fillText(String(candidate.order + 1), x + radius * 0.86, y - radius * 0.86);
+    context.fillText(String(candidate.order + 1), x + radius * 0.9, y - radius * 0.9);
   }
   context.restore();
 }

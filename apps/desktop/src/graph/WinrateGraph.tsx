@@ -112,6 +112,13 @@ export function WinrateGraph({ graph, analysis, labels, onJump }: WinrateGraphPr
             dragging.current = null;
           }}
         >
+          <defs>
+            {/* Referenced from CSS (--graph-black-area) so themes can swap it for a flat fill. */}
+            <linearGradient id="graph-area-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ecebe6" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="#ecebe6" stopOpacity="0.01" />
+            </linearGradient>
+          </defs>
           <rect className="graph-plot" x={layout.left} y={layout.top} width={width - layout.left - layout.right} height={plotHeight(layout)} rx={4} />
           {[0.25, 0.5, 0.75].map((level) => (
             <line

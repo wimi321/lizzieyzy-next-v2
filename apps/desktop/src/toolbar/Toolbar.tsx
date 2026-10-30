@@ -1,10 +1,10 @@
 import type { EngineStatus } from "@/api/backend";
-import { Icon } from "./icons";
+import { Icon, type IconName } from "./icons";
 
 /** Home / End step size: the backend stops at the first or last move. */
 export const JUMP = 1_000_000;
 
-export interface ToolbarLabels {
+export interface TopBarLabels {
   open: string;
   save: string;
   first: string;
@@ -14,68 +14,136 @@ export interface ToolbarLabels {
   pause: string;
   resume: string;
   move: string;
+  analysing: string;
+  paused: string;
+  coordinates: string;
+  ownership: string;
+  candidates: string;
+  candidatesAll: string;
+  settings: string;
 }
 
-export interface ToolbarProps {
-  labels: ToolbarLabels;
+/** What the analysis chip shows; node and revision let tests match it to the board. */
+export interface AnalysisBadge {
+  nodeId: number;
+  revision: number;
+  text: string;
+  title: string;
+}
+
+export interface TopBarProps {
+  labels: TopBarLabels;
+  engineLabels: Record<EngineStatus["type"], string>;
   moveNumber: number | null;
+  /** Move number at the end of the displayed line. */
+  lastMoveNumber: number | null;
   pondering: boolean;
+  analysis: AnalysisBadge | null;
+  noAnalysis: string;
   canSave: boolean;
+  coordinates: boolean;
+  ownership: boolean;
+  maxCandidates: number;
+  candidateLimits: readonly number[];
+  engine: EngineStatus;
   onOpen(): void;
   onSave(): void;
   onStep(steps: number): void;
   onTogglePondering(): void;
+  onToggleCoordinates(): void;
+  onToggleOwnership(): void;
+  onMaxCandidates(limit: number): void;
+  onOpenSettings(): void;
 }
 
-export function Toolbar({ labels, moveNumber, pondering, canSave, onOpen, onSave, onStep, onTogglePondering }: ToolbarProps) {
+/** File actions left, move navigation centred, analysis and view controls right. */
+export function TopBar(props: TopBarProps) {
+  const { labels } = props;
   return (
-    <nav className="toolbar" aria-label={labels.move}>
-      <span className="tool-group">
-        <ToolButton icon="open" label={labels.open} testId="open-file" onClick={onOpen} />
-        <ToolButton icon="save" label={labels.save} testId="save-file" onClick={onSave} disabled={!canSave} />
-      </span>
-      <span className="tool-group">
-        <ToolButton icon="first" label={labels.first} testId="nav-first" onClick={() => onStep(-JUMP)} compact />
-        <ToolButton icon="previous" label={labels.previous} testId="nav-previous" onClick={() => onStep(-1)} compact />
-        <span className="move-number" title={labels.move}>
-          <strong data-testid="move-number">{moveNumber ?? "—"}</strong>
+    <header className="topbar">
+      <div className="topbar-group">
+        <IconButton icon="open" label={labels.open} testId="open-file" onClick={props.onOpen} showLabel />
+        <IconButton icon="save" label={labels.save} testId="save-file" onClick={props.onSave} disabled={!props.canSave} showLabel />
+      </div>
+      <nav className="nav-pill" aria-label={labels.move}>
+        <IconButton icon="first" label={labels.first} testId="nav-first" onClick={() => props.onStep(-JUMP)} />
+        <IconButton icon="previous" label={labels.previous} testId="nav-previous" onClick={() => props.onStep(-1)} />
+        <span className="move-counter" title={labels.move}>
+          <strong data-testid="move-number">{props.moveNumber ?? "—"}</strong>
+          {props.lastMoveNumber !== null ? <span>/ {props.lastMoveNumber}</span> : null}
         </span>
-        <ToolButton icon="next" label={labels.next} testId="nav-next" onClick={() => onStep(1)} compact />
-        <ToolButton icon="last" label={labels.last} testId="nav-last" onClick={() => onStep(JUMP)} compact />
-      </span>
-      <ToolButton
-        icon={pondering ? "pause" : "resume"}
-        label={pondering ? labels.pause : labels.resume}
-        testId="toggle-pondering"
-        pressed={!pondering}
-        onClick={onTogglePondering}
-      />
-    </nav>
+        <IconButton icon="next" label={labels.next} testId="nav-next" onClick={() => props.onStep(1)} />
+        <IconButton icon="last" label={labels.last} testId="nav-last" onClick={() => props.onStep(JUMP)} />
+      </nav>
+      <div className="topbar-group end">
+        <button
+          type="button"
+          className="chip"
+          data-testid="toggle-pondering"
+          data-state={props.pondering ? "live" : "paused"}
+          aria-pressed={!props.pondering}
+          title={props.pondering ? labels.pause : labels.resume}
+          onClick={props.onTogglePondering}
+        >
+          <span className="live-dot" aria-hidden="true" />
+          {props.pondering ? labels.analysing : labels.paused}
+          <strong
+            data-testid="analysis-move"
+            data-node-id={props.analysis?.nodeId}
+            data-revision={props.analysis?.revision}
+            title={props.analysis?.title}
+          >
+            {props.analysis?.text ?? props.noAnalysis}
+          </strong>
+        </button>
+        <span className="topbar-divider" aria-hidden="true" />
+        <IconButton icon="coordinates" label={labels.coordinates} testId="toggle-coordinates" pressed={props.coordinates} onClick={props.onToggleCoordinates} />
+        <IconButton icon="territory" label={labels.ownership} testId="toggle-ownership" pressed={props.ownership} onClick={props.onToggleOwnership} />
+        <label className="select-label" title={labels.candidates}>
+          <span className="visually-hidden">{labels.candidates}</span>
+          <select
+            className="select"
+            data-testid="max-candidates"
+            value={props.maxCandidates}
+            onChange={(event) => props.onMaxCandidates(Number(event.target.value))}
+          >
+            {props.candidateLimits.map((limit) => (
+              <option key={limit} value={limit}>
+                {limit === 361 ? labels.candidatesAll : `${labels.candidates} ${limit}`}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="topbar-divider" aria-hidden="true" />
+        <EngineLight status={props.engine} labels={props.engineLabels} />
+        <IconButton icon="settings" label={labels.settings} testId="open-setup" onClick={props.onOpenSettings} />
+      </div>
+    </header>
   );
 }
 
-function ToolButton(props: {
-  icon: Parameters<typeof Icon>[0]["name"];
+function IconButton(props: {
+  icon: IconName;
   label: string;
   testId: string;
   onClick(): void;
   disabled?: boolean;
-  compact?: boolean;
   pressed?: boolean;
+  showLabel?: boolean;
 }) {
   return (
     <button
       type="button"
-      className={props.compact ? "tool-button compact" : "tool-button"}
+      className={props.showLabel ? "icon-button" : "icon-button square"}
       data-testid={props.testId}
       title={props.label}
-      aria-label={props.compact ? props.label : undefined}
+      aria-label={props.showLabel ? undefined : props.label}
       aria-pressed={props.pressed}
       disabled={props.disabled}
       onClick={props.onClick}
     >
       <Icon name={props.icon} />
-      {props.compact ? null : <span>{props.label}</span>}
+      {props.showLabel ? <span>{props.label}</span> : null}
     </button>
   );
 }
@@ -88,7 +156,7 @@ export function EngineLight({ status, labels }: { status: EngineStatus; labels: 
         ? status.data.version
         : undefined;
   return (
-    <span className="status engine" data-testid="engine-status" data-state={status.type} title={detail}>
+    <span className="engine" data-testid="engine-status" data-state={status.type} title={detail}>
       <span className="engine-dot" data-state={status.type} aria-hidden="true" />
       {labels[status.type]}
     </span>
