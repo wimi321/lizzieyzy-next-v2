@@ -8,6 +8,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "go_to",
         "undo",
         "redo",
+        "variation_tree",
+        "preview_variation",
         "set_pondering",
         "configure_engine",
         "detect_engines",

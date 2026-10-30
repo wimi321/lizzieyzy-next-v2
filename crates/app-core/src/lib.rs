@@ -6,6 +6,7 @@ mod delivery;
 pub mod engine_setup;
 mod engine_trial;
 mod graph;
+mod inspection;
 mod settings;
 mod storage;
 mod view;
@@ -13,6 +14,9 @@ mod view;
 pub use delivery::AppSubscription;
 pub use engine_trial::{EngineSetupError, EngineSetupProfile};
 pub use graph::{AnalysisSummary, GraphPointView, GraphView};
+pub use inspection::{
+    GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
+};
 pub use settings::{EngineProfile, Settings, SettingsError};
 pub use view::*;
 

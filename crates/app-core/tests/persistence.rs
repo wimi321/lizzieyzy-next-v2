@@ -44,6 +44,7 @@ async fn saved_nested_variations_and_java_properties_reopen_with_identical_trees
     ] {
         let revision = within(app.open_bytes(bytes.to_vec())).await.unwrap();
         let opened = document_event(&mut events, revision).await;
+        let original_tree = within(app.variation_tree()).await.unwrap();
         assert_eq!(opened.tree.current, opened.tree.root);
         let first = directory.path().join("first.sgf");
         let second = directory.path().join("second.sgf");
@@ -53,7 +54,14 @@ async fn saved_nested_variations_and_java_properties_reopen_with_identical_trees
         let normalized = sgf::parse(sgf::serialize(&source).as_bytes()).unwrap();
         assert_eq!(read_games(&first), normalized.games);
         let revision = within(app.open_path(&first)).await.unwrap();
-        let reopened = document_event(&mut events, revision).await;
+        let mut reopened = document_event(&mut events, revision).await;
+        let reopened_tree = within(app.variation_tree()).await.unwrap();
+        assert_eq!(reopened_tree.nodes, original_tree.nodes);
+        assert_eq!(reopened_tree.root, original_tree.root);
+        // Reopening creates a fresh document identity even for identical SGF.
+        assert!(reopened.tree.structure_revision > opened.tree.structure_revision);
+        assert_eq!(reopened_tree.revision, reopened.tree.structure_revision);
+        reopened.tree.structure_revision = opened.tree.structure_revision;
         assert_eq!(reopened, opened);
         within(app.save(&second)).await.unwrap();
         assert_eq!(read_games(&second), read_games(&first));

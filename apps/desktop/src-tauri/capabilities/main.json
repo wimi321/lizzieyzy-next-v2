@@ -13,6 +13,8 @@
     "allow-go-to",
     "allow-undo",
     "allow-redo",
+    "allow-variation-tree",
+    "allow-preview-variation",
     "allow-set-pondering",
     "allow-configure-engine",
     "allow-detect-engines",

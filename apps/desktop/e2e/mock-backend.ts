@@ -5,6 +5,7 @@ export type {
   AnalysisSource, AnalysisSummary, AnalysisView, BoardView, CandidateView, ColorView, DocumentView,
   DocumentWarningView, EngineStatus, PointView, TreeView, WarningKindView, SubscriptionId,
   GraphPointView, GraphView,
+  GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "unsubscribe">;
@@ -89,6 +90,9 @@ export const step: Backend["step"] = (count) => command("step", [count]);
 export const goTo: Backend["goTo"] = (nodeId) => command("goTo", [nodeId]);
 export const undo: Backend["undo"] = () => command("undo", []);
 export const redo: Backend["redo"] = () => command("redo", []);
+export const variationTree: Backend["variationTree"] = () => command("variationTree", []);
+export const previewVariation: Backend["previewVariation"] = (nodeId, moves) =>
+  command("previewVariation", [nodeId, moves]);
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);

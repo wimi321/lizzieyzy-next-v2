@@ -25,6 +25,7 @@ fn actor() -> (Actor, AppSubscription) {
     (
         Actor {
             document,
+            tree: VariationTreeView::default(),
             summaries: HashMap::new(),
             summary_fingerprint: None,
             revision: 0,

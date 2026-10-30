@@ -13,7 +13,7 @@ fn document(bytes: &[u8]) -> GameDocument {
 #[test]
 fn board_and_tree_views_follow_captures_passes_and_variations() {
     let mut doc = document(b"(;SZ[3]AB[ba]AW[aa]PL[B];B[ab](;W[])(;W[cc]))");
-    let root = DocumentView::from_document(&doc).unwrap();
+    let root = DocumentView::from_document(&doc, 0).unwrap();
     assert_eq!(root.tree.main_line, [0, 1, 2]);
     assert_eq!(root.tree.variation_count, 1);
     let board = root.board.unwrap();
@@ -24,7 +24,7 @@ fn board_and_tree_views_follow_captures_passes_and_variations() {
     assert_eq!(board.stones[1], Some(ColorView::Black));
 
     doc.apply(Command::Step(1)).unwrap();
-    let captured = DocumentView::from_document(&doc).unwrap();
+    let captured = DocumentView::from_document(&doc, 0).unwrap();
     assert_eq!(captured.tree.current, 1);
     assert_eq!(captured.tree.variation_count, 2);
     let board = captured.board.unwrap();
@@ -44,7 +44,7 @@ fn board_and_tree_views_follow_captures_passes_and_variations() {
     );
 
     doc.apply(Command::Step(1)).unwrap();
-    let passed = DocumentView::from_document(&doc).unwrap().board.unwrap();
+    let passed = DocumentView::from_document(&doc, 0).unwrap().board.unwrap();
     assert_eq!(passed.move_number, 2);
     assert_eq!(passed.to_play, ColorView::Black);
     assert_eq!(passed.captured_black, 1);
@@ -60,7 +60,7 @@ fn board_and_tree_views_follow_captures_passes_and_variations() {
 fn invalid_positions_keep_tree_comments_and_document_warnings() {
     let mut doc = document(b"(;SZ[9]KM[broken]RU[unknown];B[aa];W[aa]C[inspect me]PL[?])");
     doc.apply(Command::Step(2)).unwrap();
-    let view = DocumentView::from_document(&doc).unwrap();
+    let view = DocumentView::from_document(&doc, 0).unwrap();
     assert_eq!(view.tree.current, 2);
     assert_eq!(view.tree.main_line, [0, 1, 2]);
     assert_eq!(view.graph.current_index, 2);
@@ -223,7 +223,7 @@ fn rectangular_snapshot() -> analysis::AnalysisSnapshot {
 #[test]
 fn rectangular_board_ownership_candidates_and_pv_share_top_left_coordinates() {
     let doc = document(b"(;SZ[9:13]AB[aa][ie][em]AW[ad]PL[W])");
-    let board = DocumentView::from_document(&doc).unwrap().board.unwrap();
+    let board = DocumentView::from_document(&doc, 0).unwrap().board.unwrap();
     assert_eq!((board.width, board.height), (9, 13));
     let snapshot = rectangular_snapshot();
     let raw_ownership = snapshot.response.ownership.clone().unwrap();
@@ -358,7 +358,7 @@ fn invalid_candidate_or_pv_coordinates_reject_the_entire_view() {
 fn event_serialization_and_typescript_declarations_agree_on_public_shape() {
     let event = AppEvent::DocumentChanged {
         revision: 17,
-        view: DocumentView::from_document(&GameDocument::new()).unwrap(),
+        view: DocumentView::from_document(&GameDocument::new(), 0).unwrap(),
     };
     let json = serde_json::to_value(&event).unwrap();
     assert_eq!(json["type"], "DocumentChanged");

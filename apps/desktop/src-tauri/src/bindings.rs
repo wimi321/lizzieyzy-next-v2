@@ -2,7 +2,10 @@
 
 use std::{fs, path::Path};
 
-use app_core::{AppEvent, EngineSetupProfile, MoveView, Settings, engine_setup::EngineDiscovery};
+use app_core::{
+    AppEvent, EngineSetupProfile, MoveView, Settings, VariationPreviewView, VariationTreeView,
+    engine_setup::EngineDiscovery,
+};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -18,6 +21,8 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     fs::create_dir_all(directory)?;
     AppEvent::export_all_to(directory)?;
     MoveView::export_all_to(directory)?;
+    VariationTreeView::export_all_to(directory)?;
+    VariationPreviewView::export_all_to(directory)?;
     Settings::export_all_to(directory)?;
     EngineSetupProfile::export_all_to(directory)?;
     EngineDiscovery::export_all_to(directory)?;
