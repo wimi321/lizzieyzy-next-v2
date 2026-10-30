@@ -1,3 +1,25 @@
 {
-  "app": { "title": "LizzieYzy Next 2 (dev)" }
+  "app": {
+    "title": "LizzieYzy Next 2 (dev)"
+  },
+  "board": {
+    "label": "Go board",
+    "move": "Move",
+    "analysis": "Analysis",
+    "noAnalysis": "none",
+    "visits": "{visits} visits",
+    "coordinates": "Coordinates",
+    "ownership": "Territory",
+    "candidates": "Candidates",
+    "candidatesAll": "All",
+    "positionError": "This position cannot be computed: {reason}",
+    "loading": "Loading…"
+  },
+  "engine": {
+    "Starting": "Engine starting",
+    "Ready": "Engine ready",
+    "Restarting": "Engine restarting",
+    "Failed": "Engine error",
+    "Stopped": "No engine"
+  }
 }
