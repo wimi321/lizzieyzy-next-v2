@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import type { Browser } from "webdriverio";
 import { readProbe } from "./probe.js";
 import { openSession, TIMEOUT } from "./session.js";
+import { recordWindowsProcesses } from "./diagnostics.js";
 
 export { TIMEOUT } from "./session.js";
 export const VISITS_PER_SECOND = 10_000;
@@ -28,8 +29,13 @@ async function poll(check: () => Promise<boolean>, message: string): Promise<voi
 export async function startDriver(): Promise<() => Promise<void>> {
   await mkdir(diagnostics, { recursive: true });
   const executable = process.env.TAURI_DRIVER ?? "tauri-driver";
-  const driver = spawn(executable, ["--port", "4444", "--native-port", "4445"], {
+  const args = ["--port", "4444", "--native-port", "4445"];
+  if (process.env.TAURI_E2E_NATIVE_DRIVER_WRAPPER) {
+    args.push("--native-driver", process.env.TAURI_E2E_NATIVE_DRIVER_WRAPPER);
+  }
+  const driver = spawn(executable, args, {
     stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, TAURI_E2E_DIAGNOSTICS: diagnostics },
     // On Unix this lets failure cleanup also reap the native WebDriver child.
     detached: process.platform !== "win32",
   });
@@ -139,6 +145,11 @@ export async function withApp(
     console.log(`PASS ${name} (${((performance.now() - started) / 1000).toFixed(2)}s)`);
   } catch (error) {
     console.error(`FAIL ${name}`, error);
+    if (process.platform === "win32") {
+      await recordWindowsProcesses(diagnostics, name, application).catch((diagnosticError: unknown) => {
+        console.error("Process snapshot failed:", diagnosticError);
+      });
+    }
     if (browser) {
       // Diagnostics are best effort and live only in ignored CI artifacts.
       const results = await Promise.allSettled([
