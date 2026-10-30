@@ -3,10 +3,11 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { remote, type Browser } from "webdriverio";
+import type { Browser } from "webdriverio";
 import { readProbe } from "./probe.js";
+import { openSession, TIMEOUT } from "./session.js";
 
-export const TIMEOUT = 5_000;
+export { TIMEOUT } from "./session.js";
 export const VISITS_PER_SECOND = 10_000;
 const diagnostics = resolve("test-results/tauri");
 const suffix = process.platform === "win32" ? ".exe" : "";
@@ -131,17 +132,8 @@ export async function withApp(
       // Edge WebDriver treats every argument as a Chromium-style switch.
       "tauri:options": { application, args: [`--config-dir=${directory}`, `--open=${sgf}`] },
     };
-    browser = await remote({
-      hostname: "127.0.0.1",
-      port: 4444,
-      logLevel: "error",
-      connectionRetryCount: 0,
-      connectionRetryTimeout: TIMEOUT,
-      waitforTimeout: TIMEOUT,
-      waitforInterval: 25,
-      // tauri-driver selects WebKitGTK or Edge; do not launch a web browser.
-      capabilities,
-    });
+    browser = await openSession(name, capabilities);
+    // After session creation, restore the normal page-load/script budgets.
     await browser.setTimeout({ implicit: 0, pageLoad: TIMEOUT, script: TIMEOUT });
     await run(browser, { faultMarker });
     console.log(`PASS ${name} (${((performance.now() - started) / 1000).toFixed(2)}s)`);
