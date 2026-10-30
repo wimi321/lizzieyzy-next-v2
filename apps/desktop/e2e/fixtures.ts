@@ -5,6 +5,7 @@ import type {
   CandidateView,
   ColorView,
   DocumentView,
+  GraphView,
   MoveView,
   PointView,
 } from "../src/api/backend";
@@ -32,14 +33,42 @@ export function boardView(
   };
 }
 
-export function documentView(board: BoardView, current: number): DocumentView {
+/** A displayed line of `count` points whose node ids equal their move numbers. */
+export function graphView(count: number, current: number, summaries: Record<number, [winrate: number, score: number]>): GraphView {
+  return {
+    points: Array.from({ length: count }, (_, index) => {
+      const summary = summaries[index];
+      return {
+        node_id: index,
+        move_number: index,
+        summary: summary ? { winrate: summary[0], score_lead: summary[1], visits: 400 + index * 10 } : null,
+      };
+    }),
+    current_index: current,
+  };
+}
+
+export function documentView(board: BoardView, current: number, graph?: GraphView): DocumentView {
   return {
     board,
     tree: { root: 0, current, main_line: Array.from({ length: current + 1 }, (_, i) => i), variation_count: 1 },
+    graph: graph ?? graphView(current + 1, current, {}),
     comment: null,
     warnings: [],
     position_error: null,
   };
+}
+
+/** A smooth, deterministic game: Black leads early, White turns it around late. */
+export function gameSummaries(analysed: number): Record<number, [number, number]> {
+  const summaries: Record<number, [number, number]> = {};
+  for (let index = 0; index < analysed; index++) {
+    const swing = Math.sin(index / 9) * 0.12 + Math.sin(index / 3.1) * 0.03;
+    const trend = index < 60 ? 0.04 : -((index - 60) / 30) * 0.3;
+    const winrate = Math.min(0.97, Math.max(0.03, 0.5 + swing + trend));
+    summaries[index] = [Math.round(winrate * 1000) / 1000, Math.round((winrate - 0.5) * 300) / 10];
+  }
+  return summaries;
 }
 
 export function documentChanged(view: DocumentView, revision: number): AppEvent {
@@ -92,12 +121,16 @@ export function analysisView(
   options: { visits?: number; ownership?: number[] | null } = {},
 ): AnalysisView {
   const best = candidates[0];
+  const winrate = best?.winrate ?? 0.5;
+  const scoreLead = best?.score_lead ?? 0;
+  const visits = options.visits ?? candidates.reduce((sum, c) => sum + c.visits, 0);
   return {
     node_id: nodeId,
     revision,
-    winrate: best?.winrate ?? 0.5,
-    score_lead: best?.score_lead ?? 0,
-    visits: options.visits ?? candidates.reduce((sum, c) => sum + c.visits, 0),
+    winrate,
+    score_lead: scoreLead,
+    visits,
+    summary: { winrate, score_lead: scoreLead, visits },
     candidates,
     ownership: options.ownership ?? null,
     is_during_search: true,
@@ -113,8 +146,13 @@ export const MID_GAME_STONES: Stone[] = [
   [3, 10, "White"], [9, 15, "Black"], [11, 16, "White"], [14, 9, "Black"], [9, 9, "White"],
 ];
 
-export function midGame() {
-  return documentView(boardView(19, 19, MID_GAME_STONES, { toPlay: "Black", moveNumber: 20, last: [9, 9, "White"] }), 20);
+export function midGame(graph?: GraphView) {
+  return documentView(boardView(19, 19, MID_GAME_STONES, { toPlay: "Black", moveNumber: 20, last: [9, 9, "White"] }), 20, graph);
+}
+
+/** The middle game on a 121-move line whose first 91 moves have been analysed. */
+export function analysedGame() {
+  return midGame(graphView(121, 20, gameSummaries(91)));
 }
 
 export function midGameAnalysis(revision: number, nodeId: number, visitsScale = 1, withOwnership = false) {
