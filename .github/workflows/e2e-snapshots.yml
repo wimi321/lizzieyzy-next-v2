@@ -1,0 +1,47 @@
+name: E2E snapshots
+
+# Regenerates the Playwright screenshot baselines on the Linux image that CI
+# compares against. Run it on a branch, download the "e2e-snapshots" artifact
+# and commit the baselines that changed.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/desktop/package.json
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+
+      - name: Install dependencies and Chromium
+        run: |
+          pnpm -C apps/desktop install --frozen-lockfile
+          pnpm -C apps/desktop exec playwright install --with-deps chromium
+
+      - name: Update screenshot baselines
+        run: pnpm -C apps/desktop exec playwright test --update-snapshots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: e2e-snapshots
+          path: apps/desktop/e2e/**/*-snapshots/*.png
+          if-no-files-found: warn
