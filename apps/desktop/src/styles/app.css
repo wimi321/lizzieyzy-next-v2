@@ -37,6 +37,15 @@
   --candidate-text: #111111;
   --ownership-black: rgb(14, 14, 14);
   --ownership-white: rgb(252, 252, 252);
+
+  --graph-plot: #fbf9f4;
+  --graph-grid: #e4dccd;
+  --graph-black-area: rgba(28, 26, 23, 0.82);
+  --graph-winrate: #141210;
+  --graph-score: #e07b1a;
+  --graph-coverage: #0f7f89;
+  --graph-current: #0f7f89;
+  --button-hover: rgba(0, 0, 0, 0.05);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -53,6 +62,14 @@
     --board-line: #2a1d0b;
     --board-coordinate: #3a2a12;
     --stone-shadow: rgba(0, 0, 0, 0.55);
+    --graph-plot: #23262b;
+    --graph-grid: #383c43;
+    --graph-black-area: rgba(8, 8, 9, 0.85);
+    --graph-winrate: #f1eee8;
+    --graph-score: #f29b45;
+    --graph-coverage: #3cc0cb;
+    --graph-current: #3cc0cb;
+    --button-hover: rgba(255, 255, 255, 0.07);
   }
 }
 
@@ -69,6 +86,14 @@
   --board-line: #2a1d0b;
   --board-coordinate: #3a2a12;
   --stone-shadow: rgba(0, 0, 0, 0.55);
+  --graph-plot: #23262b;
+  --graph-grid: #383c43;
+  --graph-black-area: rgba(8, 8, 9, 0.85);
+  --graph-winrate: #f1eee8;
+  --graph-score: #f29b45;
+  --graph-coverage: #3cc0cb;
+  --graph-current: #3cc0cb;
+  --button-hover: rgba(255, 255, 255, 0.07);
 }
 
 html,
@@ -85,7 +110,9 @@ body {
 
 .app {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
+  /* Content must never widen the single column, or measured children would feed back. */
+  grid-template-columns: minmax(0, 1fr);
   height: 100vh;
   min-height: 0;
 }
@@ -196,3 +223,97 @@ body {
   text-align: center;
   color: var(--app-muted);
 }
+
+.toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tool-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.tool-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--app-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+
+.tool-button.compact {
+  padding: 0.25rem 0.35rem;
+}
+
+.tool-button:hover:not(:disabled) {
+  background: var(--button-hover);
+}
+
+.tool-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tool-button[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tool-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.icon {
+  flex: none;
+}
+
+.move-number {
+  min-width: 2.6rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+}
+
+.graph-area {
+  min-width: 0;
+  padding: 0 1rem 0.75rem;
+}
+
+.graph {
+  height: 132px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.graph svg {
+  display: block;
+}
+
+.graph-plot { fill: var(--graph-plot); }
+.graph-grid { stroke: var(--graph-grid); stroke-width: 1; }
+.graph-grid.middle { stroke-dasharray: 4 3; stroke-width: 1.2; }
+.graph-area { fill: var(--graph-black-area); }
+.graph-winrate { fill: none; stroke: var(--graph-winrate); stroke-width: 1.4; stroke-linejoin: round; }
+.graph-score { fill: none; stroke: var(--graph-score); stroke-width: 1.4; stroke-linejoin: round; }
+.graph-coverage { fill: var(--graph-coverage); opacity: 0.55; }
+.graph-current line { stroke: var(--graph-current); stroke-width: 1.5; }
+.graph-current circle { fill: var(--graph-current); stroke: var(--panel-bg); stroke-width: 1.5; }
+.graph-axis { fill: var(--app-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.graph-axis.score { fill: var(--graph-score); }
+.graph-caption { fill: var(--app-text); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.graph-empty { fill: var(--app-muted); font-size: 12px; }

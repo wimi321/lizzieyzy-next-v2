@@ -92,6 +92,8 @@ export const setPondering: Backend["setPondering"] = (enabled) => command("setPo
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);
 export const settings: Backend["settings"] = () => command("settings", []);
+export const pickOpenPath: Backend["pickOpenPath"] = () => command("pickOpenPath", []);
+export const pickSavePath: Backend["pickSavePath"] = () => command("pickSavePath", []);
 
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
