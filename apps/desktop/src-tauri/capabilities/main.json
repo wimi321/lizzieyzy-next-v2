@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Local main window: application commands and file selection dialogs only.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": [
+    "allow-open-bytes",
+    "allow-open-path",
+    "allow-save",
+    "allow-play",
+    "allow-step",
+    "allow-go-to",
+    "allow-undo",
+    "allow-redo",
+    "allow-set-pondering",
+    "allow-configure-engine",
+    "allow-settings",
+    "allow-subscribe",
+    "allow-unsubscribe",
+    "dialog:allow-open",
+    "dialog:allow-save"
+  ]
+}
