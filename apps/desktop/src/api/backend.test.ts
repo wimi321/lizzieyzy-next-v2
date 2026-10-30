@@ -55,6 +55,8 @@ test("forwards every command with typed arguments and preserves results/errors",
   const mv = { type: "Pass", data: { color: "Black" } } as const;
   const profile = { program: "engine", model: "model", config: "config", extra_args: [] };
   const settings = { version: 1, engine: profile, pondering: true };
+  const setup = { ...profile, config: null };
+  const discovery = { programs: ["engine"], models: ["model"], configs: [] };
   const cases: [() => Promise<unknown>, string, Record<string, unknown> | undefined, unknown][] = [
     [() => backend.openBytes([40, 59, 41]), "open_bytes", { bytes: [40, 59, 41] }, 1],
     [() => backend.openPath("棋谱.sgf"), "open_path", { path: "棋谱.sgf" }, 2],
@@ -67,6 +69,8 @@ test("forwards every command with typed arguments and preserves results/errors",
     [() => backend.setPondering(false), "set_pondering", { enabled: false }, undefined],
     [() => backend.configureEngine(profile), "configure_engine", { profile }, undefined],
     [() => backend.configureEngine(null), "configure_engine", { profile: null }, undefined],
+    [() => backend.detectEngines(), "detect_engines", undefined, discovery],
+    [() => backend.tryConfigureEngine(setup), "try_configure_engine", { profile: setup }, undefined],
     [() => backend.settings(), "settings", undefined, settings],
   ];
   for (const [call, command, args, result] of cases) {
@@ -210,6 +214,25 @@ test("mock queues reentrant pushes after the remaining scripted events", async (
   mock.pushEvents(events.slice(0, 2));
   expect(received).toEqual(events);
   await mock.unsubscribe(id);
+});
+
+test("mock scripts discovery, setup success and readable setup failure", async () => {
+  const mock = await loadMock();
+  const discovery = { programs: ["katago"], models: ["kata1.bin.gz"], configs: [] };
+  const profile = { program: "katago", model: "kata1.bin.gz", config: null, extra_args: [] };
+  mock.setScript({ commands: [
+    { command: "detectEngines", result: discovery },
+    { command: "tryConfigureEngine", result: undefined },
+    { command: "tryConfigureEngine", result: undefined, error: "model is missing" },
+  ] });
+  expect(await mock.detectEngines()).toEqual(discovery);
+  await expect(mock.tryConfigureEngine(profile)).resolves.toBeUndefined();
+  await expect(mock.tryConfigureEngine(profile)).rejects.toThrow("model is missing");
+  expect(mock.recordedCalls()).toEqual([
+    { command: "detectEngines", args: [] },
+    { command: "tryConfigureEngine", args: [profile] },
+    { command: "tryConfigureEngine", args: [profile] },
+  ]);
 });
 
 test("mock rejects unexpected commands and scripted errors", async () => {

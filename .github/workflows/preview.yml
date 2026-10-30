@@ -1,0 +1,92 @@
+name: Preview installers
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    name: Preview (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            bundles: nsis
+            artifacts: target/release/bundle/nsis/*.exe
+          - os: macos-latest
+            platform: macos
+            bundles: dmg
+            artifacts: target/release/bundle/dmg/*.dmg
+          - os: ubuntu-latest
+            platform: linux
+            bundles: appimage,deb
+            artifacts: |
+              target/release/bundle/appimage/*.AppImage
+              target/release/bundle/deb/*.deb
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Linux Tauri prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential curl wget file pkg-config libwebkit2gtk-4.1-dev \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            patchelf
+
+      - name: Install Rust toolchain
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup toolchain install 1.96.0 --profile minimal --component rustfmt --component clippy
+          rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/desktop/package.json
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          pnpm -C apps/desktop install --frozen-lockfile
+
+      # P1 deliberately supplies no signing credentials and no KataGo binaries/models.
+      - name: Build unsigned installers
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          pnpm -C apps/desktop tauri build --ci --no-sign --bundles "${{ matrix.bundles }}" -- --locked --no-default-features
+
+      - name: Upload preview installers
+        uses: actions/upload-artifact@v6
+        with:
+          name: preview-${{ matrix.platform }}-${{ runner.arch }}-${{ github.run_id }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+          retention-days: 14
