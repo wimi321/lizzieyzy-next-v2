@@ -26,6 +26,7 @@ export type { TreeView } from "./generated/TreeView";
 export type { WarningKindView } from "./generated/WarningKindView";
 export type { SubscriptionId };
 export type EventListener = (event: AppEvent) => void;
+export type EngineFileKind = "program" | "model" | "config";
 
 export interface Backend {
   openBytes(bytes: number[]): Promise<Revision>;
@@ -44,6 +45,7 @@ export interface Backend {
   /** Native file dialogs; null when the user cancels. */
   pickOpenPath(): Promise<string | null>;
   pickSavePath(): Promise<string | null>;
+  pickEngineFile(kind: EngineFileKind): Promise<string | null>;
   subscribe(listener: EventListener): Promise<number>;
   unsubscribe(id: number): Promise<void>;
 }
@@ -74,6 +76,17 @@ export const pickOpenPath: Backend["pickOpenPath"] = async () => {
 
 export const pickSavePath: Backend["pickSavePath"] = async () =>
   (await saveDialog({ filters: SGF_FILTERS })) ?? null;
+
+const ENGINE_FILTERS: Record<EngineFileKind, { name: string; extensions: string[] }[] | undefined> = {
+  program: undefined,
+  model: [{ name: "KataGo model", extensions: ["gz", "bin", "txt"] }],
+  config: [{ name: "KataGo config", extensions: ["cfg", "txt"] }],
+};
+
+export const pickEngineFile: Backend["pickEngineFile"] = async (kind) => {
+  const path = await openDialog({ multiple: false, directory: false, filters: ENGINE_FILTERS[kind] });
+  return typeof path === "string" ? path : null;
+};
 
 interface Connection {
   channel: Channel<AppEvent>;

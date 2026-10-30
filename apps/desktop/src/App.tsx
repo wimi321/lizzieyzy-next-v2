@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import * as backend from "@/api/backend";
-import type { PointView } from "@/api/backend";
+import type { EngineProfile, PointView } from "@/api/backend";
 import { Board } from "./board/Board";
 import { formatVisits } from "./board/format";
 import { WinrateGraph } from "./graph/WinrateGraph";
 import { getMessages } from "./locales";
+import { EngineSetup } from "./settings/EngineSetup";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { EngineLight, JUMP, Toolbar } from "./toolbar/Toolbar";
 
@@ -30,18 +31,25 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const document = useAppState(store, (state) => state.document);
   const analysis = useAppState(store, (state) => state.analysis);
   const engine = useAppState(store, (state) => state.engine);
+  const revision = useAppState(store, (state) => state.revision);
   const messages = getMessages(navigator.language);
   const [coordinates, setCoordinates] = useState(true);
   const [ownership, setOwnership] = useState(false);
   const [maxCandidates, setMaxCandidates] = useState<number>(10);
   const [pondering, setPondering] = useState(true);
+  const [profile, setProfile] = useState<EngineProfile | null>(null);
+  const [setupOpen, setSetupOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
     backend
       .settings()
       .then((settings) => {
-        if (active) setPondering(settings.pondering);
+        if (!active) return;
+        setPondering(settings.pondering);
+        setProfile(settings.engine);
+        // First run: nothing to analyse with until an engine is set up.
+        if (!settings.engine) setSetupOpen(true);
       })
       .catch(report);
     return () => {
@@ -110,6 +118,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           </strong>
         </span>
         <EngineLight status={engine} labels={messages.engine} />
+        <button type="button" className="toggle" data-testid="open-setup" onClick={() => setSetupOpen(true)}>
+          {messages.setup.open}
+        </button>
         <span className="controls">
           <button
             type="button"
@@ -141,7 +152,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           </label>
         </span>
       </header>
-      <section className="board-area">
+      <section className="board-area" data-testid="board-area" data-revision={revision} data-node-id={document?.tree.current}>
         {board ? (
           <Board
             board={board}
@@ -170,6 +181,18 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           />
         ) : null}
       </section>
+      {setupOpen ? (
+        <EngineSetup
+          backend={backend}
+          labels={messages.setup}
+          current={profile}
+          onConfigured={(configured) => {
+            setProfile({ ...configured, config: configured.config ?? "" });
+            setSetupOpen(false);
+          }}
+          onClose={() => setSetupOpen(false)}
+        />
+      ) : null}
     </main>
   );
 }

@@ -37,5 +37,22 @@
     "label": "Winrate graph: Black's winrate and score lead",
     "empty": "No analysis yet",
     "move": "Move {n}"
+  },
+  "setup": {
+    "open": "Engine",
+    "title": "Connect KataGo",
+    "intro": "These files were found automatically. Check them and press Start.",
+    "program": "Program",
+    "model": "Model (network weights)",
+    "config": "Config",
+    "defaultConfig": "Built-in default config",
+    "browse": "Browse…",
+    "recommended": "recommended",
+    "notFound": "KataGo was not found. Install it first (on macOS: brew install katago), or choose the program and model yourself.",
+    "detecting": "Looking for KataGo on this computer…",
+    "start": "Start",
+    "starting": "Starting…",
+    "close": "Close",
+    "failed": "The engine did not start; settings are unchanged:"
   }
 }

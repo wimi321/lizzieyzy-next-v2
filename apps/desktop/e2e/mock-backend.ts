@@ -98,6 +98,7 @@ export const tryConfigureEngine: Backend["tryConfigureEngine"] = (profile) =>
 export const settings: Backend["settings"] = () => command("settings", []);
 export const pickOpenPath: Backend["pickOpenPath"] = () => command("pickOpenPath", []);
 export const pickSavePath: Backend["pickSavePath"] = () => command("pickSavePath", []);
+export const pickEngineFile: Backend["pickEngineFile"] = (kind) => command("pickEngineFile", [kind]);
 
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
@@ -120,9 +121,12 @@ declare global {
   interface Window {
     /** Present only in the e2e build, where the Vite alias swaps in this module. */
     __mockBackend?: MockControls;
+    /** Set by Playwright's addInitScript so commands sent during start-up are scripted too. */
+    __mockInitialScript?: MockScript;
   }
 }
 
 if (typeof window !== "undefined") {
   window.__mockBackend = { setScript, pushEvents, recordedCalls };
+  if (window.__mockInitialScript) setScript(window.__mockInitialScript);
 }
