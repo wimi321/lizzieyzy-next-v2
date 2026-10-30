@@ -10,6 +10,17 @@ const PRESETS = [
   { key: "professional", visits: 10_000 },
 ] as const;
 
+/** The range the backend accepts for one run. */
+const MIN_VISITS = 500;
+const MAX_VISITS = 1_000_000;
+
+function parseVisits(text: string): number | null {
+  const trimmed = text.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const value = Number(trimmed);
+  return value >= MIN_VISITS && value <= MAX_VISITS ? value : null;
+}
+
 export interface AutoAnalysisLabels {
   title: string;
   start: string;
@@ -20,6 +31,9 @@ export interface AutoAnalysisLabels {
   standard: string;
   deep: string;
   professional: string;
+  custom: string;
+  perMove: string;
+  customRange: string;
   visitsPerMove: string;
   scope: string;
   running: string;
@@ -44,7 +58,9 @@ export interface AutoAnalysisProps {
 export function AutoAnalysis({ progress, positions, labels, onStart, onPause, onResume, onCancel }: AutoAnalysisProps) {
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
-  const [visits, setVisits] = useState<number>(1000);
+  const [choice, setChoice] = useState<number | "custom">(1000);
+  const [customText, setCustomText] = useState("");
+  const visits = choice === "custom" ? parseVisits(customText) : choice;
   const root = useRef<HTMLDivElement>(null);
   const status = progress?.status.type;
   const active = status === "Running" || status === "Paused";
@@ -155,15 +171,38 @@ export function AutoAnalysis({ progress, positions, labels, onStart, onPause, on
                     key={preset.key}
                     type="button"
                     role="radio"
-                    aria-checked={visits === preset.visits}
+                    aria-checked={choice === preset.visits}
                     data-testid={`auto-analysis-${preset.key}`}
-                    onClick={() => setVisits(preset.visits)}
+                    onClick={() => setChoice(preset.visits)}
                   >
                     <span>{labels[preset.key]}</span>
                     <small>{preset.visits >= 1000 ? `${preset.visits / 1000}k` : preset.visits}</small>
                   </button>
                 ))}
               </div>
+              <label className={choice === "custom" ? "custom-visits active" : "custom-visits"}>
+                <span>{labels.custom}</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="text-input"
+                  data-testid="auto-analysis-custom"
+                  value={customText}
+                  placeholder="2000"
+                  aria-invalid={choice === "custom" && visits === null}
+                  onFocus={() => setChoice("custom")}
+                  onChange={(event) => {
+                    setCustomText(event.target.value);
+                    setChoice("custom");
+                  }}
+                />
+                <span className="custom-unit">{labels.perMove}</span>
+              </label>
+              {choice === "custom" && visits === null && customText.trim() !== "" ? (
+                <p className="popover-text custom-hint" data-testid="auto-analysis-custom-hint">
+                  {labels.customRange}
+                </p>
+              ) : null}
               {outcome ? (
                 <p className="popover-text" data-outcome={status}>
                   {outcome}
@@ -174,8 +213,9 @@ export function AutoAnalysis({ progress, positions, labels, onStart, onPause, on
                   type="button"
                   className="primary-button"
                   data-testid="auto-analysis-start"
-                  disabled={positions === 0}
+                  disabled={positions === 0 || visits === null}
                   onClick={() => {
+                    if (visits === null) return;
                     onStart(visits);
                     setOpen(false);
                   }}

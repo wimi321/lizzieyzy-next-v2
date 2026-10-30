@@ -109,3 +109,28 @@ test("the hook subscribes before reading, then follows events and command replie
   unmount();
   expect(backend.unsubscribe).toHaveBeenCalledWith(7);
 });
+
+test("a custom depth replaces the presets and must be in the backend's range", () => {
+  const { onStart } = panel();
+  fireEvent.click(screen.getByTestId("auto-analysis"));
+  const input = screen.getByTestId("auto-analysis-custom");
+  fireEvent.change(input, { target: { value: "300" } });
+  expect(screen.getByTestId("auto-analysis-standard").getAttribute("aria-checked")).toBe("false");
+  expect(screen.getByTestId("auto-analysis-custom-hint").textContent).toBe("请输入 500 到 1,000,000 之间的整数");
+  expect((screen.getByTestId("auto-analysis-start") as HTMLButtonElement).disabled).toBe(true);
+
+  fireEvent.change(input, { target: { value: " 2500 " } });
+  expect(screen.queryByTestId("auto-analysis-custom-hint")).toBeNull();
+  fireEvent.click(screen.getByTestId("auto-analysis-start"));
+  expect(onStart).toHaveBeenCalledWith(2500);
+});
+
+test("choosing a preset again leaves the custom depth", () => {
+  const { onStart } = panel();
+  fireEvent.click(screen.getByTestId("auto-analysis"));
+  fireEvent.change(screen.getByTestId("auto-analysis-custom"), { target: { value: "abc" } });
+  fireEvent.click(screen.getByTestId("auto-analysis-quick"));
+  expect(screen.queryByTestId("auto-analysis-custom-hint")).toBeNull();
+  fireEvent.click(screen.getByTestId("auto-analysis-start"));
+  expect(onStart).toHaveBeenCalledWith(500);
+});
