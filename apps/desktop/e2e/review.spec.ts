@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { ProblemMovesView, WireAppEvent, WholeGameProgress } from "../src/api/backend";
-import { analysedGame, documentChanged } from "./fixtures";
+import type { ProblemMovesView, StrengthEstimateView, WireAppEvent, WholeGameProgress } from "../src/api/backend";
+import { analysedGame, documentChanged, strengthView } from "./fixtures";
 import type { MockCommand } from "./mock-backend";
 
 test.use({ viewport: { width: 1280, height: 820 } });
@@ -75,4 +75,50 @@ test("problem moves list the worst moves, mark the graph and jump on click", asy
   await expect(page.getByTestId("graph-mistake")).toHaveCount(2);
   await page.getByTestId("problem-row").first().click();
   await expect.poll(() => calls(page)).toEqual([{ command: "goTo", args: [37] }]);
+});
+
+test("the strength window starts the whole-game analysis and fills in as results arrive", async ({ page }) => {
+  await start(page, [documentChanged(analysedGame(), 7)], [
+    { command: "startWholeGameAnalysis", result: running(0), events: [{ type: "WholeGameProgress", data: running(12) }] },
+  ]);
+  await page.getByTestId("open-strength").click();
+  const dialog = page.getByTestId("strength-dialog");
+  await expect(dialog.getByTestId("strength-empty")).toBeVisible();
+  await expect(page.getByTestId("player-match-black")).toHaveCount(0);
+
+  await dialog.getByTestId("strength-analyze").click();
+  await expect(dialog.getByTestId("strength-running")).toContainText("12 / 121");
+
+  // The next finished position brings enough results for an estimate.
+  await page.evaluate(
+    ([view, next]) => {
+      window.__mockBackend?.setStrengthEstimate(view);
+      window.__mockBackend?.pushEvents([{ type: "WholeGameProgress", data: next }]);
+    },
+    [strengthView(7, 60), running(61)] as [StrengthEstimateView, WholeGameProgress],
+  );
+  await expect(dialog.getByTestId("strength-report")).toBeVisible();
+  await expect(dialog.getByTestId("strength-black-match")).toHaveText("74%");
+  await expect(dialog.getByTestId("strength-partial")).toBeVisible();
+  await expect(page.getByTestId("player-match-black")).toHaveText("Match 74%");
+  await expect.poll(() => calls(page)).toEqual([{ command: "startWholeGameAnalysis", args: [{ visits: 1000 }] }]);
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+});
+
+test("a finished estimate", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(
+    ([events, view]) => {
+      window.__mockBackend?.setStrengthEstimate(view);
+      window.__mockBackend?.setScript({ initialEvents: events });
+    },
+    [[documentChanged(analysedGame(), 7)], strengthView(7)] as [WireAppEvent[], StrengthEstimateView],
+  );
+  await page.getByTestId("open-strength").click();
+  const dialog = page.getByTestId("strength-dialog");
+  await expect(dialog.getByTestId("strength-black-rank")).toHaveText("5.3 dan");
+  await expect(dialog.getByTestId("strength-white-rank")).toHaveText("3.8 dan");
+  await expect(dialog).toHaveScreenshot("strength-report.png");
 });

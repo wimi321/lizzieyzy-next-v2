@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import type { AnalysisView, CandidateView, GraphPointView, VariationTreeView } from "@/api/backend";
+import type { AnalysisView, BoardView, CandidateView, GraphPointView, VariationTreeView } from "@/api/backend";
 import zh from "../locales/zh-CN.json";
 import { CandidateTable } from "./CandidateTable";
 import { InfoPanel } from "./InfoPanel";
@@ -162,4 +162,19 @@ test("the info panel shows captures, the winrate bar and the last move's change"
   expect(screen.getByText("白方")).toBeTruthy();
   expect(screen.getByTestId("winrate-bar").dataset.black).toBe("62.0");
   expect(screen.getByTestId("lead-line").textContent).toBe("黑领先 2.4 目最后一手 (#1)：+12.0% +1.9 目");
+});
+
+test("the player rows show the match rate once the strength estimate has one", () => {
+  const board: BoardView = {
+    width: 19, height: 19, stones: [], last_move: null, to_play: "Black", move_number: 0, captured_black: 0, captured_white: 0,
+  };
+  const { rerender } = render(
+    <InfoPanel board={board} black={{ name: "甲", rank: null, match: 0.736 }} white={{ name: "乙", rank: null, match: null }} points={[]} currentIndex={0} labels={zh.info} />,
+  );
+  expect(screen.getByTestId("player-match-black").textContent).toBe("吻合 74%");
+  expect(screen.getByTestId("player-match-black").getAttribute("title")).toBe(zh.info.matchHint);
+  expect(screen.queryByTestId("player-match-white")).toBeNull();
+
+  rerender(<InfoPanel board={board} black={{ name: "甲", rank: null }} white={{ name: "乙", rank: null }} points={[]} currentIndex={0} labels={zh.info} />);
+  expect(screen.queryByTestId("player-match-black")).toBeNull();
 });

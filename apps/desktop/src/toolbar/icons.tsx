@@ -1,5 +1,5 @@
 /** 16px stroke icons drawn in currentColor, so they follow the theme. */
-export type IconName = "open" | "save" | "first" | "previous" | "next" | "last" | "pause" | "resume" | "coordinates" | "territory" | "settings" | "bolt" | "fox";
+export type IconName = "open" | "save" | "first" | "previous" | "next" | "last" | "pause" | "resume" | "coordinates" | "territory" | "settings" | "bolt" | "fox" | "strength";
 
 const PATHS: Record<IconName, string> = {
   open: "M2 4.5h4l1.5 1.5H14v6.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z",
@@ -12,6 +12,7 @@ const PATHS: Record<IconName, string> = {
   resume: "M5 3.5 12 8l-7 4.5z",
   coordinates: "M2.5 5.5h11M2.5 10.5h11M5.5 2.5v11M10.5 2.5v11",
   territory: "M2.5 4.5 6 3l4 1.5 3.5-1.5v8.5L10 13l-4-1.5-3.5 1.5zM6 3v8.5M10 4.5V13",
+  strength: "M2.5 12a5.5 5.5 0 0 1 11 0M8 12l2.7-3.4M8 3.5v1.2M3.9 5.2l.9.8M12.1 5.2l-.9.8",
   fox: "M2.5 2.5 6 5.5h4l3.5-3v5L8 13.5 2.5 7.5zM6 8.5h.01M10 8.5h.01",
   bolt: "M8.9 1.75 3.75 9h4.1l-.75 5.25L12.25 7H8.2z",
   settings:

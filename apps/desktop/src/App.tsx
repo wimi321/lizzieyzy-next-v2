@@ -12,7 +12,10 @@ import { InfoPanel } from "./panels/InfoPanel";
 import { MoveTree } from "./panels/MoveTree";
 import { AutoAnalysis } from "./review/AutoAnalysis";
 import { ProblemList } from "./review/ProblemList";
+import { StrengthDialog } from "./review/StrengthDialog";
+import { TIER_ORDER } from "./review/strength";
 import { useProblemMoves } from "./review/useProblemMoves";
+import { useStrength } from "./review/useStrength";
 import { useWholeGame } from "./review/useWholeGame";
 import { EngineSetup } from "./settings/EngineSetup";
 import { connect, createStore, type Store, useAppState } from "./state/store";
@@ -50,6 +53,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [profile, setProfile] = useState<EngineProfile | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const [foxOpen, setFoxOpen] = useState(false);
+  const [strengthOpen, setStrengthOpen] = useState(false);
   const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
   // A preview belongs to one position: once the current node changes it no longer applies.
   const [preview, setPreview] = useState<{ node: number; point: PointView } | null>(null);
@@ -62,11 +66,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     () => ({ minimum_rank: "Inaccuracy", color: problemColor, sort: problemSort }),
     [problemColor, problemSort],
   );
-  const problems = useProblemMoves(backend, problemQuery, {
-    revision,
-    progress: wholeGame.progress?.completed ?? 0,
-    live: analysis?.visits ?? 0,
-  });
+  const reviewSignals = { revision, progress: wholeGame.progress?.completed ?? 0, live: analysis?.visits ?? 0 };
+  const problems = useProblemMoves(backend, problemQuery, reviewSignals);
+  const strength = useStrength(backend, reviewSignals);
+  // Match rates join the player rows only once the estimate has enough moves to mean something.
+  const strengthReport = strength?.report.has_enough_data ? strength.report : null;
 
   useEffect(() => {
     let active = true;
@@ -204,6 +208,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         onOpen={() => void openFile().catch(report)}
         onSave={() => void saveFile().catch(report)}
         onOpenFox={() => setFoxOpen(true)}
+        onOpenStrength={() => setStrengthOpen(true)}
         onStep={step}
         onTogglePondering={togglePondering}
         onToggleCoordinates={() => setCoordinates((value) => !value)}
@@ -214,8 +219,16 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         <aside className="side side-left">
           <InfoPanel
             board={board}
-            black={{ name: info?.black_name ?? null, rank: info?.black_rank ?? null }}
-            white={{ name: info?.white_name ?? null, rank: info?.white_rank ?? null }}
+            black={{
+              name: info?.black_name ?? null,
+              rank: info?.black_rank ?? null,
+              match: strengthReport && strengthReport.black.sample_count > 0 ? strengthReport.black.match_rate : null,
+            }}
+            white={{
+              name: info?.white_name ?? null,
+              rank: info?.white_rank ?? null,
+              match: strengthReport && strengthReport.white.sample_count > 0 ? strengthReport.white.match_rate : null,
+            }}
             points={points}
             currentIndex={currentIndex}
             labels={messages.info}
@@ -318,6 +331,19 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           />
         </aside>
       </div>
+      {strengthOpen ? (
+        <StrengthDialog
+          view={strength}
+          progress={wholeGame.progress}
+          black={{ name: info?.black_name || messages.info.black, rank: info?.black_rank ?? null }}
+          white={{ name: info?.white_name || messages.info.white, rank: info?.white_rank ?? null }}
+          chinese={navigator.language.toLowerCase().startsWith("zh")}
+          labels={messages.strength}
+          tierNames={TIER_ORDER.map((rank) => messages.problems.ranks[rank])}
+          onAnalyze={() => wholeGame.start(1000)}
+          onClose={() => setStrengthOpen(false)}
+        />
+      ) : null}
       {foxOpen ? (
         <FoxDialog
           backend={backend}

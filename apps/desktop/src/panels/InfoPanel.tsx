@@ -11,12 +11,16 @@ export interface InfoLabels {
   even: string;
   lastMove: string;
   noAnalysis: string;
+  match: string;
+  matchHint: string;
 }
 
 /** A player as recorded in the game; null fields fall back to the colour's name. */
 export interface PlayerInfo {
   name: string | null;
   rank: string | null;
+  /** Match rate from the strength estimate, once there is enough analysis. */
+  match?: number | null;
 }
 
 export interface InfoPanelProps {
@@ -56,6 +60,8 @@ export function InfoPanel({ board, black, white, points, currentIndex, labels }:
           color="black"
           name={black.name || labels.black}
           rank={black.rank}
+          match={matchText(black.match, labels)}
+          matchHint={labels.matchHint}
           captures={labels.captures.replace("{n}", String(board?.captured_black ?? 0))}
           toPlay={board?.to_play === "Black"}
         />
@@ -63,6 +69,8 @@ export function InfoPanel({ board, black, white, points, currentIndex, labels }:
           color="white"
           name={white.name || labels.white}
           rank={white.rank}
+          match={matchText(white.match, labels)}
+          matchHint={labels.matchHint}
           captures={labels.captures.replace("{n}", String(board?.captured_white ?? 0))}
           toPlay={board?.to_play === "White"}
         />
@@ -94,7 +102,19 @@ export function InfoPanel({ board, black, white, points, currentIndex, labels }:
   );
 }
 
-function Player(props: { color: "black" | "white"; name: string; rank: string | null; captures: string; toPlay: boolean }) {
+function matchText(match: number | null | undefined, labels: InfoLabels): string | null {
+  return match === null || match === undefined ? null : labels.match.replace("{n}", String(Math.round(match * 100)));
+}
+
+function Player(props: {
+  color: "black" | "white";
+  name: string;
+  rank: string | null;
+  match: string | null;
+  matchHint: string;
+  captures: string;
+  toPlay: boolean;
+}) {
   return (
     <div className="player" data-to-play={props.toPlay}>
       <span className={`stone-icon ${props.color}`} aria-hidden="true" />
@@ -102,6 +122,11 @@ function Player(props: { color: "black" | "white"; name: string; rank: string | 
         {props.name}
         {props.rank ? <span className="player-rank">{props.rank}</span> : null}
       </span>
+      {props.match ? (
+        <span className="player-match" title={props.matchHint} data-testid={`player-match-${props.color}`}>
+          {props.match}
+        </span>
+      ) : null}
       <span className="player-captures">{props.captures}</span>
     </div>
   );

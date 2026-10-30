@@ -9,6 +9,7 @@ export interface TopBarLabels {
   open: string;
   save: string;
   fox: string;
+  strength: string;
   first: string;
   previous: string;
   next: string;
@@ -50,6 +51,7 @@ export interface TopBarProps {
   onOpen(): void;
   onSave(): void;
   onOpenFox(): void;
+  onOpenStrength(): void;
   onStep(steps: number): void;
   onTogglePondering(): void;
   onToggleCoordinates(): void;
@@ -67,6 +69,7 @@ export function TopBar(props: TopBarProps) {
         <IconButton icon="save" label={labels.save} testId="save-file" onClick={props.onSave} disabled={!props.canSave} showLabel />
         <span className="topbar-divider" aria-hidden="true" />
         <IconButton icon="fox" label={labels.fox} testId="open-fox" onClick={props.onOpenFox} showLabel />
+        <IconButton icon="strength" label={labels.strength} testId="open-strength" onClick={props.onOpenStrength} showLabel />
       </div>
       <nav className="nav-pill" aria-label={labels.move}>
         <IconButton icon="first" label={labels.first} testId="nav-first" onClick={() => props.onStep(-JUMP)} />

@@ -1,4 +1,5 @@
-import type { Backend, CommandError, DocumentView, ProblemMovesView, Settings, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import type { Backend, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import { emptyStrengthEstimate } from "./fixtures";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
@@ -58,6 +59,13 @@ let problemMovesView: ProblemMovesView | null = null;
 
 export function setProblemMoves(view: ProblemMovesView | null): void {
   problemMovesView = structuredClone(view);
+}
+
+/** A test-provided strength estimate, answered for every unscripted read. */
+let strengthView: StrengthEstimateView | null = null;
+
+export function setStrengthEstimate(view: StrengthEstimateView | null): void {
+  strengthView = structuredClone(view);
 }
 
 /** Install deterministic replies and events. No Go or analysis logic is simulated. */
@@ -132,7 +140,7 @@ export const redo: Backend["redo"] = () => command("redo", []);
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "problemMoves">(
+function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "problemMoves" | "strengthEstimate">(
   name: K,
   args: Parameters<Backend[K]>,
   fallback: () => Awaited<ReturnType<Backend[K]>>,
@@ -190,7 +198,12 @@ export const problemMoves: Backend["problemMoves"] =
     }));
 export const setMoveRankSettings: Backend["setMoveRankSettings"] =
   (settings) => command("setMoveRankSettings", [settings]);
-export const strengthEstimate: Backend["strengthEstimate"] = () => command("strengthEstimate", []);
+export const strengthEstimate: Backend["strengthEstimate"] = () =>
+  query("strengthEstimate", [], () => strengthView ?? {
+    ...emptyStrengthEstimate(lastDocument?.revision ?? 0),
+    // Nothing analysed: every move of the displayed line is still to do.
+    total_moves: Math.max(0, (lastDocument?.view.graph.points.length ?? 1) - 1),
+  });
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);
@@ -233,6 +246,7 @@ export interface MockControls {
   pushEvents: typeof pushEvents;
   recordedCalls: typeof recordedCalls;
   setProblemMoves: typeof setProblemMoves;
+  setStrengthEstimate: typeof setStrengthEstimate;
 }
 
 declare global {
@@ -245,6 +259,6 @@ declare global {
 }
 
 if (typeof window !== "undefined") {
-  window.__mockBackend = { setScript, pushEvents, recordedCalls, setProblemMoves };
+  window.__mockBackend = { setScript, pushEvents, recordedCalls, setProblemMoves, setStrengthEstimate };
   if (window.__mockInitialScript) setScript(window.__mockInitialScript);
 }

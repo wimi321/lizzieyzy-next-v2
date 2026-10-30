@@ -8,6 +8,7 @@ import type {
   GraphView,
   FoxSearchResult,
   MoveView,
+  PhaseReport,
   PointView,
   StrengthEstimateView,
   SideReport,
@@ -30,6 +31,85 @@ export function foxSearchResult(): FoxSearchResult {
       }],
       next_cursor: "202610300001",
     },
+  };
+}
+
+function phase(samples: number, scoreLoss: number | null, firstChoice: number): PhaseReport {
+  return {
+    sample_count: samples,
+    average_winrate_loss: (scoreLoss ?? 0) * 2.4,
+    average_score_loss: scoreLoss,
+    weighted_score_loss: (scoreLoss ?? 0) * 1.3,
+    good_move_rate: Math.min(1, firstChoice + 0.25),
+    first_choice_rate: firstChoice,
+  };
+}
+
+/** A side as Rust reports it after a whole-game analysis. Values are plausible, not computed. */
+export function strengthSide(options: {
+  rank: number;
+  zh: string;
+  en: string;
+  band: string;
+  match: number;
+  first: number;
+  tiers: [number, number, number, number, number, number];
+  phases: [PhaseReport, PhaseReport, PhaseReport];
+}): SideReport {
+  const samples = options.tiers.reduce((sum, count) => sum + count, 0);
+  return {
+    sample_count: samples,
+    score_sample_count: samples,
+    rank_value: options.rank,
+    rank_label_zh: options.zh,
+    rank_label_en: options.en,
+    prediction_sigma: 0.9,
+    quality_score: ((options.rank + 18) * 100) / 30,
+    average_winrate_loss: 2.1,
+    average_score_loss: 0.84,
+    median_score_loss: 0.4,
+    weighted_score_loss: 1.12,
+    average_score_equivalent_loss: 0.84,
+    match_rate: options.match,
+    first_choice_rate: options.first,
+    top3_rate: Math.min(1, options.first + 0.3),
+    top5_rate: Math.min(1, options.first + 0.38),
+    good_move_rate: Math.min(1, options.first + 0.24),
+    move_rank_good_move_rate: Math.min(1, options.first + 0.24),
+    move_rank_counts: options.tiers,
+    tier_counts: options.tiers,
+    bad_move_rate: (options.tiers[3] + options.tiers[4] + options.tiers[5]) / samples,
+    mistake_rate: (options.tiers[4] + options.tiers[5]) / samples,
+    blunder_rate: options.tiers[5] / samples,
+    average_difficulty: 0.42,
+    strength_band: options.band,
+    confidence: samples >= 40 ? "High" : samples >= 16 ? "Medium" : "Low",
+    ai_likelihood: 0.05,
+    features: Array.from({ length: 29 }, () => 0) as SideReport["features"],
+    opening: options.phases[0],
+    middlegame: options.phases[1],
+    endgame: options.phases[2],
+    samples: [],
+  };
+}
+
+/** A finished 211-move game: Black a little stronger, both well analysed. */
+export function strengthView(revision: number, analyzed = 211): StrengthEstimateView {
+  const black = strengthSide({
+    rank: 5.3, zh: "业余5.3段", en: "5.3 dan", band: "5-6d", match: 0.74, first: 0.48,
+    tiers: [51, 27, 14, 7, 5, 2],
+    phases: [phase(30, 0.42, 0.57), phase(50, 1.08, 0.42), phase(26, 0.71, 0.5)],
+  });
+  const white = strengthSide({
+    rank: 3.8, zh: "业余3.8段", en: "3.8 dan", band: "3-4d", match: 0.66, first: 0.41,
+    tiers: [43, 25, 17, 9, 6, 5],
+    phases: [phase(30, 0.55, 0.5), phase(50, 1.31, 0.36), phase(25, 0.62, 0.44)],
+  });
+  return {
+    revision,
+    report: { black, white, overall: black, has_enough_data: true },
+    total_moves: 211,
+    analyzed_moves: analyzed,
   };
 }
 

@@ -34,7 +34,8 @@
     "move": "手数",
     "analysing": "分析中",
     "paused": "已暂停",
-    "fox": "野狐棋谱"
+    "fox": "野狐棋谱",
+    "strength": "棋力评估"
   },
   "graph": {
     "label": "胜率图：黑方胜率与目差",
@@ -73,7 +74,9 @@
     "even": "双方均势",
     "lastMove": "最后一手 (#{n})：{winrate}% {score} 目",
     "noAnalysis": "暂无分析",
-    "comment": "注释"
+    "comment": "注释",
+    "match": "吻合 {n}%",
+    "matchHint": "吻合度：综合 AI 一选率、好手率和失误率，越高越接近 AI"
   },
   "table": {
     "label": "候选点",
@@ -179,6 +182,74 @@
       "InvalidResponse": "野狐返回的数据无法识别",
       "ResponseTooLarge": "野狐返回的数据过大",
       "DownloadFailed": "棋谱下载失败，请重试"
+    }
+  },
+  "strength": {
+    "title": "棋力评估",
+    "subtitle": "根据 AI 对这盘棋的分析估算，仅供复盘参考",
+    "close": "关闭",
+    "loading": "正在读取评估…",
+    "moves": "{n} 手",
+    "sigma": "±{n}",
+    "sigmaHint": "估算误差约 {n} 段",
+    "band": "参考档位",
+    "confidence": "可信度",
+    "confidenceLevels": {
+      "Low": "低",
+      "Medium": "中",
+      "High": "高"
+    },
+    "match": "吻合度",
+    "firstChoice": "AI 一选率",
+    "top3": "前三吻合",
+    "goodMoves": "好手率",
+    "avgScoreLoss": "平均目损",
+    "avgWinrateLoss": "平均胜率损失",
+    "mistakeRate": "失误率",
+    "points": "{n} 目",
+    "tiers": "每手分档",
+    "phases": "分阶段",
+    "phaseNames": {
+      "opening": "布局",
+      "middlegame": "中盘",
+      "endgame": "官子"
+    },
+    "phaseRange": "第 {a}–{b} 手",
+    "phaseFrom": "第 {a} 手起",
+    "unplayed": "未下到",
+    "avgLossShort": "平均目损",
+    "firstChoiceShort": "一选率",
+    "help": {
+      "rank": "根据整盘棋的表现估算的段位，只供复盘参考，不是正式段位。",
+      "band": "用另一套经验规则得出的档位，算法和估算段位不同，两者可能不一致。",
+      "confidence": "参与评估的手数越多，结果越可靠：40 手以上为高，16 手以上为中。",
+      "match": "综合 AI 一选率、好手率和失误率的得分，越高说明下得越接近 AI。",
+      "firstChoice": "和 AI 第一推荐完全一样的手所占的比例，越高越好。",
+      "top3": "下在 AI 前三个推荐之内的手所占的比例。",
+      "goodMoves": "几乎不亏的好棋所占的比例（包括 AI 第一推荐），越高越好。",
+      "avgScoreLoss": "平均每手比 AI 的最佳下法少多少目，越小越好。",
+      "avgWinrateLoss": "平均每手比 AI 的最佳下法少多少胜率，越小越好。",
+      "mistakeRate": "问题手和恶手所占的比例，越小越好。"
+    },
+    "emptyTitle": "这盘棋还没有分析",
+    "emptyBody": "棋力评估要根据 AI 对每一手的分析来估算。先让 AI 把整盘棋分析一遍，结果会自动显示在这里。",
+    "shortTitle": "这盘棋太短，还估算不了",
+    "shortBody": "棋力评估需要双方都有一定数量分析过的棋。多下几手，或打开一盘完整的棋谱再来看看。",
+    "fewTitle": "分析过的手数还太少",
+    "fewBody": "再多分析一些手，结果会自动显示在这里。分析整盘棋最省事。",
+    "analyze": "分析整盘棋",
+    "running": "正在分析整盘棋：已分析 {done} / {total}，结果会随分析自动更新。",
+    "partial": "只分析了 {done} / {total} 手，分析整盘棋后结果更准。",
+    "note": "这只是根据这一盘棋估算的水平，供复盘参考，不是正式段位。",
+    "bands": {
+      "beginner": "入门",
+      "ai": "AI 水平",
+      "topPro": "一线职业",
+      "pro": "职业棋手",
+      "kyuRange": "业余{a}-{b}级",
+      "kyuSingle": "业余{a}级",
+      "danRange": "业余{a}-{b}段",
+      "danSingle": "业余{a}段"
     }
   }
 }
