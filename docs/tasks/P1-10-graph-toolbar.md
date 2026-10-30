@@ -1,7 +1,7 @@
 ---
 id: P1-10
 title: 胜率图、导航与工具栏
-depends_on: [P1-09]
+depends_on: [P1-09, P1-13]
 paths:
   - apps/desktop/src/graph/**
   - apps/desktop/src/toolbar/**
@@ -17,7 +17,7 @@ paths:
 
 ## 要做
 
-- 胜率图：黑方胜率曲线、目差（副轴或独立小图）、已分析范围、当前手标记；点击或拖动跳转。
+- 胜率图：黑方胜率曲线、目差（副轴或独立小图）、已分析范围、当前手标记；点击或拖动跳转。数据来自 `DocumentView.graph`（P1-13），收到 `AnalysisUpdated` 时覆盖对应节点的那一项。
 - 工具栏：
   - 打开、保存。
   - 首手、上一手、下一手、末手，显示当前手数。
