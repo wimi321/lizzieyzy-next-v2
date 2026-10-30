@@ -2,7 +2,7 @@
 
 use std::{fs, path::Path};
 
-use app_core::{AppEvent, MoveView, Settings};
+use app_core::{AppEvent, EngineSetupProfile, MoveView, Settings, engine_setup::EngineDiscovery};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -19,6 +19,8 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     AppEvent::export_all_to(directory)?;
     MoveView::export_all_to(directory)?;
     Settings::export_all_to(directory)?;
+    EngineSetupProfile::export_all_to(directory)?;
+    EngineDiscovery::export_all_to(directory)?;
     Revision::export_all_to(directory)?;
     SubscriptionId::export_all_to(directory)?;
     Ok(())

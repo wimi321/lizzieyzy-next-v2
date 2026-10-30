@@ -3,12 +3,15 @@
 
 mod actor;
 mod delivery;
+pub mod engine_setup;
+mod engine_trial;
 mod graph;
 mod settings;
 mod storage;
 mod view;
 
 pub use delivery::AppSubscription;
+pub use engine_trial::{EngineSetupError, EngineSetupProfile};
 pub use graph::{AnalysisSummary, GraphPointView, GraphView};
 pub use settings::{EngineProfile, Settings, SettingsError};
 pub use view::*;
@@ -36,14 +39,27 @@ pub enum AppError {
     Analysis(#[from] analysis::AnalysisError),
     #[error(transparent)]
     Session(#[from] engine_session::SessionError),
+    #[error(transparent)]
+    EngineSetup(#[from] EngineSetupError),
 }
 
 /// Runtime tuning, separate from the versioned user settings. Defaults use the
 /// coordinator/session defaults, including the long first-start deadline.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct AppConfig {
     pub session: engine_session::SessionConfig,
     pub analysis: analysis::AnalysisConfig,
+    pub engine_setup_timeout: std::time::Duration,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            session: Default::default(),
+            analysis: Default::default(),
+            engine_setup_timeout: std::time::Duration::from_secs(120),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -125,6 +141,25 @@ impl AppCore {
         self.send(actor::Input::ConfigureEngine(profile))
             .await
             .map(|_| ())
+    }
+
+    /// Keep the current engine/settings until the candidate reaches Ready.
+    /// The caller supplies the bundled template path; AppCore has no shell dependency.
+    pub async fn try_configure_engine(
+        &self,
+        profile: EngineSetupProfile,
+        default_config_source: PathBuf,
+    ) -> Result<(), AppError> {
+        let (reply, response) = oneshot::channel();
+        self.commands
+            .send(actor::Command::TryConfigureEngine(
+                profile,
+                default_config_source,
+                reply,
+            ))
+            .await
+            .map_err(|_| AppError::Closed)?;
+        response.await.map_err(|_| AppError::Closed)?
     }
 
     pub async fn settings(&self) -> Result<Settings, AppError> {

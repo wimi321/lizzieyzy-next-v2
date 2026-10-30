@@ -1,7 +1,7 @@
 import type { Backend, AppEvent, EventListener } from "../src/api/backend";
 
 export type {
-  Backend, AppEvent, EngineProfile, MoveView, Revision, Settings, EventListener,
+  Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
   AnalysisSource, AnalysisSummary, AnalysisView, BoardView, CandidateView, ColorView, DocumentView,
   DocumentWarningView, EngineStatus, PointView, TreeView, WarningKindView, SubscriptionId,
   GraphPointView, GraphView,
@@ -92,6 +92,9 @@ export const redo: Backend["redo"] = () => command("redo", []);
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);
+export const detectEngines: Backend["detectEngines"] = () => command("detectEngines", []);
+export const tryConfigureEngine: Backend["tryConfigureEngine"] = (profile) =>
+  command("tryConfigureEngine", [profile]);
 export const settings: Backend["settings"] = () => command("settings", []);
 
 export const subscribe: Backend["subscribe"] = async (listener) => {

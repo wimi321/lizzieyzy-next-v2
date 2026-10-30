@@ -8,6 +8,9 @@ use engine_session::EngineHandle;
 use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
+mod trial;
+use trial::PendingTrial;
+
 pub(crate) enum Input {
     OpenBytes(Vec<u8>),
     OpenPath(PathBuf),
@@ -23,6 +26,11 @@ pub(crate) enum Input {
 pub(crate) enum Command {
     Apply(Input, oneshot::Sender<Result<u64, AppError>>),
     Settings(oneshot::Sender<Settings>),
+    TryConfigureEngine(
+        crate::EngineSetupProfile,
+        PathBuf,
+        oneshot::Sender<Result<(), AppError>>,
+    ),
 }
 
 struct Running {
@@ -59,6 +67,7 @@ struct Actor {
     settings: Settings,
     config: AppConfig,
     running: Option<Running>,
+    trial: Option<PendingTrial>,
     focus: Option<ViewFocus>,
     output: Delivery,
 }
@@ -79,6 +88,7 @@ pub(crate) async fn run(
         settings,
         config,
         running: None,
+        trial: None,
         focus: None,
         output,
     };
@@ -91,6 +101,7 @@ pub(crate) async fn run(
             command = commands.recv() => match command {
                 Some(Command::Settings(reply)) => { let _ = reply.send(actor.settings.clone()); }
                 Some(Command::Apply(Input::Shutdown, reply)) => {
+                    actor.cancel_trial().await;
                     let result = actor.stop_engine().await.map(|()| actor.revision);
                     let _ = reply.send(result);
                     break;
@@ -98,9 +109,13 @@ pub(crate) async fn run(
                 Some(Command::Apply(input, reply)) => {
                     let _ = reply.send(actor.apply(input).await);
                 }
-                None => { let _ = actor.stop_engine().await; break; }
+                Some(Command::TryConfigureEngine(profile, source, reply)) => {
+                    actor.begin_trial(profile, source, reply).await;
+                }
+                None => { actor.cancel_trial().await; let _ = actor.stop_engine().await; break; }
             },
             signal = next_signal(&mut actor.running) => actor.signal(signal),
+            result = trial::wait(&mut actor.trial) => actor.finish_trial(result).await,
         }
     }
 }
@@ -260,6 +275,7 @@ impl Actor {
                 }
             }
             Input::ConfigureEngine(profile) => {
+                self.cancel_trial().await;
                 // Validate argument conflicts before changing the saved configuration.
                 if let Some(profile) = &profile {
                     profile.transport()?;

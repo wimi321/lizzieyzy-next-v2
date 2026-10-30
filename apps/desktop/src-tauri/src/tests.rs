@@ -49,8 +49,19 @@ impl Harness {
             .await
             .unwrap();
         let (send, output) = mpsc::unbounded_channel();
+        let resources = directory.path().join("resources/katago");
+        std::fs::create_dir_all(&resources).unwrap();
+        let default_config_source = resources.join("analysis.cfg");
+        std::fs::write(&default_config_source, "reportAnalysisWinratesAs = BLACK\n").unwrap();
         let app = crate::commands(mock_builder())
             .manage(crate::DesktopState::new(core.clone(), subscription))
+            .manage(crate::engine_setup::SetupEnvironment {
+                roots: app_core::engine_setup::SearchRoots {
+                    application_dirs: vec![directory.path().to_owned()],
+                    ..Default::default()
+                },
+                default_config_source,
+            })
             .channel_interceptor(move |_webview, callback, index, body| {
                 let _ = send.send(Message {
                     callback: callback.0,
@@ -419,6 +430,14 @@ async fn capability_denies_other_windows_remote_origins_and_unneeded_plugins() {
     for (window, command, url) in [
         (&other, "settings", local_url()),
         (&harness.main, "settings", "https://example.com/"),
+        (&other, "detect_engines", local_url()),
+        (&harness.main, "detect_engines", "https://example.com/"),
+        (&other, "try_configure_engine", local_url()),
+        (
+            &harness.main,
+            "try_configure_engine",
+            "https://example.com/",
+        ),
         (&harness.main, "plugin:dialog|message", local_url()),
         (&harness.main, "plugin:shell|execute", local_url()),
         (&harness.main, "plugin:fs|read_file", local_url()),
@@ -431,5 +450,94 @@ async fn capability_denies_other_windows_remote_origins_and_unneeded_plugins() {
             "{command}: {error}"
         );
     }
+    harness.finish().await;
+}
+
+#[tokio::test]
+async fn setup_commands_detect_injected_roots_and_only_persist_ready_profiles() {
+    let mut harness = Harness::new().await;
+    let original = profile(harness.directory.path());
+    let installation = harness.directory.path().join("katago");
+    std::fs::create_dir_all(&installation).unwrap();
+    let model = installation.join("kata1-b18c384nbt-s999-d999.bin.gz");
+    std::fs::write(&model, b"fake model").unwrap();
+    let discovery = harness.invoke("detect_engines", json!({})).await;
+    assert_eq!(discovery["models"], json!([model]));
+    assert_eq!(discovery["programs"], json!([]));
+    let setup = app_core::EngineSetupProfile {
+        program: original.program,
+        model,
+        config: None,
+        extra_args: vec!["-override-config=numSearchThreads=1".into()],
+    };
+    harness.subscribe(61).await;
+    harness.document(61, 0).await;
+    harness
+        .invoke("try_configure_engine", json!({ "profile": setup }))
+        .await;
+    let settings: Settings =
+        serde_json::from_value(harness.invoke("settings", json!({})).await).unwrap();
+    let saved = settings.engine.as_ref().unwrap();
+    assert_eq!(saved.model, setup.model);
+    assert_eq!(saved.config, harness.directory.path().join("analysis.cfg"));
+    assert_eq!(
+        std::fs::read_to_string(&saved.config).unwrap(),
+        "reportAnalysisWinratesAs = BLACK\n"
+    );
+    within(async {
+        loop {
+            match harness.next().await.event {
+                AppEvent::EngineStatusChanged(EngineStatus::Ready { version }) => {
+                    assert_eq!(version, "1.16.5-fake");
+                    break;
+                }
+                AppEvent::EngineStatusChanged(EngineStatus::Failed { reason, .. }) => {
+                    panic!("{reason}")
+                }
+                _ => {}
+            }
+        }
+    })
+    .await;
+    let before = std::fs::read(harness.directory.path().join("settings.json")).unwrap();
+    let mut invalid = setup;
+    invalid.model = harness.directory.path().join("missing model.bin.gz");
+    let error = request(
+        &harness.main,
+        "try_configure_engine",
+        json!({ "profile": invalid }),
+        local_url(),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error["type"], "App");
+    assert!(
+        error["data"]
+            .as_str()
+            .unwrap()
+            .contains("missing model.bin.gz")
+    );
+    assert_eq!(
+        std::fs::read(harness.directory.path().join("settings.json")).unwrap(),
+        before
+    );
+    assert_eq!(harness.core.settings().await.unwrap(), settings);
+    // A new revision must still receive live analysis from the retained engine.
+    harness
+        .invoke("open_bytes", json!({ "bytes": b"(;SZ[9])" }))
+        .await;
+    harness.document(61, 1).await;
+    within(async {
+        loop {
+            match harness.next().await.event {
+                AppEvent::AnalysisUpdated(view) if view.revision == 1 => break,
+                AppEvent::EngineStatusChanged(EngineStatus::Failed { reason, .. }) => {
+                    panic!("{reason}")
+                }
+                _ => {}
+            }
+        }
+    })
+    .await;
     harness.finish().await;
 }
