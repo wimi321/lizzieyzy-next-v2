@@ -29,12 +29,18 @@ pub enum StartupError {
         source: std::io::Error,
     },
     #[error(transparent)]
-    Core(#[from] AppError),
+    Core(Box<AppError>),
     #[error("startup failed: {startup}; cleanup also failed: {shutdown}")]
     Cleanup {
-        startup: AppError,
-        shutdown: AppError,
+        startup: Box<AppError>,
+        shutdown: Box<AppError>,
     },
+}
+
+impl From<AppError> for StartupError {
+    fn from(error: AppError) -> Self {
+        Self::Core(Box::new(error))
+    }
 }
 
 impl StartupOptions {
@@ -88,8 +94,11 @@ pub async fn start(
         && let Err(startup) = core.open_path(document).await
     {
         return match core.shutdown().await {
-            Ok(()) => Err(StartupError::Core(startup)),
-            Err(shutdown) => Err(StartupError::Cleanup { startup, shutdown }),
+            Ok(()) => Err(startup.into()),
+            Err(shutdown) => Err(StartupError::Cleanup {
+                startup: Box::new(startup),
+                shutdown: Box::new(shutdown),
+            }),
         };
     }
     Ok((core, subscription))

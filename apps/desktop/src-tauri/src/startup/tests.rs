@@ -147,11 +147,11 @@ async fn startup_reports_config_and_document_failures() {
             temp.path().join("config"),
         ))
         .await,
-        Err(StartupError::Core(AppError::Io(_)))
+        Err(StartupError::Core(error)) if matches!(error.as_ref(), AppError::Io(_))
     ));
     std::fs::write(temp.path().join("settings.json"), "invalid JSON").unwrap();
     assert!(matches!(
         within(start(StartupOptions::default(), temp.path().to_owned())).await,
-        Err(StartupError::Core(AppError::Settings(_)))
+        Err(StartupError::Core(error)) if matches!(error.as_ref(), AppError::Settings(_))
     ));
 }
