@@ -14,8 +14,11 @@
       {
         "label": "main",
         "title": "LizzieYzy Next 2",
-        "width": 1024,
-        "height": 768
+        "width": 1280,
+        "height": 820,
+        "minWidth": 1080,
+        "minHeight": 680,
+        "center": true
       }
     ],
     "security": {
