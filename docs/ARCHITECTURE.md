@@ -121,13 +121,19 @@ pub enum EngineStatus {
 ```
 
 - 一个 tokio 任务独占进程、待完成请求表和状态，外部只能发消息。`AnalysisRequest` 是不含 id 的查询，id 由会话分配。
+- `AnalysisRequest` 保留 4.4 中除 `id` 外的全部查询字段；扩展字段不得覆盖协议保留字段（包括 `id` / `action`）。`QuerySubscription::id() -> &str` 是该订阅稳定的取消标识，`recv(&mut self) -> Option<QueryEvent>` 按事件顺序读取，结束后返回 `None`。重发结果中的 wire id 会改变，`terminate` 始终使用订阅的初始 id；对已经结束或未知 id 取消是幂等成功。
 - `TransportSpec::LocalProcess { program, args, cwd, env }`。传输层把进程 I/O 变成"发出行 / 收到行 / 退出"三个 channel；以后的 SSH、WebSocket 只需提供同样的三个 channel。
+- 本地传输 driver future 由会话 actor 直接轮询，不另起持有进程的任务；参数和环境直接传给子进程，不经过 shell。发出行与收到行各 64 槽，退出为 oneshot；退出报告在 `child.wait()` 和管道排空后产生，包含退出状态及 stderr 尾部。actor 处理退出报告前还会消费已入队的结果，避免遗漏退出前的 Final。关闭先关 stdin，`shutdown_timeout` 后强杀，再等待实际退出；`shutdown()` 成功后状态才为 Stopped。最后一个 handle 被丢弃也会执行清理，status receiver 和查询订阅不会使 actor 永久存活。
 - QueryId 格式为 `<会话实例号>-<序号>`，重启后旧 id 永不复用。
+- 实例号使用 UUID v4，序号由 actor 持有，动作与查询共用递增序列；重发按原始提交序号排列，保留同优先级请求的输入顺序。
 - 就绪：启动后发 `query_version`，收到回复才算 Ready；超时（默认 120 秒，首次 GPU 调优可能很慢）进入重启流程。
 - 看门狗：有进行中的请求时，超过 `response_timeout` 没有任何输出，视为挂死并重启。
 - 重启：指数退避，有次数上限。明显的配置错误（模型或配置文件不存在、启动即退出）直接 Failed，带 stderr 最后 200 行。重启后把进行中的请求用新 id 重发，订阅者收到一次 `Restarted` 后继续收结果。
+- `SessionConfig` 默认：`startup_timeout=120s`、`response_timeout=30s`、`write_timeout=5s`、`shutdown_timeout=2s`、`restart_backoff=250ms`、`max_restart_backoff=10s`、`max_restarts=3`、`max_consecutive_bad_lines=3`。超时均可配置为 `(0, 24h]`；重启上限允许 `0..=32`，是整个会话的总预算，Ready 不重置。退避期间和首次启动期间接受排队提交；尚未发给旧进程的请求不会收到 Restarted。启动失败、重启耗尽时保留 Failed 状态供读取，后续提交返回错误，直到 shutdown 或所有 handle 丢弃。
 - 背压：订阅者跟不上时只保留最新一个 Partial；Final / Failed 永不丢。
+- actor 命令 channel 固定 64 槽、待发队列最多 256 行、同时进行的查询最多 128 个，满载提交返回 `SessionError::Capacity`。每个订阅是一个 watch 槽：一个最新 Partial 加有界可靠事件历史，慢消费者不阻塞 actor；终态在 actor 退出后仍可读。单请求最多 256 个 `analyzeTurns` 项，每个去重手数都保留 Final，仅重发尚未完成的手数并保留对应优先级；可靠历史至多 256 个 Final、32 个 Restarted 和一个终态。取消、重启或失败清除旧 Partial。查询错误只结束对应订阅；未取消查询意外收到 noResults 时报告类型化失败，绝不制造分析值。
 - 坏行：记录并计数，不崩溃；连续坏行超过阈值视为协议故障，触发重启。
+- 有效协议行重置连续坏行计数；累计坏行数另外用于 tracing 日志。stdout 或 stderr 的任何输出均刷新进行中请求的看门狗；空闲时不运行响应看门狗。tracing 记录请求标识、重发标识、完成／取消耗时和故障原因。
 - terminate 的真实行为见 `fixtures/katago/terminate-*.jsonl`：
   - 搜索中取消：先收到确认，再收到该查询的最终结果（`isDuringSearch:false`，带已有的 visits）；
   - 排队中取消：先收到 `{id, turnNumber, isDuringSearch:false, noResults:true}`，之后才收到确认。
@@ -195,7 +201,7 @@ UI  ◀──Channel──    重绘候选点
 - `--fail-startup` 立即向 stderr 写入“模型找不到”并以退出码 1 退出；`--garbage-every N` 在每 N 条正常 stdout 协议行后额外插入一行坏数据，故意用于测试会话的坏行处理。
 - 取消顺序遵循录制：排队结果先 `noResults`，然后动作确认，最后是运行中查询的最终结果；`terminate_all` 同时取消所有排队与运行中的位置。
 - 假引擎检查坐标、已有棋子、提子、自杀和简单劫；不作为完整规则裁判，不模拟超级劫、真实搜索、模型设置或对称剪枝。录制对照比较公共字段与状态顺序；重复中间采样数量和条件性 `isSymmetryOf` 不要求与 GPU 搜索逐项相同。
-- 测试库函数 `fake_katago::binary_path() -> Result<PathBuf, BinaryPathError>` 首次调用执行 `cargo build -p fake-katago --bin fake-katago --locked`，从 Cargo JSON 消息取得可执行文件路径，尊重目标目录及平台后缀；后续复用仍存在的路径。仅供运行时测试调用，不用于构建脚本或产品代码。
+- 测试库函数 `fake_katago::binary_path() -> Result<PathBuf, BinaryPathError>` 首次调用执行 `cargo build -p fake-katago --bin fake-katago --locked`，从 Cargo JSON 消息取得可执行文件路径，尊重目标目录及平台后缀。同一进程用互斥锁串行初始化，其他调用者等待后直接复用成功缓存的路径，避免并发构建删除并重新链接可执行文件的竞争；构建失败不缓存，后续调用可重试。仅供运行时测试调用，不用于构建脚本或产品代码。
 
 ## 8. 与 Java 版的兼容
 
