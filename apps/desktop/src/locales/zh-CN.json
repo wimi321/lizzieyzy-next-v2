@@ -57,5 +57,47 @@
     "starting": "正在启动…",
     "close": "关闭",
     "failed": "引擎没能启动，设置没有改动："
+  },
+  "menu": {
+    "file": "文件",
+    "open": "打开…",
+    "save": "保存…",
+    "view": "显示",
+    "coordinates": "坐标",
+    "ownership": "领地",
+    "candidates": "候选点数",
+    "game": "棋局",
+    "first": "第一手",
+    "previous": "上一手",
+    "next": "下一手",
+    "last": "最后一手",
+    "analysis": "分析",
+    "pause": "暂停分析",
+    "resume": "继续分析",
+    "settings": "设置",
+    "engine": "引擎…"
+  },
+  "info": {
+    "black": "黑方",
+    "white": "白方",
+    "captures": "提子 {n}",
+    "blackLeads": "黑领先 {score} 目",
+    "whiteLeads": "白领先 {score} 目",
+    "even": "双方均势",
+    "lastMove": "最后一手 (#{n})：{winrate}% {score} 目",
+    "noAnalysis": "暂无分析",
+    "comment": "注释"
+  },
+  "table": {
+    "label": "候选点",
+    "order": "序号",
+    "winrate": "胜率",
+    "visits": "计算量",
+    "share": "占比",
+    "score": "目数"
+  },
+  "tree": {
+    "label": "棋谱",
+    "variations": "{n} 个变化"
   }
 }

@@ -1,10 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as backend from "@/api/backend";
 import type { EngineProfile, PointView } from "@/api/backend";
 import { Board } from "./board/Board";
 import { formatVisits } from "./board/format";
+import { liveGraph } from "./graph/scale";
 import { WinrateGraph } from "./graph/WinrateGraph";
+import { type MenuDefinition, MenuBar } from "./layout/MenuBar";
 import { getMessages } from "./locales";
+import { CandidateTable } from "./panels/CandidateTable";
+import { InfoPanel } from "./panels/InfoPanel";
+import { MoveList } from "./panels/MoveList";
 import { EngineSetup } from "./settings/EngineSetup";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { EngineLight, JUMP, Toolbar } from "./toolbar/Toolbar";
@@ -24,6 +29,7 @@ function report(error: unknown) {
   console.error("Backend command failed", error);
 }
 
+/** LizzieYzy Next's window: menu and tool rows, info and graph left, board centre, moves and candidates right. */
 export default function App({ store: provided }: { store?: Store } = {}) {
   const [store] = useState(() => provided ?? createStore());
   useEffect(() => connect(store, backend), [store]);
@@ -39,6 +45,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [pondering, setPondering] = useState(true);
   const [profile, setProfile] = useState<EngineProfile | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
+  // A preview belongs to one position: once the current node changes it no longer applies.
+  const [preview, setPreview] = useState<{ node: number; point: PointView } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -77,6 +85,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   }, []);
 
   const board = document?.board ?? null;
+  const previewPoint = preview && document && preview.node === document.tree.current ? preview.point : null;
+  const points = useMemo(() => (document ? liveGraph(document.graph, analysis) : []), [document, analysis]);
+  const currentIndex = document?.graph.current_index ?? 0;
   const play = (point: PointView) => {
     if (!board) return;
     backend.play({ type: "Play", data: { color: board.to_play, point } }).catch(report);
@@ -96,11 +107,68 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       .then(() => setPondering(next))
       .catch(report);
   };
+  const jump = (nodeId: number) => {
+    backend.goTo(nodeId).catch(report);
+  };
+
+  const menus: MenuDefinition[] = [
+    {
+      label: messages.menu.file,
+      testId: "menu-file",
+      items: [
+        { kind: "action", label: messages.menu.open, testId: "menu-open", onSelect: () => void openFile().catch(report) },
+        { kind: "action", label: messages.menu.save, testId: "menu-save", disabled: document === null, onSelect: () => void saveFile().catch(report) },
+      ],
+    },
+    {
+      label: messages.menu.view,
+      testId: "menu-view",
+      items: [
+        { kind: "check", label: messages.menu.coordinates, testId: "menu-coordinates", checked: coordinates, onSelect: () => setCoordinates((value) => !value) },
+        { kind: "check", label: messages.menu.ownership, testId: "menu-ownership", checked: ownership, onSelect: () => setOwnership((value) => !value) },
+        { kind: "separator", key: "candidates" },
+        ...CANDIDATE_LIMITS.map(
+          (limit): MenuDefinition["items"][number] => ({
+            kind: "check",
+            label: `${messages.menu.candidates}: ${limit === 361 ? messages.board.candidatesAll : limit}`,
+            testId: `menu-candidates-${limit}`,
+            checked: maxCandidates === limit,
+            onSelect: () => setMaxCandidates(limit),
+          }),
+        ),
+      ],
+    },
+    {
+      label: messages.menu.game,
+      testId: "menu-game",
+      items: [
+        { kind: "action", label: messages.menu.first, testId: "menu-first", onSelect: () => step(-JUMP) },
+        { kind: "action", label: messages.menu.previous, testId: "menu-previous", onSelect: () => step(-1) },
+        { kind: "action", label: messages.menu.next, testId: "menu-next", onSelect: () => step(1) },
+        { kind: "action", label: messages.menu.last, testId: "menu-last", onSelect: () => step(JUMP) },
+      ],
+    },
+    {
+      label: messages.menu.analysis,
+      testId: "menu-analysis",
+      items: [
+        { kind: "action", label: pondering ? messages.menu.pause : messages.menu.resume, testId: "menu-pondering", onSelect: togglePondering },
+      ],
+    },
+    {
+      label: messages.menu.settings,
+      testId: "menu-settings",
+      items: [{ kind: "action", label: messages.menu.engine, testId: "menu-engine", onSelect: () => setSetupOpen(true) }],
+    },
+  ];
 
   return (
     <main className="app">
-      <header className="app-header">
-        <h1 className="app-title">{messages.app.title}</h1>
+      <h1 className="visually-hidden">{messages.app.title}</h1>
+      <MenuBar menus={menus}>
+        <EngineLight status={engine} labels={messages.engine} />
+      </MenuBar>
+      <div className="tool-row">
         <Toolbar
           labels={messages.toolbar}
           moveNumber={board ? board.move_number : null}
@@ -117,10 +185,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             {analysis && board ? `${board.move_number} · ${formatVisits(analysis.visits)}` : messages.board.noAnalysis}
           </strong>
         </span>
-        <EngineLight status={engine} labels={messages.engine} />
-        <button type="button" className="toggle" data-testid="open-setup" onClick={() => setSetupOpen(true)}>
-          {messages.setup.open}
-        </button>
         <span className="controls">
           <button
             type="button"
@@ -150,37 +214,61 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               ))}
             </select>
           </label>
+          <button type="button" className="toggle" data-testid="open-setup" onClick={() => setSetupOpen(true)}>
+            {messages.setup.open}
+          </button>
         </span>
-      </header>
-      <section className="board-area" data-testid="board-area" data-revision={revision} data-node-id={document?.tree.current}>
-        {board ? (
-          <Board
-            board={board}
+      </div>
+      <div className="workspace">
+        <aside className="side side-left">
+          <InfoPanel board={board} points={points} currentIndex={currentIndex} labels={messages.info} />
+          <div className="graph-wrap">
+            {document ? <WinrateGraph graph={document.graph} analysis={analysis} labels={messages.graph} onJump={jump} /> : null}
+          </div>
+          {document?.comment ? (
+            <section className="comment" aria-label={messages.info.comment} data-testid="comment">
+              <p>{document.comment}</p>
+            </section>
+          ) : null}
+        </aside>
+        <section className="board-area" data-testid="board-area" data-revision={revision} data-node-id={document?.tree.current}>
+          {board ? (
+            <Board
+              board={board}
+              analysis={analysis}
+              coordinates={coordinates}
+              ownership={ownership}
+              maxCandidates={maxCandidates}
+              label={messages.board.label}
+              preview={previewPoint}
+              onPlay={play}
+            />
+          ) : (
+            <p className="board-message" data-testid="position-error">
+              {document?.position_error
+                ? messages.board.positionError.replace("{reason}", document.position_error)
+                : messages.board.loading}
+            </p>
+          )}
+        </section>
+        <aside className="side side-right">
+          <MoveList
+            points={points}
+            currentIndex={currentIndex}
+            variationCount={document?.tree.variation_count ?? 0}
+            labels={messages.tree}
+            onJump={jump}
+          />
+          <CandidateTable
             analysis={analysis}
-            coordinates={coordinates}
-            ownership={ownership}
+            toPlay={board?.to_play ?? null}
             maxCandidates={maxCandidates}
-            label={messages.board.label}
+            labels={messages.table}
+            onPreview={(point) => setPreview(point && document ? { node: document.tree.current, point } : null)}
             onPlay={play}
           />
-        ) : (
-          <p className="board-message" data-testid="position-error">
-            {document?.position_error
-              ? messages.board.positionError.replace("{reason}", document.position_error)
-              : messages.board.loading}
-          </p>
-        )}
-      </section>
-      <section className="graph-area">
-        {document ? (
-          <WinrateGraph
-            graph={document.graph}
-            analysis={analysis}
-            labels={messages.graph}
-            onJump={(nodeId) => backend.goTo(nodeId).catch(report)}
-          />
-        ) : null}
-      </section>
+        </aside>
+      </div>
       {setupOpen ? (
         <EngineSetup
           backend={backend}

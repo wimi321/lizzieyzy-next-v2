@@ -232,6 +232,14 @@ function drawCandidate(
       context.fillText(formatScore(forMover(candidate.score_lead, toPlay, "score")), x, y + cell * 0.25);
     }
   }
+  if (cell >= 22) {
+    // The engine's ranking, top right of the circle, as LizzieYzy Next shows it.
+    context.fillStyle = palette.candidateOrder;
+    context.font = `700 ${cell * 0.24}px ${FONT}`;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(String(candidate.order + 1), x + radius * 0.86, y - radius * 0.86);
+  }
   context.restore();
 }
 

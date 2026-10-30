@@ -12,6 +12,7 @@ export interface Palette {
   tiers: string[];
   bestRing: string;
   candidateText: string;
+  candidateOrder: string;
   ownershipBlack: string;
   ownershipWhite: string;
 }
@@ -29,6 +30,7 @@ const FALLBACK: Palette = {
   tiers: ["#16b8c6", "#3fae49", "#9ac230", "#e8b923", "#ec8a2b", "#d94b3d"],
   bestRing: "#0b6d76",
   candidateText: "#111111",
+  candidateOrder: "#1a1206",
   ownershipBlack: "rgba(12, 12, 12, 1)",
   ownershipWhite: "rgba(250, 250, 250, 1)",
 };
@@ -56,6 +58,7 @@ export function readPalette(element: Element | null): Palette {
     tiers: FALLBACK.tiers.map((color, index) => read(`--candidate-tier-${index}`, color)),
     bestRing: read("--candidate-best-ring", FALLBACK.bestRing),
     candidateText: read("--candidate-text", FALLBACK.candidateText),
+    candidateOrder: read("--candidate-order", FALLBACK.candidateOrder),
     ownershipBlack: read("--ownership-black", FALLBACK.ownershipBlack),
     ownershipWhite: read("--ownership-white", FALLBACK.ownershipWhite),
   };

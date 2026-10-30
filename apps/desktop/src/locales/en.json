@@ -57,5 +57,47 @@
     "starting": "Starting…",
     "close": "Close",
     "failed": "The engine did not start; settings are unchanged:"
+  },
+  "menu": {
+    "file": "File",
+    "open": "Open…",
+    "save": "Save…",
+    "view": "View",
+    "coordinates": "Coordinates",
+    "ownership": "Territory",
+    "candidates": "Candidates",
+    "game": "Game",
+    "first": "First move",
+    "previous": "Previous move",
+    "next": "Next move",
+    "last": "Last move",
+    "analysis": "Analysis",
+    "pause": "Pause analysis",
+    "resume": "Resume analysis",
+    "settings": "Settings",
+    "engine": "Engine…"
+  },
+  "info": {
+    "black": "Black",
+    "white": "White",
+    "captures": "Captures {n}",
+    "blackLeads": "B+{score}",
+    "whiteLeads": "W+{score}",
+    "even": "Even",
+    "lastMove": "Last move (#{n}): {winrate}% {score}",
+    "noAnalysis": "No analysis",
+    "comment": "Comment"
+  },
+  "table": {
+    "label": "Candidates",
+    "order": "#",
+    "winrate": "Winrate",
+    "visits": "Visits",
+    "share": "Share",
+    "score": "Score"
+  },
+  "tree": {
+    "label": "Moves",
+    "variations": "{n} variations"
   }
 }

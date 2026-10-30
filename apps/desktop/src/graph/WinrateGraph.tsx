@@ -29,26 +29,37 @@ export interface WinrateGraphProps {
   onJump(nodeId: number): void;
 }
 
-const HEIGHT = 132;
+const MIN_HEIGHT = 96;
 const PADDING = { left: 40, right: 40, top: 22, bottom: 14 };
+/** Side-column padding: the axis labels are short, the plot needs the width. */
+const COMPACT_PADDING = { left: 28, right: 30, top: 22, bottom: 14 };
 
-/** Black's winrate (filled) and score lead (thin line) along the displayed line. */
+/** Black's winrate (filled) and score lead (thin line) along the displayed line; fills its container. */
 export function WinrateGraph({ graph, analysis, labels, onJump }: WinrateGraphProps) {
   const container = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: 0 });
   const dragging = useRef<number | null>(null);
 
   useEffect(() => {
     const element = container.current;
     if (!element || typeof ResizeObserver === "undefined") return;
-    // clientWidth excludes the border, so the SVG never pushes its own container wider.
-    const observer = new ResizeObserver(() => setWidth(element.clientWidth));
+    // client sizes exclude the border, so the SVG never pushes its own container larger.
+    const observer = new ResizeObserver(() =>
+      setSize((previous) =>
+        previous.width === element.clientWidth && previous.height === element.clientHeight
+          ? previous
+          : { width: element.clientWidth, height: element.clientHeight },
+      ),
+    );
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
 
   const points = useMemo(() => liveGraph(graph, analysis), [graph, analysis]);
-  const layout: GraphLayout = { width, height: HEIGHT, ...PADDING, count: points.length };
+  const width = size.width;
+  const height = Math.max(MIN_HEIGHT, size.height);
+  const padding = width < 400 ? COMPACT_PADDING : PADDING;
+  const layout: GraphLayout = { width, height, ...padding, count: points.length };
   const range = scoreRange(points);
   const current = points[graph.current_index];
   const analysed = analysedRanges(points);
@@ -86,7 +97,7 @@ export function WinrateGraph({ graph, analysis, labels, onJump }: WinrateGraphPr
       {width > 0 ? (
         <svg
           width={width}
-          height={HEIGHT}
+          height={height}
           role="img"
           aria-label={labels.label}
           onPointerDown={(event) => {
