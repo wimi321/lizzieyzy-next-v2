@@ -4,6 +4,9 @@ export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.spec.ts",
   forbidOnly: Boolean(process.env.CI),
+  // Screenshot baselines are rendered on Linux (CI and the e2e-snapshots workflow);
+  // other platforms render fonts differently, so they skip pixel comparisons.
+  ignoreSnapshots: process.platform !== "linux",
   retries: 0,
   timeout: 5000,
   expect: { timeout: 5000 },
