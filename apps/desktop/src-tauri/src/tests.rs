@@ -13,6 +13,7 @@ use tauri::{
 use tempfile::TempDir;
 use tokio::sync::{mpsc, oneshot};
 
+mod problem_moves;
 mod review;
 mod variation;
 

@@ -47,6 +47,8 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::review::cancel_whole_game_analysis,
             commands::review::whole_game_progress,
             commands::review::whole_game_result,
+            commands::problem_moves::problem_moves,
+            commands::problem_moves::set_move_rank_settings,
             commands::engine::configure_engine,
             commands::engine::detect_engines,
             commands::engine::try_configure_engine,

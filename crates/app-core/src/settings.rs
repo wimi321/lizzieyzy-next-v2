@@ -23,12 +23,13 @@ pub struct EngineProfile {
     pub extra_args: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default)]
 pub struct Settings {
     pub version: u32,
     pub engine: Option<EngineProfile>,
     pub pondering: bool,
+    pub move_rank: crate::MoveRankSettings,
 }
 
 impl Default for Settings {
@@ -37,6 +38,7 @@ impl Default for Settings {
             version: SETTINGS_VERSION,
             engine: None,
             pondering: true,
+            move_rank: crate::MoveRankSettings::default(),
         }
     }
 }
@@ -56,6 +58,8 @@ pub enum SettingsError {
     FutureVersion(u32),
     #[error("invalid engine profile: {0}")]
     InvalidProfile(String),
+    #[error(transparent)]
+    MoveRank(#[from] crate::MoveRankError),
 }
 
 impl Settings {
@@ -100,6 +104,7 @@ impl Settings {
             return Err(SettingsError::FutureVersion(self.version));
         }
         self.version = SETTINGS_VERSION;
+        self.move_rank.validate()?;
         Ok(self)
     }
 }
