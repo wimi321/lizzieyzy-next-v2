@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::BTreeSet, path::PathBuf};
 
 use thiserror::Error;
 
@@ -15,11 +15,20 @@ Options:\n\
   --fault-once-file PATH   Inject query faults only when creating this marker\n\
   --garbage-every N        Insert an invalid line after every N output lines\n\
   --threads N              Concurrent searches (default 1)\n\
+  -override-config K=V,... One comma-separated list of configuration overrides\n\
+  --default-perspective-to-play  Simulate an unset reportAnalysisWinratesAs\n\
 Config/model paths are accepted but are not read. Zero query thresholds fire immediately.";
 
 #[derive(Debug, Error)]
 #[error("{0}")]
 pub struct CliError(pub String);
+
+#[derive(Clone, Copy, Debug)]
+pub enum ReportPerspective {
+    Black,
+    White,
+    ToPlay,
+}
 
 #[derive(Debug)]
 pub struct Options {
@@ -34,6 +43,8 @@ pub struct Options {
     pub fault_once_file: Option<PathBuf>,
     pub garbage_every: Option<u64>,
     pub threads: usize,
+    pub default_perspective_to_play: bool,
+    pub report_perspective: Option<ReportPerspective>,
 }
 
 impl Default for Options {
@@ -50,6 +61,8 @@ impl Default for Options {
             fault_once_file: None,
             garbage_every: None,
             threads: 1,
+            default_perspective_to_play: false,
+            report_perspective: None,
         }
     }
 }
@@ -67,12 +80,22 @@ impl Options {
             return Err(CliError("expected the analysis subcommand".into()));
         }
         let mut opts = Self::default();
+        let mut seen = BTreeSet::new();
         while let Some(key) = args.next() {
             if key == "--help" || key == "-h" {
                 return Ok(None);
             }
+            // Match KataGo's single-use TCLAP arguments: a second occurrence
+            // is invalid even if both occurrences carry the same value.
+            if !seen.insert(key.clone()) {
+                return Err(CliError(format!("Argument already set: {key}")));
+            }
             if key == "--fail-startup" {
                 opts.fail_startup = true;
+                continue;
+            }
+            if key == "--default-perspective-to-play" {
+                opts.default_perspective_to_play = true;
                 continue;
             }
             let value = args
@@ -80,6 +103,7 @@ impl Options {
                 .ok_or_else(|| CliError(format!("missing value for {key}")))?;
             match key.as_str() {
                 "-config" | "-model" => {}
+                "-override-config" => opts.override_config(&value)?,
                 "--visits-per-sec" => opts.visits_per_sec = positive_number(&key, &value)?,
                 "--time-scale" => opts.time_scale = positive_number(&key, &value)?,
                 "--startup-delay-ms" => opts.startup_delay_ms = integer(&key, &value)?,
@@ -106,6 +130,44 @@ impl Options {
             }
         }
         Ok(Some(opts))
+    }
+
+    pub fn perspective(&self) -> ReportPerspective {
+        self.report_perspective
+            .unwrap_or(if self.default_perspective_to_play {
+                ReportPerspective::ToPlay
+            } else {
+                ReportPerspective::Black
+            })
+    }
+
+    fn override_config(&mut self, value: &str) -> Result<(), CliError> {
+        for assignment in value.split(',') {
+            let Some((key, value)) = assignment.split_once('=') else {
+                return Err(CliError(
+                    "-override-config expects KEY=VALUE[,KEY=VALUE…]".into(),
+                ));
+            };
+            let (key, value) = (key.trim(), value.trim());
+            if key.is_empty() || value.is_empty() {
+                return Err(CliError(
+                    "-override-config requires nonempty keys and values".into(),
+                ));
+            }
+            if key == "reportAnalysisWinratesAs" {
+                self.report_perspective = Some(match value.to_ascii_uppercase().as_str() {
+                    "BLACK" => ReportPerspective::Black,
+                    "WHITE" => ReportPerspective::White,
+                    "SIDETOMOVE" => ReportPerspective::ToPlay,
+                    _ => {
+                        return Err(CliError(format!(
+                            "invalid reportAnalysisWinratesAs: {value}"
+                        )));
+                    }
+                });
+            }
+        }
+        Ok(())
     }
 }
 

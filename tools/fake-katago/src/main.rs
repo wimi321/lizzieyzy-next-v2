@@ -213,7 +213,12 @@ impl<W: Write> Engine<W> {
         for search in running {
             if matches(&search.job) {
                 let visits = self.visits(&search, now);
-                self.emit(search.job.query.response(search.job.turn, visits, false))?;
+                self.emit(search.job.query.response(
+                    search.job.turn,
+                    visits,
+                    false,
+                    self.options.perspective(),
+                ))?;
             } else {
                 self.running.push(search);
             }
@@ -276,14 +281,15 @@ impl<W: Write> Engine<W> {
                 search.job.turn,
                 search.job.query.max_visits,
                 false,
+                self.options.perspective(),
             ))?;
         } else {
-            self.emit(
-                search
-                    .job
-                    .query
-                    .response(search.job.turn, self.visits(&search, due), true),
-            )?;
+            self.emit(search.job.query.response(
+                search.job.turn,
+                self.visits(&search, due),
+                true,
+                self.options.perspective(),
+            ))?;
             let previous = search.next_report;
             search.next_report += search.job.query.interval.unwrap_or(f64::INFINITY);
             if search.next_report <= previous {

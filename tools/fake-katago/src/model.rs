@@ -1,6 +1,8 @@
 //! Deliberately small deterministic simulator, not a Go evaluator.
 use std::collections::BTreeMap;
 
+use crate::cli::ReportPerspective;
+
 use serde_json::{Value, json};
 use thiserror::Error;
 
@@ -197,7 +199,13 @@ impl Query {
         Ok(board)
     }
 
-    pub fn response(&self, turn: usize, visits: u64, partial: bool) -> Value {
+    pub fn response(
+        &self,
+        turn: usize,
+        visits: u64,
+        partial: bool,
+        perspective: ReportPerspective,
+    ) -> Value {
         // Queries are validated before scheduling; the fallback is defensive only.
         let board = self.board_at(turn).unwrap_or_else(|_| Board {
             cells: vec![0; self.width * self.height],
@@ -307,7 +315,48 @@ impl Query {
             values.push(probability);
             result["policy"] = json!(values);
         }
+        let white = match perspective {
+            ReportPerspective::Black => false,
+            ReportPerspective::White => true,
+            ReportPerspective::ToPlay => player == 2,
+        };
+        if white {
+            invert_info(&mut result["rootInfo"]);
+            if let Some(moves) = result["moveInfos"].as_array_mut() {
+                for info in moves {
+                    invert_info(info);
+                }
+            }
+            if let Some(ownership) = result["ownership"].as_array_mut() {
+                for value in ownership {
+                    if let Some(number) = value.as_f64() {
+                        *value = json!(-number);
+                    }
+                }
+            }
+        }
         result
+    }
+}
+
+fn invert_info(info: &mut Value) {
+    for field in ["winrate", "rawWinrate", "lcb"] {
+        if let Some(value) = info[field].as_f64() {
+            info[field] = json!(1.0 - value);
+        }
+    }
+    for field in [
+        "scoreMean",
+        "scoreLead",
+        "scoreSelfplay",
+        "utility",
+        "utilityLcb",
+        "rawLead",
+        "rawScoreSelfplay",
+    ] {
+        if let Some(value) = info[field].as_f64() {
+            info[field] = json!(-value);
+        }
     }
 }
 
