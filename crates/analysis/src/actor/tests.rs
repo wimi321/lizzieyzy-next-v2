@@ -48,6 +48,7 @@ fn actor() -> (Actor, AnalysisSubscription) {
             cache: Cache::new(NonZeroUsize::new(8).unwrap()),
             throttle: Throttle::new(),
             last_published: None,
+            display_floor: None,
             status,
             output,
         },
@@ -175,5 +176,57 @@ async fn unpublished_deeper_pending_result_does_not_raise_the_display_floor() {
     assert_eq!(immediately_available(&mut output).await, cached);
     assert_eq!(immediately_available(&mut output).await, accepted);
     assert_eq!(actor.last_published, Some(accepted));
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn restart_keeps_display_and_cache_but_resets_floor_even_after_revision_refresh() {
+    let (mut actor, mut output) = actor();
+    timeout(Duration::from_secs(5), actor.start())
+        .await
+        .unwrap()
+        .unwrap();
+    let before = snapshot(&actor, 1_000, SnapshotSource::Live);
+    actor.event(Some(QueryEvent::Partial(before.response.clone())));
+    let pending = snapshot(&actor, 1_100, SnapshotSource::Live);
+    let now = Instant::now();
+    actor.throttle.rebase_revision(1, now, true);
+    assert!(actor.throttle.push(pending, now).is_none());
+
+    actor.event(Some(QueryEvent::Restarted));
+    assert_eq!(*actor.status.borrow(), AnalysisStatus::Restarting);
+    assert_eq!(actor.throttle.deadline(), None);
+    assert_eq!(actor.last_published, Some(before.clone()));
+    assert_eq!(immediately_available(&mut output).await, before);
+    assert_no_output(&mut output).await;
+
+    // A revision-only refresh during recovery must retain the old display
+    // without reinstating its visit floor for the replayed query.
+    let mut revised = actor.focus.clone().unwrap();
+    revised.revision = 2;
+    actor.rebase_focus(revised.clone());
+    let mut republished = before.clone();
+    republished.revision = 2;
+    assert_eq!(immediately_available(&mut output).await, republished);
+    let after = snapshot(&actor, 100, SnapshotSource::Live);
+    actor.event(Some(QueryEvent::Partial(after.response.clone())));
+    flush_pending(&mut actor);
+    assert_eq!(immediately_available(&mut output).await, after);
+    assert_eq!(actor.last_published, Some(after));
+    assert_eq!(
+        actor
+            .cache
+            .get(revised.key, &actor.config.engine_fingerprint),
+        Some(before.response),
+    );
+
+    let mut shallow = snapshot(&actor, 99, SnapshotSource::Live);
+    actor.event(Some(QueryEvent::Partial(shallow.response.clone())));
+    shallow.response.is_during_search = false;
+    actor.event(Some(QueryEvent::Final(shallow.response)));
+    flush_pending(&mut actor);
+    assert_no_output(&mut output).await;
+    assert!(actor.active.is_none());
+    assert_eq!(*actor.status.borrow(), AnalysisStatus::Idle);
     stop(actor).await;
 }

@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "LizzieYzy Next 2 (dev)"
+    "title": "LizzieYzy Next 2"
   },
   "board": {
     "label": "Go board",
@@ -41,7 +41,9 @@
   "setup": {
     "open": "Engine",
     "title": "Connect KataGo",
+    "titleCurrent": "Engine settings",
     "intro": "These files were found automatically. Check them and press Start.",
+    "introCurrent": "These settings are in use. To change them, choose new files and press Apply.",
     "program": "Program",
     "model": "Model (network weights)",
     "config": "Config",
@@ -51,6 +53,7 @@
     "notFound": "KataGo was not found. Install it first (on macOS: brew install katago), or choose the program and model yourself.",
     "detecting": "Looking for KataGo on this computer…",
     "start": "Start",
+    "apply": "Apply",
     "starting": "Starting…",
     "close": "Close",
     "failed": "The engine did not start; settings are unchanged:"

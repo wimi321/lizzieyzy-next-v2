@@ -435,7 +435,7 @@ async fn process_restart_replays_the_current_focus_without_resubmitting_it() {
     let (handle, mut output) = coordinator(&engine, live(1_000_000));
     let current = focus(1, 1);
     within(handle.focus(current.clone())).await.unwrap();
-    let before = progress_at_least(&mut output, &current, 300).await;
+    let before = progress_at_least(&mut output, &current, 1_000).await;
     assert!(before.response.is_during_search);
     // The third valid query crashes the process AFTER a live result. The
     // completed warm-up is not replayed, so recovery has only two requests and
@@ -446,20 +446,39 @@ async fn process_restart_replays_the_current_focus_without_resubmitting_it() {
         loop {
             let value = output.recv().await.unwrap();
             belongs_to(&value, &current);
-            assert!(value.response.root_info.visits >= floor);
-            floor = value.response.root_info.visits;
             if value.response.id != before.response.id {
                 return value;
             }
+            assert!(value.response.root_info.visits >= floor);
+            floor = value.response.root_info.visits;
         }
     })
     .await;
     assert_eq!(after.source, SnapshotSource::Live);
     assert!(after.response.is_during_search);
     assert_ne!(after.response.id, before.response.id);
+    assert!(
+        after.response.root_info.visits < before.response.root_info.visits,
+        "first restarted result must be shallower: before={}, after={}",
+        before.response.root_info.visits,
+        after.response.root_info.visits,
+    );
+    // The restart allocates a version query followed by the two replays;
+    // an extra coordinator submit/terminate would consume another sequence.
+    assert_eq!(sequence(&after.response.id), sequence(trigger.id()) + 2);
+    within(handle.set_pondering(false)).await.unwrap();
     within(engine.terminate(trigger.id().to_owned()))
         .await
         .unwrap();
+    within(handle.focus(focus(2, 0))).await.unwrap();
+    let returning = focus(3, 1);
+    within(handle.focus(returning.clone())).await.unwrap();
+    let cached = immediate_snapshot(&mut output).await;
+    belongs_to(&cached, &returning);
+    assert_eq!(cached.source, SnapshotSource::Cache);
+    assert_eq!(cached.response.id, before.response.id);
+    assert!(cached.response.root_info.visits >= before.response.root_info.visits);
+    assert_no_snapshot(&mut output).await;
     stop(handle, engine).await;
 }
 

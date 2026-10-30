@@ -310,6 +310,8 @@ body {
 .graph-area { fill: var(--graph-black-area); }
 .graph-winrate { fill: none; stroke: var(--graph-winrate); stroke-width: 1.4; stroke-linejoin: round; }
 .graph-score { fill: none; stroke: var(--graph-score); stroke-width: 1.4; stroke-linejoin: round; }
+.graph-dot-winrate { fill: var(--graph-winrate); }
+.graph-dot-score { fill: var(--graph-score); }
 .graph-coverage { fill: var(--graph-coverage); opacity: 0.55; }
 .graph-current line { stroke: var(--graph-current); stroke-width: 1.5; }
 .graph-current circle { fill: var(--graph-current); stroke: var(--panel-bg); stroke-width: 1.5; }

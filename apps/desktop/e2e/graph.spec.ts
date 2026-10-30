@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { AppEvent } from "../src/api/backend";
-import { analysedGame, analysisUpdated, documentChanged, emptyNineteen, midGameAnalysis } from "./fixtures";
+import { analysedGame, analysisUpdated, documentChanged, emptyNineteen, graphView, midGame, midGameAnalysis } from "./fixtures";
 import type { MockCommand } from "./mock-backend";
 
 const JUMP = 1_000_000;
@@ -45,6 +45,13 @@ test.describe("screenshots", () => {
     await expect(page.getByTestId("graph-empty")).toBeVisible();
     await expect(graph).toHaveScreenshot("graph-empty.png");
   });
+});
+
+test("an analysed move with no analysed neighbour is drawn as a dot", async ({ page }) => {
+  await start(page, [documentChanged(midGame(graphView(121, 20, { 5: [0.62, 4], 40: [0.4, -3], 41: [0.42, -2] })), 7)]);
+  const dots = page.getByTestId("graph-dot");
+  await expect(dots).toHaveCount(1);
+  await expect(dots.first()).toHaveAttribute("data-index", "5");
 });
 
 test("clicking the graph jumps to that move", async ({ page }) => {

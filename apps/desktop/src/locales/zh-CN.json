@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "LizzieYzy Next 2 (dev)"
+    "title": "LizzieYzy Next 2"
   },
   "board": {
     "label": "棋盘",
@@ -41,7 +41,9 @@
   "setup": {
     "open": "引擎",
     "title": "连接 KataGo",
+    "titleCurrent": "引擎设置",
     "intro": "已自动找到下面的文件，确认后点启动。",
+    "introCurrent": "正在使用下面的设置。要更换，选好后点应用。",
     "program": "程序",
     "model": "模型（网络权重）",
     "config": "配置",
@@ -51,6 +53,7 @@
     "notFound": "没有找到 KataGo。请先安装（macOS 可用 brew install katago），或手动选择程序和模型。",
     "detecting": "正在查找本机的 KataGo…",
     "start": "启动",
+    "apply": "应用",
     "starting": "正在启动…",
     "close": "关闭",
     "failed": "引擎没能启动，设置没有改动："
