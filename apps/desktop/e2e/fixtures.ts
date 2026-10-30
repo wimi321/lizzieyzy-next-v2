@@ -51,7 +51,11 @@ export function graphView(count: number, current: number, summaries: Record<numb
 export function documentView(board: BoardView, current: number, graph?: GraphView): DocumentView {
   return {
     board,
-    tree: { root: 0, current, main_line: Array.from({ length: current + 1 }, (_, i) => i), variation_count: 1 },
+    tree: { root: 0, current, main_line: Array.from({ length: current + 1 }, (_, i) => i), variation_count: 1, structure_revision: 0 },
+    game_info: {
+      black_name: null, black_rank: null, white_name: null, white_rank: null,
+      komi: 7.5, rules: null, handicap: null, result: null, date: null, event: null,
+    },
     graph: graph ?? graphView(current + 1, current, {}),
     comment: null,
     warnings: [],

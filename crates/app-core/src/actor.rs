@@ -1,6 +1,6 @@
 use crate::{
     AnalysisSummary, AnalysisView, AppConfig, AppError, AppEvent, DocumentView, EngineProfile,
-    EngineStatus, Settings, delivery::Delivery, storage,
+    EngineStatus, Settings, VariationPreviewView, VariationTreeView, delivery::Delivery, storage,
 };
 use analysis::{AnalysisHandle, AnalysisSnapshot, AnalysisStatus, AnalysisSubscription, Focus};
 use document::{AnalysisKey, GameDocument, NodeId};
@@ -24,6 +24,12 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    VariationTree(oneshot::Sender<VariationTreeView>),
+    PreviewVariation(
+        u32,
+        Vec<go_core::Move>,
+        oneshot::Sender<Result<VariationPreviewView, AppError>>,
+    ),
     Apply(Input, oneshot::Sender<Result<u64, AppError>>),
     Settings(oneshot::Sender<Settings>),
     TryConfigureEngine(
@@ -60,6 +66,7 @@ struct ViewFocus {
 
 struct Actor {
     document: GameDocument,
+    tree: VariationTreeView,
     summaries: HashMap<NodeId, AnalysisSummary>,
     summary_fingerprint: Option<String>,
     revision: u64,
@@ -81,6 +88,7 @@ pub(crate) async fn run(
 ) {
     let mut actor = Actor {
         document: GameDocument::new(),
+        tree: VariationTreeView::default(),
         summaries: HashMap::new(),
         summary_fingerprint: None,
         revision: 0,
@@ -99,6 +107,13 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             command = commands.recv() => match command {
+                Some(Command::VariationTree(reply)) => { let _ = reply.send(actor.tree.clone()); }
+                Some(Command::PreviewVariation(node_id, moves, reply)) => {
+                    let result = VariationPreviewView::from_document(
+                        &actor.document, actor.revision, node_id, &moves,
+                    ).map_err(AppError::from);
+                    let _ = reply.send(result);
+                }
                 Some(Command::Settings(reply)) => { let _ = reply.send(actor.settings.clone()); }
                 Some(Command::Apply(Input::Shutdown, reply)) => {
                     actor.cancel_trial().await;
@@ -214,8 +229,9 @@ impl Actor {
         }
     }
 
-    fn publish_document(&self) -> Result<(), AppError> {
-        let mut view = DocumentView::from_document(&self.document)?;
+    fn publish_document(&mut self) -> Result<(), AppError> {
+        self.tree.refresh(&self.document, self.revision)?;
+        let mut view = DocumentView::from_document(&self.document, self.tree.revision)?;
         for point in &mut view.graph.points {
             point.summary = self.summaries.get(&NodeId(point.node_id)).copied();
         }
@@ -320,6 +336,9 @@ impl Actor {
         let document = GameDocument::from_sgf(tree)?;
         self.next_revision()?;
         self.document = document;
+        // Opening even an identical game starts a new node-ID namespace.
+        // Every live document has a root, so clearing forces the next refresh.
+        self.tree.nodes.clear();
         self.summaries.clear();
         self.focus = None;
         self.output.clear_analysis();
