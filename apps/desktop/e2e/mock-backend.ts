@@ -1,4 +1,4 @@
-import type { Backend, AppEvent, EventListener } from "../src/api/backend";
+import type { Backend, WireAppEvent } from "../src/api/backend";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
@@ -6,9 +6,11 @@ export type {
   DocumentWarningView, EngineStatus, PointView, TreeView, WarningKindView, SubscriptionId,
   GraphPointView, GraphView,
   GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
+  WireAppEvent, WholeGameOptions, WholeGamePreset, WholeGameProgress, WholeGameStatus,
+  WholeGameProgressListener,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribe" | "unsubscribe">;
+type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "unsubscribe">;
 export type MockCall = {
   [K in CommandName]: { command: K; args: Parameters<Backend[K]> }
 }[CommandName];
@@ -17,19 +19,19 @@ export type MockCommand = {
   [K in CommandName]: {
     command: K;
     result: Awaited<ReturnType<Backend[K]>>;
-    events?: AppEvent[];
+    events?: WireAppEvent[];
     error?: string;
   }
 }[CommandName];
 
 export interface MockScript {
-  initialEvents?: AppEvent[];
+  initialEvents?: WireAppEvent[];
   commands?: MockCommand[];
 }
 
-const listeners = new Map<number, EventListener>();
+const listeners = new Map<number, (event: WireAppEvent) => void>();
 let nextListenerId = 0;
-let pendingEvents: AppEvent[] = [];
+let pendingEvents: WireAppEvent[] = [];
 let commands: MockCommand[] = [];
 const calls: MockCall[] = [];
 let dispatching = false;
@@ -47,7 +49,7 @@ export function recordedCalls(): MockCall[] {
 }
 
 /** Push document, analysis and status events in exactly the scripted order. */
-export function pushEvents(events: readonly AppEvent[]): void {
+export function pushEvents(events: readonly WireAppEvent[]): void {
   pendingEvents.push(...structuredClone(events));
   if (listeners.size === 0 || dispatching) return;
   dispatching = true;
@@ -93,6 +95,16 @@ export const redo: Backend["redo"] = () => command("redo", []);
 export const variationTree: Backend["variationTree"] = () => command("variationTree", []);
 export const previewVariation: Backend["previewVariation"] = (nodeId, moves) =>
   command("previewVariation", [nodeId, moves]);
+export const startWholeGameAnalysis: Backend["startWholeGameAnalysis"] = (options = { visits: 1000 }) =>
+  command("startWholeGameAnalysis", [options]);
+export const pauseWholeGameAnalysis: Backend["pauseWholeGameAnalysis"] = () =>
+  command("pauseWholeGameAnalysis", []);
+export const resumeWholeGameAnalysis: Backend["resumeWholeGameAnalysis"] = () =>
+  command("resumeWholeGameAnalysis", []);
+export const cancelWholeGameAnalysis: Backend["cancelWholeGameAnalysis"] = () =>
+  command("cancelWholeGameAnalysis", []);
+export const wholeGameProgress: Backend["wholeGameProgress"] = () => command("wholeGameProgress", []);
+export const wholeGameResult: Backend["wholeGameResult"] = (nodeId) => command("wholeGameResult", [nodeId]);
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);
@@ -106,7 +118,18 @@ export const pickEngineFile: Backend["pickEngineFile"] = (kind) => command("pick
 
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
-  listeners.set(id, listener);
+  listeners.set(id, (event) => {
+    if (event.type !== "WholeGameProgress") listener(event);
+  });
+  pushEvents([]);
+  return id;
+};
+
+export const subscribeWholeGameProgress: Backend["subscribeWholeGameProgress"] = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => {
+    if (event.type === "WholeGameProgress") listener(event.data);
+  });
   pushEvents([]);
   return id;
 };

@@ -2,5 +2,6 @@
 import type { AnalysisView } from "./AnalysisView";
 import type { DocumentView } from "./DocumentView";
 import type { EngineStatus } from "./EngineStatus";
+import type { WholeGameProgress } from "./WholeGameProgress";
 
-export type AppEvent = { "type": "DocumentChanged", "data": { revision: number, view: DocumentView, } } | { "type": "AnalysisUpdated", "data": AnalysisView } | { "type": "EngineStatusChanged", "data": EngineStatus };
+export type AppEvent = { "type": "DocumentChanged", "data": { revision: number, view: DocumentView, } } | { "type": "AnalysisUpdated", "data": AnalysisView } | { "type": "EngineStatusChanged", "data": EngineStatus } | { "type": "WholeGameProgress", "data": WholeGameProgress };

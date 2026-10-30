@@ -7,6 +7,7 @@ pub mod engine_setup;
 mod engine_trial;
 mod graph;
 mod inspection;
+mod review;
 mod settings;
 mod storage;
 mod view;
@@ -17,6 +18,7 @@ pub use graph::{AnalysisSummary, GraphPointView, GraphView};
 pub use inspection::{
     GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
 };
+pub use review::*;
 pub use settings::{EngineProfile, Settings, SettingsError};
 pub use view::*;
 
@@ -45,6 +47,8 @@ pub enum AppError {
     Session(#[from] engine_session::SessionError),
     #[error(transparent)]
     EngineSetup(#[from] EngineSetupError),
+    #[error(transparent)]
+    WholeGame(#[from] WholeGameError),
 }
 
 /// Runtime tuning, separate from the versioned user settings. Defaults use the
