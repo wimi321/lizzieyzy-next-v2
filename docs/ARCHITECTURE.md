@@ -158,14 +158,21 @@ pub enum EngineStatus {
 
 ### 4.7 app-core 与 Tauri 层
 
-- `AppCore` actor 持有 `GameDocument`、协调器句柄和设置，所有命令串行处理，保证"文档修改 → 焦点更新 → 分析"的顺序。
+- `app_core::spawn(settings_directory)` / `spawn_with_config(settings_directory, AppConfig)` 异步加载设置，返回可 clone 的 `AppCore` 命令句柄和单消费者 `AppSubscription`。actor 独占 `GameDocument`、engine-session、协调器和设置，64 槽命令通道串行处理，保证"文档修改 → 焦点更新 → 分析"的顺序。`AppConfig` 提供会话超时和协调器参数；引擎指纹及 pondering 由档案/用户设置决定。
+- 命令包括 `open_bytes(Vec<u8>)`、`open_path(PathBuf)`、`save(PathBuf)`、`play(Move)`、`step(i32)`、`go_to(u32)`、`apply(document::Command)`、`undo()`、`redo()`、`set_pondering(bool)`、`configure_engine(Option<EngineProfile>)`、`settings()`、`shutdown(self)`。成功回复表示命令已应用，不等待分析完成；引擎失败通过事件报告，不撤销已成功的文档操作。所有文档实际变化均向协调器发送 `Focus`，仅 revision 变化也照常发送，由协调器保持查询。
+- 对外 revision 是应用生命周期内单调增加的 u64，初始为 0；每次打开和实际文档变化递增，无操作不递增。打开仅取 `sgf::Collection` 的第一盘，并建立新协调器隔离旧文档的节点编号和缓存；解析失败保留原文档。保存使用 `GameDocument::to_sgf` + `sgf::serialize`，同目录临时文件完整写入、flush/sync 后替换目标；保存不改变文档或 revision。
+- `AppSubscription::recv()` 取消安全；watch 邮箱为文档、引擎状态、分析各保留一个最新事件，按发布顺序读取，慢消费者的中间事件会合并且不会阻塞命令。文档变化、暂停、换引擎和关闭清除未读分析；发送分析前再次核对 revision/node/key。导航成功返回后，尚未读取的旧分析也不可再读。关闭或丢弃最后一个句柄会取消查询并等待进程回收，单独保留订阅不延长 actor 生命周期。
 - 对外事件：`DocumentChanged { revision, view }`、`AnalysisUpdated(AnalysisView)`、`EngineStatusChanged(EngineStatus)`。
 - 视图 DTO（前端只认这些）：
-  - `BoardView`：尺寸、每点棋子、最后一手、轮走方、手数、提子数。
-  - `TreeView`：P1 只需主线和当前节点的变化数。
-  - `AnalysisView`：node_id、revision、根节点胜率 / 目差 / visits、候选点（坐标、visits、胜率、目差、先验、顺序、PV）、可选的所有权数组。
-- **数值一律黑方视角**：应用自带的 `resources/katago/analysis.cfg` 显式设置 `reportAnalysisWinratesAs = BLACK`。
-- Tauri 层：`commands/<领域>.rs` 每个命令只做参数转换和调用 `AppCore`；事件流用 `tauri::ipc::Channel` 推送；类型用 specta 或 ts-rs 生成到 `src/api/generated/`。
+  - `BoardView`：宽高、每点棋子 `stones`、最后一手（含 pass）、轮走方、手数、黑白提子数。`stones` 与 `AnalysisView.ownership` 均为行优先、从左上角开始，下标 `i` 对应 `PointView { x: i % width, y: i / width }`；`y = 0` 是最上面一行（SGF 的 a 行，19 路为 GTP 第 19 行，矩形棋盘为第 height 行）。数组不翻转、不转置，非正方形棋盘也按 width 计算行跨度。
+  - `TreeView`：root/current 节点 ID、含根和空节点的第一子节点主线、当前节点直接子节点数（包含主线）。`DocumentView` 还含当前注释、由 `warnings()` 映射的结构化诊断。非法记录仍可导航，board 为 None，position_error 保留原因；协调器暂停直到回到可分析局面，不伪造棋盘。
+  - `AnalysisView`：node_id、revision、根节点胜率 / 目差 / visits、候选点、可选所有权数组 `ownership`、is_during_search、Cache/Live 来源。`CandidateView` 保留显示用 GTP `coordinate`、visits、胜率、目差、先验、顺序，并提供 `point: Option<PointView>`（pass 为 None）与 `pv: Vec<MoveView>`。PV 每手带颜色和格点（或 pass），从当前候选手的轮走方开始逐手交替，pass 也切换颜色。Rust 使用 go-core 已有的 GTP 转换；TS 直接绘制 DTO，不解析坐标或推导围棋颜色。数值和 ownership 从协调器原样保留，不二次翻转。
+  - `AnalysisView::from_snapshot(snapshot, size, to_play)` 返回 `Result<AnalysisView, go_core::CoordinateError>`。actor 在发送 Focus 时保留对应的棋盘尺寸、轮走方，确认输出的 revision/node/key 匹配后才用于转换；非法候选点或 PV 坐标报告错误，不伪造 pass 或格点。9×13 构造响应测试将 `stones`、`ownership`、候选点和 PV 的同一交叉点逐项对齐。
+- DTO 使用 `serde` + `ts-rs::TS`；带内容的事件/状态枚举以 `type`/`data` 判别，颜色为 Black/White，u64 revision/visits 的 TypeScript 类型为 number，与 JSON 数字一致。P1-07 仅定义可生成类型；P1-08 在 Tauri 层生成绑定文件。
+- 设置保存在调用方目录下的 `settings.json`，`Settings { version, engine: Option<EngineProfile>, pondering }` 当前版本 1。缺字段默认、多余字段忽略；版本 0/1 读入后规范为 1，未来版本和损坏 JSON 报错，避免覆写未知格式。P1 保存一个活动档案，`None` 关闭引擎；配置和暂停状态修改成功时持久化。设置保存同样使用临时文件替换。
+- `EngineProfile { program, model, config, extra_args }` 的指纹为程序/模型/配置的路径、普通文件大小、修改时间（秒及纳秒）和额外参数的版本化 JSON 编码的 BLAKE3。它是缓存身份，不是文件内容校验和。改变档案或重新配置时发现元数据变化，会先关闭旧协调器和会话，再创建新的；同一有效档案幂等，失败会话允许重新配置重试。文件不存在发出包含用途和路径的 Failed，文档编辑仍正常。
+- **数值一律黑方视角**：应用自带的 `resources/katago/analysis.cfg` 显式设置 `reportAnalysisWinratesAs = BLACK`。`TransportSpec::LocalProcess` 启动参数为 `analysis -config <配置> -model <模型> -override-config <合并值>`，整个命令中 `-override-config` 只出现一次，以符合 KataGo 的 TCLAP ValueArg 约束。档案额外参数里的各个 `-override-config VALUE` / `-override-config=VALUE` 被提取并按原顺序合并为逗号列表，显式 BLACK 项去重，末尾追加唯一 `reportAnalysisWinratesAs=BLACK`；其它非 override 参数保留边界及相对次序。额外参数仍不得覆写模型/配置路径，也不得把视角改成非 BLACK。
+- Tauri 层：`commands/<领域>.rs` 每个命令只做参数转换和调用 `AppCore`；事件流用 `tauri::ipc::Channel` 推送；类型用 ts-rs 生成到 `src/api/generated/`。
 
 ## 5. 主流程时序（导航到下一手）
 
@@ -199,10 +206,10 @@ UI  ◀──Channel──    重绘候选点
 
 ### fake-katago 测试进程约定
 
-- 启动形状为 `fake-katago analysis -config FILE -model FILE`；只接受路径参数，不读取模型或配置，也不调用真实 KataGo。输出明确标识版本为 `1.16.5-fake`。
+- 启动形状为 `fake-katago analysis -config FILE -model FILE`；接受路径参数及单次 `-override-config KEY=VALUE[,KEY=VALUE…]`；支持的命令行参数重复出现时以退出码 2 报 `Argument already set`（即使值相同也拒绝），不读取模型或配置，也不调用真实 KataGo。输出明确标识版本为 `1.16.5-fake`。
 - 单个调度器管理排队与运行中的搜索；`--threads` 指定并发位置数（默认 1）。优先级高的先开始，相同优先级按输入顺序；已开始的搜索不会被抢占。stdin 关闭后排空正常搜索再退出。
 - 同一请求的 `analyzeTurns` 按手数去重、递增入队，重复手数采用最后一个对应优先级；`priority` 与 `priorities` 不得同时提供。只有 `firstReportDuringSearchAfter` 时仍输出一次首次中间报告。未指定初始玩家且无历史时，超过一颗初始黑子、没有白子则默认轮白，其余默认轮黑。
-- 候选点及评估由棋盘尺寸、初始摆子、着手序列和手数的固定哈希生成，与请求 id 无关。默认 `maxVisits=100`、`--visits-per-sec=1000`；visits 随模拟时间增长，最终结果达到上限，取消则保留已有 visits。评估和 ownership 均固定黑方视角。
+- 候选点及评估由棋盘尺寸、初始摆子、着手序列和手数的固定哈希生成，与请求 id 无关。默认 `maxVisits=100`、`--visits-per-sec=1000`；visits 随模拟时间增长，最终结果达到上限，取消则保留已有 visits。默认评估和 ownership 均为黑方视角；`--default-perspective-to-play` 模拟缺少视角配置时的轮走方视角。显式 `reportAnalysisWinratesAs=BLACK/WHITE/SIDETOMOVE` override 优先于该默认标志；在同一份逗号列表内，同一键重复赋值最后一个生效，其它配置键仅接受而不模拟。
 - `--time-scale` 表示每个真实秒经过多少模拟秒（默认 1，2 表示两倍速）；搜索、报告间隔、`--startup-delay-ms` 和 `--crash-after-ms` 都使用模拟时间。启动与定时崩溃从进程调度器初始化开始计时。
 - `--crash-after-queries N` / `--hang-after-queries N` 在接受第 N 个有效分析请求时触发，动作不计数，0 表示启动即触发。崩溃退出码为 1；挂起后连版本回复、取消确认也不再输出，直到进程被终止或定时崩溃触发。
 - `--fault-once-file PATH` 为查询崩溃／挂起故障提供跨重启的一次性标记：仅在实际触发故障时原子创建文件，已有普通文件则跳过故障，文件错误明确报错。正常启动不消耗标记；不影响 `--crash-after-ms`。测试使用独立临时路径并负责清理。
