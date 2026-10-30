@@ -1,4 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import type { AppEvent } from "./generated/AppEvent";
 import type { EngineProfile } from "./generated/EngineProfile";
 import type { MoveView } from "./generated/MoveView";
@@ -36,6 +37,9 @@ export interface Backend {
   setPondering(enabled: boolean): Promise<void>;
   configureEngine(profile: EngineProfile | null): Promise<void>;
   settings(): Promise<Settings>;
+  /** Native file dialogs; null when the user cancels. */
+  pickOpenPath(): Promise<string | null>;
+  pickSavePath(): Promise<string | null>;
   subscribe(listener: EventListener): Promise<number>;
   unsubscribe(id: number): Promise<void>;
 }
@@ -53,6 +57,16 @@ export const setPondering: Backend["setPondering"] = (enabled) =>
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   invoke("configure_engine", { profile });
 export const settings: Backend["settings"] = () => invoke("settings");
+
+const SGF_FILTERS = [{ name: "SGF", extensions: ["sgf"] }];
+
+export const pickOpenPath: Backend["pickOpenPath"] = async () => {
+  const path = await openDialog({ multiple: false, directory: false, filters: SGF_FILTERS });
+  return typeof path === "string" ? path : null;
+};
+
+export const pickSavePath: Backend["pickSavePath"] = async () =>
+  (await saveDialog({ filters: SGF_FILTERS })) ?? null;
 
 interface Connection {
   channel: Channel<AppEvent>;

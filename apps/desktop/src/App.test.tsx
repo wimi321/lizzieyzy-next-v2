@@ -37,6 +37,7 @@ test("navigation keys call step; keys typed into controls do not", async () => {
   setScript({
     initialEvents: [documentChanged(midGame(), 3)],
     commands: [
+      { command: "settings", result: { version: 1, engine: null, pondering: true } },
       { command: "step", result: 4 },
       { command: "step", result: 5 },
     ],
@@ -49,7 +50,19 @@ test("navigation keys call step; keys typed into controls do not", async () => {
     fireEvent.keyDown(window, { key: "ArrowLeft" });
   });
   expect(recordedCalls()).toEqual([
+    { command: "settings", args: [] },
     { command: "step", args: [JUMP] },
     { command: "step", args: [-1] },
   ]);
+});
+
+test("the pause button starts from the saved setting", async () => {
+  setScript({
+    initialEvents: [documentChanged(midGame(), 3)],
+    commands: [{ command: "settings", result: { version: 1, engine: null, pondering: false } }],
+  });
+  render(<App />);
+  const button = await screen.findByTestId("toggle-pondering");
+  await act(async () => {});
+  expect(button.getAttribute("aria-pressed")).toBe("true");
 });

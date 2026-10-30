@@ -21,5 +21,21 @@
     "Restarting": "Engine restarting",
     "Failed": "Engine error",
     "Stopped": "No engine"
+  },
+  "toolbar": {
+    "open": "Open",
+    "save": "Save",
+    "first": "First move",
+    "previous": "Previous move",
+    "next": "Next move",
+    "last": "Last move",
+    "pause": "Pause analysis",
+    "resume": "Resume analysis",
+    "move": "Move"
+  },
+  "graph": {
+    "label": "Winrate graph: Black's winrate and score lead",
+    "empty": "No analysis yet",
+    "move": "Move {n}"
   }
 }
