@@ -128,7 +128,8 @@ export async function withApp(
       "tauri:options": { application: string; args: string[] };
     } = {
       "wdio:enforceWebDriverClassic": true,
-      "tauri:options": { application, args: ["--config-dir", directory, sgf] },
+      // Edge WebDriver treats every argument as a Chromium-style switch.
+      "tauri:options": { application, args: [`--config-dir=${directory}`, `--open=${sgf}`] },
     };
     browser = await remote({
       hostname: "127.0.0.1",

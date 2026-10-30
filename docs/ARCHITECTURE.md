@@ -182,7 +182,7 @@ pub enum EngineStatus {
 - Tauri 层：`commands/{document,analysis,engine,settings}.rs` 的业务命令只做参数转换和调用 `AppCore`。文档入口为 `open_bytes`、`open_path`、`save`、`play`、`step`、`go_to`、`undo`、`redo`；分析和设置入口为 `set_pondering`、`configure_engine`、`settings`。`play` 接受现有 `MoveView` 后转换；壳层不依赖 document / go-core，不复制其业务规则。
 - 首次设置的 Tauri 命令为 `detect_engines() -> EngineDiscovery`、`try_configure_engine(profile: EngineSetupProfile) -> ()`，只授权本地 main 窗口。探测在 blocking 任务执行，根目录与模板来源由壳层托管；测试注入临时目录。前端 `detectEngines` / `tryConfigureEngine` 是薄 IPC 封装，新增 DTO 同样经 export-bindings 生成；E2E mock 仅返回脚本指定结果，不实现探测或试启动业务。
 - `subscribe` / `unsubscribe` 管理传输订阅。三种 `AppEvent` 共用一个 `tauri::ipc::Channel<AppEvent>`，由单个转发任务按 `AppSubscription::recv()` 的顺序发送；不分事件种类并发转发，确保 revision N 的 `DocumentChanged` 在其 `AnalysisUpdated` 之前。转发任务保留最近的文档、引擎状态两条事件，按原收取顺序回放给新订阅，不缓存或回放分析；分析的有效性仍由 AppCore 决定。没有活跃 Channel 时暂停读取 `AppSubscription`，由 AppCore 的有界邮箱保留最新有效事件并清除过期分析；首次订阅前或断连期间产生的有效最终结果不会被壳层提前消费丢弃。仅有一个活跃 Channel，新订阅替换旧订阅；订阅 ID 是单调递增的 u32，耗尽时报错，过期 ID 的取消操作幂等且不影响新订阅。前端 `src/api/backend.ts` 是唯一业务入口，封装命令和订阅生命周期；多个界面监听者共享同一传输订阅。
-- 启动默认使用 Tauri 的应用配置目录，可用 `--config-dir <路径>` 覆盖，额外一个位置参数作为棋谱路径交给 `AppCore::open_path`。参数顺序不受限，`--` 后的参数仅作棋谱路径；未知选项、重复配置目录、多个棋谱和缺少路径均报错。路径保持原生 OS 编码；启动打开失败时等待 AppCore 关闭后返回错误，不留下后台引擎。
+- 启动默认使用 Tauri 的应用配置目录，可用 `--config-dir <路径>` 或 `--config-dir=<路径>` 覆盖；棋谱路径可用一个位置参数或 `--open=<路径>` 指定，交给 `AppCore::open_path`。等号写法将选项和路径放在同一个原生参数中，兼容将每项参数都视为 Chromium 开关的 Windows WebDriver；桌面 E2E 在所有平台统一采用等号写法。参数顺序不受限，`--` 后的参数仅作棋谱路径，不再识别选项；未知选项、重复配置目录、多个棋谱和缺少或空路径均报错，混用两种写法仍按同一配置目录／棋谱参数检查重复。路径保持原生 OS 编码；启动打开失败时等待 AppCore 关闭后返回错误，不留下后台引擎。
 - 主窗口 capability 仅匹配本地 `main` 窗口，逐项允许应用命令和 `dialog:allow-open` / `dialog:allow-save`；不授权远程页面或宽泛 core / shell / fs 权限。`tauri-build::AppManifest::commands` 为应用命令生成 ACL 定义，确保命令同样受 capability 约束；生成的 permissions 与 schemas 不入库。Channel 内部的数据提取命令由 Tauri 自身处理，不需要额外的 core capability。
 
 ## 5. 主流程时序（导航到下一手）
@@ -223,9 +223,9 @@ UI  ◀──Channel──    重绘候选点
 - 候选点及评估由棋盘尺寸、初始摆子、着手序列和手数的固定哈希生成，与请求 id 无关。默认 `maxVisits=100`、`--visits-per-sec=1000`；visits 随模拟时间增长，最终结果达到上限，取消则保留已有 visits。默认评估和 ownership 均为黑方视角；`--default-perspective-to-play` 模拟缺少视角配置时的轮走方视角。显式 `reportAnalysisWinratesAs=BLACK/WHITE/SIDETOMOVE` override 优先于该默认标志；在同一份逗号列表内，同一键重复赋值最后一个生效，其它配置键仅接受而不模拟。
 - `--time-scale` 表示每个真实秒经过多少模拟秒（默认 1，2 表示两倍速）；搜索、报告间隔、`--startup-delay-ms` 和 `--crash-after-ms` 都使用模拟时间。启动与定时崩溃从进程调度器初始化开始计时。
 - `--crash-after-queries N` / `--hang-after-queries N` 在接受第 N 个有效分析请求时触发，动作不计数，0 表示启动即触发。崩溃退出码为 1；挂起后连版本回复、取消确认也不再输出，直到进程被终止或定时崩溃触发。
-- `--fault-once-file PATH` 为查询崩溃／挂起故障提供跨重启的一次性标记：仅在实际触发故障时原子创建文件，已有普通文件则跳过故障，文件错误明确报错。正常启动不消耗标记；不影响 `--crash-after-ms`。测试使用独立临时路径并负责清理。
+- `--fault-once-file PATH` 为查询崩溃／挂起、`--crash-after-ms` 定时崩溃和 `--fail-startup` 启动失败共用一个跨重启的一次性标记：仅在首次实际触发故障时原子创建文件，已有普通文件则跳过故障，文件错误明确报错。首次进程到达定时崩溃期限时创建标记并退出，重启后的进程跳过该故障并清除已到期的 deadline，避免忙循环；启动失败同样只触发一次。正常启动及尚未触发的故障不消耗标记。测试使用独立临时路径并负责清理。
 - `--startup-gate-file PATH` 在外部创建普通文件后才允许处理 stdin（也须满足启动延迟），用于确保请求在 Ready 前全部入队。假引擎不创建或删除该文件；等待期间定时崩溃仍生效。
-- `--fail-startup` 立即向 stderr 写入“模型找不到”并以退出码 1 退出；`--garbage-every N` 在每 N 条正常 stdout 协议行后额外插入一行坏数据，故意用于测试会话的坏行处理。
+- `--fail-startup` 未被一次性标记跳过时，立即向 stderr 写入“模型找不到”并以退出码 1 退出；`--garbage-every N` 在每 N 条正常 stdout 协议行后额外插入一行坏数据，故意用于测试会话的坏行处理。
 - 取消顺序遵循录制：排队结果先 `noResults`，然后动作确认，最后是运行中查询的最终结果；`terminate_all` 同时取消所有排队与运行中的位置。
 - 假引擎检查坐标、已有棋子、提子、自杀和简单劫；不作为完整规则裁判，不模拟超级劫、真实搜索、模型设置或对称剪枝。录制对照比较公共字段与状态顺序；重复中间采样数量和条件性 `isSymmetryOf` 不要求与 GPU 搜索逐项相同。
 - 测试库函数 `fake_katago::binary_path() -> Result<PathBuf, BinaryPathError>` 首次调用执行 `cargo build -p fake-katago --bin fake-katago --locked`，从 Cargo JSON 消息取得可执行文件路径，尊重目标目录及平台后缀。同一进程用互斥锁串行初始化，其他调用者等待后直接复用成功缓存的路径，避免并发构建删除并重新链接可执行文件的竞争；构建失败不缓存，后续调用可重试。仅供运行时测试调用，不用于构建脚本或产品代码。
