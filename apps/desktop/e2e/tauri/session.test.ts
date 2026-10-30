@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { openSession } from "./session.js";
+import { appCapabilities, openSession } from "./session.js";
 
 interface Request {
   request: IncomingMessage;
@@ -98,7 +98,9 @@ afterEach(async () => {
 });
 
 test("allows cold session creation beyond five seconds, reports duration, and restores command deadlines", async () => {
-  const connecting = openSession("cold-start", { "wdio:enforceWebDriverClassic": true }, port);
+  const application = "/test app/lizzieyzy-desktop";
+  const args = ["--config-dir=/settings with spaces", "--open=/fixture with spaces.sgf"];
+  const connecting = openSession("cold-start", appCapabilities(application, args), port);
   // Install a rejection handler before advancing the clock: the old five-second
   // startup budget must fail this test rather than become an unhandled rejection.
   const connected = connecting.then((browser) => ({ browser }), (error: unknown) => ({ error }));
@@ -106,7 +108,10 @@ test("allows cold session creation beyond five seconds, reports duration, and re
   expect(creation.request.method).toBe("POST");
   expect(creation.request.url).toBe("/session");
   expect(creation.body).toMatchObject({
-    capabilities: { alwaysMatch: { timeouts: { implicit: 0, pageLoad: 60_000, script: 5_000 } } },
+    capabilities: { alwaysMatch: {
+      "tauri:options": { application, args },
+      timeouts: { implicit: 0, pageLoad: 60_000, script: 5_000 },
+    } },
   });
   advance(7_250);
   reply(creation.response, { sessionId: "test-session", capabilities: { browserName: "MicrosoftEdge" } });
@@ -124,6 +129,26 @@ test("allows cold session creation beyond five seconds, reports duration, and re
   advance(5_000);
   await rejected;
   await browser.deleteSession();
+});
+
+test("attaches to Windows WebView2 without sending any application launch options", async () => {
+  const connecting = openSession("windows-attach", appCapabilities(
+    "C:\\test app\\lizzieyzy-desktop.exe", ["--config-dir=C:\\settings with spaces"], "127.0.0.1:9222",
+  ), port);
+  const creation = await nextRequest();
+  reply(creation.response, { sessionId: "test-session", capabilities: { browserName: "webview2" } });
+  const browser = await connecting;
+  try {
+    expect(creation.body).toEqual({ capabilities: { alwaysMatch: {
+      "wdio:enforceWebDriverClassic": true,
+      browserName: "webview2",
+      "ms:edgeOptions": { debuggerAddress: "127.0.0.1:9222" },
+      timeouts: { implicit: 0, pageLoad: 60_000, script: 5_000 },
+    }, firstMatch: [{}] } });
+    expect(await readFile(summary, "utf8")).toContain("WebDriver session windows-attach: ready");
+  } finally {
+    await browser.deleteSession();
+  }
 });
 
 test("aborts an unresponsive session at sixty seconds and reports failed startup duration", async () => {

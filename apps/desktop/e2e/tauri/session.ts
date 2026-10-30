@@ -7,6 +7,26 @@ export const TIMEOUT = 5_000;
 // DOM/event wait; Windows CI needs more than the usual five-second safety net.
 export const STARTUP_TIMEOUT = 60_000;
 
+export function appCapabilities(
+  application: string,
+  args: string[],
+  debuggerAddress?: string,
+): WebdriverIO.Capabilities {
+  if (debuggerAddress) {
+    // Attach only: no binary, args or tauri:options may make the driver launch
+    // another application. HKLM enables the port on elevated Windows CI hosts.
+    return {
+      "wdio:enforceWebDriverClassic": true,
+      browserName: "webview2",
+      "ms:edgeOptions": { debuggerAddress },
+    };
+  }
+  return {
+    "wdio:enforceWebDriverClassic": true,
+    "tauri:options": { application, args },
+  } as WebdriverIO.Capabilities;
+}
+
 export async function openSession(
   name: string,
   capabilities: WebdriverIO.Capabilities,
@@ -24,7 +44,7 @@ export async function openSession(
       waitforTimeout: TIMEOUT,
       waitforInterval: 25,
       // Supply these in POST /session: setting pageLoad afterwards is too late
-      // for the initial page. tauri-driver selects WebKitGTK or Edge.
+      // for the initial page. Linux uses tauri-driver; Windows attaches through Edge.
       capabilities: {
         ...capabilities,
         timeouts: { implicit: 0, pageLoad: STARTUP_TIMEOUT, script: TIMEOUT },

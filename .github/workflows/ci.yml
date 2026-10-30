@@ -114,6 +114,13 @@ jobs:
               "$RUNNER_TEMP/tauri-e2e/e2e-native-driver.exe" "$RUNNER_TEMP/native-driver-child.exe"
           fi
 
+      - name: Test Windows WebView2 policy restoration
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$HOME/.cargo/bin;$env:PATH"
+          & ./apps/desktop/e2e/tauri/windows-policy.test.ps1
+
       - name: Upload desktop E2E binaries
         if: runner.os != 'macOS'
         uses: actions/upload-artifact@v6
@@ -262,11 +269,19 @@ jobs:
 
       - name: Desktop WebDriver E2E (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         env:
           TAURI_E2E_NATIVE_DRIVER_WRAPPER: ${{ github.workspace }}/target/debug/e2e-native-driver.exe
         run: |
-          export PATH="$HOME/.cargo/bin:$PWD/target/debug:$PATH"
-          pnpm -C apps/desktop e2e:tauri
+          $env:PATH = "$HOME/.cargo/bin;$env:GITHUB_WORKSPACE/target/debug;$env:PATH"
+          & ./apps/desktop/e2e/tauri/windows-webdriver.ps1
+
+      - name: Restore Windows WebView2 policy
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$HOME/.cargo/bin;$env:PATH"
+          & ./apps/desktop/e2e/tauri/windows-webdriver.ps1 -Action Restore
 
       - name: Upload desktop E2E diagnostics
         if: always() && (runner.os == 'Windows' || failure())

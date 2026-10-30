@@ -104,9 +104,7 @@ try {
         if (-not (Test-Path -LiteralPath $Application -PathType Leaf)) { throw "Application missing: $Application" }
         if (-not (Test-Path -LiteralPath $Sgf -PathType Leaf)) { throw "SGF missing: $Sgf" }
         New-Item -ItemType Directory -Path $configuration | Out-Null
-        # No real engine or existing settings are needed to observe WebView2.
-        '{"version":1,"engine":null,"pondering":false}' |
-            Set-Content -LiteralPath (Join-Path $configuration 'settings.json') -Encoding utf8
+        # Use the product's first-launch defaults, with no prewritten settings.
         # Start-Process joins ArgumentList into one native string. Quote each
         # complete equals-form argument so the temporary path's spaces survive.
         $arguments = '"--config-dir={0}" "--open={1}"' -f $configuration, $Sgf

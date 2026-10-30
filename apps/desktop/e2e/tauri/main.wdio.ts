@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { stat } from "node:fs/promises";
+import { rm, stat } from "node:fs/promises";
 import { Key, type Browser } from "webdriverio";
 import { startDriver, TIMEOUT, VISITS_PER_SECOND, withApp } from "./harness.js";
 import { installProbe, readProbe, type ProbeState } from "./probe.js";
@@ -127,6 +127,40 @@ async function recovery(browser: Browser, { faultMarker }: { faultMarker: string
   console.log(`Engine states: ${recovered.states.map((entry) => entry.state).join(" -> ")}`);
 }
 
+async function windowsRecovery(browser: Browser, { faultMarker }: { faultMarker: string }) {
+  const initial = await ready(browser);
+  // Startup may query both the empty document and the SGF. The precreated
+  // one-shot marker suppresses those faults until the observer is installed;
+  // after removing it, this navigation is guaranteed to reach query >= 2.
+  assert.ok((await stat(faultMarker)).isFile(), "startup fault suppression marker is missing");
+  await rm(faultMarker);
+  await browser.keys(Key.ArrowRight);
+  const restarted = await until(browser, (probe) => {
+    const index = probe.states.findIndex((entry) => entry.state === "Restarting");
+    return index > 0 && probe.states.slice(0, index).some((entry) => entry.state === "Ready")
+      && probe.states.slice(index + 1).some((entry) => entry.state === "Ready");
+  }, "engine light did not show Ready -> Restarting -> Ready after navigation");
+  const index = restarted.states.findIndex((entry) => entry.state === "Restarting");
+  const afterRestart = restarted.states.slice(index + 1).find((entry) => entry.state === "Ready");
+  assert.ok(afterRestart);
+  assert.ok((await stat(faultMarker)).isFile(), "the query crash did not claim its marker");
+  const resumed = await until(browser, (probe) => probe.current.move === 1 && hasAnalysis(probe)
+    && probe.analysisVersion > afterRestart.analysisVersion,
+    "restarted engine did not replay the interrupted move 1 query");
+  assert.notEqual(resumed.current.nodeId, initial.current.nodeId);
+  assert.ok(Number(resumed.current.revision) > Number(initial.current.revision));
+  // This is at least query 2 in the restarted engine. Analysis at a new node
+  // proves the marker prevents a second crash, without racing a wall clock.
+  await browser.keys(Key.ArrowRight);
+  const recovered = await until(browser, (probe) => probe.current.move === 2 && hasAnalysis(probe)
+    && probe.analysisVersion > resumed.analysisVersion,
+    "restarted engine did not analyse move 2 beyond its query crash threshold");
+  assert.notEqual(recovered.current.nodeId, resumed.current.nodeId);
+  assert.equal(recovered.current.engineState, "Ready");
+  assert.equal(recovered.states.filter((entry) => entry.state === "Restarting").length, 1);
+  console.log(`Engine states: ${recovered.states.map((entry) => entry.state).join(" -> ")}`);
+}
+
 if (process.platform === "darwin") {
   console.log("SKIP tauri-driver E2E: macOS has no official WKWebView WebDriver (P1-12).");
 } else {
@@ -134,7 +168,11 @@ if (process.platform === "darwin") {
   const stop = await startDriver();
   try {
     await withApp("navigation", [], navigation);
-    await withApp("crash-recovery", ["--crash-after-ms", String(CRASH_AFTER_MS)], recovery);
+    if (process.platform === "win32") {
+      await withApp("crash-recovery", ["--crash-after-queries", "2"], windowsRecovery, { deferFault: true });
+    } else {
+      await withApp("crash-recovery", ["--crash-after-ms", String(CRASH_AFTER_MS)], recovery);
+    }
   } finally {
     await stop();
   }
