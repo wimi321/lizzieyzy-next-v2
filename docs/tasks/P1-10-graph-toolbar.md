@@ -8,6 +8,9 @@ paths:
   - apps/desktop/src/state/**
   - apps/desktop/src/locales/*.json
   - apps/desktop/src/App.tsx
+  - apps/desktop/src/App.test.tsx
+  - apps/desktop/src/api/backend.ts
+  - apps/desktop/package.json
   - apps/desktop/e2e/**
 ---
 
