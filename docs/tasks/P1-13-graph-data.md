@@ -7,6 +7,7 @@ paths:
   - apps/desktop/src-tauri/**
   - apps/desktop/src/api/**
   - apps/desktop/e2e/mock-backend.ts
+  - apps/desktop/e2e/fixtures.ts
   - docs/ARCHITECTURE.md
 ---
 
