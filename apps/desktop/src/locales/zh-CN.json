@@ -1,3 +1,25 @@
 {
-  "app": { "title": "LizzieYzy Next 2 (dev)" }
+  "app": {
+    "title": "LizzieYzy Next 2 (dev)"
+  },
+  "board": {
+    "label": "棋盘",
+    "move": "手数",
+    "analysis": "分析",
+    "noAnalysis": "暂无",
+    "visits": "{visits} 次计算",
+    "coordinates": "坐标",
+    "ownership": "领地",
+    "candidates": "候选点",
+    "candidatesAll": "全部",
+    "positionError": "这一手的局面无法计算：{reason}",
+    "loading": "正在载入…"
+  },
+  "engine": {
+    "Starting": "引擎启动中",
+    "Ready": "引擎就绪",
+    "Restarting": "引擎重启中",
+    "Failed": "引擎出错",
+    "Stopped": "引擎未启动"
+  }
 }

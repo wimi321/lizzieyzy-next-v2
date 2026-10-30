@@ -1,17 +1,55 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, expect, test } from "vitest";
-import App from "./App";
-import { getMessages } from "./locales";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, expect, test } from "vitest";
+import { analysisUpdated, documentChanged, midGame, midGameAnalysis } from "../e2e/fixtures";
+import { recordedCalls, setScript } from "../e2e/mock-backend";
+import App, { JUMP } from "./App";
+import en from "./locales/en.json";
+import zhCN from "./locales/zh-CN.json";
 
+beforeEach(() => setScript({}));
 afterEach(cleanup);
 
-test("renders only the application title on the home page", () => {
-  render(<App />);
-  const heading = screen.getByRole("heading", { level: 1 });
-  expect(heading.textContent).toBe("LizzieYzy Next 2 (dev)");
-  expect(screen.getByRole("main").textContent).toBe(heading.textContent);
+function keys(value: unknown, prefix = ""): string[] {
+  if (typeof value !== "object" || value === null) return [prefix];
+  return Object.entries(value).flatMap(([key, child]) => keys(child, prefix ? `${prefix}.${key}` : key));
+}
+
+test("zh-CN and en define the same keys", () => {
+  expect(keys(zhCN).sort()).toEqual(keys(en).sort());
 });
 
-test.each(["zh-CN", "en", "fr"])("provides the application title for %s", (language) => {
-  expect(getMessages(language).app.title).toBe("LizzieYzy Next 2 (dev)");
+test("renders the board, move number and analysis from backend events", async () => {
+  setScript({ initialEvents: [documentChanged(midGame(), 3), analysisUpdated(midGameAnalysis(3, 20))] });
+  render(<App />);
+  expect(await screen.findByTestId("board")).toBeTruthy();
+  expect(screen.getByTestId("move-number").textContent).toBe("20");
+  expect(screen.getByTestId("analysis-move").dataset.revision).toBe("3");
+});
+
+test("shows why a recorded position cannot be displayed", async () => {
+  const view = { ...midGame(), board: null, position_error: "illegal move at node 7" };
+  setScript({ initialEvents: [documentChanged(view, 2)] });
+  render(<App />);
+  expect((await screen.findByTestId("position-error")).textContent).toContain("illegal move at node 7");
+});
+
+test("navigation keys call step; keys typed into controls do not", async () => {
+  setScript({
+    initialEvents: [documentChanged(midGame(), 3)],
+    commands: [
+      { command: "step", result: 4 },
+      { command: "step", result: 5 },
+    ],
+  });
+  render(<App />);
+  await screen.findByTestId("board");
+  await act(async () => {
+    fireEvent.keyDown(window, { key: "End" });
+    fireEvent.keyDown(screen.getByTestId("max-candidates"), { key: "ArrowLeft" });
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+  });
+  expect(recordedCalls()).toEqual([
+    { command: "step", args: [JUMP] },
+    { command: "step", args: [-1] },
+  ]);
 });

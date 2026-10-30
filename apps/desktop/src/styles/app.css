@@ -1,12 +1,198 @@
 :root {
-  font-family: system-ui, sans-serif;
-  color: #202124;
-  background: #fafafa;
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+
+  --app-bg: #efeae0;
+  --app-text: #221d16;
+  --app-muted: #6d6252;
+  --panel-bg: #f8f5ef;
+  --panel-border: #dcd2bf;
+  --accent: #0f7f89;
+  --status-ready: #2f9e44;
+  --status-busy: #e0a100;
+  --status-failed: #d1392b;
+  --status-idle: #9a9083;
+
+  --board-wood: #e2bd78;
+  --board-wood-edge: #cc9f55;
+  --board-line: #3b2a14;
+  --board-coordinate: #4f3a1c;
+  --stone-black-light: #555555;
+  --stone-black-dark: #0a0a0a;
+  --stone-white-light: #ffffff;
+  --stone-white-dark: #d3cec4;
+  --stone-shadow: rgba(40, 24, 4, 0.38);
+  --last-move-on-black: #f4f4f4;
+  --last-move-on-white: #1a1a1a;
+  --candidate-tier-0: #18b6c4;
+  --candidate-tier-1: #43ad4c;
+  --candidate-tier-2: #9cc235;
+  --candidate-tier-3: #e9bb25;
+  --candidate-tier-4: #ed8b2d;
+  --candidate-tier-5: #d9493b;
+  --candidate-best-ring: #0a5f67;
+  --candidate-text: #111111;
+  --ownership-black: rgb(14, 14, 14);
+  --ownership-white: rgb(252, 252, 252);
 }
 
-body { margin: 0; }
-main { padding: 2rem; }
-h1 { margin: 0; font-size: 1.5rem; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --app-bg: #16181b;
+    --app-text: #e7e4de;
+    --app-muted: #9c968c;
+    --panel-bg: #1f2226;
+    --panel-border: #33373d;
+    --accent: #3cc0cb;
+    --board-wood: #c9a35f;
+    --board-wood-edge: #a98345;
+    --board-line: #2a1d0b;
+    --board-coordinate: #3a2a12;
+    --stone-shadow: rgba(0, 0, 0, 0.55);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #16181b;
+  --app-text: #e7e4de;
+  --app-muted: #9c968c;
+  --panel-bg: #1f2226;
+  --panel-border: #33373d;
+  --accent: #3cc0cb;
+  --board-wood: #c9a35f;
+  --board-wood-edge: #a98345;
+  --board-line: #2a1d0b;
+  --board-coordinate: #3a2a12;
+  --stone-shadow: rgba(0, 0, 0, 0.55);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+  min-height: 0;
+}
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.55rem 1rem;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.app-title {
+  margin: 0 auto 0 0;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--app-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.status strong {
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+.engine-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  align-self: center;
+  background: var(--status-idle);
+}
+
+.engine-dot[data-state="Ready"] { background: var(--status-ready); }
+.engine-dot[data-state="Starting"],
+.engine-dot[data-state="Restarting"] { background: var(--status-busy); }
+.engine-dot[data-state="Failed"] { background: var(--status-failed); }
+
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.toggle,
+.controls select {
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--app-text);
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0.22rem 0.6rem;
+}
+
+.toggle {
+  cursor: pointer;
+}
+
+.toggle[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.toggle:focus-visible,
+.controls select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.board-area {
+  min-height: 0;
+  padding: 1rem;
+  display: flex;
+}
+
+.board {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.board-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.board-message {
+  margin: auto;
+  max-width: 32rem;
+  text-align: center;
+  color: var(--app-muted);
+}
