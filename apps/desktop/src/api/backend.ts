@@ -2,12 +2,14 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import type { AppEvent } from "./generated/AppEvent";
 import type { EngineProfile } from "./generated/EngineProfile";
+import type { EngineSetupProfile } from "./generated/EngineSetupProfile";
+import type { EngineDiscovery } from "./generated/EngineDiscovery";
 import type { MoveView } from "./generated/MoveView";
 import type { Revision } from "./generated/Revision";
 import type { Settings } from "./generated/Settings";
 import type { SubscriptionId } from "./generated/SubscriptionId";
 
-export type { AppEvent, EngineProfile, MoveView, Revision, Settings };
+export type { AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings };
 export type { AnalysisSource } from "./generated/AnalysisSource";
 export type { AnalysisSummary } from "./generated/AnalysisSummary";
 export type { AnalysisView } from "./generated/AnalysisView";
@@ -36,6 +38,8 @@ export interface Backend {
   redo(): Promise<Revision>;
   setPondering(enabled: boolean): Promise<void>;
   configureEngine(profile: EngineProfile | null): Promise<void>;
+  detectEngines(): Promise<EngineDiscovery>;
+  tryConfigureEngine(profile: EngineSetupProfile): Promise<void>;
   settings(): Promise<Settings>;
   /** Native file dialogs; null when the user cancels. */
   pickOpenPath(): Promise<string | null>;
@@ -56,6 +60,9 @@ export const setPondering: Backend["setPondering"] = (enabled) =>
   invoke("set_pondering", { enabled });
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   invoke("configure_engine", { profile });
+export const detectEngines: Backend["detectEngines"] = () => invoke("detect_engines");
+export const tryConfigureEngine: Backend["tryConfigureEngine"] = (profile) =>
+  invoke("try_configure_engine", { profile });
 export const settings: Backend["settings"] = () => invoke("settings");
 
 const SGF_FILTERS = [{ name: "SGF", extensions: ["sgf"] }];

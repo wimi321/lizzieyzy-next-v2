@@ -6,6 +6,11 @@ rust-version.workspace = true
 license.workspace = true
 default-run = "lizzieyzy-desktop"
 
+[[bin]]
+name = "export-bindings"
+path = "src/bin/export-bindings.rs"
+required-features = ["dev-tools"]
+
 [lints]
 workspace = true
 
@@ -28,4 +33,6 @@ fake-katago = { path = "../../../tools/fake-katago" }
 tempfile = "3"
 
 [features]
+default = ["dev-tools"]
+dev-tools = []
 custom-protocol = ["tauri/custom-protocol"]

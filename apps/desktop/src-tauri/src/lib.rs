@@ -1,6 +1,7 @@
 //! Desktop adapters; application state and all business decisions live in AppCore.
 pub mod bindings;
 pub mod commands;
+pub mod engine_setup;
 pub mod error;
 pub mod events;
 pub mod startup;
@@ -39,6 +40,8 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::analysis::subscribe,
             commands::analysis::unsubscribe,
             commands::engine::configure_engine,
+            commands::engine::detect_engines,
+            commands::engine::try_configure_engine,
             commands::settings::settings,
         ])
 }
@@ -51,6 +54,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let options = startup::StartupOptions::parse(std::env::args_os().skip(1))?;
     let app = commands(tauri::Builder::default())
         .setup(move |app| {
+            app.manage(engine_setup::SetupEnvironment::for_app(app.handle())?);
             let default_dir = match &options.config_dir {
                 Some(directory) => directory.clone(),
                 None => app.path().app_config_dir()?,

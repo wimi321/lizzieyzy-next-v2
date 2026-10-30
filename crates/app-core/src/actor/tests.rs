@@ -32,6 +32,7 @@ fn actor() -> (Actor, AppSubscription) {
             settings: Settings::default(),
             config: AppConfig::default(),
             running: None,
+            trial: None,
             focus: Some(focus),
             output,
         },

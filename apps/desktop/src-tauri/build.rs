@@ -10,6 +10,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "redo",
         "set_pondering",
         "configure_engine",
+        "detect_engines",
+        "try_configure_engine",
         "settings",
         "subscribe",
         "unsubscribe",

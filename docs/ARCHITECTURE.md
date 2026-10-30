@@ -175,7 +175,12 @@ pub enum EngineStatus {
 - 设置保存在调用方目录下的 `settings.json`，`Settings { version, engine: Option<EngineProfile>, pondering }` 当前版本 1。缺字段默认、多余字段忽略；版本 0/1 读入后规范为 1，未来版本和损坏 JSON 报错，避免覆写未知格式。P1 保存一个活动档案，`None` 关闭引擎；配置和暂停状态修改成功时持久化。设置保存同样使用临时文件替换。
 - `EngineProfile { program, model, config, extra_args }` 的指纹为程序/模型/配置的路径、普通文件大小、修改时间（秒及纳秒）和额外参数的版本化 JSON 编码的 BLAKE3。它是缓存身份，不是文件内容校验和。改变档案或重新配置时发现元数据变化，会先关闭旧协调器和会话，再创建新的；同一有效档案幂等，失败会话允许重新配置重试。文件不存在发出包含用途和路径的 Failed，文档编辑仍正常。
 - **数值一律黑方视角**：应用自带的 `resources/katago/analysis.cfg` 显式设置 `reportAnalysisWinratesAs = BLACK`。`TransportSpec::LocalProcess` 启动参数为 `analysis -config <配置> -model <模型> -override-config <合并值>`，整个命令中 `-override-config` 只出现一次，以符合 KataGo 的 TCLAP ValueArg 约束。档案额外参数里的各个 `-override-config VALUE` / `-override-config=VALUE` 被提取并按原顺序合并为逗号列表，显式 BLACK 项去重，末尾追加唯一 `reportAnalysisWinratesAs=BLACK`；其它非 override 参数保留边界及相对次序。额外参数仍不得覆写模型/配置路径，也不得把视角改成非 BLACK。
+- 首次设置使用 `EngineSetupProfile { program, model, config: Option<PathBuf>, extra_args }` 和 `AppCore::try_configure_engine(profile, default_config_source)`；已有 `EngineProfile` 的持久化格式和 `configure_engine` 的先存后启语义不变。`config=None` 时从调用方指定的模板复制到设置目录的 `analysis.cfg`，用同目录临时文件原子发布且不覆盖已有普通文件；拒绝目标为目录或符号链接。失败尝试可能留下已复制的默认配置，但不改变 `settings.json` 或活动档案。Tauri 将 `resources/katago/analysis.cfg` 映射为 `katago/analysis.cfg` 资源，从 `resource_dir` 解析来源；app-core 不依赖 Tauri。
+- 试启动复用 `EngineProfile::transport` 的参数校验、单次 override 合并与指纹计算。候选 engine-session 独立运行，由 app actor 的待定事务持有；通过 `status()` 的 watch 事件等待 Ready，期间旧引擎继续输出，文档和设置命令继续处理。Ready 后保存设置并直接接管已试好的会话，不重新启动一次。Failed、文件缺失、保存失败或超时以命令错误返回，不发布候选失败为全局引擎状态，不切换旧会话。`AppConfig.engine_setup_timeout` 默认 120 秒、允许 `(0,24h]`，只作兜底；新试启动或直接配置取消旧试启动，关闭/丢弃应用句柄也回收候选进程。
+- `engine_setup::detect(&SearchRoots) -> EngineDiscovery { programs, models, configs }` 只查调用方注入的目录，不读取环境、不执行程序。`SearchRoots` 分别接收 PATH 目录、Homebrew 前缀、应用目录及 Windows 安装目录。PATH 查 `katago`/`katago.exe`；Homebrew 查 `bin/katago` 与 `share/katago`；应用目录查旁边的 `katago/`；安装目录只扫描自身、`bin` 程序和 `models/networks/config/configs` 模型配置，不全盘递归。识别模型 `.bin.gz/.txt.gz/.bin` 和配置 `.cfg`，忽略不存在或不可读目录，Unix 程序须有可执行位，按 canonical 路径去重并保留首先发现的路径。
+- 探测模型推荐是确定性的文件名启发式：`kata1-*` 排在 `g170*` 前，其余族最后；族内依次按 `-s` 训练计数、`-d` 数据计数降序（缺失或溢出视为 0），再按小写文件名、路径字典序。程序保留搜索根优先级，配置按路径排序。该规则不声称网络实际发布日期、棋力或 GPU 兼容性。壳层提供当前 PATH、macOS `/opt/homebrew` 与 `/usr/local`、可执行文件目录（macOS 也查 `.app` 旁边，Linux AppImage 也查原始安装文件旁边）；Windows 查 `C:\KataGo`、ProgramFiles / ProgramFiles(x86) / LOCALAPPDATA 下的 KataGo、用户目录下 KataGo 及 Scoop 的 `apps/katago/current`。
 - Tauri 层：`commands/{document,analysis,engine,settings}.rs` 的业务命令只做参数转换和调用 `AppCore`。文档入口为 `open_bytes`、`open_path`、`save`、`play`、`step`、`go_to`、`undo`、`redo`；分析和设置入口为 `set_pondering`、`configure_engine`、`settings`。`play` 接受现有 `MoveView` 后转换；壳层不依赖 document / go-core，不复制其业务规则。
+- 首次设置的 Tauri 命令为 `detect_engines() -> EngineDiscovery`、`try_configure_engine(profile: EngineSetupProfile) -> ()`，只授权本地 main 窗口。探测在 blocking 任务执行，根目录与模板来源由壳层托管；测试注入临时目录。前端 `detectEngines` / `tryConfigureEngine` 是薄 IPC 封装，新增 DTO 同样经 export-bindings 生成；E2E mock 仅返回脚本指定结果，不实现探测或试启动业务。
 - `subscribe` / `unsubscribe` 管理传输订阅。三种 `AppEvent` 共用一个 `tauri::ipc::Channel<AppEvent>`，由单个转发任务按 `AppSubscription::recv()` 的顺序发送；不分事件种类并发转发，确保 revision N 的 `DocumentChanged` 在其 `AnalysisUpdated` 之前。转发任务保留最近的文档、引擎状态两条事件，按原收取顺序回放给新订阅，不缓存或回放分析；分析的有效性仍由 AppCore 决定。没有活跃 Channel 时暂停读取 `AppSubscription`，由 AppCore 的有界邮箱保留最新有效事件并清除过期分析；首次订阅前或断连期间产生的有效最终结果不会被壳层提前消费丢弃。仅有一个活跃 Channel，新订阅替换旧订阅；订阅 ID 是单调递增的 u32，耗尽时报错，过期 ID 的取消操作幂等且不影响新订阅。前端 `src/api/backend.ts` 是唯一业务入口，封装命令和订阅生命周期；多个界面监听者共享同一传输订阅。
 - 启动默认使用 Tauri 的应用配置目录，可用 `--config-dir <路径>` 覆盖，额外一个位置参数作为棋谱路径交给 `AppCore::open_path`。参数顺序不受限，`--` 后的参数仅作棋谱路径；未知选项、重复配置目录、多个棋谱和缺少路径均报错。路径保持原生 OS 编码；启动打开失败时等待 AppCore 关闭后返回错误，不留下后台引擎。
 - 主窗口 capability 仅匹配本地 `main` 窗口，逐项允许应用命令和 `dialog:allow-open` / `dialog:allow-save`；不授权远程页面或宽泛 core / shell / fs 权限。`tauri-build::AppManifest::commands` 为应用命令生成 ACL 定义，确保命令同样受 capability 约束；生成的 permissions 与 schemas 不入库。Channel 内部的数据提取命令由 Tauri 自身处理，不需要额外的 core capability。
@@ -233,6 +238,10 @@ UI  ◀──Channel──    重绘候选点
 - GIB（弈城）导入（P2）。
 - 首次启动导入 Java 版的配置和引擎设置（P2）。
 - 应用标识 `io.github.wimi321.lizzieyzy.next2`，配置目录独立，可与 Java 版同时安装。
+
+### P1 预览打包
+
+- `.github/workflows/preview.yml` 通过 workflow_dispatch 手动触发，沿用 CI 的 Rust、Node、pnpm 和 Tauri 系统依赖安装步骤，使用冻结的依赖锁文件。Windows 生成 NSIS、macOS 生成 DMG、Linux 生成 AppImage 和 deb；artifact 名含平台、架构与运行 ID。P1 显式使用 `--no-sign`，只携带默认分析配置，不捆绑 KataGo 或模型。桌面 crate 的默认 `dev-tools` 特性保留无额外参数的 export-bindings 命令；预览构建使用 `--no-default-features` 排除该开发工具二进制，Tauri 自身照常启用 `custom-protocol`。
 
 ## 9. 暂不做
 
