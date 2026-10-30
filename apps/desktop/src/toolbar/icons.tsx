@@ -1,5 +1,5 @@
 /** 16px stroke icons drawn in currentColor, so they follow the theme. */
-type IconName = "open" | "save" | "first" | "previous" | "next" | "last" | "pause" | "resume";
+export type IconName = "open" | "save" | "first" | "previous" | "next" | "last" | "pause" | "resume" | "coordinates" | "territory" | "settings";
 
 const PATHS: Record<IconName, string> = {
   open: "M2 4.5h4l1.5 1.5H14v6.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z",
@@ -10,6 +10,10 @@ const PATHS: Record<IconName, string> = {
   last: "M12 3.5v9M3.5 3.5 9 8l-5.5 4.5z",
   pause: "M5.5 3.5v9M10.5 3.5v9",
   resume: "M5 3.5 12 8l-7 4.5z",
+  coordinates: "M2.5 5.5h11M2.5 10.5h11M5.5 2.5v11M10.5 2.5v11",
+  territory: "M2.5 4.5 6 3l4 1.5 3.5-1.5v8.5L10 13l-4-1.5-3.5 1.5zM6 3v8.5M10 4.5V13",
+  settings:
+    "M8 5.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 1 0 0-4.5zM8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.6 3.6l1.05 1.05M11.35 11.35l1.05 1.05M3.6 12.4l1.05-1.05M11.35 4.65l1.05-1.05",
 };
 
 export function Icon({ name }: { name: IconName }) {

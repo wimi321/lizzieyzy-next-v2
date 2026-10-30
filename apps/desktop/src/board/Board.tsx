@@ -11,6 +11,8 @@ export interface BoardProps {
   ownership: boolean;
   maxCandidates: number;
   label: string;
+  /** A candidate picked outside the board, e.g. a table row; the pointer still wins. */
+  preview?: PointView | null;
   onPlay(point: PointView): void;
 }
 
@@ -25,7 +27,7 @@ interface Size {
  * only when its own inputs change; analysis frames are coalesced per animation
  * frame so a 20 Hz stream never queues work.
  */
-export function Board({ board, analysis, coordinates, ownership, maxCandidates, label, onPlay }: BoardProps) {
+export function Board({ board, analysis, coordinates, ownership, maxCandidates, label, preview = null, onPlay }: BoardProps) {
   const container = useRef<HTMLDivElement>(null);
   const backgroundCanvas = useRef<HTMLCanvasElement>(null);
   const stoneCanvas = useRef<HTMLCanvasElement>(null);
@@ -78,14 +80,14 @@ export function Board({ board, analysis, coordinates, ownership, maxCandidates, 
 
   useEffect(() => {
     if (geometry.cell <= 0) return;
-    const layer: AnalysisLayer = { board, analysis, ownership, maxCandidates, hover };
+    const layer: AnalysisLayer = { board, analysis, ownership, maxCandidates, hover: hover ?? preview };
     const frame = requestAnimationFrame(() => {
       const canvas = analysisCanvas.current;
       const context = canvas && prepare(canvas, geometry, backing.width, backing.height);
       if (context) drawAnalysis(context, geometry, palette, layer);
     });
     return () => cancelAnimationFrame(frame);
-  }, [geometry, backing, palette, board, analysis, ownership, maxCandidates, hover]);
+  }, [geometry, backing, palette, board, analysis, ownership, maxCandidates, hover, preview]);
 
   const pointAt = (event: MouseEvent<HTMLElement>): PointView | null => {
     const rect = event.currentTarget.getBoundingClientRect();

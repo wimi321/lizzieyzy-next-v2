@@ -19,9 +19,9 @@ beforeEach(() => {
       <div data-testid="board" data-columns="19" data-rows="13" data-cell="24.5"></div>
     </section>
     <strong data-testid="move-number">0</strong>
-    <span title="150 visits">
-      <strong data-testid="analysis-move" data-revision="1" data-node-id="0">0 · 150</strong>
-    </span>
+    <button title="Pause analysis">
+      <strong data-testid="analysis-move" data-revision="1" data-node-id="0" data-visits="150" title="150 visits">0 · 150</strong>
+    </button>
     <span data-testid="engine-status" data-state="Ready" title="1.16.5-fake"></span>`;
 });
 
@@ -100,10 +100,10 @@ describe("real webview DOM probe", () => {
     ]);
     expect(restarted.analysisVersion).toBe(1);
 
-    element("analysis-move").parentElement?.setAttribute("title", "151 visits");
+    element("analysis-move").dataset.visits = "151";
     const recovered = readProbe();
     expect(recovered.analysisVersion).toBe(2);
-    expect(recovered.current.analysisTitle).toBe("151 visits");
+    expect(recovered.current.analysisVisits).toBe(151);
     expect(recovered.states).toEqual(restarted.states);
     expect(readProbe().analysisVersion).toBe(2);
   });

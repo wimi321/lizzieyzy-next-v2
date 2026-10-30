@@ -31,12 +31,17 @@
     "last": "最后一手",
     "pause": "暂停分析",
     "resume": "继续分析",
-    "move": "手数"
+    "move": "手数",
+    "analysing": "分析中",
+    "paused": "已暂停"
   },
   "graph": {
     "label": "胜率图：黑方胜率与目差",
     "empty": "暂无分析数据",
-    "move": "第 {n} 手"
+    "move": "第 {n} 手",
+    "title": "胜率走势",
+    "legendWinrate": "黑胜率",
+    "legendScore": "目差"
   },
   "setup": {
     "open": "引擎",
@@ -57,5 +62,30 @@
     "starting": "正在启动…",
     "close": "关闭",
     "failed": "引擎没能启动，设置没有改动："
+  },
+  "info": {
+    "black": "黑方",
+    "white": "白方",
+    "captures": "提子 {n}",
+    "blackLeads": "黑领先 {score} 目",
+    "whiteLeads": "白领先 {score} 目",
+    "even": "双方均势",
+    "lastMove": "最后一手 (#{n})：{winrate}% {score} 目",
+    "noAnalysis": "暂无分析",
+    "comment": "注释"
+  },
+  "table": {
+    "label": "候选点",
+    "order": "序号",
+    "winrate": "胜率",
+    "visits": "计算量",
+    "share": "占比",
+    "score": "目差",
+    "move": "着手",
+    "empty": "等待引擎给出候选点"
+  },
+  "tree": {
+    "label": "棋谱",
+    "variations": "{n} 个变化"
   }
 }
