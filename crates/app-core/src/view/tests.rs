@@ -63,6 +63,15 @@ fn invalid_positions_keep_tree_comments_and_document_warnings() {
     let view = DocumentView::from_document(&doc).unwrap();
     assert_eq!(view.tree.current, 2);
     assert_eq!(view.tree.main_line, [0, 1, 2]);
+    assert_eq!(view.graph.current_index, 2);
+    assert_eq!(
+        view.graph
+            .points
+            .iter()
+            .map(|point| (point.node_id, point.move_number, point.summary))
+            .collect::<Vec<_>>(),
+        [(0, 0, None), (1, 1, None), (2, 2, None)]
+    );
     assert_eq!(view.comment.as_deref(), Some("inspect me"));
     assert!(view.board.is_none());
     assert!(view.position_error.unwrap().contains("node"));
@@ -117,6 +126,11 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
         winrate: 0.73,
         score_lead: 5.2,
         visits: 43,
+        summary: AnalysisSummary {
+            winrate: 0.73,
+            score_lead: 5.2,
+            visits: 43,
+        },
         candidates: vec![
             CandidateView {
                 coordinate: "C3".into(),
@@ -171,6 +185,7 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
     assert_eq!(view.source, AnalysisSource::Cache);
     assert_eq!(view.winrate, expected.winrate);
     assert_eq!(view.score_lead, expected.score_lead);
+    assert_eq!(view.summary, expected.summary);
 }
 
 fn rectangular_snapshot() -> analysis::AnalysisSnapshot {
@@ -261,6 +276,10 @@ fn rectangular_board_ownership_candidates_and_pv_share_top_left_coordinates() {
     );
 
     let json = serde_json::to_value(&view).unwrap();
+    assert_eq!(
+        json["summary"],
+        json!({"winrate": 0.7, "score_lead": 4.0, "visits": 50})
+    );
     assert_eq!(json["candidates"][1]["point"], json!({"x": 8, "y": 4}));
     assert_eq!(
         json["candidates"][1]["pv"][0],
@@ -344,6 +363,13 @@ fn event_serialization_and_typescript_declarations_agree_on_public_shape() {
     let json = serde_json::to_value(&event).unwrap();
     assert_eq!(json["type"], "DocumentChanged");
     assert_eq!(json["data"]["revision"], 17);
+    assert_eq!(
+        json["data"]["view"]["graph"],
+        json!({
+            "points": [{"node_id": 0, "move_number": 0, "summary": null}],
+            "current_index": 0
+        })
+    );
     assert_eq!(serde_json::from_value::<AppEvent>(json).unwrap(), event);
     let declarations = [
         ColorView::decl(),
@@ -351,6 +377,9 @@ fn event_serialization_and_typescript_declarations_agree_on_public_shape() {
         MoveView::decl(),
         BoardView::decl(),
         TreeView::decl(),
+        crate::AnalysisSummary::decl(),
+        crate::GraphPointView::decl(),
+        GraphView::decl(),
         WarningKindView::decl(),
         DocumentWarningView::decl(),
         DocumentView::decl(),
@@ -366,8 +395,34 @@ fn event_serialization_and_typescript_declarations_agree_on_public_shape() {
     }
     assert!(AppEvent::decl().contains("revision: number"));
     assert!(AnalysisView::decl().contains("visits: number"));
+    assert!(AnalysisView::decl().contains("summary: AnalysisSummary"));
     assert!(CandidateView::decl().contains("point: PointView | null"));
     assert!(CandidateView::decl().contains("pv: Array<MoveView>"));
+}
+
+#[test]
+fn analysis_serialization_preserves_best_summary_separately_from_current_result() {
+    let mut view = AnalysisView::from_snapshot(
+        rectangular_snapshot(),
+        BoardSize::new(9, 13).unwrap(),
+        Color::White,
+    )
+    .unwrap();
+    view.summary = AnalysisSummary {
+        winrate: 0.9,
+        score_lead: 8.0,
+        visits: 100,
+    };
+    let event = AppEvent::AnalysisUpdated(view);
+    let json = serde_json::to_value(&event).unwrap();
+    assert_eq!(json["data"]["visits"], 50);
+    assert_eq!(json["data"]["winrate"], 0.7);
+    assert_eq!(json["data"]["score_lead"], 4.0);
+    assert_eq!(
+        json["data"]["summary"],
+        json!({"winrate": 0.9, "score_lead": 8.0, "visits": 100})
+    );
+    assert_eq!(serde_json::from_value::<AppEvent>(json).unwrap(), event);
 }
 
 #[test]
