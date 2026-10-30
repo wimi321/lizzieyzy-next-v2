@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "file": "xgboost20tun_booster.json",
+      "source_repository": "../lizzieyzy-next",
+      "source_path": "src/main/resources/models/strength/xgboost20tun_booster.json",
+      "sha256": "e2a3fbe0439a038dcf9148e25e6aefea01cbe40f517f50d38c4b78c07cee364d"
+    },
+    {
+      "file": "xgboost20tun_residual_calibrator.json",
+      "source_repository": "../lizzieyzy-next",
+      "source_path": "src/main/resources/models/strength/xgboost20tun_residual_calibrator.json",
+      "sha256": "102474b92cd097b7d37a0d68b54416c8d87be9a6e1f901d8b1a45bb06e792cd2"
+    }
+  ]
+}

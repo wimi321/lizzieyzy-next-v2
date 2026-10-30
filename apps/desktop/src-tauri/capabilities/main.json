@@ -24,6 +24,7 @@
     "allow-whole-game-result",
     "allow-problem-moves",
     "allow-set-move-rank-settings",
+    "allow-strength-estimate",
     "allow-configure-engine",
     "allow-detect-engines",
     "allow-try-configure-engine",

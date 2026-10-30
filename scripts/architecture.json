@@ -17,10 +17,11 @@
     "katago-protocol": [],
     "engine-session": ["katago-protocol"],
     "analysis": ["go-core", "document", "katago-protocol", "engine-session"],
-    "app-core": ["go-core", "sgf", "document", "katago-protocol", "engine-session", "analysis", "fox-kifu"],
+    "app-core": ["go-core", "sgf", "document", "katago-protocol", "engine-session", "analysis", "fox-kifu", "strength"],
     "lizzieyzy-desktop": ["app-core"],
     "fake-katago": ["katago-protocol"],
-    "fox-kifu": []
+    "fox-kifu": [],
+    "strength": []
   },
   "dev_allowed": {
     "engine-session": ["fake-katago"],
@@ -28,7 +29,7 @@
     "app-core": ["fake-katago"],
     "lizzieyzy-desktop": ["fake-katago"]
   },
-  "pure_crates": ["go-core", "sgf", "document", "katago-protocol"],
+  "pure_crates": ["go-core", "sgf", "document", "katago-protocol", "strength"],
   "pure_forbidden_deps": ["tokio", "tauri", "reqwest", "rusqlite", "hyper", "async-std", "smol"],
   "tauri_allowed_crates": ["lizzieyzy-desktop"],
   "forbidden_patterns": [

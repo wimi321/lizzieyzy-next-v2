@@ -20,6 +20,7 @@ crates/
   katago-protocol/         分析引擎 JSON 协议类型与解析（纯同步）
   engine-session/          每个引擎一个 actor：进程、请求表、重启（tokio）
   analysis/                分析协调：焦点变化、过期丢弃、缓存、节流（tokio）
+  strength/                棋力特征、XGBoost 推理、残差校准与统计（纯同步）
   fox-kifu/                野狐公开账号、分页棋谱及 SGF 的 HTTP 客户端（不依赖工作区 crate）
   app-core/                应用内核 actor：持有文档、协调器、设置；对外唯一入口（tokio，不依赖 tauri）
 apps/desktop/
@@ -42,6 +43,7 @@ go-core ← sgf ← document ←──────────── analysis �
 katago-protocol ← engine-session ←───┘
 fox-kifu ← app-core
 katago-protocol ← fake-katago（engine-session / analysis / app-core / desktop 仅在测试里依赖它）
+strength ← app-core（strength 无 workspace 内部依赖）
 ```
 
 准确的允许列表在 `scripts/architecture.json`，由 CI 检查。纯同步 crate 不依赖 tokio、tauri、网络、数据库，以后可以编译到 WASM。
@@ -203,7 +205,16 @@ pub enum EngineStatus {
 - 启动默认使用 Tauri 的应用配置目录，可用 `--config-dir <路径>` 或 `--config-dir=<路径>` 覆盖；棋谱路径可用一个位置参数或 `--open=<路径>` 指定，交给 `AppCore::open_path`。等号写法将选项和路径放在同一个原生参数中，兼容将每项参数都视为 Chromium 开关的 Windows WebDriver；桌面 E2E 在所有平台统一采用等号写法。参数顺序不受限，`--` 后的参数仅作棋谱路径，不再识别选项；未知选项、重复配置目录、多个棋谱和缺少或空路径均报错，混用两种写法仍按同一配置目录／棋谱参数检查重复。路径保持原生 OS 编码；启动打开失败时等待 AppCore 关闭后返回错误，不留下后台引擎。
 - 主窗口 capability 仅匹配本地 `main` 窗口，逐项允许应用命令和 `dialog:allow-open` / `dialog:allow-save`；不授权远程页面或宽泛 core / shell / fs 权限。`tauri-build::AppManifest::commands` 为应用命令生成 ACL 定义，确保命令同样受 capability 约束；生成的 permissions 与 schemas 不入库。Channel 内部的数据提取命令由 Tauri 自身处理，不需要额外的 core capability。
 
-### 4.8 野狐公开棋谱
+### 4.8 strength（棋力评估）
+
+- `strength::Estimator::bundled()` 从编译时嵌入的模型 JSON 构造纯同步估计器，无网络、文件 I/O 或异步运行时。`estimate(&[MoveInput])` 返回黑、白、整体 `StrengthReport`；每手输入包括手数、颜色、坐标、前后根评估的损失及落子前按 order 排序的候选点；app-core 先通过 P1-24 每手损失入口检查有效性。候选点的胜率由 app-core 从黑方概率转换为落子方百分点，目差同样转换到落子方；这只是计算差值的内部输入，对外局面分析仍为黑方视角。
+- `Sample::from_input` 复现 Java `PlayerStrengthEstimator`：命中候选时优先使用同一父局面首选与实际候选的差值；严格首选、前三、前五按候选列表位置计数，未命中为 999；复杂度按 prior 加权的候选损失计算（排除 order >= 999 的追加候选），无 prior 时回退次选差。损失取非负，复杂度限制到 0..1，难度权重为 `clamp(max(complexity, score_equivalent_loss/4), 0.05, 1)`；无目差时以胜率百分点损失除以 6 换算。未命中候选时按 Java 使用前后根评估差；P1-24 既有问题手采用首选候选到落子后根评估，两者口径分别保留，不修改问题手结果。前后分析缺失、key 不符、非法记录、摆子或轮走重置等均沿用 P1-24 的排除规则。
+- Java 的 29 项特征按固定 20 索引输入 XGBoost，各树从根沿 `<` 分支推理，缺失特征走 `default_left`，累加 base score 后限制到 [-1,12]，再应用配套残差校准。模型文件逐字节来自 Java `src/main/resources/models/strength/`；来源、SHA-256 存在 `crates/strength/models/provenance.json`，单元测试核对哈希。`format_rank` 提供 Java 对应的中英文级、段、职业、一线职业与 AI 格式；等级尺计算也位于 Rust。
+- `SideReport` 返回原始 29 项特征、校准段位、中英文段位文字 `rank_label_zh/en`、固定预测 sigma、样本、严格首选率、前三/前五率、Java 加权吻合度、平均胜率/目差损失、加权损失、失误率、阶段统计和可信度。阶段按整盘手数分为 1..60、61..160、161 以后；无该阶段样本时，特征用的阶段加权损失和好手率回退整体值，并同时返回零样本数。显示等级使用现有 `MoveRankSettings::classify_losses` 对棋力评估实际采用的损失重新分类；`tier_counts` 只把严格首选放入 Best，其余 Best 归 Good；显示评级好手率仅统计 Best/Good，与按目损失划分的 `good_move_rate` 分别保留。
+- 整体不足 6 个有效样本时 `has_enough_data=false`；有少量样本仍保留 Java 的低可信估计。单方样本少于 16 为 Low，至少 16 为 Medium，至少 40 且 70% 有目差为 High。完全没有样本的段位及 sigma 为 null，缺少目差的均值/中位数为 null，避免把缺失当作零损失。`total_moves` / `analyzed_moves` 单独公开覆盖率，不把局部分析声称为整盘完成。
+- `AppCore::strength_estimate()` / Tauri `strength_estimate()` / TS `strengthEstimate()` 返回 `StrengthEstimateView { revision, report, total_moves, analyzed_moves }`。读取与图和问题手相同的当前显示线，复用 P1-23 保留结果和 P1-24 有效性检查；不导航、不编辑、不启动分析。app actor 仅缓存不可变模型，每次查询从当前保留结果重算报告，因此整盘/实时结果、分支切换、换谱、换引擎后立即反映变化，不维护另一份过期报告缓存。调用方先订阅 `DocumentChanged`、`AnalysisUpdated`、`WholeGameProgress` 再读取，按最新请求序号及 revision 丢弃旧回复（分析更新不增加 revision）。命令仅授权本地 main 窗口；全部 DTO 经 ts-rs 生成，mock 只返回脚本数据；界面和 HumanSL 不属于此接口实现范围。
+
+### 4.9 野狐公开棋谱
 
 - `fox-kifu` 不依赖其他工作区 crate，使用 reqwest 的 rustls 后端访问公开 HTTP 接口，不需要账号登录、Cookie 或外部 JAR。`FoxClient::search(&FoxQuery)` 返回 `FoxSearchResult { account, page }`；`FoxQuery::{Nickname(String), Uid(String)}` 在 IPC 中使用 `type/value` 判别，数字昵称不会被自动解释为 UID。UID 只接受 ASCII 数字。
 - `FoxAccount { uid, nickname }` 保留账号身份；`FoxPage { games, next_cursor }` 的每项 `FoxGame` 包含对局 id、开始时间、黑白 `FoxPlayer { uid, nickname, rank }`、结果和手数。结果由胜方、胜负方式、可选分值及子/目单位组成，区分中盘、超时、点数和其他胜负；显示文案留给界面本地化。段位沿用 Java 的数值偏移及职业 `P` 规则。
@@ -279,4 +290,4 @@ UI  ◀──Channel──    重绘候选点
 
 ## 9. 暂不做
 
-GTP 后端、人机对局、陪练、readboard、远程算力、弈客、棋力评估、AI 解说、死活题、网页棋盘，见 ROADMAP 的 P3。
+GTP 后端、人机对局、陪练、readboard、远程算力、弈客、HumanSL 棋力评估、AI 解说、死活题、网页棋盘，见 ROADMAP 的 P3。

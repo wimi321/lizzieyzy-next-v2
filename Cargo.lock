@@ -77,6 +77,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sgf",
+ "strength",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -3314,6 +3315,17 @@ name = "static_vcruntime"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff7589a1859b09232522bb9edf076ca7fcf14ded96685d3fa629db73023ffbb7"
+
+[[package]]
+name = "strength"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+ "ts-rs",
+]
 
 [[package]]
 name = "string_cache"

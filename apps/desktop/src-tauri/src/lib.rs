@@ -50,6 +50,7 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::review::whole_game_result,
             commands::problem_moves::problem_moves,
             commands::problem_moves::set_move_rank_settings,
+            commands::strength::strength_estimate,
             commands::engine::configure_engine,
             commands::engine::detect_engines,
             commands::engine::try_configure_engine,
