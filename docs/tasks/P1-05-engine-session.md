@@ -42,4 +42,4 @@ paths:
 8. `--threads 1` 下，高 priority 的请求先完成。
 9. shutdown 之后进程已经退出（等到退出码），状态为 Stopped。
 10. 测试里不用 sleep 做同步；预算检查通过（没有 Mutex、RwLock、atomic、线程）。
-11. `cargo test -p engine-session` 连续跑 10 遍全部通过。
+11. `cargo test -p engine-session` 连续跑 10 遍，再在 CPU 满载下（按核数启动 `yes > /dev/null`）连跑 10 遍，全部通过。
