@@ -2,8 +2,9 @@ import type { Backend, AppEvent, EventListener } from "../src/api/backend";
 
 export type {
   Backend, AppEvent, EngineProfile, MoveView, Revision, Settings, EventListener,
-  AnalysisSource, AnalysisView, BoardView, CandidateView, ColorView, DocumentView,
+  AnalysisSource, AnalysisSummary, AnalysisView, BoardView, CandidateView, ColorView, DocumentView,
   DocumentWarningView, EngineStatus, PointView, TreeView, WarningKindView, SubscriptionId,
+  GraphPointView, GraphView,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "unsubscribe">;

@@ -1,11 +1,11 @@
 use crate::{
-    AnalysisView, AppConfig, AppError, AppEvent, DocumentView, EngineProfile, EngineStatus,
-    Settings, delivery::Delivery, storage,
+    AnalysisSummary, AnalysisView, AppConfig, AppError, AppEvent, DocumentView, EngineProfile,
+    EngineStatus, Settings, delivery::Delivery, storage,
 };
 use analysis::{AnalysisHandle, AnalysisSnapshot, AnalysisStatus, AnalysisSubscription, Focus};
-use document::{AnalysisKey, GameDocument};
+use document::{AnalysisKey, GameDocument, NodeId};
 use engine_session::EngineHandle;
-use std::{future::pending, path::PathBuf};
+use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
 pub(crate) enum Input {
@@ -52,6 +52,8 @@ struct ViewFocus {
 
 struct Actor {
     document: GameDocument,
+    summaries: HashMap<NodeId, AnalysisSummary>,
+    summary_fingerprint: Option<String>,
     revision: u64,
     directory: PathBuf,
     settings: Settings,
@@ -70,6 +72,8 @@ pub(crate) async fn run(
 ) {
     let mut actor = Actor {
         document: GameDocument::new(),
+        summaries: HashMap::new(),
+        summary_fingerprint: None,
         revision: 0,
         directory,
         settings,
@@ -151,7 +155,22 @@ impl Actor {
                         == (snapshot.revision, snapshot.node_id.0, snapshot.key)
                 {
                     match AnalysisView::from_snapshot(*snapshot, focus.size, focus.to_play) {
-                        Ok(view) => self.output.send(AppEvent::AnalysisUpdated(view)),
+                        Ok(mut view) => {
+                            // Graph history must not gate current candidates:
+                            // a coordinator cache miss can publish a shallower
+                            // search while the graph retains its best result.
+                            let latest = view.summary;
+                            view.summary = *self
+                                .summaries
+                                .entry(NodeId(view.node_id))
+                                .and_modify(|best| {
+                                    if latest.visits >= best.visits {
+                                        *best = latest;
+                                    }
+                                })
+                                .or_insert(latest);
+                            self.output.send(AppEvent::AnalysisUpdated(view));
+                        }
                         Err(error) => {
                             self.output.clear_analysis();
                             self.analysis_failed(format!("invalid analysis coordinate: {error}"));
@@ -181,9 +200,13 @@ impl Actor {
     }
 
     fn publish_document(&self) -> Result<(), AppError> {
+        let mut view = DocumentView::from_document(&self.document)?;
+        for point in &mut view.graph.points {
+            point.summary = self.summaries.get(&NodeId(point.node_id)).copied();
+        }
         self.output.send(AppEvent::DocumentChanged {
             revision: self.revision,
-            view: DocumentView::from_document(&self.document)?,
+            view,
         });
         Ok(())
     }
@@ -281,6 +304,7 @@ impl Actor {
         let document = GameDocument::from_sgf(tree)?;
         self.next_revision()?;
         self.document = document;
+        self.summaries.clear();
         self.focus = None;
         self.output.clear_analysis();
         // Node IDs are only stable within one document. A fresh coordinator
@@ -369,6 +393,7 @@ impl Actor {
 
     async fn start_engine(&mut self) {
         let Some(profile) = &self.settings.engine else {
+            self.set_summary_fingerprint(None);
             self.output
                 .send(AppEvent::EngineStatusChanged(EngineStatus::Stopped));
             return;
@@ -378,10 +403,12 @@ impl Actor {
         let (transport, fingerprint) = match prepared {
             Ok(prepared) => prepared,
             Err(error) => {
+                self.set_summary_fingerprint(None);
                 self.failed(error.to_string());
                 return;
             }
         };
+        self.set_summary_fingerprint(Some(fingerprint.clone()));
         let engine = engine_session::spawn(transport, self.config.session.clone());
         match self.coordinator(&engine, &fingerprint) {
             Ok((coordinator, snapshots)) => {
@@ -406,6 +433,20 @@ impl Actor {
         }
     }
 
+    fn set_summary_fingerprint(&mut self, fingerprint: Option<String>) {
+        if self.summary_fingerprint != fingerprint {
+            self.summary_fingerprint = fingerprint;
+            if !self.summaries.is_empty() {
+                self.summaries.clear();
+                // Settings changes do not change the document revision, but
+                // clients need a fresh graph before new-engine analysis.
+                if let Err(error) = self.publish_document() {
+                    self.failed(error.to_string());
+                }
+            }
+        }
+    }
+
     async fn stop_engine(&mut self) -> Result<(), AppError> {
         self.focus = None;
         self.output.clear_analysis();
@@ -421,3 +462,6 @@ impl Actor {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

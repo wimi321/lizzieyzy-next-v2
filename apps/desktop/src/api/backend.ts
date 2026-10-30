@@ -8,6 +8,7 @@ import type { SubscriptionId } from "./generated/SubscriptionId";
 
 export type { AppEvent, EngineProfile, MoveView, Revision, Settings };
 export type { AnalysisSource } from "./generated/AnalysisSource";
+export type { AnalysisSummary } from "./generated/AnalysisSummary";
 export type { AnalysisView } from "./generated/AnalysisView";
 export type { BoardView } from "./generated/BoardView";
 export type { CandidateView } from "./generated/CandidateView";
@@ -15,6 +16,8 @@ export type { ColorView } from "./generated/ColorView";
 export type { DocumentView } from "./generated/DocumentView";
 export type { DocumentWarningView } from "./generated/DocumentWarningView";
 export type { EngineStatus } from "./generated/EngineStatus";
+export type { GraphPointView } from "./generated/GraphPointView";
+export type { GraphView } from "./generated/GraphView";
 export type { PointView } from "./generated/PointView";
 export type { TreeView } from "./generated/TreeView";
 export type { WarningKindView } from "./generated/WarningKindView";
