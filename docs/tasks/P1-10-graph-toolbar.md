@@ -6,6 +6,7 @@ paths:
   - apps/desktop/src/graph/**
   - apps/desktop/src/toolbar/**
   - apps/desktop/src/state/**
+  - apps/desktop/src/styles/**
   - apps/desktop/src/locales/*.json
   - apps/desktop/src/App.tsx
   - apps/desktop/src/App.test.tsx

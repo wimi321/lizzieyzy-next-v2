@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import * as backend from "@/api/backend";
-import type { EngineStatus, PointView } from "@/api/backend";
+import type { PointView } from "@/api/backend";
 import { Board } from "./board/Board";
 import { formatVisits } from "./board/format";
+import { WinrateGraph } from "./graph/WinrateGraph";
 import { getMessages } from "./locales";
 import { connect, createStore, type Store, useAppState } from "./state/store";
+import { EngineLight, JUMP, Toolbar } from "./toolbar/Toolbar";
 
-/** Step size for Home / End: the backend stops at the first or last move. */
-export const JUMP = 1_000_000;
+export { JUMP };
+
 const CANDIDATE_LIMITS = [5, 10, 20, 361] as const;
 
 const KEY_STEPS: Record<string, number> = {
@@ -32,6 +34,24 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [coordinates, setCoordinates] = useState(true);
   const [ownership, setOwnership] = useState(false);
   const [maxCandidates, setMaxCandidates] = useState<number>(10);
+  const [pondering, setPondering] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    backend
+      .settings()
+      .then((settings) => {
+        if (active) setPondering(settings.pondering);
+      })
+      .catch(report);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const step = (steps: number) => {
+    backend.step(steps).catch(report);
+  };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -53,26 +73,43 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     if (!board) return;
     backend.play({ type: "Play", data: { color: board.to_play, point } }).catch(report);
   };
+  const openFile = async () => {
+    const path = await backend.pickOpenPath();
+    if (path) await backend.openPath(path);
+  };
+  const saveFile = async () => {
+    const path = await backend.pickSavePath();
+    if (path) await backend.save(path);
+  };
+  const togglePondering = () => {
+    const next = !pondering;
+    backend
+      .setPondering(next)
+      .then(() => setPondering(next))
+      .catch(report);
+  };
 
   return (
     <main className="app">
       <header className="app-header">
         <h1 className="app-title">{messages.app.title}</h1>
-        <span className="status">
-          {messages.board.move}
-          <strong data-testid="move-number">{board ? board.move_number : "—"}</strong>
-        </span>
+        <Toolbar
+          labels={messages.toolbar}
+          moveNumber={board ? board.move_number : null}
+          pondering={pondering}
+          canSave={document !== null}
+          onOpen={() => void openFile().catch(report)}
+          onSave={() => void saveFile().catch(report)}
+          onStep={step}
+          onTogglePondering={togglePondering}
+        />
         <span className="status" title={analysis ? messages.board.visits.replace("{visits}", String(analysis.visits)) : undefined}>
           {messages.board.analysis}
-          <strong
-            data-testid="analysis-move"
-            data-node-id={analysis?.node_id}
-            data-revision={analysis?.revision}
-          >
+          <strong data-testid="analysis-move" data-node-id={analysis?.node_id} data-revision={analysis?.revision}>
             {analysis && board ? `${board.move_number} · ${formatVisits(analysis.visits)}` : messages.board.noAnalysis}
           </strong>
         </span>
-        <EngineIndicator status={engine} labels={messages.engine} />
+        <EngineLight status={engine} labels={messages.engine} />
         <span className="controls">
           <button
             type="button"
@@ -94,11 +131,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           </button>
           <label className="status">
             {messages.board.candidates}
-            <select
-              data-testid="max-candidates"
-              value={maxCandidates}
-              onChange={(event) => setMaxCandidates(Number(event.target.value))}
-            >
+            <select data-testid="max-candidates" value={maxCandidates} onChange={(event) => setMaxCandidates(Number(event.target.value))}>
               {CANDIDATE_LIMITS.map((limit) => (
                 <option key={limit} value={limit}>
                   {limit === 361 ? messages.board.candidatesAll : limit}
@@ -127,21 +160,16 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           </p>
         )}
       </section>
+      <section className="graph-area">
+        {document ? (
+          <WinrateGraph
+            graph={document.graph}
+            analysis={analysis}
+            labels={messages.graph}
+            onJump={(nodeId) => backend.goTo(nodeId).catch(report)}
+          />
+        ) : null}
+      </section>
     </main>
-  );
-}
-
-function EngineIndicator({ status, labels }: { status: EngineStatus; labels: Record<EngineStatus["type"], string> }) {
-  const detail =
-    status.type === "Failed" || status.type === "Restarting"
-      ? status.data.reason
-      : status.type === "Ready"
-        ? status.data.version
-        : undefined;
-  return (
-    <span className="status" data-testid="engine-status" data-state={status.type} title={detail}>
-      <span className="engine-dot" data-state={status.type} aria-hidden="true" />
-      {labels[status.type]}
-    </span>
   );
 }
