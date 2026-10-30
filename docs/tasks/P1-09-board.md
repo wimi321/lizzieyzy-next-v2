@@ -8,6 +8,8 @@ paths:
   - apps/desktop/src/styles/**
   - apps/desktop/src/locales/*.json
   - apps/desktop/src/App.tsx
+  - apps/desktop/src/App.test.tsx
+  - apps/desktop/vitest.config.ts
   - apps/desktop/e2e/**
 ---
 
