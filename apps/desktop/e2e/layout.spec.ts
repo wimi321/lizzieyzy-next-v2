@@ -26,31 +26,29 @@ test("the window follows LizzieYzy Next: info and graph left, board centre, move
   await expect(left.getByTestId("info-panel")).toBeVisible();
   await expect(left.getByTestId("winrate-graph")).toBeVisible();
   await expect(page.getByTestId("board")).toBeVisible();
-  await expect(right.getByTestId("move-list")).toBeVisible();
+  await expect(right.getByTestId("move-tree")).toBeVisible();
   await expect(right.getByTestId("candidate-row")).toHaveCount(analysis.candidates.length);
 
   const [leftBox, boardBox, rightBox] = await Promise.all([left.boundingBox(), page.getByTestId("board").boundingBox(), right.boundingBox()]);
   expect(leftBox && boardBox && leftBox.x + leftBox.width <= boardBox.x).toBe(true);
   expect(boardBox && rightBox && boardBox.x + boardBox.width <= rightBox.x).toBe(true);
-  await expect(page.locator(".move-list [aria-current='step']")).toHaveText(/20/);
+  // The mock tree is the main line; the current node is ringed.
+  await expect(page.locator("[data-testid='tree-node'][data-current='true']")).toHaveAttribute("data-id", "20");
 });
 
-test("menus run the same commands as the tool row", async ({ page }) => {
+test("a narrow window keeps every top-bar control clickable", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 760 });
   await start(page, [documentChanged(analysedGame(), 7)], [
-    { command: "pickOpenPath", result: null },
     { command: "step", result: 8 },
+    { command: "setPondering", result: undefined },
   ]);
-  await page.getByTestId("menu-file").click();
-  await page.getByTestId("menu-open").click();
-  await expect(page.getByRole("menu")).toHaveCount(0);
-  await page.getByTestId("menu-game").click();
-  await page.getByTestId("menu-next").click();
-  await expect.poll(() => calls(page)).toEqual([
-    { command: "pickOpenPath", args: [] },
+  await page.getByTestId("nav-next").click();
+  await page.getByTestId("toggle-pondering").click();
+  await page.getByTestId("toggle-ownership").click();
+  await page.getByTestId("open-setup").click();
+  await expect(page.getByTestId("engine-setup")).toBeVisible();
+  await expect.poll(() => calls(page)).toEqual(expect.arrayContaining([
     { command: "step", args: [1] },
-  ]);
-
-  await page.getByTestId("menu-view").click();
-  await page.getByTestId("menu-coordinates").click();
-  await expect(page.getByTestId("toggle-coordinates")).toHaveAttribute("aria-pressed", "false");
+    { command: "setPondering", args: [false] },
+  ]));
 });

@@ -93,6 +93,12 @@ impl<W: Write> Engine<W> {
     }
 
     fn receive(&mut self, line: &str) -> Result<(), RunError> {
+        // Test-only wire evidence: record what the process actually received,
+        // including cancellation actions and restart replays.
+        if let Some(path) = &self.options.request_log {
+            let mut log = OpenOptions::new().create(true).append(true).open(path)?;
+            writeln!(log, "{line}")?;
+        }
         if self.hung {
             return Ok(());
         }

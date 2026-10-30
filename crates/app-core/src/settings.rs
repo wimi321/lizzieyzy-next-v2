@@ -144,8 +144,11 @@ impl EngineProfile {
                 age.subsec_nanos(),
             ));
         }
-        let encoded =
-            serde_json::to_vec(&("lizzieyzy-next2:engine-profile:v1", files, &self.extra_args))?;
+        let encoded = serde_json::to_vec(&(
+            "lizzieyzy-next2:engine-profile:v2-two-search-slots",
+            files,
+            &self.extra_args,
+        ))?;
         Ok(blake3::hash(&encoded).to_hex().to_string())
     }
 
@@ -207,7 +210,7 @@ impl EngineProfile {
                                 "reportAnalysisWinratesAs must remain BLACK".into(),
                             ));
                         }
-                    } else {
+                    } else if !key.trim().eq_ignore_ascii_case("numAnalysisThreads") {
                         overrides.push(setting);
                     }
                 }
@@ -215,6 +218,9 @@ impl EngineProfile {
                 extra_args.push(OsString::from(arg));
             }
         }
+        // One unbounded live search and one background position can progress
+        // together even when a supplied config originally used a single slot.
+        overrides.push("numAnalysisThreads=2");
         overrides.push("reportAnalysisWinratesAs=BLACK");
         Ok((overrides.join(","), extra_args))
     }

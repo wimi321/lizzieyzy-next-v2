@@ -4,6 +4,8 @@ import { candidateTier, formatScore, formatVisits, formatWinrate, forMover, winr
 
 export interface TableLabels {
   label: string;
+  limit: string;
+  limitAll: string;
   order: string;
   move: string;
   winrate: string;
@@ -17,7 +19,9 @@ export interface CandidateTableProps {
   analysis: AnalysisView | null;
   toPlay: ColorView | null;
   maxCandidates: number;
+  candidateLimits: readonly number[];
   labels: TableLabels;
+  onMaxCandidates(limit: number): void;
   /** Hovering a row previews that candidate's variation on the board. */
   onPreview(point: PointView | null): void;
   onPlay(point: PointView): void;
@@ -27,7 +31,8 @@ export interface CandidateTableProps {
  * The candidate list, in the board's colours: a rank badge per row and a faint
  * bar behind it for the candidate's share of the search.
  */
-export function CandidateTable({ analysis, toPlay, maxCandidates, labels, onPreview, onPlay }: CandidateTableProps) {
+export function CandidateTable(props: CandidateTableProps) {
+  const { analysis, toPlay, maxCandidates, labels, onPreview, onPlay } = props;
   const rows = analysis && toPlay ? visibleCandidates(analysis, maxCandidates) : [];
   const total = analysis ? analysis.candidates.reduce((sum, candidate) => sum + candidate.visits, 0) : 0;
   const best = rows[0];
@@ -35,7 +40,24 @@ export function CandidateTable({ analysis, toPlay, maxCandidates, labels, onPrev
     <section className="section candidates" aria-label={labels.label} data-testid="candidate-table">
       <div className="section-header">
         <h2 className="section-title">{labels.label}</h2>
-        {analysis ? <span className="section-meta">{formatVisits(analysis.visits)}</span> : null}
+        <span className="section-tools">
+          {analysis ? <span className="section-meta">{formatVisits(analysis.visits)}</span> : null}
+          <label title={labels.limit}>
+            <span className="visually-hidden">{labels.limit}</span>
+            <select
+              className="select compact"
+              data-testid="max-candidates"
+              value={maxCandidates}
+              onChange={(event) => props.onMaxCandidates(Number(event.target.value))}
+            >
+              {props.candidateLimits.map((limit) => (
+                <option key={limit} value={limit}>
+                  {limit === 361 ? labels.limitAll : limit}
+                </option>
+              ))}
+            </select>
+          </label>
+        </span>
       </div>
       <div className="candidate-head" aria-hidden="true">
         <span>{labels.order}</span>

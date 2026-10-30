@@ -5,6 +5,7 @@ mod actor;
 mod cache;
 mod delivery;
 mod request;
+pub mod review;
 mod throttle;
 
 pub use delivery::AnalysisSubscription;
@@ -110,6 +111,8 @@ pub enum AnalysisError {
     Session(#[from] SessionError),
     #[error(transparent)]
     Query(#[from] QueryError),
+    #[error("whole-game analysis failed: {0}")]
+    Review(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -160,10 +163,24 @@ impl AnalysisHandle {
     /// A revision-only change retains the query and immediately republishes
     /// its latest snapshot with the new revision, preserving display depth.
     pub async fn focus(&self, focus: Focus) -> Result<(), AnalysisError> {
+        self.focus_with_cached(focus, None).await
+    }
+
+    /// Atomically seed a document-retained response before focusing. The caller
+    /// supplies a response for this exact position and engine fingerprint.
+    /// Seeding never replaces a deeper LRU entry or a published same-focus
+    /// snapshot; returning after eviction still displays the retained result
+    /// before live analysis, with the usual no-regression display floor.
+    pub async fn focus_with_cached(
+        &self,
+        focus: Focus,
+        cached: Option<AnalysisResponse>,
+    ) -> Result<(), AnalysisError> {
         if focus.key != focus.position.analysis_key() {
             return Err(AnalysisError::KeyMismatch);
         }
-        self.send(actor::Input::Focus(Box::new(focus))).await
+        self.send(actor::Input::Focus(Box::new(focus), cached.map(Box::new)))
+            .await
     }
 
     pub async fn set_pondering(&self, enabled: bool) -> Result<(), AnalysisError> {

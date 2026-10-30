@@ -37,13 +37,27 @@ function analysis(candidates: CandidateView[]): AnalysisView {
 }
 
 const rows = () => screen.getAllByTestId("candidate-row");
+const LIMITS = [5, 10, 20, 361] as const;
+const labels = { ...zh.table, limit: zh.board.candidates, limitAll: zh.board.candidatesAll };
 
 test("the candidate table lists engine order, mover values and visit shares", () => {
   const onPreview = vi.fn();
   const onPlay = vi.fn();
   // Out of order on purpose; 600 + 300 + 100 visits in total.
   const view = analysis([candidate(1, 2, 0.4, 300, -1), candidate(0, 1, 0.3, 600, -2.5), candidate(2, 5, 0.45, 100, 0.5)]);
-  render(<CandidateTable analysis={view} toPlay="White" maxCandidates={2} labels={zh.table} onPreview={onPreview} onPlay={onPlay} />);
+  const onMaxCandidates = vi.fn();
+  render(
+    <CandidateTable
+      analysis={view}
+      toPlay="White"
+      maxCandidates={2}
+      candidateLimits={LIMITS}
+      labels={labels}
+      onMaxCandidates={onMaxCandidates}
+      onPreview={onPreview}
+      onPlay={onPlay}
+    />,
+  );
 
   expect(rows()).toHaveLength(2);
   // White to play: Black's 30% and −2.5 read as White's 70.0 and +2.5.
@@ -60,10 +74,26 @@ test("the candidate table lists engine order, mover values and visit shares", ()
   expect(onPlay).toHaveBeenCalledWith({ x: 2, y: 3 });
   fireEvent.mouseLeave(within(screen.getByTestId("candidate-table")).getByRole("list"));
   expect(onPreview).toHaveBeenLastCalledWith(null);
+
+  // The candidate count sits in the list's header.
+  fireEvent.change(screen.getByTestId("max-candidates"), { target: { value: "361" } });
+  expect(onMaxCandidates).toHaveBeenCalledWith(361);
+  expect(within(screen.getByTestId("max-candidates")).getByText(zh.board.candidatesAll)).toBeTruthy();
 });
 
 test("the candidate table explains that it waits for analysis", () => {
-  render(<CandidateTable analysis={null} toPlay={null} maxCandidates={10} labels={zh.table} onPreview={vi.fn()} onPlay={vi.fn()} />);
+  render(
+    <CandidateTable
+      analysis={null}
+      toPlay={null}
+      maxCandidates={10}
+      candidateLimits={LIMITS}
+      labels={labels}
+      onMaxCandidates={vi.fn()}
+      onPreview={vi.fn()}
+      onPlay={vi.fn()}
+    />,
+  );
   expect(screen.queryAllByTestId("candidate-row")).toHaveLength(0);
   expect(screen.getByText(zh.table.empty)).toBeTruthy();
 });

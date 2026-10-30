@@ -137,8 +137,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           ...messages.toolbar,
           coordinates: messages.board.coordinates,
           ownership: messages.board.ownership,
-          candidates: messages.board.candidates,
-          candidatesAll: messages.board.candidatesAll,
           settings: messages.setup.titleCurrent,
         }}
         engineLabels={messages.engine}
@@ -159,8 +157,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         canSave={document !== null}
         coordinates={coordinates}
         ownership={ownership}
-        maxCandidates={maxCandidates}
-        candidateLimits={CANDIDATE_LIMITS}
         engine={engine}
         onOpen={() => void openFile().catch(report)}
         onSave={() => void saveFile().catch(report)}
@@ -168,7 +164,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         onTogglePondering={togglePondering}
         onToggleCoordinates={() => setCoordinates((value) => !value)}
         onToggleOwnership={() => setOwnership((value) => !value)}
-        onMaxCandidates={setMaxCandidates}
         onOpenSettings={() => setSetupOpen(true)}
       />
       <div className="workspace">
@@ -224,7 +219,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             analysis={analysis}
             toPlay={board?.to_play ?? null}
             maxCandidates={maxCandidates}
-            labels={messages.table}
+            candidateLimits={CANDIDATE_LIMITS}
+            labels={{ ...messages.table, limit: messages.board.candidates, limitAll: messages.board.candidatesAll }}
+            onMaxCandidates={setMaxCandidates}
             onPreview={(point) => setPreview(point && document ? { node: document.tree.current, point } : null)}
             onPlay={play}
           />

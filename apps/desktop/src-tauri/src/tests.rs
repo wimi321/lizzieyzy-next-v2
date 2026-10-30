@@ -13,6 +13,7 @@ use tauri::{
 use tempfile::TempDir;
 use tokio::sync::{mpsc, oneshot};
 
+mod review;
 mod variation;
 
 const SAFETY: Duration = Duration::from_secs(5);
@@ -131,7 +132,7 @@ impl Harness {
                     AppEvent::AnalysisUpdated(view) => {
                         assert!(view.revision < revision, "analysis overtook its document");
                     }
-                    AppEvent::EngineStatusChanged(_) => {}
+                    AppEvent::EngineStatusChanged(_) | AppEvent::WholeGameProgress(_) => {}
                 }
             }
         })

@@ -18,8 +18,6 @@ export interface TopBarLabels {
   paused: string;
   coordinates: string;
   ownership: string;
-  candidates: string;
-  candidatesAll: string;
   settings: string;
 }
 
@@ -43,8 +41,6 @@ export interface TopBarProps {
   canSave: boolean;
   coordinates: boolean;
   ownership: boolean;
-  maxCandidates: number;
-  candidateLimits: readonly number[];
   engine: EngineStatus;
   onOpen(): void;
   onSave(): void;
@@ -52,7 +48,6 @@ export interface TopBarProps {
   onTogglePondering(): void;
   onToggleCoordinates(): void;
   onToggleOwnership(): void;
-  onMaxCandidates(limit: number): void;
   onOpenSettings(): void;
 }
 
@@ -86,7 +81,7 @@ export function TopBar(props: TopBarProps) {
           onClick={props.onTogglePondering}
         >
           <span className="live-dot" aria-hidden="true" />
-          {props.pondering ? labels.analysing : labels.paused}
+          <span className="chip-label">{props.pondering ? labels.analysing : labels.paused}</span>
           <strong
             data-testid="analysis-move"
             data-node-id={props.analysis?.nodeId}
@@ -99,21 +94,6 @@ export function TopBar(props: TopBarProps) {
         <span className="topbar-divider" aria-hidden="true" />
         <IconButton icon="coordinates" label={labels.coordinates} testId="toggle-coordinates" pressed={props.coordinates} onClick={props.onToggleCoordinates} />
         <IconButton icon="territory" label={labels.ownership} testId="toggle-ownership" pressed={props.ownership} onClick={props.onToggleOwnership} />
-        <label className="select-label" title={labels.candidates}>
-          <span className="visually-hidden">{labels.candidates}</span>
-          <select
-            className="select"
-            data-testid="max-candidates"
-            value={props.maxCandidates}
-            onChange={(event) => props.onMaxCandidates(Number(event.target.value))}
-          >
-            {props.candidateLimits.map((limit) => (
-              <option key={limit} value={limit}>
-                {limit === 361 ? labels.candidatesAll : `${labels.candidates} ${limit}`}
-              </option>
-            ))}
-          </select>
-        </label>
         <span className="topbar-divider" aria-hidden="true" />
         <EngineLight status={props.engine} labels={props.engineLabels} />
         <IconButton icon="settings" label={labels.settings} testId="open-setup" onClick={props.onOpenSettings} />
@@ -156,9 +136,9 @@ export function EngineLight({ status, labels }: { status: EngineStatus; labels: 
         ? status.data.version
         : undefined;
   return (
-    <span className="engine" data-testid="engine-status" data-state={status.type} title={detail}>
+    <span className="engine" data-testid="engine-status" data-state={status.type} title={detail ?? labels[status.type]}>
       <span className="engine-dot" data-state={status.type} aria-hidden="true" />
-      {labels[status.type]}
+      <span className="engine-label">{labels[status.type]}</span>
     </span>
   );
 }

@@ -134,6 +134,8 @@ select {
   align-items: center;
   gap: 4px;
   min-width: 0;
+  /* Clip rather than overlap the navigation when a window is very narrow. */
+  overflow: hidden;
 }
 
 .topbar-group.end {
@@ -308,12 +310,34 @@ button.chip:hover {
   cursor: pointer;
 }
 
-.select-label {
+.select.compact {
+  height: 24px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+.section-tools {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: var(--text-3);
-  font-size: 12px;
+  gap: 8px;
+}
+
+/* Narrow windows keep every control reachable: labels go, tooltips stay. */
+@media (max-width: 1240px) {
+  .topbar .engine-label {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .topbar .chip-label,
+  .topbar .icon-button > span {
+    display: none;
+  }
+
+  .topbar .icon-button {
+    padding: 0;
+  }
 }
 
 .engine {
@@ -372,7 +396,7 @@ button.chip:hover {
 
 .section-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 10px;
