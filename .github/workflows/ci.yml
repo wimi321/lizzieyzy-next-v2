@@ -131,7 +131,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Windows is tracked in docs/tasks/P1-15-windows-webdriver.md: msedgedriver launches the
+        # app but never finds DevToolsActivePort, so the session cannot attach. Its build and
+        # diagnostics steps stay in place for that card.
+        os: [ubuntu-latest]
     defaults:
       run:
         shell: bash
