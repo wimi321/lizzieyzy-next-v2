@@ -52,6 +52,7 @@ struct Actor {
     cache: Cache,
     throttle: Throttle,
     last_published: Option<AnalysisSnapshot>,
+    display_floor: Option<u64>,
     status: watch::Sender<AnalysisStatus>,
     output: Delivery,
 }
@@ -72,6 +73,7 @@ pub(crate) async fn run(
         cache: Cache::new(capacity),
         throttle: Throttle::new(),
         last_published: None,
+        display_floor: None,
         status,
         output,
     };
@@ -139,6 +141,7 @@ impl Actor {
                 self.output.clear();
                 self.throttle.reset();
                 self.last_published = None;
+                self.display_floor = None;
                 self.focus = Some(*focus);
                 // Cancel by stable subscription id, including across restarts.
                 self.cancel().await?;
@@ -174,6 +177,7 @@ impl Actor {
                 self.config.live = settings;
                 self.output.clear();
                 self.last_published = None;
+                self.display_floor = None;
                 self.cancel().await?;
                 self.start().await
             }
@@ -204,7 +208,10 @@ impl Actor {
         if let Some(snapshot) = latest {
             // An identity refresh is immediate, even inside the old revision's
             // throttle interval. The next live update still waits a full 50ms.
-            self.publish(snapshot);
+            // Preserve the floor: recovery may still be displaying an old
+            // process's snapshot while waiting for its first new result.
+            self.last_published = Some(snapshot.clone());
+            self.output.send(snapshot);
         }
     }
 
@@ -264,6 +271,8 @@ impl Actor {
             }
             Some(QueryEvent::Restarted) => {
                 self.throttle.clear_pending();
+                // Keep the old display until the new process reports progress.
+                self.display_floor = None;
                 // engine-session replays this very subscription; never submit twice.
                 self.status.send_replace(AnalysisStatus::Restarting);
             }
@@ -291,9 +300,8 @@ impl Actor {
     }
 
     fn is_shallower(&self, snapshot: &AnalysisSnapshot) -> bool {
-        self.last_published.as_ref().is_some_and(|previous| {
-            snapshot.response.root_info.visits < previous.response.root_info.visits
-        })
+        self.display_floor
+            .is_some_and(|floor| snapshot.response.root_info.visits < floor)
     }
 
     fn publish(&mut self, snapshot: AnalysisSnapshot) {
@@ -303,6 +311,7 @@ impl Actor {
                 && focus.key == snapshot.key
         }) && !self.is_shallower(&snapshot)
         {
+            self.display_floor = Some(snapshot.response.root_info.visits);
             self.last_published = Some(snapshot.clone());
             self.output.send(snapshot);
         }

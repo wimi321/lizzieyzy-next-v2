@@ -150,10 +150,10 @@ pub enum EngineStatus {
 - node_id 或 key 变化：清除未读的旧焦点输出、待节流结果和已发布快照记录 → 用订阅的稳定 id terminate 旧实时请求 → 先推缓存里该 key 的最好结果 → 发新实时请求（`reportDuringSearchEvery` 和 `firstReportDuringSearchAfter` 均使用 report_interval）。关闭或丢弃最后一个 handle 也取消其当前请求，但不关闭共享的 engine-session。
 - 仅 revision 变化、node_id/key 不变：不 terminate、不 submit，保留原订阅并更新查询身份；清掉未读的旧 revision 输出，立即用新 revision 重发最近一次已发布快照（如果有，response 和 source 不变）。待节流结果也更新 revision，包括查询已经完成但尚未发布的 Final；此后所有输出均使用新 revision。已发布快照的 visits 下限不变，查询已完成时也不因 revision 变化重新搜索。
 - `AnalysisSubscription::recv(&mut self) -> Option<AnalysisSnapshot>` 是取消安全的输出入口。`AnalysisSnapshot { revision, node_id, key, response: AnalysisResponse, source: SnapshotSource }` 的 source 区分 Cache / Live；仅发布 revision/node/key 都匹配当前焦点的数据。输出使用有界 watch 邮箱，保留一个未读缓存结果及一个最新实时结果；慢消费者仍先收到缓存，实时中间结果合并，最终结果保留到新命令使其失效。焦点命令成功返回后，旧焦点尚未消费的数据也不可再读到。
-- 显示深度：记录当前焦点实际已发布的最新快照，缓存快照也计入。实时结果 root visits 小于这条快照时直接抑制，不进入待节流槽；相等或更大时正常发布。仅收到但尚未发布的结果不抬高该下限。引擎重启和暂停/恢复均保留下限，重放查询追平后才能更新显示；更浅的 Final 也不发布，但请求正常结束。只有实际改设置或 node_id/key 变化清除当前记录，返回局面后新发布的缓存重新建立下限。
+- 显示深度：记录当前焦点实际已发布的最新快照及其 visits 下限，缓存快照也计入。实时结果 root visits 小于下限时直接抑制，不进入待节流槽；相等或更大时正常发布。仅收到但尚未发布的结果不抬高该下限。当前查询收到引擎重启事件时清除下限，保留已显示快照直到新结果到达；重启间隙仅 revision 变化仍重发旧快照，但不恢复旧下限。新引擎首份结果即使更浅也正常发布，并重新建立下限，此后照常不倒退。暂停/恢复保留下限，查询追平后才能更新显示；更浅的 Final 也不发布，但请求正常结束。实际改设置或 node_id/key 变化清除快照记录及下限，返回局面后新发布的缓存重新建立下限；缓存始终保留 visits 更多的结果。
 - 节流：同一 revision 的正常分析输出至少间隔 50ms，最多 20 次/秒，缓存也占一次；首条立即发布，中间结果合并到最新，符合显示深度条件的最终结果延后到下个允许时刻发布。忙时不补发错过的时钟。仅 revision 变化时的快照重发是新 revision 的首条，立即发送；保留待发结果并把后续正常输出推迟至少 50ms，没有历史快照可重发时则保留原期限。暂停/恢复及改设置不重置节流时钟；node_id/key 变化清掉旧时钟与待发数据。
 - 缓存：P1 用有界内存 LRU（AnalysisKey + 引擎指纹，保留 root visits 最多的结果，相同 visits 更新为后来结果）；读取或刷新提升最近使用顺序，浅结果不会覆盖深结果。缓存使用所有收到的当前查询结果，独立于输出节流。P2 换 SQLite。
-- `status()` 返回 `watch::Receiver<AnalysisStatus>`，状态为 Idle / Analyzing / Restarting / Failed(AnalysisError) / Stopped。查询故障以类型化错误报告，不伪造分析值；收到 Restarted 清掉待节流的旧 Partial，保留已发布快照及 visits 下限，继续读取原订阅，由 engine-session 自动重发，协调器不重复提交。
+- `status()` 返回 `watch::Receiver<AnalysisStatus>`，状态为 Idle / Analyzing / Restarting / Failed(AnalysisError) / Stopped。查询故障以类型化错误报告，不伪造分析值；收到 Restarted 清掉待节流的旧 Partial 和 visits 下限，保留已发布快照，继续读取原订阅，由 engine-session 自动重发，协调器不重复提交。
 - 整盘分析（P2）：`analyzeTurns` 批量提交，`priority` 低于实时请求。
 
 ### 4.7 app-core 与 Tauri 层
