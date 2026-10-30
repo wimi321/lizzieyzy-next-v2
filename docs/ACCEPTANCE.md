@@ -20,6 +20,7 @@
 4. 审 diff：是否符合 AGENTS.md 和 ARCHITECTURE.md（依赖方向、actor 规则、类型生成、文件职责、没有证据型代码）。
 5. 有手工项的任务，按卡里的步骤实际操作。
 6. 改到 `fixtures/sgf/` 的任务：在装了 sgfmill 的虚拟环境里运行 `tools/fixture-oracle/generate.py --check`，必须通过（这一步需要 sgfmill，所以不在 verify.sh 里）。
+7. 测试里会启动引擎进程或依赖计时的 crate（engine-session、analysis、app-core 等）：把这个 crate 的测试连续跑 10 遍，再在 CPU 满载下（按核数启动 `yes > /dev/null`）连跑 10 遍，全部通过。CI 的 macOS 机器只有 3 核，本机单跑能过不算数。
 
 Claude 自己实现的界面任务，同样要过门禁和范围检查，交付时附截图给维护者看。
 

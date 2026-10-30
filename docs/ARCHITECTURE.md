@@ -81,11 +81,16 @@ katago-protocol ← fake-katago（engine-session / analysis / app-core / desktop
 
 ### 4.3 document
 
-- `GameDocument`：arena 存储的树，`NodeId(u32)` 稳定且不复用；`root`、`current`、`revision: u64`（每次修改加 1）。
-- 命令：`Play(Move)`、`GoTo(NodeId)`、`Step(i32)`、`SetComment`、`DeleteNode`、`PromoteVariation`……；`apply(cmd) -> Result<Revision, DocError>`；撤销 / 重做基于命令栈。
-- `position_at(NodeId) -> Result<GamePosition, DocError>`：棋盘、轮走方、从根开始的着手、初始摆子、规则、贴目。
-- `AnalysisKey`：对 (尺寸、初始摆子、着手序列、规则、贴目) 做**跨版本稳定**的哈希。不能只按盘面，因为 KataGo 的网络输入包含最近几手。
-- SGF 回放时，棋谱里记录的着手不判劫；下在已有子处的节点标记为非法。用户新下的棋按当前规则完整判断。
+- `GameDocument` 是纯同步 arena 树，节点对外只读；`NodeId(u32)` 在单文档生命周期内稳定且永不复用，删除/撤销新建后保留墓碑。通过 `root()`、`current()`、`revision()` 读取状态，`node(id)` 读取父节点、有序子节点、原始 SGF 属性和首个注释。`new()` 创建默认 19 路、中国规则、7.5 目、黑先的空文档。
+- `from_sgf(&sgf::GameTree) -> Result<GameDocument, DocError>` 导入一盘；collection 由调用者逐盘选择。序列与变化用显式栈展开，不丢失空节点、属性顺序、重复属性或未知属性。`to_sgf() -> sgf::GameTree` 合并单子节点链为序列，保留节点和变化顺序；UTF-8/CA 规范化继续由 `sgf::serialize` 负责。原始 `KM` 不被归一化值覆写，避免反复导入时二次换算。
+- `Command` 包括 `Play(Move)`、`GoTo(NodeId)`、`Step(i32)`、`SetComment(String)`（当前节点）、`DeleteNode(NodeId)`（整棵子树）、`PromoteVariation(NodeId)`（移到同级第一位）。`Play` 先完整检查轮走方及落子规则，有相同着手的直接子节点则前进，否则追加变化；已有 SGF 子节点也不能绕过新下棋的劫检查。`GoTo` 允许访问非法记录以检查原文；`Step` 正数沿第一个子节点、负数沿父节点，到边界即停。不能删除/提升根。删除当前节点的祖先时焦点退到被删子树的父节点，否则不改焦点。注释修改合并当前节点的全部 `C` 为一个，保留其他属性。
+- `apply(Command)`、`undo()`、`redo()` 返回 `Result<Revision, DocError>`，采用可逆内容修改增量栈。仅新建节点的 `Play`、`SetComment`、`DeleteNode`、`PromoteVariation` 进入撤销栈，并清空 redo；`GoTo`、`Step` 和前进到已有子节点的 `Play` 只更新 `current`，不入撤销栈，也不清空 redo。每次实际改变内容或焦点，包括撤销/重做，都使 `revision: u64` 加 1；无操作不入栈、不增加版本，失败不改变文档。撤销/重做把焦点恢复到该条内容修改记录的修改前/修改后位置，不受后来导航影响。`DocumentSnapshot` 保存活动节点、根和焦点用于渲染/逻辑比较，不包括递增版本、历史栈和墓碑；全撤销/重做恢复全部内容及对应修改记录的焦点，不回拨版本或 ID 分配器，也不恢复操作期间的导航轨迹。
+- `position_at(NodeId) -> Result<GamePosition, DocError>` 按祖先链重算，不维护可失效的局面缓存。`GamePosition` 包含 `board: go_core::Position`（棋盘及轮走方）、完整根起着手 `moves`、累计 `captured_by`（自杀提子归对方）、有效 `rules: RulePreset`、原文 `rules_raw`、`komi`、`handicap`，以及供分析引擎重放的 `initial_stones`、`initial_player`、`analysis_moves`。遇到中途摆子或实际改变轮走方的 `PL` 时，以修改后的棋盘建立新的规则历史和分析起点，清空 `analysis_moves`，完整 `moves` 和提子计数仍保留；`AE` 不算提子。
+- SGF 对局信息采用容错读取：根 `SZ` 支持矩形，缺失、不可解析或超出 go-core 尺寸范围时采用 19×19；`HA` 缺失、空或不可解析时采用 0，`HA >= 2` 默认白先。`RU` trim 并转小写后经 go-core 六种预设映射，缺失或不认识则使用 Chinese，原文始终保留。根 `SZ/KM/RU/HA` 和任意节点 `PL` 的重复属性或多值列表，只取第一个属性的第一个值；非根 `SZ/KM/RU/HA` 忽略。`PL` 接受不区分大小写的 B/W，其余值忽略，不阻断回放。任意节点 `AB/AW/AE` 支持单点和矩形压缩范围，以摆子修改而非落子提子处理；摆子和 `PL` 在同节点的 `B/W` 之前应用。着手和摆子的错误仍严格处理：重复/多值着手属性、同节点 `B` 与 `W`、重叠摆子列表、缺气摆子和非法坐标均为节点级错误。
+- 贴目先读根 `KM`；缺失、空、解析失败或非有限时尝试根 `KO`（兼容 Cyberoro 等来源，同样只取首值），仍无法使用则采用 7.5。换算后 `abs(komi) >= width * height` 直接采用 7.5。换算保留 Java `SGFParser` 的嵌套条件：根 `AP` 不区分大小写包含 `foxwq` 才认定野狐；野狐 `abs(KM) >= 50` 时先除 100，仅在此分支且原 `RU` 包含 `chinese`、缩放结果在 [-4,4] 时再乘 2。其他棋谱仅 `KM >= 200` 时先除 100，并在此分支内将 [-4,4] 的结果乘 2，随后按 Java 十进制 `.25/.75` 后缀规则乘 2。`KO` 采用同样换算和范围校验。原始贴目属性始终保留，导出不写回回退值。
+- `warnings() -> Vec<DocumentWarning>` 返回整棵活动树的文档级诊断，`DocumentWarning { node, property, kind }` 明确指出节点和属性。`WarningKind` 区分重复/多值取首值（`FirstValueUsed`）、解析失败回退（`InvalidValue { fallback }`）、越界回退（`OutOfRange { fallback }`）、未知规则回退（`UnknownRules { fallback }`）、忽略非根信息（`IgnoredNonRoot`）、忽略无效 PL（`IgnoredPlayer`）、PL 大小写规范化（`NormalizedCase`）、使用 KO 贴目（`KomiFromKo`）。普通缺省字段不警告；采用 KO 会警告，非法 KM 回退 KO 时同时记录 KM 原因及 KO 来源。同一属性的多种恢复原因分别记录。诊断按稳定节点 ID 和属性解析顺序返回；读取时重算，不改变 revision、不重复累积，删除子树移除其诊断，撤销恢复诊断；非法着手不妨碍收集其后代或其他分支的元数据诊断。
+- 所有 SGF 记录的着手使用 `play_unchecked_ko`，照常提子和检查占用/自杀，允许连续同色。`node_error(id)` 按回放结果标记非法节点及后代，返回带原始出错 `NodeId` 和原因的 `DocError`；`position_at` 对这些节点报错，其他兄弟变化仍可正常回放。导入本身保留非法节点和原属性，不伪造可分析局面。
+- `GamePosition::analysis_key()` / `AnalysisKey::for_position` 返回 BLAKE3 32 字节稳定哈希。v1 编码固定为前缀 `lizzieyzy-next2:analysis-key:v1\0`，然后 width/height/初始轮走/当前轮走各 u8；摆子数量 u64 小端，按 (y,x,color) 排序后每子 color/x/y；完整 `moves` 与 `analysis_moves` 各为 u64 小端数量后接着手编码（pass 为 0/color，落子为 1/color/x/y）；规则标签 Chinese/Japanese/Korean/Aga/TrompTaylor/NewZealand 为 0..5；贴目为 IEEE-754 f64 位表示的 u64 小端，负零规范为正零。颜色 Black/White 为 0/1。不包含 NodeId、revision、注释、原文规则拼写和提子统计；固定测试向量锁定编码，不能用盘面 Zobrist 或 `DefaultHasher` 替代。
 
 ### 4.4 katago-protocol
 

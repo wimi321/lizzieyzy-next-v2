@@ -27,3 +27,4 @@ paths:
 2. 保存后再打开，树完全相同。
 3. 设置能保存和读取；测试里构造的旧版本设置文件也能读。
 4. 引擎配错（模型不存在）时，发出带可读原因的 EngineStatusChanged(Failed)，导航照常工作。
+5. `cargo test -p app-core` 连续跑 10 遍，再在 CPU 满载下（按核数启动 `yes > /dev/null`）连跑 10 遍，全部通过。
