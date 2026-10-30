@@ -3,6 +3,7 @@ import * as backend from "@/api/backend";
 import type { ColorView, EngineProfile, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
 import { formatVisits } from "./board/format";
+import { useVariationPreview } from "./board/useVariationPreview";
 import { FoxDialog } from "./fox/FoxDialog";
 import { liveGraph } from "./graph/scale";
 import { WinrateGraph } from "./graph/WinrateGraph";
@@ -53,10 +54,13 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [profile, setProfile] = useState<EngineProfile | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const [foxOpen, setFoxOpen] = useState(false);
+  // Mounted on first use and then only hidden, so a minimized window keeps its list.
+  const [foxUsed, setFoxUsed] = useState(false);
   const [strengthOpen, setStrengthOpen] = useState(false);
   const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
   // A preview belongs to one position: once the current node changes it no longer applies.
   const [preview, setPreview] = useState<{ node: number; point: PointView } | null>(null);
+  const [boardHover, setBoardHover] = useState<PointView | null>(null);
   const [tree, setTree] = useState<VariationTreeView | null>(null);
   const wholeGame = useWholeGame(backend);
   const [problemColor, setProblemColor] = useState<ColorView | null>(null);
@@ -130,6 +134,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const line = useMemo(() => points.map((point) => point.node_id), [points]);
   const currentIndex = document?.graph.current_index ?? 0;
   const previewPoint = preview && document && preview.node === document.tree.current ? preview.point : null;
+  const variation = useVariationPreview(backend, document?.tree.current ?? null, revision, analysis, boardHover ?? previewPoint);
   const info = document?.game_info ?? null;
   // The mistake bars share the graph's line and indexing; anything else is stale.
   const mistakes = problems && problems.error_bar.length === points.length ? problems.error_bar : undefined;
@@ -207,7 +212,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         }
         onOpen={() => void openFile().catch(report)}
         onSave={() => void saveFile().catch(report)}
-        onOpenFox={() => setFoxOpen(true)}
+        onOpenFox={() => {
+          setFoxUsed(true);
+          setFoxOpen(true);
+        }}
         onOpenStrength={() => setStrengthOpen(true)}
         onStep={step}
         onTogglePondering={togglePondering}
@@ -231,6 +239,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             }}
             points={points}
             currentIndex={currentIndex}
+            game={info}
             labels={messages.info}
           />
           <section className="section graph-section" aria-label={messages.graph.title}>
@@ -299,6 +308,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               maxCandidates={maxCandidates}
               label={messages.board.label}
               preview={previewPoint}
+              variation={variation}
+              onHoverCandidate={setBoardHover}
               onPlay={play}
             />
           ) : (
@@ -344,8 +355,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onClose={() => setStrengthOpen(false)}
         />
       ) : null}
-      {foxOpen ? (
+      {foxUsed ? (
         <FoxDialog
+          open={foxOpen}
           backend={backend}
           labels={messages.fox}
           history={foxHistory}

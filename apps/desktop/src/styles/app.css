@@ -482,6 +482,16 @@ button.chip:hover {
   color: var(--text-3);
 }
 
+.game-meta {
+  margin: 2px 10px 0 42px;
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .player-captures {
   font-size: 12px;
   color: var(--text-3);
@@ -802,6 +812,11 @@ button.chip:hover {
 }
 
 /* Dialogs */
+
+/* Components hide by attribute; class rules that set display must not undo it. */
+[hidden] {
+  display: none !important;
+}
 
 .dialog-backdrop {
   position: fixed;
@@ -1589,23 +1604,20 @@ button.fox-row[aria-busy="true"] {
 
 .fox-footer {
   display: flex;
-  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
   margin-top: 8px;
 }
 
-.checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.fox-after-label {
   font-size: 12px;
-  color: var(--text-2);
-  cursor: pointer;
+  color: var(--text-3);
 }
 
-.checkbox input {
-  accent-color: var(--accent);
+.fox-footer .segmented {
+  grid-template-columns: repeat(3, auto);
 }
 
 /* Strength estimate */

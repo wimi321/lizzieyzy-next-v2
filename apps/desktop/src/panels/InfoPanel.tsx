@@ -1,4 +1,4 @@
-import type { BoardView, GraphPointView } from "@/api/backend";
+import type { BoardView, GameInfoView, GraphPointView } from "@/api/backend";
 import { formatWinrate } from "../board/format";
 import { lastMoveChange, leadOf, signed } from "./info";
 
@@ -13,6 +13,10 @@ export interface InfoLabels {
   noAnalysis: string;
   match: string;
   matchHint: string;
+  komi: string;
+  handicap: string;
+  /** Names for common RU values, keyed by the lower-case, dash-joined value. */
+  rules: Record<string, string>;
 }
 
 /** A player as recorded in the game; null fields fall back to the colour's name. */
@@ -30,11 +34,13 @@ export interface InfoPanelProps {
   /** The displayed line with the newest summary of the current node merged in. */
   points: readonly GraphPointView[];
   currentIndex: number;
+  /** The game's root information; komi, handicap, rules, result and date are shown under the players. */
+  game?: GameInfoView | null;
   labels: InfoLabels;
 }
 
 /** The players, then the evaluation: both winrates, the bar, the lead and the last move's change. */
-export function InfoPanel({ board, black, white, points, currentIndex, labels }: InfoPanelProps) {
+export function InfoPanel({ board, black, white, points, currentIndex, game = null, labels }: InfoPanelProps) {
   const summary = points[currentIndex]?.summary ?? null;
   const change = board ? lastMoveChange(points, currentIndex, board.last_move) : null;
   const lead = summary ? leadOf(summary) : null;
@@ -74,6 +80,11 @@ export function InfoPanel({ board, black, white, points, currentIndex, labels }:
           captures={labels.captures.replace("{n}", String(board?.captured_white ?? 0))}
           toPlay={board?.to_play === "White"}
         />
+        {game ? (
+          <p className="game-meta" data-testid="game-meta" title={game.event ?? undefined}>
+            {gameMeta(game, labels).join(" · ")}
+          </p>
+        ) : null}
       </section>
       <section className="section evaluation">
         <div className="eval-numbers">
@@ -100,6 +111,17 @@ export function InfoPanel({ board, black, white, points, currentIndex, labels }:
       </section>
     </div>
   );
+}
+
+/** SGF root text as recorded, except rules, whose common names are translated. */
+function gameMeta(game: GameInfoView, labels: InfoLabels): string[] {
+  const parts = [labels.komi.replace("{n}", String(game.komi))];
+  if (game.handicap !== null && game.handicap >= 2) parts.push(labels.handicap.replace("{n}", String(game.handicap)));
+  const rules = game.rules?.trim();
+  if (rules) parts.push(labels.rules[rules.toLowerCase().replace(/[\s_]+/g, "-")] ?? rules);
+  if (game.result?.trim()) parts.push(game.result.trim());
+  if (game.date?.trim()) parts.push(game.date.trim());
+  return parts;
 }
 
 function matchText(match: number | null | undefined, labels: InfoLabels): string | null {

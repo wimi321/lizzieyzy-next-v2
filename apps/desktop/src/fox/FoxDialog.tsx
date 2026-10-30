@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import type { Backend, FoxAccount, FoxGame, FoxQuery } from "@/api/backend";
 import { Icon } from "../toolbar/icons";
 import { type FoxErrorLabels, type FoxResultLabels, errorText, resultText, shortTime } from "./format";
@@ -25,7 +25,11 @@ export interface FoxLabels {
   result: string;
   moves: string;
   opening: string;
-  closeAfterOpen: string;
+  afterOpen: string;
+  afterOpenMinimize: string;
+  afterOpenClose: string;
+  afterOpenStay: string;
+  afterOpenHint: string;
   close: string;
   results: FoxResultLabels;
   errors: FoxErrorLabels;
@@ -34,6 +38,8 @@ export interface FoxLabels {
 type FoxBackend = Pick<Backend, "foxSearch" | "foxNextPage" | "foxOpenGame" | "foxClearHistory">;
 
 export interface FoxDialogProps {
+  /** Hidden rather than unmounted, so a minimized window keeps its list. */
+  open: boolean;
   backend: FoxBackend;
   labels: FoxLabels;
   /** Recent accounts from the settings, newest first. */
@@ -42,6 +48,11 @@ export interface FoxDialogProps {
   onClose(): void;
 }
 
+/** What happens to the window once a game is open, as in LizzieYzy Next. */
+type AfterOpen = "minimize" | "close" | "stay";
+
+const AFTER_OPEN: readonly AfterOpen[] = ["minimize", "close", "stay"];
+
 type Status =
   | { kind: "idle" }
   | { kind: "searching" }
@@ -49,22 +60,25 @@ type Status =
   | { kind: "ready"; account: FoxAccount; games: FoxGame[]; cursor: string | null; loadingMore: boolean };
 
 /** LizzieYzy Next's Fox kifu window: search by nickname or UID, list recent games, open one. */
-export function FoxDialog({ backend, labels, history, onHistoryChanged, onClose }: FoxDialogProps) {
+export function FoxDialog({ open: visible, backend, labels, history, onHistoryChanged, onClose }: FoxDialogProps) {
   const [mode, setMode] = useState<FoxQuery["type"]>("Nickname");
   const [text, setText] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [opening, setOpening] = useState<string | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
-  const [closeAfterOpen, setCloseAfterOpen] = useState(true);
+  const [afterOpen, setAfterOpen] = useState<AfterOpen>("minimize");
+  const input = useRef<HTMLInputElement>(null);
   const busy = status.kind === "searching" || opening !== null;
 
   useEffect(() => {
+    if (!visible) return;
+    input.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [visible, onClose]);
 
   const search = (query: FoxQuery) => {
     setStatus({ kind: "searching" });
@@ -112,7 +126,9 @@ export function FoxDialog({ backend, labels, history, onHistoryChanged, onClose 
       .foxOpenGame(game.id)
       .then(() => {
         setOpening(null);
-        if (closeAfterOpen) onClose();
+        if (afterOpen === "stay") return;
+        if (afterOpen === "close") setStatus({ kind: "idle" });
+        onClose();
       })
       .catch((error: unknown) => {
         setOpening(null);
@@ -121,7 +137,7 @@ export function FoxDialog({ backend, labels, history, onHistoryChanged, onClose 
   };
 
   return (
-    <div className="dialog-backdrop" role="presentation">
+    <div className="dialog-backdrop" role="presentation" hidden={!visible}>
       <section className="dialog fox-dialog" role="dialog" aria-modal="true" aria-labelledby="fox-title" data-testid="fox-dialog">
         <header className="dialog-header">
           <h2 id="fox-title">{labels.title}</h2>
@@ -145,13 +161,13 @@ export function FoxDialog({ backend, labels, history, onHistoryChanged, onClose 
             ))}
           </div>
           <input
+            ref={input}
             className="text-input"
             data-testid="fox-input"
             value={text}
             inputMode={mode === "Uid" ? "numeric" : undefined}
             placeholder={mode === "Uid" ? labels.placeholderUid : labels.placeholderNickname}
             onChange={(event) => setText(event.target.value)}
-            autoFocus
           />
           <button type="submit" className="primary-button" data-testid="fox-search" disabled={busy || !text.trim()}>
             {labels.search}
@@ -267,10 +283,23 @@ export function FoxDialog({ backend, labels, history, onHistoryChanged, onClose 
           ) : null}
         </div>
         <footer className="fox-footer">
-          <label className="checkbox">
-            <input type="checkbox" checked={closeAfterOpen} onChange={(event) => setCloseAfterOpen(event.target.checked)} />
-            {labels.closeAfterOpen}
-          </label>
+          <span className="fox-after-label" id="fox-after-open">
+            {labels.afterOpen}
+          </span>
+          <div className="segmented small" role="radiogroup" aria-labelledby="fox-after-open" title={labels.afterOpenHint}>
+            {AFTER_OPEN.map((value) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={afterOpen === value}
+                data-testid={`fox-after-${value}`}
+                onClick={() => setAfterOpen(value)}
+              >
+                {value === "minimize" ? labels.afterOpenMinimize : value === "close" ? labels.afterOpenClose : labels.afterOpenStay}
+              </button>
+            ))}
+          </div>
         </footer>
       </section>
     </div>

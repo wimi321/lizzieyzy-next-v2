@@ -1,6 +1,6 @@
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { AnalysisView, BoardView, PointView } from "@/api/backend";
-import { type AnalysisLayer, drawAnalysis, drawBackground, drawStones, prepare } from "./draw";
+import type { AnalysisView, BoardView, PointView, VariationPreviewView } from "@/api/backend";
+import { type AnalysisLayer, drawAnalysis, drawBackground, drawPreviewLabels, drawStones, prepare } from "./draw";
 import { backingSize, computeGeometry, pixelToPoint, pointIndex } from "./geometry";
 import { type Palette, readPalette } from "./palette";
 
@@ -13,6 +13,13 @@ export interface BoardProps {
   label: string;
   /** A candidate picked outside the board, e.g. a table row; the pointer still wins. */
   preview?: PointView | null;
+  /**
+   * Rust's replay of the previewed candidate's variation, captures included.
+   * Until it arrives the board overlays the variation on the current stones.
+   */
+  variation?: VariationPreviewView | null;
+  /** The candidate under the pointer, so the app can ask Rust for its variation. */
+  onHoverCandidate?(point: PointView | null): void;
   onPlay(point: PointView): void;
 }
 
@@ -27,7 +34,18 @@ interface Size {
  * only when its own inputs change; analysis frames are coalesced per animation
  * frame so a 20 Hz stream never queues work.
  */
-export function Board({ board, analysis, coordinates, ownership, maxCandidates, label, preview = null, onPlay }: BoardProps) {
+export function Board({
+  board,
+  analysis,
+  coordinates,
+  ownership,
+  maxCandidates,
+  label,
+  preview = null,
+  variation = null,
+  onHoverCandidate,
+  onPlay,
+}: BoardProps) {
   const container = useRef<HTMLDivElement>(null);
   const backgroundCanvas = useRef<HTMLCanvasElement>(null);
   const stoneCanvas = useRef<HTMLCanvasElement>(null);
@@ -72,22 +90,29 @@ export function Board({ board, analysis, coordinates, ownership, maxCandidates, 
     if (context) drawBackground(context, geometry, palette, coordinates);
   }, [geometry, backing, palette, coordinates]);
 
+  const target = hover ?? preview;
+  // The replay replaces the stones while a candidate is previewed; its last move is numbered instead of ringed.
+  const shown = target && variation ? variation : null;
+  const stones = useMemo(() => (shown ? { ...shown.board, last_move: null } : board), [shown, board]);
+
   useEffect(() => {
     const canvas = stoneCanvas.current;
     const context = canvas && prepare(canvas, geometry, backing.width, backing.height);
-    if (context) drawStones(context, geometry, palette, board);
-  }, [geometry, backing, palette, board]);
+    if (context) drawStones(context, geometry, palette, stones);
+  }, [geometry, backing, palette, stones]);
 
   useEffect(() => {
     if (geometry.cell <= 0) return;
-    const layer: AnalysisLayer = { board, analysis, ownership, maxCandidates, hover: hover ?? preview };
+    const layer: AnalysisLayer = { board, analysis, ownership, maxCandidates, hover: target };
     const frame = requestAnimationFrame(() => {
       const canvas = analysisCanvas.current;
       const context = canvas && prepare(canvas, geometry, backing.width, backing.height);
-      if (context) drawAnalysis(context, geometry, palette, layer);
+      if (!context) return;
+      if (shown) drawPreviewLabels(context, geometry, palette, shown.stones);
+      else drawAnalysis(context, geometry, palette, layer);
     });
     return () => cancelAnimationFrame(frame);
-  }, [geometry, backing, palette, board, analysis, ownership, maxCandidates, hover, preview]);
+  }, [geometry, backing, palette, board, analysis, ownership, maxCandidates, target, shown]);
 
   const pointAt = (event: MouseEvent<HTMLElement>): PointView | null => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -98,7 +123,15 @@ export function Board({ board, analysis, coordinates, ownership, maxCandidates, 
     const point = pointAt(event);
     const candidate = point && analysis?.candidates.some((c) => c.point?.x === point.x && c.point?.y === point.y);
     const next = candidate ? point : null;
-    setHover((previous) => (previous?.x === next?.x && previous?.y === next?.y ? previous : next));
+    if (hover?.x === next?.x && hover?.y === next?.y) return;
+    setHover(next);
+    onHoverCandidate?.(next);
+  };
+
+  const onMouseLeave = () => {
+    if (hover === null) return;
+    setHover(null);
+    onHoverCandidate?.(null);
   };
 
   const onClick = (event: MouseEvent<HTMLElement>) => {
@@ -120,7 +153,7 @@ export function Board({ board, analysis, coordinates, ownership, maxCandidates, 
       data-origin-x={geometry.originX.toFixed(3)}
       data-origin-y={geometry.originY.toFixed(3)}
       onMouseMove={onMouseMove}
-      onMouseLeave={() => setHover(null)}
+      onMouseLeave={onMouseLeave}
       onClick={onClick}
     >
       <canvas ref={backgroundCanvas} className="board-layer" />

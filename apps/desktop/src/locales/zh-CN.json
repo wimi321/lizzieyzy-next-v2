@@ -76,7 +76,17 @@
     "noAnalysis": "暂无分析",
     "comment": "注释",
     "match": "吻合 {n}%",
-    "matchHint": "吻合度：综合 AI 一选率、好手率和失误率，越高越接近 AI"
+    "matchHint": "吻合度：综合 AI 一选率、好手率和失误率，越高越接近 AI",
+    "komi": "贴 {n}",
+    "handicap": "让 {n} 子",
+    "rules": {
+      "chinese": "中国规则",
+      "japanese": "日本规则",
+      "korean": "韩国规则",
+      "aga": "AGA 规则",
+      "new-zealand": "新西兰规则",
+      "tromp-taylor": "Tromp-Taylor 规则"
+    }
   },
   "table": {
     "label": "候选点",
@@ -157,7 +167,11 @@
     "result": "结果",
     "moves": "手数",
     "opening": "正在打开…",
-    "closeAfterOpen": "打开棋谱后关闭这个窗口",
+    "afterOpen": "打开棋谱后",
+    "afterOpenMinimize": "最小化",
+    "afterOpenClose": "关闭",
+    "afterOpenStay": "不动",
+    "afterOpenHint": "最小化：窗口收起，列表保留，再点“野狐棋谱”就回来",
     "close": "关闭",
     "results": {
       "black": "黑",

@@ -77,6 +77,10 @@ test("search a nickname, page through the games and open one", async ({ page }) 
   await dialog.getByTestId("fox-game").nth(1).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByTestId("board")).toBeVisible();
+
+  // Minimized, not closed: the list is back at once, with no new search.
+  await page.getByTestId("open-fox").click();
+  await expect(dialog.getByTestId("fox-game")).toHaveCount(3);
   await expect.poll(() => calls(page)).toEqual([
     { command: "settings", args: [] },
     { command: "foxSearch", args: [{ type: "Nickname", value: ACCOUNT.nickname }] },

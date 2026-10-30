@@ -45,8 +45,11 @@ function dialog(overrides: Partial<Parameters<typeof FoxDialog>[0]> = {}) {
     foxClearHistory: vi.fn<() => Promise<void>>(() => Promise.resolve()),
   };
   const props = { onHistoryChanged: vi.fn(), onClose: vi.fn() };
-  render(<FoxDialog backend={backend} labels={zh.fox} history={[]} {...props} {...overrides} />);
-  return { backend, ...props };
+  const view = (open: boolean) => (
+    <FoxDialog open={open} backend={backend} labels={zh.fox} history={[]} {...props} {...overrides} />
+  );
+  const { rerender } = render(view(true));
+  return { backend, ...props, show: (open: boolean) => rerender(view(open)) };
 }
 
 function searchFor(text: string) {
@@ -144,8 +147,8 @@ test("load more appends the next page until the cursor runs out", async () => {
   expect(screen.queryByTestId("fox-more")).toBeNull();
 });
 
-test("opening a game shows progress and closes the window by default", async () => {
-  const { backend, onClose } = dialog();
+test("opening a game shows progress, then minimizes the window and keeps the list", async () => {
+  const { backend, onClose, show } = dialog();
   backend.foxSearch.mockResolvedValue({ account: me, page: { games: [game("1"), game("2")], next_cursor: null } });
   const opened = deferred<number>();
   backend.foxOpenGame.mockReturnValue(opened.promise);
@@ -159,16 +162,41 @@ test("opening a game shows progress and closes the window by default", async () 
 
   await act(async () => opened.resolve(7));
   expect(onClose).toHaveBeenCalled();
+  show(false);
+  expect((screen.getByTestId("fox-dialog").parentElement as HTMLElement).hidden).toBe(true);
+
+  // Fox is slow; coming back shows the same list without searching again.
+  show(true);
+  expect(screen.getAllByTestId("fox-game")).toHaveLength(2);
+  expect(backend.foxSearch).toHaveBeenCalledTimes(1);
 });
 
-test("with close-after-open unticked the window stays and a failed open is reported", async () => {
+test("choosing Close clears the list once a game is open", async () => {
+  const { backend, onClose, show } = dialog();
+  backend.foxSearch.mockResolvedValue({ account: me, page: { games: [game("1")], next_cursor: null } });
+  backend.foxOpenGame.mockResolvedValue(3);
+
+  searchFor("棋迷甲");
+  await act(async () => {});
+  fireEvent.click(screen.getByTestId("fox-after-close"));
+  expect(screen.getByTestId("fox-after-close").getAttribute("aria-checked")).toBe("true");
+  fireEvent.click(screen.getByTestId("fox-game"));
+  await act(async () => {});
+  expect(onClose).toHaveBeenCalled();
+  show(false);
+  show(true);
+  expect(screen.queryByTestId("fox-game")).toBeNull();
+  expect(screen.getByText(zh.fox.intro)).toBeTruthy();
+});
+
+test("choosing Stay keeps the window open and a failed open is reported", async () => {
   const { backend, onClose } = dialog();
   backend.foxSearch.mockResolvedValue({ account: me, page: { games: [game("1")], next_cursor: null } });
   backend.foxOpenGame.mockResolvedValueOnce(3).mockRejectedValueOnce({ type: "Fox", data: { type: "DownloadFailed" } });
 
   searchFor("棋迷甲");
   await act(async () => {});
-  fireEvent.click(screen.getByRole("checkbox"));
+  fireEvent.click(screen.getByTestId("fox-after-stay"));
   fireEvent.click(screen.getByTestId("fox-game"));
   await act(async () => {});
   expect(onClose).not.toHaveBeenCalled();
@@ -189,9 +217,12 @@ test("a failed search says why and allows another try", async () => {
   expect((screen.getByTestId("fox-search") as HTMLButtonElement).disabled).toBe(false);
 });
 
-test("the close button and Escape close", () => {
-  const { onClose } = dialog();
+test("the close button and Escape close; a hidden window ignores Escape", () => {
+  const { onClose, show } = dialog();
   fireEvent.click(screen.getByTestId("fox-close"));
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(onClose).toHaveBeenCalledTimes(2);
+  show(false);
   fireEvent.keyDown(window, { key: "Escape" });
   expect(onClose).toHaveBeenCalledTimes(2);
 });

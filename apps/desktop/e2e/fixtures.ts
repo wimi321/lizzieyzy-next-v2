@@ -10,6 +10,7 @@ import type {
   MoveView,
   PhaseReport,
   PointView,
+  VariationPreviewView,
   StrengthEstimateView,
   SideReport,
 } from "../src/api/backend";
@@ -253,6 +254,36 @@ export const MID_GAME_STONES: Stone[] = [
 
 export function midGame(graph?: GraphView) {
   return documentView(boardView(19, 19, MID_GAME_STONES, { toPlay: "Black", moveNumber: 20, last: [9, 9, "White"] }), 20, graph);
+}
+
+/**
+ * A mid-game candidate at D16 whose variation surrounds White's E17 stone,
+ * and Rust's replay of it: E17 is captured, the seven variation stones are numbered.
+ */
+export function captureVariation(revision: number) {
+  const board = midGame().board!;
+  const line: PointView[] = [{ x: 10, y: 6 }, { x: 3, y: 2 }, { x: 12, y: 5 }, { x: 5, y: 2 }, { x: 11, y: 8 }, { x: 4, y: 1 }];
+  const capture = candidate({ x: 4, y: 3 }, 0, 0.58, 2100, 2.2, line, board);
+  const analysis = midGameAnalysis(revision, 20);
+  analysis.candidates = [capture, ...analysis.candidates.map((c) => ({ ...c, order: c.order + 1 }))];
+  const played: Stone[] = capture.pv.map((move) => {
+    if (move.type !== "Play") throw new Error("the fixture variation has no passes");
+    return [move.data.point.x, move.data.point.y, move.data.color];
+  });
+  const survivors = MID_GAME_STONES.filter(([x, y]) => !(x === 4 && y === 2));
+  const last = played[played.length - 1]!;
+  return {
+    analysis,
+    moves: capture.pv,
+    replay: {
+      revision,
+      node_id: 20,
+      board: boardView(19, 19, [...survivors, ...played], { toPlay: "White", moveNumber: 27, last }),
+      applied_moves: capture.pv,
+      stones: played.map(([x, y, color], index) => ({ point: { x, y }, color, move_number: index + 1 })),
+      stop_reason: null,
+    } satisfies VariationPreviewView,
+  };
 }
 
 /** The middle game on a 121-move line whose first 91 moves have been analysed. */

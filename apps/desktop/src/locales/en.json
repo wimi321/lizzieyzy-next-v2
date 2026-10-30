@@ -76,7 +76,17 @@
     "noAnalysis": "No analysis",
     "comment": "Comment",
     "match": "Match {n}%",
-    "matchHint": "Match: AI first choices, good moves and mistakes combined; higher is closer to the AI"
+    "matchHint": "Match: AI first choices, good moves and mistakes combined; higher is closer to the AI",
+    "komi": "Komi {n}",
+    "handicap": "{n} handicap",
+    "rules": {
+      "chinese": "Chinese rules",
+      "japanese": "Japanese rules",
+      "korean": "Korean rules",
+      "aga": "AGA rules",
+      "new-zealand": "New Zealand rules",
+      "tromp-taylor": "Tromp-Taylor rules"
+    }
   },
   "table": {
     "label": "Candidates",
@@ -157,7 +167,11 @@
     "result": "Result",
     "moves": "Moves",
     "opening": "Opening…",
-    "closeAfterOpen": "Close this window after opening a game",
+    "afterOpen": "After opening a game",
+    "afterOpenMinimize": "Minimize",
+    "afterOpenClose": "Close",
+    "afterOpenStay": "Stay open",
+    "afterOpenHint": "Minimize hides the window and keeps the list for next time",
     "close": "Close",
     "results": {
       "black": "B",
