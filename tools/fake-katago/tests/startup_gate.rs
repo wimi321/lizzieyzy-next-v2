@@ -76,8 +76,8 @@ fn unopened_startup_gate_defers_input_until_independent_crash_deadline() {
     assert!(stderr.contains("injected crash"));
     assert!(!gate.exists());
     assert!(
-        !fault.exists(),
-        "queries must not be consumed behind the gate"
+        fault.is_file(),
+        "the timer must claim its one-shot fault even behind the gate"
     );
 }
 

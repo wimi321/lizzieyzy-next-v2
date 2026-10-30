@@ -12,7 +12,7 @@ Options:\n\
   --crash-after-queries N  Exit on accepting the Nth analysis query\n\
   --crash-after-ms N       Exit after N simulated milliseconds\n\
   --hang-after-queries N   Silence output from the Nth analysis query\n\
-  --fault-once-file PATH   Inject query faults only when creating this marker\n\
+  --fault-once-file PATH   Inject crash/hang/startup faults only when creating this marker\n\
   --garbage-every N        Insert an invalid line after every N output lines\n\
   --threads N              Concurrent searches (default 1)\n\
   -override-config K=V,... One comma-separated list of configuration overrides\n\

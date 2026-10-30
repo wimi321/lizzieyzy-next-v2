@@ -3,7 +3,7 @@ mod model;
 
 use std::fs::OpenOptions;
 use std::io::{self, BufRead, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
@@ -20,6 +20,8 @@ enum RunError {
     Json(#[from] serde_json::Error),
     #[error("injected crash")]
     Crash,
+    #[error("模型找不到")]
+    MissingModel,
     #[error("could not read startup gate {}: {source}", path.display())]
     StartupGate {
         path: PathBuf,
@@ -129,7 +131,7 @@ impl<W: Write> Engine<W> {
             .options
             .crash_after_queries
             .is_some_and(|n| self.queries >= n)
-            && self.claim_query_fault()?
+            && claim_fault(self.options.fault_once_file.as_deref())?
         {
             return Err(RunError::Crash);
         }
@@ -137,7 +139,7 @@ impl<W: Write> Engine<W> {
             .options
             .hang_after_queries
             .is_some_and(|n| self.queries >= n)
-            && self.claim_query_fault()?
+            && claim_fault(self.options.fault_once_file.as_deref())?
         {
             self.hung = true;
             self.running.clear();
@@ -165,35 +167,6 @@ impl<W: Write> Engine<W> {
             self.sequence = self.sequence.saturating_add(1);
         }
         Ok(())
-    }
-
-    fn claim_query_fault(&self) -> Result<bool, RunError> {
-        let Some(path) = &self.options.fault_once_file else {
-            return Ok(true);
-        };
-        match OpenOptions::new().write(true).create_new(true).open(path) {
-            Ok(_) => Ok(true),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                match std::fs::metadata(path) {
-                    Ok(metadata) if metadata.is_file() => Ok(false),
-                    Ok(_) => Err(RunError::FaultMarker {
-                        path: path.clone(),
-                        source: io::Error::new(
-                            io::ErrorKind::AlreadyExists,
-                            "marker is not a regular file",
-                        ),
-                    }),
-                    Err(source) => Err(RunError::FaultMarker {
-                        path: path.clone(),
-                        source,
-                    }),
-                }
-            }
-            Err(source) => Err(RunError::FaultMarker {
-                path: path.clone(),
-                source,
-            }),
-        }
     }
 
     fn terminate(&mut self, target: Option<&str>, acknowledgement: Value) -> Result<(), RunError> {
@@ -318,16 +291,26 @@ impl<W: Write> Engine<W> {
         }
     }
 
+    fn check_timed_crash(&self, deadline: &mut Option<f64>) -> Result<(), RunError> {
+        if deadline.is_some_and(|due| self.now() >= due) {
+            // An already-claimed marker disables this timer permanently in the
+            // current process; retaining its expired deadline would spin.
+            *deadline = None;
+            if claim_fault(self.options.fault_once_file.as_deref())? {
+                return Err(RunError::Crash);
+            }
+        }
+        Ok(())
+    }
+
     fn run(&mut self, input: Receiver<io::Result<String>>) -> Result<(), RunError> {
         let startup = self.options.startup_delay_ms as f64 / 1000.0;
-        let crash = self.options.crash_after_ms.map(|ms| ms as f64 / 1000.0);
+        let mut crash = self.options.crash_after_ms.map(|ms| ms as f64 / 1000.0);
         let mut eof = false;
         // The input reader can queue lines, but no requests are consumed before readiness.
         loop {
+            self.check_timed_crash(&mut crash)?;
             let now = self.now();
-            if crash.is_some_and(|deadline| now >= deadline) {
-                return Err(RunError::Crash);
-            }
             if now >= startup && self.startup_gate_released()? {
                 break;
             }
@@ -342,16 +325,18 @@ impl<W: Write> Engine<W> {
             }
             std::thread::park_timeout(wait);
         }
-        if self.options.crash_after_queries == Some(0) && self.claim_query_fault()? {
+        if self.options.crash_after_queries == Some(0)
+            && claim_fault(self.options.fault_once_file.as_deref())?
+        {
             return Err(RunError::Crash);
         }
-        if self.options.hang_after_queries == Some(0) && self.claim_query_fault()? {
+        if self.options.hang_after_queries == Some(0)
+            && claim_fault(self.options.fault_once_file.as_deref())?
+        {
             self.hung = true;
         }
         loop {
-            if crash.is_some_and(|deadline| self.now() >= deadline) {
-                return Err(RunError::Crash);
-            }
+            self.check_timed_crash(&mut crash)?;
             self.start_pending();
             self.advance()?;
             self.start_pending();
@@ -382,7 +367,39 @@ impl<W: Write> Engine<W> {
     }
 }
 
+fn claim_fault(marker: Option<&Path>) -> Result<bool, RunError> {
+    let Some(path) = marker else {
+        return Ok(true);
+    };
+    match OpenOptions::new().write(true).create_new(true).open(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            match std::fs::metadata(path) {
+                Ok(metadata) if metadata.is_file() => Ok(false),
+                Ok(_) => Err(RunError::FaultMarker {
+                    path: path.to_owned(),
+                    source: io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        "marker is not a regular file",
+                    ),
+                }),
+                Err(source) => Err(RunError::FaultMarker {
+                    path: path.to_owned(),
+                    source,
+                }),
+            }
+        }
+        Err(source) => Err(RunError::FaultMarker {
+            path: path.to_owned(),
+            source,
+        }),
+    }
+}
+
 fn run(options: Options) -> Result<(), RunError> {
+    if options.fail_startup && claim_fault(options.fault_once_file.as_deref())? {
+        return Err(RunError::MissingModel);
+    }
     let (sender, receiver) = mpsc::sync_channel(64);
     std::thread::Builder::new()
         .name("fake-katago-stdin".into())
@@ -420,10 +437,6 @@ fn main() -> std::process::ExitCode {
             return std::process::ExitCode::from(2);
         }
     };
-    if options.fail_startup {
-        eprintln!("模型找不到");
-        return std::process::ExitCode::FAILURE;
-    }
     match run(options) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
