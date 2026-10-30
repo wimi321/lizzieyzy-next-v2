@@ -25,6 +25,7 @@ export interface TopBarLabels {
 export interface AnalysisBadge {
   nodeId: number;
   revision: number;
+  visits: number;
   text: string;
   title: string;
 }
@@ -86,6 +87,7 @@ export function TopBar(props: TopBarProps) {
             data-testid="analysis-move"
             data-node-id={props.analysis?.nodeId}
             data-revision={props.analysis?.revision}
+            data-visits={props.analysis?.visits}
             title={props.analysis?.title}
           >
             {props.analysis?.text ?? props.noAnalysis}

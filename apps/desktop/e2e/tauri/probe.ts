@@ -5,6 +5,8 @@ export interface ProbeSample {
   analysisNodeId: string | null;
   analysisText: string;
   analysisTitle: string | null;
+  /** Exact root visits of the shown analysis, from data-visits. */
+  analysisVisits: number | null;
   move: number | null;
   engineState: string | null;
   engineDetail: string | null;
@@ -58,7 +60,8 @@ export function installProbe(): ProbeState {
       analysisRevision: analysis?.getAttribute("data-revision") ?? null,
       analysisNodeId: analysis?.getAttribute("data-node-id") ?? null,
       analysisText: analysis?.textContent?.trim() ?? "",
-      analysisTitle: analysis?.parentElement?.getAttribute("title") ?? null,
+      analysisTitle: analysis?.getAttribute("title") ?? null,
+      analysisVisits: number(analysis?.getAttribute("data-visits")),
       move: number(byId("move-number")?.textContent),
       engineState: engine?.getAttribute("data-state") ?? null,
       engineDetail: engine?.getAttribute("title") ?? null,
@@ -107,7 +110,7 @@ export function installProbe(): ProbeState {
       if (!state.failures.includes(failure)) state.failures.push(failure);
     }
     const identity = current.analysisRevision !== null && current.analysisNodeId !== null
-      ? JSON.stringify([current.analysisRevision, current.analysisNodeId, current.analysisText, current.analysisTitle])
+      ? JSON.stringify([current.analysisRevision, current.analysisNodeId, current.analysisText, current.analysisVisits])
       : null;
     if (identity !== null && identity !== lastAnalysis) state.analysisVersion += 1;
     lastAnalysis = identity;

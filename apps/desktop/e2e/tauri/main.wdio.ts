@@ -112,7 +112,7 @@ async function recovery(browser: Browser, { faultMarker }: { faultMarker: string
     && probe.current.nodeId === initial.current.nodeId
     && probe.current.revision === initial.current.revision
     && probe.analysisVersion > afterRestart.analysisVersion
-    && Number.parseInt(probe.current.analysisTitle ?? "", 10) >= survivingVisits,
+    && (probe.current.analysisVisits ?? 0) >= survivingVisits,
     "interrupted analysis did not resume beyond the next crash deadline");
   assert.equal(resumed.states.filter((entry) => entry.state === "Restarting").length, 1,
     "the fault must occur only once");

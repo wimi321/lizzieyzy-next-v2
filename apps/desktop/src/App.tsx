@@ -148,6 +148,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             ? {
                 nodeId: analysis.node_id,
                 revision: analysis.revision,
+                visits: analysis.visits,
                 text: `${board.move_number} · ${formatVisits(analysis.visits)}`,
                 title: messages.board.visits.replace("{visits}", String(analysis.visits)),
               }
