@@ -33,7 +33,8 @@
     "resume": "继续分析",
     "move": "手数",
     "analysing": "分析中",
-    "paused": "已暂停"
+    "paused": "已暂停",
+    "fox": "野狐棋谱"
   },
   "graph": {
     "label": "胜率图：黑方胜率与目差",
@@ -126,6 +127,55 @@
       "Inaccuracy": "疑问手",
       "Mistake": "问题手",
       "Blunder": "恶手"
+    }
+  },
+  "fox": {
+    "title": "野狐棋谱",
+    "nickname": "昵称",
+    "uid": "UID",
+    "placeholderNickname": "输入野狐昵称",
+    "placeholderUid": "输入野狐 UID（数字）",
+    "search": "搜索",
+    "recent": "最近",
+    "clearRecent": "清空",
+    "intro": "输入野狐昵称，获取这个账号最近的公开棋谱。",
+    "loading": "正在从野狐获取棋谱… 野狐服务器有时较慢，可能需要几十秒。",
+    "account": "{name} · UID {uid}",
+    "more": "加载更多",
+    "loadingMore": "正在加载…",
+    "noGames": "这个账号还没有公开棋谱",
+    "noMore": "没有更多棋谱了",
+    "time": "时间",
+    "black": "黑方",
+    "white": "白方",
+    "result": "结果",
+    "moves": "手数",
+    "opening": "正在打开…",
+    "closeAfterOpen": "打开棋谱后关闭这个窗口",
+    "close": "关闭",
+    "results": {
+      "black": "黑",
+      "white": "白",
+      "resignation": "{side}中盘胜",
+      "timeout": "{side}超时胜",
+      "points": "{side}胜 {score} 目",
+      "stones": "{side}胜 {score} 子",
+      "win": "{side}胜",
+      "other": "无胜负"
+    },
+    "errors": {
+      "UserNotFound": "没有找到这个野狐账号，请确认昵称",
+      "InvalidNickname": "请输入野狐昵称",
+      "InvalidUid": "UID 只能包含数字",
+      "InvalidGameId": "棋谱编号无效",
+      "InvalidConfiguration": "抓谱设置有误",
+      "Timeout": "野狐服务器响应太慢，请稍后重试",
+      "Network": "网络连接失败，请检查网络后重试",
+      "Http": "野狐服务器返回错误（HTTP {status}）",
+      "Api": "野狐接口返回错误（代码 {code}）",
+      "InvalidResponse": "野狐返回的数据无法识别",
+      "ResponseTooLarge": "野狐返回的数据过大",
+      "DownloadFailed": "棋谱下载失败，请重试"
     }
   }
 }

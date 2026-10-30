@@ -8,6 +8,7 @@ export const JUMP = 1_000_000;
 export interface TopBarLabels {
   open: string;
   save: string;
+  fox: string;
   first: string;
   previous: string;
   next: string;
@@ -48,6 +49,7 @@ export interface TopBarProps {
   extra?: ReactNode;
   onOpen(): void;
   onSave(): void;
+  onOpenFox(): void;
   onStep(steps: number): void;
   onTogglePondering(): void;
   onToggleCoordinates(): void;
@@ -63,6 +65,8 @@ export function TopBar(props: TopBarProps) {
       <div className="topbar-group">
         <IconButton icon="open" label={labels.open} testId="open-file" onClick={props.onOpen} showLabel />
         <IconButton icon="save" label={labels.save} testId="save-file" onClick={props.onSave} disabled={!props.canSave} showLabel />
+        <span className="topbar-divider" aria-hidden="true" />
+        <IconButton icon="fox" label={labels.fox} testId="open-fox" onClick={props.onOpenFox} showLabel />
       </div>
       <nav className="nav-pill" aria-label={labels.move}>
         <IconButton icon="first" label={labels.first} testId="nav-first" onClick={() => props.onStep(-JUMP)} />

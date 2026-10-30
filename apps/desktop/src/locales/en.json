@@ -33,7 +33,8 @@
     "resume": "Resume analysis",
     "move": "Move",
     "analysing": "Analysing",
-    "paused": "Paused"
+    "paused": "Paused",
+    "fox": "Fox games"
   },
   "graph": {
     "label": "Winrate graph: Black's winrate and score lead",
@@ -126,6 +127,55 @@
       "Inaccuracy": "Inaccuracy",
       "Mistake": "Mistake",
       "Blunder": "Blunder"
+    }
+  },
+  "fox": {
+    "title": "Fox games",
+    "nickname": "Nickname",
+    "uid": "UID",
+    "placeholderNickname": "Fox nickname",
+    "placeholderUid": "Fox UID (digits)",
+    "search": "Search",
+    "recent": "Recent",
+    "clearRecent": "Clear",
+    "intro": "Enter a Fox nickname to list that account's recent public games.",
+    "loading": "Fetching games from Fox… the Fox servers can be slow; this may take a minute.",
+    "account": "{name} · UID {uid}",
+    "more": "Load more",
+    "loadingMore": "Loading…",
+    "noGames": "This account has no public games yet",
+    "noMore": "No more games",
+    "time": "Time",
+    "black": "Black",
+    "white": "White",
+    "result": "Result",
+    "moves": "Moves",
+    "opening": "Opening…",
+    "closeAfterOpen": "Close this window after opening a game",
+    "close": "Close",
+    "results": {
+      "black": "B",
+      "white": "W",
+      "resignation": "{side}+R",
+      "timeout": "{side}+T",
+      "points": "{side}+{score}",
+      "stones": "{side}+{score} st",
+      "win": "{side}+",
+      "other": "No result"
+    },
+    "errors": {
+      "UserNotFound": "No Fox account with this nickname",
+      "InvalidNickname": "Enter a Fox nickname",
+      "InvalidUid": "A UID has digits only",
+      "InvalidGameId": "Invalid game id",
+      "InvalidConfiguration": "Fox settings are invalid",
+      "Timeout": "The Fox servers took too long; try again later",
+      "Network": "Network connection failed; check it and retry",
+      "Http": "The Fox server returned an error (HTTP {status})",
+      "Api": "The Fox API returned an error (code {code})",
+      "InvalidResponse": "Fox returned data that could not be read",
+      "ResponseTooLarge": "Fox returned too much data",
+      "DownloadFailed": "The game download failed; try again"
     }
   }
 }

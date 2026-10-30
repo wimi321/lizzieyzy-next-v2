@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import * as backend from "@/api/backend";
-import type { ColorView, EngineProfile, PointView, ProblemMoveSort, ProblemMovesQuery, VariationTreeView } from "@/api/backend";
+import type { ColorView, EngineProfile, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
 import { formatVisits } from "./board/format";
+import { FoxDialog } from "./fox/FoxDialog";
 import { liveGraph } from "./graph/scale";
 import { WinrateGraph } from "./graph/WinrateGraph";
 import { getMessages } from "./locales";
@@ -48,6 +49,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [pondering, setPondering] = useState(true);
   const [profile, setProfile] = useState<EngineProfile | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [foxOpen, setFoxOpen] = useState(false);
+  const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
   // A preview belongs to one position: once the current node changes it no longer applies.
   const [preview, setPreview] = useState<{ node: number; point: PointView } | null>(null);
   const [tree, setTree] = useState<VariationTreeView | null>(null);
@@ -73,6 +76,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         if (!active) return;
         setPondering(settings.pondering);
         setProfile(settings.engine);
+        setFoxHistory(settings.fox_history);
         // First run: nothing to analyse with until an engine is set up.
         if (!settings.engine) setSetupOpen(true);
       })
@@ -145,6 +149,13 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       .then(() => setPondering(next))
       .catch(report);
   };
+  // The backend records searches in the settings; read them back rather than guess.
+  const refreshFoxHistory = () => {
+    backend
+      .settings()
+      .then((settings) => setFoxHistory(settings.fox_history))
+      .catch(report);
+  };
   const jump = (nodeId: number) => {
     backend.goTo(nodeId).catch(report);
   };
@@ -192,6 +203,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         }
         onOpen={() => void openFile().catch(report)}
         onSave={() => void saveFile().catch(report)}
+        onOpenFox={() => setFoxOpen(true)}
         onStep={step}
         onTogglePondering={togglePondering}
         onToggleCoordinates={() => setCoordinates((value) => !value)}
@@ -306,6 +318,15 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           />
         </aside>
       </div>
+      {foxOpen ? (
+        <FoxDialog
+          backend={backend}
+          labels={messages.fox}
+          history={foxHistory}
+          onHistoryChanged={refreshFoxHistory}
+          onClose={() => setFoxOpen(false)}
+        />
+      ) : null}
       {setupOpen ? (
         <EngineSetup
           backend={backend}

@@ -1266,3 +1266,294 @@ button.chip:hover {
 .graph-mistake.Inaccuracy { fill: var(--rank-inaccuracy); }
 .graph-mistake.Mistake { fill: var(--rank-mistake); }
 .graph-mistake.Blunder { fill: var(--rank-blunder); }
+
+/* Fox games */
+
+.fox-dialog {
+  width: min(48rem, 100%);
+  display: flex;
+  flex-direction: column;
+  /* A fixed height keeps the window still while results arrive. */
+  height: min(44rem, calc(100vh - 2rem));
+  overflow: hidden;
+}
+
+.fox-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 10px;
+}
+
+.fox-search .segmented {
+  flex: none;
+  height: 34px;
+  grid-template-columns: repeat(2, auto);
+}
+
+.fox-search .segmented button {
+  justify-content: center;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.text-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 11px;
+  font: inherit;
+  color: var(--text-1);
+  background: var(--bg-panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  outline: none;
+}
+
+.text-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.fox-recent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.fox-recent-label {
+  color: var(--text-3);
+}
+
+.tag {
+  height: 24px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.tag:hover:not(:disabled) {
+  color: var(--text-1);
+  border-color: var(--line-strong);
+}
+
+.link-button {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-3);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.link-button:hover:not(:disabled) {
+  color: var(--text-1);
+}
+
+.fox-body {
+  flex: 1;
+  min-height: 160px;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.fox-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  height: 100%;
+  min-height: 200px;
+  padding: 0 2rem 2rem;
+  text-align: center;
+}
+
+.fox-state p {
+  max-width: 24rem;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+.fox-state-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 50%;
+}
+
+.fox-state-icon .icon {
+  width: 22px;
+  height: 22px;
+}
+
+.spinner {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+.fox-error {
+  margin: 10px 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--bad);
+  background: rgba(228, 107, 93, 0.08);
+  border: 1px solid rgba(228, 107, 93, 0.35);
+  border-radius: var(--radius);
+}
+
+.fox-account {
+  margin: 4px 2px 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.fox-row {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr) minmax(0, 1fr) 100px 44px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+}
+
+button.fox-row {
+  cursor: pointer;
+}
+
+button.fox-row:hover:not(:disabled) {
+  color: var(--text-1);
+  background: var(--bg-hover);
+}
+
+button.fox-row:disabled {
+  cursor: default;
+}
+
+button.fox-row[aria-busy="true"] {
+  background: var(--accent-soft);
+}
+
+.fox-head {
+  min-height: 24px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.fox-player {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fox-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fox-player.own .fox-name {
+  font-weight: 650;
+  color: var(--text-1);
+}
+
+.fox-rank {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.fox-result {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.fox-outcome {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.fox-outcome.win {
+  background: var(--good);
+}
+
+.fox-outcome.loss {
+  background: var(--bad);
+}
+
+.fox-moves {
+  text-align: right;
+}
+
+.fox-more {
+  display: block;
+  margin: 10px auto 4px;
+}
+
+.fox-end {
+  text-align: center;
+}
+
+.fox-footer {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.checkbox input {
+  accent-color: var(--accent);
+}
