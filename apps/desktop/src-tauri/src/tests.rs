@@ -15,6 +15,7 @@ use tokio::sync::{mpsc, oneshot};
 
 mod problem_moves;
 mod review;
+mod strength;
 mod variation;
 
 const SAFETY: Duration = Duration::from_secs(5);

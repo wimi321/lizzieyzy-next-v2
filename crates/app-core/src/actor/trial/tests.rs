@@ -25,6 +25,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
             tree: crate::VariationTreeView::default(),
             summaries: HashMap::new(),
             review: Default::default(),
+            strength: None,
             summary_fingerprint: None,
             revision: 0,
             directory: directory.to_owned(),

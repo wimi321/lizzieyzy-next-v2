@@ -12,6 +12,7 @@ export type {
   WholeGameProgressListener,
   MoveRank, MoveRankEvaluationMode, MoveRankSettings, MoveLoss, ProblemMovesQuery,
   ProblemMovesView, ProblemMoveSort, ProblemMoveView, MistakeBarPoint,
+  StrengthEstimateView, StrengthReport, SideReport, PhaseReport, Confidence, Sample, MoveCategory,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "unsubscribe">;
@@ -189,6 +190,7 @@ export const problemMoves: Backend["problemMoves"] =
     }));
 export const setMoveRankSettings: Backend["setMoveRankSettings"] =
   (settings) => command("setMoveRankSettings", [settings]);
+export const strengthEstimate: Backend["strengthEstimate"] = () => command("strengthEstimate", []);
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);

@@ -8,6 +8,7 @@ members = [
     "crates/engine-session",
     "crates/analysis",
     "crates/fox-kifu",
+    "crates/strength",
     "crates/app-core",
     "tools/fake-katago",
     "apps/desktop/src-tauri",

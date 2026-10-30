@@ -13,6 +13,7 @@ mod problem_moves;
 mod review;
 mod settings;
 mod storage;
+mod strength_estimate;
 mod view;
 
 pub use delivery::AppSubscription;
@@ -25,6 +26,7 @@ pub use move_rank::*;
 pub use problem_moves::*;
 pub use review::*;
 pub use settings::{EngineProfile, Settings, SettingsError};
+pub use strength_estimate::*;
 pub use view::*;
 
 use std::path::PathBuf;
@@ -58,6 +60,8 @@ pub enum AppError {
     WholeGame(#[from] WholeGameError),
     #[error(transparent)]
     MoveRank(#[from] MoveRankError),
+    #[error(transparent)]
+    Strength(#[from] strength::model::ModelError),
 }
 
 /// Runtime tuning, separate from the versioned user settings. Defaults use the

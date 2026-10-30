@@ -28,6 +28,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             tree: VariationTreeView::default(),
             summaries: HashMap::new(),
             review: Default::default(),
+            strength: None,
             summary_fingerprint: None,
             revision: 0,
             directory: PathBuf::new(),

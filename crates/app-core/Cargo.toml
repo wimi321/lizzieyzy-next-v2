@@ -12,6 +12,7 @@ engine-session = { path = "../engine-session" }
 fox-kifu = { path = "../fox-kifu" }
 go-core = { path = "../go-core" }
 sgf = { path = "../sgf" }
+strength = { path = "../strength" }
 katago-protocol = { path = "../katago-protocol" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

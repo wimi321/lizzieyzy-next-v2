@@ -9,6 +9,8 @@ import type {
   FoxSearchResult,
   MoveView,
   PointView,
+  StrengthEstimateView,
+  SideReport,
 } from "../src/api/backend";
 
 type Stone = [x: number, y: number, color: ColorView];
@@ -214,4 +216,32 @@ export function nineByNine() {
 
 export function emptyNineteen() {
   return documentView(boardView(19, 19, [], { moveNumber: 0 }), 0);
+}
+
+/** Scripted empty backend result; fixtures do not run the strength estimator. */
+export function emptyStrengthEstimate(revision = 0): StrengthEstimateView {
+  const phase = {
+    sample_count: 0, average_winrate_loss: 0, average_score_loss: null,
+    weighted_score_loss: 0, good_move_rate: 0, first_choice_rate: 0,
+  };
+  const side: SideReport = {
+    sample_count: 0, score_sample_count: 0, rank_value: null, prediction_sigma: null,
+    rank_label_zh: "-", rank_label_en: "-",
+    quality_score: 0, average_winrate_loss: 0, average_score_loss: null,
+    median_score_loss: null, weighted_score_loss: 0, average_score_equivalent_loss: 0,
+    match_rate: 0, first_choice_rate: 0, top3_rate: 0, top5_rate: 0, good_move_rate: 0,
+    move_rank_good_move_rate: 0, move_rank_counts: [0, 0, 0, 0, 0, 0],
+    tier_counts: [0, 0, 0, 0, 0, 0], bad_move_rate: 0, mistake_rate: 0,
+    blunder_rate: 0, average_difficulty: 0, strength_band: "-", confidence: "Low",
+    ai_likelihood: 0,
+    features: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    opening: { ...phase }, middlegame: { ...phase }, endgame: { ...phase }, samples: [],
+  };
+  return {
+    revision, total_moves: 0, analyzed_moves: 0,
+    report: {
+      black: structuredClone(side), white: structuredClone(side), overall: structuredClone(side),
+      has_enough_data: false,
+    },
+  };
 }
