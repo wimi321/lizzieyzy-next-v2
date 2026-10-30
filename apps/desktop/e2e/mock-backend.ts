@@ -1,4 +1,4 @@
-import type { Backend, DocumentView, VariationNodeView, VariationTreeView, WireAppEvent } from "../src/api/backend";
+import type { Backend, DocumentView, Settings, VariationNodeView, VariationTreeView, WireAppEvent } from "../src/api/backend";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
@@ -8,6 +8,8 @@ export type {
   GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
   WireAppEvent, WholeGameOptions, WholeGamePreset, WholeGameProgress, WholeGameStatus,
   WholeGameProgressListener,
+  MoveRank, MoveRankEvaluationMode, MoveRankSettings, MoveLoss, ProblemMovesQuery,
+  ProblemMovesView, ProblemMoveSort, ProblemMoveView, MistakeBarPoint,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "unsubscribe">;
@@ -18,7 +20,11 @@ export type MockCall = {
 export type MockCommand = {
   [K in CommandName]: {
     command: K;
-    result: Awaited<ReturnType<Backend[K]>>;
+    // Older UI scripts do not exercise move ranks. Keep those settings fixtures
+    // valid without weakening the production Settings DTO or deriving analysis.
+    result: K extends "settings"
+      ? Omit<Settings, "move_rank"> & Partial<Pick<Settings, "move_rank">>
+      : Awaited<ReturnType<Backend[K]>>;
     events?: WireAppEvent[];
     error?: string;
   }
@@ -140,6 +146,11 @@ export const cancelWholeGameAnalysis: Backend["cancelWholeGameAnalysis"] = () =>
   command("cancelWholeGameAnalysis", []);
 export const wholeGameProgress: Backend["wholeGameProgress"] = () => command("wholeGameProgress", []);
 export const wholeGameResult: Backend["wholeGameResult"] = (nodeId) => command("wholeGameResult", [nodeId]);
+export const problemMoves: Backend["problemMoves"] =
+  (query = { minimum_rank: "Inaccuracy", color: null, sort: "LossDesc" }) =>
+    command("problemMoves", [query]);
+export const setMoveRankSettings: Backend["setMoveRankSettings"] =
+  (settings) => command("setMoveRankSettings", [settings]);
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);

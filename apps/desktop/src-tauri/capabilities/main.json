@@ -22,6 +22,8 @@
     "allow-cancel-whole-game-analysis",
     "allow-whole-game-progress",
     "allow-whole-game-result",
+    "allow-problem-moves",
+    "allow-set-move-rank-settings",
     "allow-configure-engine",
     "allow-detect-engines",
     "allow-try-configure-engine",
