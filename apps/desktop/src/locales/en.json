@@ -105,5 +105,27 @@
     "completed": "Done: {n} positions",
     "cancelled": "Cancelled",
     "error": "Error: {reason}"
+  },
+  "problems": {
+    "title": "Problems",
+    "comment": "Comment",
+    "all": "All",
+    "black": "Black",
+    "white": "White",
+    "byLoss": "By loss",
+    "byMove": "By move",
+    "empty": "No moves reach the threshold",
+    "noAnalysis": "Run auto analysis to list problem moves",
+    "noComment": "No comment on this move",
+    "move": "#{n}",
+    "points": "{n} pts",
+    "ranks": {
+      "Best": "Best",
+      "Good": "Good",
+      "Normal": "Normal",
+      "Inaccuracy": "Inaccuracy",
+      "Mistake": "Mistake",
+      "Blunder": "Blunder"
+    }
   }
 }

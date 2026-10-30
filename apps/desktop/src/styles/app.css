@@ -27,6 +27,12 @@
   --accent-soft: rgba(216, 170, 94, 0.14);
   --good: #4fc28b;
   --bad: #e46b5d;
+  --rank-best: #42c480;
+  --rank-good: #9ecd5b;
+  --rank-normal: #8c8982;
+  --rank-inaccuracy: #e9b84f;
+  --rank-mistake: #e5844f;
+  --rank-blunder: #e0574f;
   --radius: 8px;
   --mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 
@@ -1093,3 +1099,170 @@ button.chip:hover {
   background: var(--accent);
   transition: width 0.4s ease;
 }
+
+/* Problem moves and comment tabs */
+
+.notes-section {
+  display: flex;
+  flex-direction: column;
+  height: 34%;
+  min-height: 170px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: -4px 0 10px;
+}
+
+.tabs button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--text-3);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.tabs button:hover {
+  color: var(--text-1);
+}
+
+.tabs button[aria-selected="true"] {
+  color: var(--text-1);
+  background: var(--bg-raised);
+}
+
+.tab-count {
+  min-width: 18px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  color: #1a1306;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.tab-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.problem-list,
+.notes-section .comment {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.problem-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.segmented.small {
+  grid-template-columns: repeat(3, auto);
+  padding: 2px;
+  border-radius: 8px;
+}
+
+.segmented.small button {
+  padding: 2px 10px;
+  font-size: 11px;
+}
+
+.problem-rows {
+  flex: 1;
+  margin: 0 -6px;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.problem-row {
+  display: grid;
+  grid-template-columns: 8px 54px 12px 34px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.problem-row:hover {
+  background: var(--bg-hover);
+}
+
+.problem-row[aria-current="step"] {
+  background: var(--accent-soft);
+  color: var(--text-1);
+}
+
+.rank-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rank-normal);
+}
+
+.problem-row[data-rank="Inaccuracy"] .rank-dot { background: var(--rank-inaccuracy); }
+.problem-row[data-rank="Mistake"] .rank-dot { background: var(--rank-mistake); }
+.problem-row[data-rank="Blunder"] .rank-dot { background: var(--rank-blunder); }
+
+.problem-coordinate {
+  font-family: var(--mono);
+  color: var(--text-1);
+}
+
+.problem-loss {
+  text-align: right;
+  font-weight: 650;
+  color: var(--text-1);
+}
+
+.problem-row[data-rank="Blunder"] .problem-loss { color: var(--rank-blunder); }
+.problem-row[data-rank="Mistake"] .problem-loss { color: var(--rank-mistake); }
+
+.problem-score {
+  text-align: right;
+  color: var(--text-3);
+}
+
+.stone-icon.tiny {
+  width: 11px;
+  height: 11px;
+  box-shadow: none;
+}
+
+.panel-empty {
+  margin: 6px 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.graph-mistake { opacity: 0.9; }
+.graph-mistake.Inaccuracy { fill: var(--rank-inaccuracy); }
+.graph-mistake.Mistake { fill: var(--rank-mistake); }
+.graph-mistake.Blunder { fill: var(--rank-blunder); }

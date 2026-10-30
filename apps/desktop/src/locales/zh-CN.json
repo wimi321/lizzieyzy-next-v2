@@ -105,5 +105,27 @@
     "completed": "已完成 {n} 个局面",
     "cancelled": "已取消",
     "error": "出错：{reason}"
+  },
+  "problems": {
+    "title": "问题手",
+    "comment": "注释",
+    "all": "全部",
+    "black": "黑",
+    "white": "白",
+    "byLoss": "按损失",
+    "byMove": "按手数",
+    "empty": "没有达到阈值的问题手",
+    "noAnalysis": "自动分析之后，这里会列出问题手",
+    "noComment": "这一手没有注释",
+    "move": "第 {n} 手",
+    "points": "{n} 目",
+    "ranks": {
+      "Best": "最佳",
+      "Good": "好棋",
+      "Normal": "普通",
+      "Inaccuracy": "疑问手",
+      "Mistake": "问题手",
+      "Blunder": "恶手"
+    }
   }
 }

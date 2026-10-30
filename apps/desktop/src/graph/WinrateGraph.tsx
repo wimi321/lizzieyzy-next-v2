@@ -1,5 +1,5 @@
 import { type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { AnalysisView, GraphView } from "@/api/backend";
+import type { AnalysisView, GraphView, MistakeBarPoint, MoveRank } from "@/api/backend";
 import { formatScore, formatWinrate } from "../board/format";
 import {
   type GraphLayout,
@@ -10,6 +10,7 @@ import {
   linePaths,
   liveGraph,
   plotHeight,
+  plotWidth,
   scoreRange,
   xForIndex,
   yForScore,
@@ -25,17 +26,21 @@ export interface GraphLabels {
 export interface WinrateGraphProps {
   graph: GraphView;
   analysis: AnalysisView | null;
+  /** Per-point losses on the same line and indexing as the graph. */
+  mistakes?: readonly MistakeBarPoint[];
   labels: GraphLabels;
   onJump(nodeId: number): void;
 }
 
 const MIN_HEIGHT = 96;
+/** Only real problems get a bar, as in LizzieYzy Next's blunder bars. */
+const BAR_RANKS = new Set<MoveRank>(["Inaccuracy", "Mistake", "Blunder"]);
 const PADDING = { left: 40, right: 40, top: 22, bottom: 14 };
 /** Side-column padding: the axis labels are short, the plot needs the width. */
 const COMPACT_PADDING = { left: 28, right: 30, top: 22, bottom: 14 };
 
 /** Black's winrate (filled) and score lead (thin line) along the displayed line; fills its container. */
-export function WinrateGraph({ graph, analysis, labels, onJump }: WinrateGraphProps) {
+export function WinrateGraph({ graph, analysis, mistakes, labels, onJump }: WinrateGraphProps) {
   const container = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const dragging = useRef<number | null>(null);
@@ -148,6 +153,25 @@ export function WinrateGraph({ graph, analysis, labels, onJump }: WinrateGraphPr
                 <circle className="graph-dot-score" cx={x} cy={yForScore(layout, summary.score_lead, range)} r={2} />
                 <circle className="graph-dot-winrate" cx={x} cy={yForWinrate(layout, summary.winrate)} r={2.5} />
               </g>
+            );
+          })}
+          {mistakes?.map((point, index) => {
+            const loss = point.loss;
+            if (!loss || !BAR_RANKS.has(loss.rank)) return null;
+            const width = Math.min(6, Math.max(2, (plotWidth(layout) / Math.max(1, points.length)) * 0.7));
+            // A 30-point drop fills 40% of the plot; small drops stay visible.
+            const height = Math.max(3, Math.min(1, loss.winrate_loss / 30) * plotHeight(layout) * 0.4);
+            return (
+              <rect
+                key={point.node_id}
+                className={`graph-mistake ${loss.rank}`}
+                data-testid="graph-mistake"
+                x={xForIndex(layout, index) - width / 2}
+                y={plotBottom - height}
+                width={width}
+                height={height}
+                rx={1}
+              />
             );
           })}
           {analysed.map(([from, to]) => (

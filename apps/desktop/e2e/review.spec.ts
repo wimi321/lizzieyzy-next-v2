@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { WireAppEvent, WholeGameProgress } from "../src/api/backend";
+import type { ProblemMovesView, WireAppEvent, WholeGameProgress } from "../src/api/backend";
 import { analysedGame, documentChanged } from "./fixtures";
 import type { MockCommand } from "./mock-backend";
 
@@ -38,4 +38,41 @@ test("auto analysis starts with the chosen preset, shows progress and pauses", a
     { command: "startWholeGameAnalysis", args: [{ visits: 3000 }] },
     { command: "pauseWholeGameAnalysis", args: [] },
   ]);
+});
+
+function problemView(points: Array<{ node_id: number; move_number: number }>): ProblemMovesView {
+  const loss = (rank: "Mistake" | "Blunder", winrate: number, score: number) =>
+    ({ winrate_loss: winrate, score_loss: score, rank, is_best: false, candidate_rank: 4, visits: 1000, before_visits: 1000 });
+  const losses = new Map([[37, loss("Blunder", 24.6, 6.3)], [52, loss("Mistake", 8.1, 2.2)]]);
+  return {
+    revision: 7,
+    settings: { mode: "Auto", winrate_thresholds: [1, 3, 6, 12, 24], score_thresholds: [0.5, 1.5, 3, 6, 12] },
+    query: { minimum_rank: "Inaccuracy", color: null, sort: "LossDesc" },
+    entries: [...losses].map(([move, value]) => ({
+      node_id: move,
+      move_number: move,
+      color: move % 2 === 1 ? "Black" : "White",
+      coordinate: move === 37 ? "Q16" : "D4",
+      loss: value,
+    })),
+    error_bar: points.map((point) => ({ node_id: point.node_id, move_number: point.move_number, mv: null, loss: losses.get(point.move_number) ?? null })),
+    current_index: 20,
+  };
+}
+
+test("problem moves list the worst moves, mark the graph and jump on click", async ({ page }) => {
+  const game = analysedGame();
+  await page.goto("/");
+  await page.evaluate(
+    ([events, problems]) => {
+      window.__mockBackend?.setProblemMoves(problems);
+      window.__mockBackend?.setScript({ initialEvents: events, commands: [{ command: "goTo", result: 8 }] });
+    },
+    [[documentChanged(game, 7)], problemView(game.graph.points)] as [WireAppEvent[], ProblemMovesView],
+  );
+  await expect(page.getByTestId("problem-row")).toHaveCount(2);
+  await expect(page.getByTestId("tab-problems")).toContainText("2");
+  await expect(page.getByTestId("graph-mistake")).toHaveCount(2);
+  await page.getByTestId("problem-row").first().click();
+  await expect.poll(() => calls(page)).toEqual([{ command: "goTo", args: [37] }]);
 });

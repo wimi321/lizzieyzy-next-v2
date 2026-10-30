@@ -1,4 +1,4 @@
-import type { Backend, DocumentView, Settings, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import type { Backend, DocumentView, ProblemMovesView, Settings, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
@@ -44,6 +44,12 @@ let dispatching = false;
 /** The newest document delivered to the app, for answering unscripted read-only queries. */
 let lastDocument: { revision: number; view: DocumentView } | null = null;
 let lastProgress: WholeGameProgress | null = null;
+/** A test-provided problem-move view, answered for every unscripted read. */
+let problemMovesView: ProblemMovesView | null = null;
+
+export function setProblemMoves(view: ProblemMovesView | null): void {
+  problemMovesView = structuredClone(view);
+}
 
 /** Install deterministic replies and events. No Go or analysis logic is simulated. */
 export function setScript(script: MockScript): void {
@@ -108,7 +114,7 @@ export const redo: Backend["redo"] = () => command("redo", []);
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress">(
+function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "problemMoves">(
   name: K,
   args: Parameters<Backend[K]>,
   fallback: () => Awaited<ReturnType<Backend[K]>>,
@@ -149,8 +155,21 @@ export const cancelWholeGameAnalysis: Backend["cancelWholeGameAnalysis"] = () =>
 export const wholeGameProgress: Backend["wholeGameProgress"] = () => query("wholeGameProgress", [], () => lastProgress);
 export const wholeGameResult: Backend["wholeGameResult"] = (nodeId) => command("wholeGameResult", [nodeId]);
 export const problemMoves: Backend["problemMoves"] =
-  (query = { minimum_rank: "Inaccuracy", color: null, sort: "LossDesc" }) =>
-    command("problemMoves", [query]);
+  (filter = { minimum_rank: "Inaccuracy", color: null, sort: "LossDesc" }) =>
+    query("problemMoves", [filter], () => problemMovesView ? { ...problemMovesView, query: filter } : ({
+      revision: lastDocument?.revision ?? 0,
+      settings: { mode: "Auto", winrate_thresholds: [1, 3, 6, 12, 24], score_thresholds: [0.5, 1.5, 3, 6, 12] },
+      query: filter,
+      entries: [],
+      // No losses without whole-game results: one empty bar per graph point.
+      error_bar: (lastDocument?.view.graph.points ?? []).map((point) => ({
+        node_id: point.node_id,
+        move_number: point.move_number,
+        mv: null,
+        loss: null,
+      })),
+      current_index: lastDocument?.view.graph.current_index ?? 0,
+    }));
 export const setMoveRankSettings: Backend["setMoveRankSettings"] =
   (settings) => command("setMoveRankSettings", [settings]);
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
@@ -190,6 +209,7 @@ export interface MockControls {
   setScript: typeof setScript;
   pushEvents: typeof pushEvents;
   recordedCalls: typeof recordedCalls;
+  setProblemMoves: typeof setProblemMoves;
 }
 
 declare global {
@@ -202,6 +222,6 @@ declare global {
 }
 
 if (typeof window !== "undefined") {
-  window.__mockBackend = { setScript, pushEvents, recordedCalls };
+  window.__mockBackend = { setScript, pushEvents, recordedCalls, setProblemMoves };
   if (window.__mockInitialScript) setScript(window.__mockInitialScript);
 }

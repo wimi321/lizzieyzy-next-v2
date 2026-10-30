@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as backend from "@/api/backend";
-import type { EngineProfile, PointView, VariationTreeView } from "@/api/backend";
+import type { ColorView, EngineProfile, PointView, ProblemMoveSort, ProblemMovesQuery, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
 import { formatVisits } from "./board/format";
 import { liveGraph } from "./graph/scale";
@@ -10,6 +10,8 @@ import { CandidateTable } from "./panels/CandidateTable";
 import { InfoPanel } from "./panels/InfoPanel";
 import { MoveTree } from "./panels/MoveTree";
 import { AutoAnalysis } from "./review/AutoAnalysis";
+import { ProblemList } from "./review/ProblemList";
+import { useProblemMoves } from "./review/useProblemMoves";
 import { useWholeGame } from "./review/useWholeGame";
 import { EngineSetup } from "./settings/EngineSetup";
 import { connect, createStore, type Store, useAppState } from "./state/store";
@@ -50,6 +52,18 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [preview, setPreview] = useState<{ node: number; point: PointView } | null>(null);
   const [tree, setTree] = useState<VariationTreeView | null>(null);
   const wholeGame = useWholeGame(backend);
+  const [problemColor, setProblemColor] = useState<ColorView | null>(null);
+  const [problemSort, setProblemSort] = useState<ProblemMoveSort>("LossDesc");
+  const [notesTab, setNotesTab] = useState<"problems" | "comment">("problems");
+  const problemQuery = useMemo<ProblemMovesQuery>(
+    () => ({ minimum_rank: "Inaccuracy", color: problemColor, sort: problemSort }),
+    [problemColor, problemSort],
+  );
+  const problems = useProblemMoves(backend, problemQuery, {
+    revision,
+    progress: wholeGame.progress?.completed ?? 0,
+    live: analysis?.visits ?? 0,
+  });
 
   useEffect(() => {
     let active = true;
@@ -109,6 +123,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const currentIndex = document?.graph.current_index ?? 0;
   const previewPoint = preview && document && preview.node === document.tree.current ? preview.point : null;
   const info = document?.game_info ?? null;
+  // The mistake bars share the graph's line and indexing; anything else is stale.
+  const mistakes = problems && problems.error_bar.length === points.length ? problems.error_bar : undefined;
+  const analysed = points.some((point) => point.summary !== null);
   const play = (point: PointView) => {
     if (!board) return;
     backend.play({ type: "Play", data: { color: board.to_play, point } }).catch(report);
@@ -200,14 +217,52 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               </span>
             </div>
             <div className="graph-wrap">
-              {document ? <WinrateGraph graph={document.graph} analysis={analysis} labels={messages.graph} onJump={jump} /> : null}
+              {document ? (
+                <WinrateGraph graph={document.graph} analysis={analysis} mistakes={mistakes} labels={messages.graph} onJump={jump} />
+              ) : null}
             </div>
           </section>
-          {document?.comment ? (
-            <section className="section comment" aria-label={messages.info.comment} data-testid="comment">
-              <p>{document.comment}</p>
-            </section>
-          ) : null}
+          <section className="section notes-section">
+            <div className="tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={notesTab === "problems"}
+                data-testid="tab-problems"
+                onClick={() => setNotesTab("problems")}
+              >
+                {messages.problems.title}
+                {problems && problems.entries.length > 0 ? <span className="tab-count">{problems.entries.length}</span> : null}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={notesTab === "comment"}
+                data-testid="tab-comment"
+                onClick={() => setNotesTab("comment")}
+              >
+                {messages.problems.comment}
+                {document?.comment ? <span className="tab-dot" aria-hidden="true" /> : null}
+              </button>
+            </div>
+            {notesTab === "problems" ? (
+              <ProblemList
+                view={problems}
+                current={document?.tree.current ?? -1}
+                color={problemColor}
+                sort={problemSort}
+                analysed={analysed}
+                labels={messages.problems}
+                onColor={setProblemColor}
+                onSort={setProblemSort}
+                onJump={jump}
+              />
+            ) : (
+              <div className="comment" data-testid="comment">
+                {document?.comment ? <p>{document.comment}</p> : <p className="panel-empty">{messages.problems.noComment}</p>}
+              </div>
+            )}
+          </section>
         </aside>
         <section className="board-area" data-testid="board-area" data-revision={revision} data-node-id={document?.tree.current}>
           {board ? (
