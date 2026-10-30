@@ -1,7 +1,9 @@
 mod cli;
 mod model;
 
+use std::fs::OpenOptions;
 use std::io::{self, BufRead, Write};
+use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
@@ -18,6 +20,18 @@ enum RunError {
     Json(#[from] serde_json::Error),
     #[error("injected crash")]
     Crash,
+    #[error("could not read startup gate {}: {source}", path.display())]
+    StartupGate {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    #[error("could not claim fault-once marker {}: {source}", path.display())]
+    FaultMarker {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
 }
 
 struct Job {
@@ -115,6 +129,7 @@ impl<W: Write> Engine<W> {
             .options
             .crash_after_queries
             .is_some_and(|n| self.queries >= n)
+            && self.claim_query_fault()?
         {
             return Err(RunError::Crash);
         }
@@ -122,6 +137,7 @@ impl<W: Write> Engine<W> {
             .options
             .hang_after_queries
             .is_some_and(|n| self.queries >= n)
+            && self.claim_query_fault()?
         {
             self.hung = true;
             self.running.clear();
@@ -149,6 +165,35 @@ impl<W: Write> Engine<W> {
             self.sequence = self.sequence.saturating_add(1);
         }
         Ok(())
+    }
+
+    fn claim_query_fault(&self) -> Result<bool, RunError> {
+        let Some(path) = &self.options.fault_once_file else {
+            return Ok(true);
+        };
+        match OpenOptions::new().write(true).create_new(true).open(path) {
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                match std::fs::metadata(path) {
+                    Ok(metadata) if metadata.is_file() => Ok(false),
+                    Ok(_) => Err(RunError::FaultMarker {
+                        path: path.clone(),
+                        source: io::Error::new(
+                            io::ErrorKind::AlreadyExists,
+                            "marker is not a regular file",
+                        ),
+                    }),
+                    Err(source) => Err(RunError::FaultMarker {
+                        path: path.clone(),
+                        source,
+                    }),
+                }
+            }
+            Err(source) => Err(RunError::FaultMarker {
+                path: path.clone(),
+                source,
+            }),
+        }
     }
 
     fn terminate(&mut self, target: Option<&str>, acknowledgement: Value) -> Result<(), RunError> {
@@ -249,21 +294,53 @@ impl<W: Write> Engine<W> {
         Ok(())
     }
 
+    fn startup_gate_released(&self) -> Result<bool, RunError> {
+        let Some(path) = &self.options.startup_gate_file else {
+            return Ok(true);
+        };
+        match std::fs::metadata(path) {
+            Ok(metadata) if metadata.is_file() => Ok(true),
+            Ok(_) => Err(RunError::StartupGate {
+                path: path.clone(),
+                source: io::Error::new(io::ErrorKind::InvalidInput, "gate is not a regular file"),
+            }),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(source) => Err(RunError::StartupGate {
+                path: path.clone(),
+                source,
+            }),
+        }
+    }
+
     fn run(&mut self, input: Receiver<io::Result<String>>) -> Result<(), RunError> {
         let startup = self.options.startup_delay_ms as f64 / 1000.0;
         let crash = self.options.crash_after_ms.map(|ms| ms as f64 / 1000.0);
         let mut eof = false;
-        // The input reader can queue lines during startup; only readiness is delayed.
-        while self.now() < startup {
-            if crash.is_some_and(|deadline| self.now() >= deadline) {
+        // The input reader can queue lines, but no requests are consumed before readiness.
+        loop {
+            let now = self.now();
+            if crash.is_some_and(|deadline| now >= deadline) {
                 return Err(RunError::Crash);
             }
-            let due = crash.unwrap_or(startup).min(startup);
-            // No input is consumed here. A bounded park avoids overflowing platform durations.
-            std::thread::park_timeout(self.wait_duration(due));
+            if now >= startup && self.startup_gate_released()? {
+                break;
+            }
+            let due = if now < startup {
+                startup
+            } else {
+                f64::INFINITY
+            };
+            let mut wait = self.wait_duration(due.min(crash.unwrap_or(f64::INFINITY)));
+            if self.options.startup_gate_file.is_some() {
+                wait = wait.min(Duration::from_millis(10));
+            }
+            std::thread::park_timeout(wait);
         }
-        if self.options.crash_after_queries == Some(0) {
+        if self.options.crash_after_queries == Some(0) && self.claim_query_fault()? {
             return Err(RunError::Crash);
+        }
+        if self.options.hang_after_queries == Some(0) && self.claim_query_fault()? {
+            self.hung = true;
         }
         loop {
             if crash.is_some_and(|deadline| self.now() >= deadline) {
@@ -311,7 +388,6 @@ fn run(options: Options) -> Result<(), RunError> {
             }
         })?;
     let stdout = io::stdout();
-    let hung = options.hang_after_queries == Some(0);
     Engine {
         options,
         output: stdout.lock(),
@@ -321,7 +397,7 @@ fn run(options: Options) -> Result<(), RunError> {
         sequence: 0,
         queries: 0,
         lines: 0,
-        hung,
+        hung: false,
     }
     .run(receiver)
 }

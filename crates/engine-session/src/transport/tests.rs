@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 
 const SAFETY_TIMEOUT: Duration = Duration::from_secs(5);
+const NON_TARGET_TIMEOUT: Duration = Duration::from_secs(60);
 
 fn spec(extra: &[&str]) -> TransportSpec {
     TransportSpec::LocalProcess {
@@ -28,8 +29,10 @@ fn spec(extra: &[&str]) -> TransportSpec {
 
 fn config() -> SessionConfig {
     SessionConfig {
-        shutdown_timeout: Duration::from_millis(100),
-        write_timeout: Duration::from_secs(1),
+        startup_timeout: NON_TARGET_TIMEOUT,
+        response_timeout: NON_TARGET_TIMEOUT,
+        write_timeout: NON_TARGET_TIMEOUT,
+        shutdown_timeout: NON_TARGET_TIMEOUT,
         ..SessionConfig::default()
     }
 }
@@ -85,7 +88,12 @@ async fn graceful_stop_waits_for_successful_exit_and_closes_channels() {
 
 #[tokio::test]
 async fn hung_process_is_killed_and_reaped_after_shutdown_deadline() {
-    let cfg = config();
+    let cfg = SessionConfig {
+        // This is the only short production deadline in these transport tests:
+        // the injected hang cannot exit on stdin EOF, so forced shutdown is required.
+        shutdown_timeout: Duration::from_millis(100),
+        ..config()
+    };
     let transport = start(&spec(&["--hang-after-queries", "0"]), &cfg).unwrap();
     timeout(SAFETY_TIMEOUT, async move {
         let Transport {
@@ -194,8 +202,8 @@ async fn outgoing_queue_has_fixed_capacity_and_can_shutdown_while_full() {
         let task = tokio::spawn(driver);
         stop.unwrap().send(()).unwrap();
         drain(&mut incoming).await;
-        // Stop may preempt a queued write or require the kill deadline. The
-        // contract here is a reaped process despite backpressure, not exit 0.
+        // Stop may preempt a queued write. The contract here is a reaped
+        // process despite backpressure, not a platform-specific exit code.
         let _status = exited.await.unwrap().status.unwrap();
         task.await.unwrap();
     })
@@ -207,12 +215,18 @@ async fn outgoing_queue_has_fixed_capacity_and_can_shutdown_while_full() {
 fn nonexistent_working_directory_is_a_spawn_error() {
     let mut transport = spec(&[]);
     let TransportSpec::LocalProcess { cwd, .. } = &mut transport;
-    *cwd = Some(std::env::temp_dir().join(format!("missing-{}", uuid::Uuid::new_v4())));
+    let missing = std::env::temp_dir().join(format!("missing-{}", uuid::Uuid::new_v4()));
+    assert!(!missing.exists(), "test cwd must not exist");
+    *cwd = Some(missing);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     let _entered = runtime.enter();
-    let error = start(&transport, &config()).err().expect("invalid cwd");
-    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    // Windows and Unix classify an invalid working directory differently.
+    // The transport contract is that the spawn fails, independent of OS errno.
+    assert!(
+        start(&transport, &config()).is_err(),
+        "invalid cwd must fail"
+    );
 }

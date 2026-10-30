@@ -13,7 +13,15 @@ async fn mailbox_has_one_partial_slot_and_bounded_reliable_history() {
             cwd: None,
             env: BTreeMap::new(),
         },
-        SessionConfig::default(),
+        SessionConfig {
+            // Delivery uses result events as barriers; process timing is not
+            // under test, so no operational deadline should race the safety net.
+            startup_timeout: Duration::from_secs(60),
+            response_timeout: Duration::from_secs(60),
+            write_timeout: Duration::from_secs(60),
+            shutdown_timeout: Duration::from_secs(60),
+            ..SessionConfig::default()
+        },
     );
     timeout(Duration::from_secs(5), async {
         let mut status = engine.status();
