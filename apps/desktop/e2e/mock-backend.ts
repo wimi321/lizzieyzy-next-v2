@@ -104,3 +104,20 @@ export const subscribe: Backend["subscribe"] = async (listener) => {
 export const unsubscribe: Backend["unsubscribe"] = async (id) => {
   listeners.delete(id);
 };
+
+export interface MockControls {
+  setScript: typeof setScript;
+  pushEvents: typeof pushEvents;
+  recordedCalls: typeof recordedCalls;
+}
+
+declare global {
+  interface Window {
+    /** Present only in the e2e build, where the Vite alias swaps in this module. */
+    __mockBackend?: MockControls;
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.__mockBackend = { setScript, pushEvents, recordedCalls };
+}
