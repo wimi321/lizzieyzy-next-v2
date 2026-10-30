@@ -1,4 +1,4 @@
-import type { Backend, DocumentView, VariationNodeView, VariationTreeView, WireAppEvent } from "../src/api/backend";
+import type { Backend, DocumentView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
@@ -37,6 +37,7 @@ const calls: MockCall[] = [];
 let dispatching = false;
 /** The newest document delivered to the app, for answering unscripted read-only queries. */
 let lastDocument: { revision: number; view: DocumentView } | null = null;
+let lastProgress: WholeGameProgress | null = null;
 
 /** Install deterministic replies and events. No Go or analysis logic is simulated. */
 export function setScript(script: MockScript): void {
@@ -59,6 +60,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
     while (listeners.size !== 0 && pendingEvents.length !== 0) {
       const event = pendingEvents.shift()!;
       if (event.type === "DocumentChanged") lastDocument = structuredClone(event.data);
+      if (event.type === "WholeGameProgress") lastProgress = structuredClone(event.data);
       for (const listener of [...listeners.values()]) {
         try {
           listener(structuredClone(event));
@@ -100,7 +102,7 @@ export const redo: Backend["redo"] = () => command("redo", []);
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation">(
+function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress">(
   name: K,
   args: Parameters<Backend[K]>,
   fallback: () => Awaited<ReturnType<Backend[K]>>,
@@ -138,7 +140,7 @@ export const resumeWholeGameAnalysis: Backend["resumeWholeGameAnalysis"] = () =>
   command("resumeWholeGameAnalysis", []);
 export const cancelWholeGameAnalysis: Backend["cancelWholeGameAnalysis"] = () =>
   command("cancelWholeGameAnalysis", []);
-export const wholeGameProgress: Backend["wholeGameProgress"] = () => command("wholeGameProgress", []);
+export const wholeGameProgress: Backend["wholeGameProgress"] = () => query("wholeGameProgress", [], () => lastProgress);
 export const wholeGameResult: Backend["wholeGameResult"] = (nodeId) => command("wholeGameResult", [nodeId]);
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
 export const configureEngine: Backend["configureEngine"] = (profile) =>

@@ -87,5 +87,23 @@
   "tree": {
     "label": "Moves",
     "variations": "{n} variations"
+  },
+  "review": {
+    "title": "Auto analysis",
+    "start": "Start",
+    "pause": "Pause",
+    "resume": "Resume",
+    "cancel": "Cancel",
+    "quick": "Quick",
+    "standard": "Standard",
+    "deep": "Deep",
+    "professional": "Pro",
+    "visitsPerMove": "{visits} visits per move",
+    "scope": "Analyses every position on this line ({n}). You can keep browsing meanwhile.",
+    "running": "Analysing",
+    "paused": "Paused",
+    "completed": "Done: {n} positions",
+    "cancelled": "Cancelled",
+    "error": "Error: {reason}"
   }
 }

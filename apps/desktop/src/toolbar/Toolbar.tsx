@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { EngineStatus } from "@/api/backend";
 import { Icon, type IconName } from "./icons";
 
@@ -43,6 +44,8 @@ export interface TopBarProps {
   coordinates: boolean;
   ownership: boolean;
   engine: EngineStatus;
+  /** Extra controls at the start of the right group, such as whole-game analysis. */
+  extra?: ReactNode;
   onOpen(): void;
   onSave(): void;
   onStep(steps: number): void;
@@ -72,6 +75,7 @@ export function TopBar(props: TopBarProps) {
         <IconButton icon="last" label={labels.last} testId="nav-last" onClick={() => props.onStep(JUMP)} />
       </nav>
       <div className="topbar-group end">
+        {props.extra}
         <button
           type="button"
           className="chip"

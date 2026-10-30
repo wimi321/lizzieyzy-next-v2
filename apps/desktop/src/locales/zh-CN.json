@@ -87,5 +87,23 @@
   "tree": {
     "label": "棋谱",
     "variations": "{n} 个变化"
+  },
+  "review": {
+    "title": "自动分析",
+    "start": "开始分析",
+    "pause": "暂停",
+    "resume": "继续",
+    "cancel": "取消",
+    "quick": "快速",
+    "standard": "标准",
+    "deep": "深入",
+    "professional": "专业",
+    "visitsPerMove": "每手 {visits} 次计算",
+    "scope": "逐手分析当前这条线，共 {n} 个局面。分析时可以照常翻看。",
+    "running": "分析中",
+    "paused": "已暂停",
+    "completed": "已完成 {n} 个局面",
+    "cancelled": "已取消",
+    "error": "出错：{reason}"
   }
 }

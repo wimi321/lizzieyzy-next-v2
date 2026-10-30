@@ -9,6 +9,8 @@ import { getMessages } from "./locales";
 import { CandidateTable } from "./panels/CandidateTable";
 import { InfoPanel } from "./panels/InfoPanel";
 import { MoveTree } from "./panels/MoveTree";
+import { AutoAnalysis } from "./review/AutoAnalysis";
+import { useWholeGame } from "./review/useWholeGame";
 import { EngineSetup } from "./settings/EngineSetup";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { JUMP, TopBar } from "./toolbar/Toolbar";
@@ -47,6 +49,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   // A preview belongs to one position: once the current node changes it no longer applies.
   const [preview, setPreview] = useState<{ node: number; point: PointView } | null>(null);
   const [tree, setTree] = useState<VariationTreeView | null>(null);
+  const wholeGame = useWholeGame(backend);
 
   useEffect(() => {
     let active = true;
@@ -159,6 +162,17 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         coordinates={coordinates}
         ownership={ownership}
         engine={engine}
+        extra={
+          <AutoAnalysis
+            progress={wholeGame.progress}
+            positions={points.length}
+            labels={messages.review}
+            onStart={wholeGame.start}
+            onPause={wholeGame.pause}
+            onResume={wholeGame.resume}
+            onCancel={wholeGame.cancel}
+          />
+        }
         onOpen={() => void openFile().catch(report)}
         onSave={() => void saveFile().catch(report)}
         onStep={step}
