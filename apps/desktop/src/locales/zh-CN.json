@@ -37,5 +37,22 @@
     "label": "胜率图：黑方胜率与目差",
     "empty": "暂无分析数据",
     "move": "第 {n} 手"
+  },
+  "setup": {
+    "open": "引擎",
+    "title": "连接 KataGo",
+    "intro": "已自动找到下面的文件，确认后点启动。",
+    "program": "程序",
+    "model": "模型（网络权重）",
+    "config": "配置",
+    "defaultConfig": "内置默认配置",
+    "browse": "浏览…",
+    "recommended": "推荐",
+    "notFound": "没有找到 KataGo。请先安装（macOS 可用 brew install katago），或手动选择程序和模型。",
+    "detecting": "正在查找本机的 KataGo…",
+    "start": "启动",
+    "starting": "正在启动…",
+    "close": "关闭",
+    "failed": "引擎没能启动，设置没有改动："
   }
 }
