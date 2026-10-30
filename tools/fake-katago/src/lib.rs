@@ -4,12 +4,12 @@
 
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::OnceLock;
+use std::sync::Mutex;
 
 use serde_json::Value;
 use thiserror::Error;
 
-static BINARY_PATH: OnceLock<PathBuf> = OnceLock::new();
+static BINARY_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 /// Failures locating or building the test executable.
 #[derive(Debug, Error)]
@@ -26,10 +26,17 @@ pub enum BinaryPathError {
 ///
 /// Cargo's JSON output respects `CARGO_TARGET_DIR`, configured target triples and
 /// platform executable suffixes; no `target/debug` layout is assumed. The build
-/// checks freshness even if an older executable exists. Subsequent calls reuse
-/// the path while it still exists. Call this at test runtime, not in build.rs.
+/// checks freshness even if an older executable exists. Initialization is
+/// serialized because Cargo can remove and relink the executable: concurrent
+/// builds could otherwise make another caller's path check or process spawn
+/// fail. Other callers wait for the first successful build and reuse its path;
+/// failed builds are not cached, allowing a later caller to retry.
+/// Call this at test runtime, not in build.rs.
 pub fn binary_path() -> Result<PathBuf, BinaryPathError> {
-    if let Some(path) = BINARY_PATH.get().filter(|path| path.is_file()) {
+    let mut cached_path = BINARY_PATH
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(path) = cached_path.as_ref() {
         return Ok(path.clone());
     }
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
@@ -54,7 +61,7 @@ pub fn binary_path() -> Result<PathBuf, BinaryPathError> {
     let path = artifact_path(&String::from_utf8_lossy(&output.stdout))
         .filter(|path| path.is_file())
         .ok_or(BinaryPathError::MissingExecutable)?;
-    let _ = BINARY_PATH.set(path.clone());
+    *cached_path = Some(path.clone());
     Ok(path)
 }
 
