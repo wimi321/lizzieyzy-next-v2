@@ -23,13 +23,14 @@ pub struct EngineProfile {
     pub extra_args: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default)]
 pub struct Settings {
     pub version: u32,
     pub engine: Option<EngineProfile>,
     pub pondering: bool,
     pub fox_history: Vec<crate::fox::FoxAccount>,
+    pub move_rank: crate::MoveRankSettings,
 }
 
 impl Default for Settings {
@@ -39,6 +40,7 @@ impl Default for Settings {
             engine: None,
             pondering: true,
             fox_history: Vec::new(),
+            move_rank: crate::MoveRankSettings::default(),
         }
     }
 }
@@ -58,6 +60,8 @@ pub enum SettingsError {
     FutureVersion(u32),
     #[error("invalid engine profile: {0}")]
     InvalidProfile(String),
+    #[error(transparent)]
+    MoveRank(#[from] crate::MoveRankError),
 }
 
 impl Settings {
@@ -103,6 +107,7 @@ impl Settings {
         }
         self.version = SETTINGS_VERSION;
         crate::fox::normalize_history(&mut self.fox_history);
+        self.move_rank.validate()?;
         Ok(self)
     }
 }

@@ -165,6 +165,49 @@ async fn recent_accounts_are_deduplicated_bounded_persisted_and_clearable() {
 }
 
 #[tokio::test]
+async fn fox_history_and_move_rank_updates_preserve_each_other() {
+    let (client, server) = replay(vec![EMPTY_PAGE.to_owned()]).await;
+    let directory = tempfile::tempdir().unwrap();
+    let (app, _events) = spawn(directory.path(), client).await;
+    let mut rank = app_core::MoveRankSettings {
+        mode: app_core::MoveRankEvaluationMode::Score,
+        winrate_thresholds: [2.0, 4.0, 8.0, 16.0, 32.0],
+        score_thresholds: [1.0, 2.0, 4.0, 8.0, 16.0],
+    };
+    within(app.set_move_rank_settings(rank.clone()))
+        .await
+        .unwrap();
+    let result = within(app.fox_search(FoxQuery::Uid("123".into())))
+        .await
+        .unwrap();
+    let settings = within(app.settings()).await.unwrap();
+    assert_eq!(settings.move_rank, rank);
+    assert_eq!(settings.fox_history, std::slice::from_ref(&result.account));
+
+    rank.mode = app_core::MoveRankEvaluationMode::Winrate;
+    within(app.set_move_rank_settings(rank.clone()))
+        .await
+        .unwrap();
+    let settings = within(Settings::load(directory.path())).await.unwrap();
+    assert_eq!(settings.move_rank, rank);
+    assert_eq!(settings.fox_history, [result.account]);
+    within(server).await.unwrap();
+    within(app.shutdown()).await.unwrap();
+
+    let (app, _events) = within(app_core::spawn(directory.path())).await.unwrap();
+    assert_eq!(within(app.settings()).await.unwrap(), settings);
+    within(app.fox_clear_history()).await.unwrap();
+    let settings = within(app.settings()).await.unwrap();
+    assert!(settings.fox_history.is_empty());
+    assert_eq!(settings.move_rank, rank);
+    assert_eq!(
+        within(Settings::load(directory.path())).await.unwrap(),
+        settings
+    );
+    within(app.shutdown()).await.unwrap();
+}
+
+#[tokio::test]
 async fn failed_search_does_not_remember_an_account_or_change_the_document() {
     let (client, server) = replay(vec![r#"{"result":7,"uid":"123"}"#.into()]).await;
     let directory = tempfile::tempdir().unwrap();

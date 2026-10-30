@@ -4,8 +4,9 @@ use std::{fs, path::Path};
 
 use app_core::fox::{FoxPage, FoxQuery, FoxSearchResult};
 use app_core::{
-    AppEvent, EngineSetupProfile, MoveView, Settings, VariationPreviewView, VariationTreeView,
-    WholeGameOptions, WholeGamePreset, engine_setup::EngineDiscovery,
+    AppEvent, EngineSetupProfile, MoveView, ProblemMovesQuery, ProblemMovesView, Settings,
+    VariationPreviewView, VariationTreeView, WholeGameOptions, WholeGamePreset,
+    engine_setup::EngineDiscovery,
 };
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -33,6 +34,8 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     crate::error::CommandError::export_all_to(directory)?;
     WholeGameOptions::export_all_to(directory)?;
     WholeGamePreset::export_all_to(directory)?;
+    ProblemMovesQuery::export_all_to(directory)?;
+    ProblemMovesView::export_all_to(directory)?;
     Revision::export_all_to(directory)?;
     SubscriptionId::export_all_to(directory)?;
     Ok(())

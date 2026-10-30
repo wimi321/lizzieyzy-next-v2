@@ -10,13 +10,21 @@ export type {
   GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
   WireAppEvent, WholeGameOptions, WholeGamePreset, WholeGameProgress, WholeGameStatus,
   WholeGameProgressListener,
+  MoveRank, MoveRankEvaluationMode, MoveRankSettings, MoveLoss, ProblemMovesQuery,
+  ProblemMovesView, ProblemMoveSort, ProblemMoveView, MistakeBarPoint,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "unsubscribe">;
-// Existing non-Fox scenarios can omit the new history field in their fixtures.
+// Older UI fixtures can omit either new settings field without weakening the
+// production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
-  ? Omit<Settings, "fox_history"> & Partial<Pick<Settings, "fox_history">>
+  ? Omit<Settings, "fox_history" | "move_rank"> & Partial<Pick<Settings, "fox_history" | "move_rank">>
   : Awaited<ReturnType<Backend[K]>>;
+const defaultMoveRank: Settings["move_rank"] = {
+  mode: "Auto",
+  winrate_thresholds: [1, 3, 6, 12, 24],
+  score_thresholds: [0.5, 1.5, 3, 6, 12],
+};
 export type MockCall = {
   [K in CommandName]: { command: K; args: Parameters<Backend[K]> }
 }[CommandName];
@@ -93,7 +101,11 @@ async function command<K extends CommandName>(
   }
   pushEvents(next.events ?? []);
   const result = next.command === "settings"
-    ? { ...next.result, fox_history: next.result.fox_history ?? [] }
+    ? {
+      ...next.result,
+      fox_history: next.result.fox_history ?? [],
+      move_rank: next.result.move_rank ?? defaultMoveRank,
+    }
     : next.result;
   return structuredClone(result) as Awaited<ReturnType<Backend[K]>>;
 }
@@ -151,6 +163,11 @@ export const cancelWholeGameAnalysis: Backend["cancelWholeGameAnalysis"] = () =>
   command("cancelWholeGameAnalysis", []);
 export const wholeGameProgress: Backend["wholeGameProgress"] = () => command("wholeGameProgress", []);
 export const wholeGameResult: Backend["wholeGameResult"] = (nodeId) => command("wholeGameResult", [nodeId]);
+export const problemMoves: Backend["problemMoves"] =
+  (query = { minimum_rank: "Inaccuracy", color: null, sort: "LossDesc" }) =>
+    command("problemMoves", [query]);
+export const setMoveRankSettings: Backend["setMoveRankSettings"] =
+  (settings) => command("setMoveRankSettings", [settings]);
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);

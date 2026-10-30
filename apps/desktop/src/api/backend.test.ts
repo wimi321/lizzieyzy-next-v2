@@ -1,5 +1,5 @@
 import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
-import type { AppEvent, Backend } from "./backend";
+import type { AppEvent, Backend, MoveRankSettings, Settings } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn(), channels: [] as FakeChannel[] }));
 
@@ -302,4 +302,42 @@ test("mock scripts Fox search, pagination, open events, history and typed errors
     { command: "foxOpenGame", args: [result.page.games[0]!.id] },
   ]);
   await mock.unsubscribe(id);
+});
+
+test.each([
+  { history: false, rank: false },
+  { history: true, rank: false },
+  { history: false, rank: true },
+  { history: true, rank: true },
+])("mock independently defaults omitted settings fields (history: $history, rank: $rank)", async ({ history, rank }) => {
+  const mock = await loadMock();
+  const base = { version: 1, engine: null, pondering: false };
+  const customHistory = [
+    { uid: "200", nickname: "recent" },
+    { uid: "100", nickname: "earlier" },
+  ];
+  const customRank: MoveRankSettings = {
+    mode: "Winrate",
+    winrate_thresholds: [2, 4, 8, 16, 32],
+    score_thresholds: [1, 2, 4, 8, 16],
+  };
+  mock.setScript({ commands: [{
+    command: "settings",
+    result: {
+      ...base,
+      ...(history ? { fox_history: customHistory } : {}),
+      ...(rank ? { move_rank: customRank } : {}),
+    },
+  }] });
+  const result = await mock.settings();
+  expectTypeOf(result).toEqualTypeOf<Settings>();
+  expect(result).toEqual({
+    ...base,
+    fox_history: history ? customHistory : [],
+    move_rank: rank ? customRank : {
+      mode: "Auto",
+      winrate_thresholds: [1, 3, 6, 12, 24],
+      score_thresholds: [0.5, 1.5, 3, 6, 12],
+    },
+  });
 });

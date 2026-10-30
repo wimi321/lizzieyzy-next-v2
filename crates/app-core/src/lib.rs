@@ -8,6 +8,8 @@ mod engine_trial;
 pub mod fox;
 mod graph;
 mod inspection;
+mod move_rank;
+mod problem_moves;
 mod review;
 mod settings;
 mod storage;
@@ -19,6 +21,8 @@ pub use graph::{AnalysisSummary, GraphPointView, GraphView};
 pub use inspection::{
     GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
 };
+pub use move_rank::*;
+pub use problem_moves::*;
 pub use review::*;
 pub use settings::{EngineProfile, Settings, SettingsError};
 pub use view::*;
@@ -52,6 +56,8 @@ pub enum AppError {
     Fox(#[from] fox::FoxError),
     #[error(transparent)]
     WholeGame(#[from] WholeGameError),
+    #[error(transparent)]
+    MoveRank(#[from] MoveRankError),
 }
 
 /// Runtime tuning, separate from the versioned user settings. Defaults use the

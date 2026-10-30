@@ -2,6 +2,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import type { AppEvent as WireAppEvent } from "./generated/AppEvent";
 import type { ReviewCommands, WholeGameProgressListener } from "./review";
+import type { ProblemMoveCommands } from "./problem-moves";
 import type { EngineProfile } from "./generated/EngineProfile";
 import type { EngineSetupProfile } from "./generated/EngineSetupProfile";
 import type { EngineDiscovery } from "./generated/EngineDiscovery";
@@ -20,6 +21,7 @@ import type { VariationTreeView } from "./generated/VariationTreeView";
 export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" }>;
 export type { WireAppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings };
 export * from "./review";
+export * from "./problem-moves";
 export type { AnalysisSource } from "./generated/AnalysisSource";
 export type { AnalysisSummary } from "./generated/AnalysisSummary";
 export type { AnalysisView } from "./generated/AnalysisView";
@@ -52,7 +54,7 @@ export type { CommandError } from "./generated/CommandError";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends ReviewCommands {
+export interface Backend extends ReviewCommands, ProblemMoveCommands {
   openBytes(bytes: number[]): Promise<Revision>;
   openPath(path: string): Promise<Revision>;
   save(path: string): Promise<void>;

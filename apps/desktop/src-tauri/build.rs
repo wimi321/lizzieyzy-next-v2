@@ -17,6 +17,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "cancel_whole_game_analysis",
         "whole_game_progress",
         "whole_game_result",
+        "problem_moves",
+        "set_move_rank_settings",
         "configure_engine",
         "detect_engines",
         "try_configure_engine",

@@ -9,6 +9,7 @@ use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
 mod fox;
+mod problem_moves;
 mod review;
 mod trial;
 use trial::PendingTrial;
@@ -27,6 +28,14 @@ pub(crate) enum Input {
 
 pub(crate) enum Command {
     Fox(crate::fox::Request),
+    ProblemMoves(
+        crate::ProblemMovesQuery,
+        oneshot::Sender<Result<crate::ProblemMovesView, AppError>>,
+    ),
+    SetMoveRankSettings(
+        crate::MoveRankSettings,
+        oneshot::Sender<Result<crate::MoveRankSettings, AppError>>,
+    ),
     Review(
         crate::review::ReviewInput,
         oneshot::Sender<Result<crate::WholeGameProgress, AppError>>,
@@ -120,6 +129,8 @@ pub(crate) async fn run(
         tokio::select! {
             command = commands.recv() => match command {
                 Some(Command::Fox(request)) => actor.fox_request(request).await,
+                Some(Command::ProblemMoves(query, reply)) => { let _ = reply.send(actor.problem_moves(query)); }
+                Some(Command::SetMoveRankSettings(settings, reply)) => { let _ = reply.send(actor.set_move_rank_settings(settings).await); }
                 Some(Command::Review(input, reply)) => { let _ = reply.send(actor.review_command(input).await); }
                 Some(Command::ReviewProgress(reply)) => { let _ = reply.send(actor.review.progress.clone()); }
                 Some(Command::ReviewResult(node, reply)) => { let _ = reply.send(actor.review_view(node)); }
