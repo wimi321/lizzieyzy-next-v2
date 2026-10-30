@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::future::Future;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use engine_session::{
@@ -15,18 +16,59 @@ use tokio::sync::watch;
 use tokio::time::timeout;
 
 const SAFETY: Duration = Duration::from_secs(5);
+const NON_TARGET_TIMEOUT: Duration = Duration::from_secs(60);
 
 fn configuration() -> SessionConfig {
     SessionConfig {
-        startup_timeout: Duration::from_secs(2),
-        response_timeout: Duration::from_millis(500),
+        startup_timeout: NON_TARGET_TIMEOUT,
+        response_timeout: NON_TARGET_TIMEOUT,
         restart_backoff: Duration::from_millis(40),
         max_restart_backoff: Duration::from_millis(80),
-        shutdown_timeout: Duration::from_millis(200),
-        write_timeout: Duration::from_millis(500),
+        shutdown_timeout: NON_TARGET_TIMEOUT,
+        write_timeout: NON_TARGET_TIMEOUT,
         max_restarts: 2,
         max_consecutive_bad_lines: 3,
     }
+}
+
+struct TestFile(PathBuf);
+
+impl TestFile {
+    fn new() -> Self {
+        Self(std::env::temp_dir().join(format!("engine-session-{}", uuid::Uuid::new_v4())))
+    }
+
+    fn argument(&self) -> &str {
+        self.0.to_str().expect("temporary path must be Unicode")
+    }
+
+    fn release(&self) {
+        std::fs::write(&self.0, []).expect("release the startup gate");
+    }
+
+    async fn wait_created(&self) {
+        within(async {
+            while !self.0.is_file() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await;
+    }
+}
+
+impl Drop for TestFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+async fn advance_clock(duration: Duration) {
+    // Only call after observing the fault/backoff barrier, with no active
+    // safety timeout. Resume immediately: paused auto-advance must never race
+    // real subprocess I/O, and healthy replay keeps its generous timeout.
+    tokio::time::pause();
+    tokio::time::advance(duration).await;
+    tokio::time::resume();
 }
 
 fn engine(arguments: &[&str], config: SessionConfig) -> EngineHandle {
@@ -237,7 +279,10 @@ async fn queued_termination_accepts_no_results_before_acknowledgement() {
 
 #[tokio::test]
 async fn crash_restarts_and_replays_only_unfinished_queries_with_new_ids() {
-    let engine = engine(&["--crash-after-queries", "2"], configuration());
+    let mut config = configuration();
+    config.restart_backoff = NON_TARGET_TIMEOUT;
+    config.max_restart_backoff = NON_TARGET_TIMEOUT;
+    let engine = engine(&["--crash-after-queries", "2"], config);
     let mut status = engine.status();
     ready(&mut status).await;
     let mut completed = engine.submit(request(json!({}))).await.unwrap();
@@ -246,19 +291,18 @@ async fn crash_restarts_and_replays_only_unfinished_queries_with_new_ids() {
 
     let mut interrupted = engine.submit(streaming(80)).await.unwrap();
     let original_id = interrupted.id().to_owned();
-    let restart = matching_status(&mut status, |value| {
-        matches!(value, EngineStatus::Restarting { .. })
+    // Hold the backoff longer than the safety deadline so observing Restarting
+    // never depends on how quickly the test is scheduled.
+    matching_status(&mut status, |value| {
+        matches!(value, EngineStatus::Restarting { attempt: 1, .. })
     })
     .await;
-    assert!(matches!(
-        restart,
-        EngineStatus::Restarting { attempt: 1, .. }
-    ));
-    ready(&mut status).await;
+    advance_clock(NON_TARGET_TIMEOUT + Duration::from_secs(1)).await;
     assert!(matches!(
         event(&mut interrupted).await,
         QueryEvent::Restarted
     ));
+    ready(&mut status).await;
     let QueryEvent::Partial(partial) = event(&mut interrupted).await else {
         panic!("replay must continue streaming after Restarted");
     };
@@ -296,20 +340,30 @@ async fn startup_failure_is_terminal_and_preserves_stderr() {
 #[tokio::test]
 async fn watchdog_restarts_a_silent_process_and_replays_the_query() {
     let mut config = configuration();
-    config.response_timeout = Duration::from_millis(80);
-    let engine = engine(&["--hang-after-queries", "2"], config);
+    config.write_timeout = Duration::from_secs(3600);
+    config.shutdown_timeout = Duration::from_millis(100);
+    let response_timeout = config.response_timeout;
+    let marker = TestFile::new();
+    let engine = engine(
+        &[
+            "--hang-after-queries",
+            "1",
+            "--fault-once-file",
+            marker.argument(),
+        ],
+        config,
+    );
     let mut status = engine.status();
     ready(&mut status).await;
-    let mut completed = engine.submit(request(json!({}))).await.unwrap();
-    final_result(&mut completed).await;
     let mut hung = engine.submit(streaming(60)).await.unwrap();
     let old_id = hung.id().to_owned();
-    matching_status(&mut status, |value| {
-        matches!(value, EngineStatus::Restarting { attempt: 1, .. })
-    })
-    .await;
-    ready(&mut status).await;
+    // The marker proves the first request was accepted and deliberately hung.
+    // Only then expire its watchdog; no successful warmup/replay needs to beat
+    // a short wall-clock deadline on an overloaded machine.
+    marker.wait_created().await;
+    advance_clock(response_timeout + Duration::from_secs(1)).await;
     assert!(matches!(event(&mut hung).await, QueryEvent::Restarted));
+    ready(&mut status).await;
     let result = final_result(&mut hung).await;
     assert_ne!(result.id, old_id);
     assert_eq!(result.root_info.visits, 60);
@@ -338,16 +392,23 @@ async fn garbage_above_threshold_restarts_then_stops_at_retry_limit() {
     // fake-katago inserts one malformed line between otherwise valid lines.
     config.max_consecutive_bad_lines = 0;
     config.max_restarts = 1;
+    config.restart_backoff = NON_TARGET_TIMEOUT;
+    config.max_restart_backoff = NON_TARGET_TIMEOUT;
     let engine = engine(&["--garbage-every", "1"], config);
     let mut status = engine.status();
-    matching_status(&mut status, |value| {
+    let restarting = matching_status(&mut status, |value| {
         matches!(value, EngineStatus::Restarting { attempt: 1, .. })
     })
     .await;
-    matching_status(&mut status, |value| {
+    assert!(
+        matches!(restarting, EngineStatus::Restarting { reason, .. } if reason.contains("malformed"))
+    );
+    advance_clock(NON_TARGET_TIMEOUT + Duration::from_secs(1)).await;
+    let failed = matching_status(&mut status, |value| {
         matches!(value, EngineStatus::Failed { .. })
     })
     .await;
+    assert!(matches!(failed, EngineStatus::Failed { reason, .. } if reason.contains("malformed")));
     stop(engine, &mut status).await;
 }
 
@@ -384,24 +445,22 @@ async fn queued_high_priority_finishes_before_low_priority() {
     ready(&mut status).await;
     let mut blocker = engine.submit(streaming(100_000)).await.unwrap();
     assert!(matches!(event(&mut blocker).await, QueryEvent::Partial(_)));
-    let mut low = engine
-        .submit(request(json!({"priority": -100, "maxVisits": 200})))
-        .await
-        .unwrap();
+    let mut low_request = streaming(100_000);
+    low_request.priority = Some(-100);
+    let mut low = engine.submit(low_request).await.unwrap();
     let mut high = engine
-        .submit(request(json!({"priority": 100, "maxVisits": 200})))
+        .submit(request(json!({"priority": 100, "maxVisits": 1})))
         .await
         .unwrap();
     engine.terminate(blocker.id().to_owned()).await.unwrap();
     assert!(matches!(event(&mut blocker).await, QueryEvent::Terminated));
-    within(async {
-        tokio::select! {
-            result = high.recv() => assert!(matches!(result, Some(QueryEvent::Final(_)))),
-            result = low.recv() => panic!("low priority completed first: {result:?}"),
-        }
-    })
-    .await;
-    final_result(&mut low).await;
+    // If low starts first it occupies the only slot for 100 seconds, so high
+    // cannot finish within the safety deadline. Consumer polling order cannot
+    // produce a false failure when both subscriptions have buffered events.
+    final_result(&mut high).await;
+    assert!(matches!(event(&mut low).await, QueryEvent::Partial(_)));
+    engine.terminate(low.id().to_owned()).await.unwrap();
+    assert!(matches!(event(&mut low).await, QueryEvent::Terminated));
     stop(engine, &mut status).await;
 }
 
@@ -428,18 +487,27 @@ async fn repeated_crashes_exhaust_retries_and_reliably_fail_the_query() {
 #[tokio::test]
 async fn readiness_timeout_restarts_and_respects_the_retry_limit() {
     let mut config = configuration();
-    config.startup_timeout = Duration::from_millis(40);
+    config.startup_timeout = Duration::from_millis(100);
+    config.shutdown_timeout = Duration::from_millis(100);
+    config.restart_backoff = NON_TARGET_TIMEOUT;
+    config.max_restart_backoff = NON_TARGET_TIMEOUT;
     config.max_restarts = 1;
-    let engine = engine(&["--startup-delay-ms", "1000"], config);
+    // This process never answers query_version, regardless of scheduling speed.
+    let engine = engine(&["--hang-after-queries", "0"], config);
     let mut status = engine.status();
-    matching_status(&mut status, |value| {
+    let restarting = matching_status(&mut status, |value| {
         matches!(value, EngineStatus::Restarting { attempt: 1, .. })
     })
     .await;
-    matching_status(&mut status, |value| {
+    assert!(
+        matches!(restarting, EngineStatus::Restarting { reason, .. } if reason.contains("startup"))
+    );
+    advance_clock(NON_TARGET_TIMEOUT + Duration::from_secs(1)).await;
+    let failed = matching_status(&mut status, |value| {
         matches!(value, EngineStatus::Failed { .. })
     })
     .await;
+    assert!(matches!(failed, EngineStatus::Failed { reason, .. } if reason.contains("startup")));
     stop(engine, &mut status).await;
 }
 
@@ -509,10 +577,13 @@ async fn multiple_turns_retain_every_final_and_deduplicate_requested_turns() {
 
 #[tokio::test]
 async fn submit_during_startup_waits_for_readiness_and_then_streams() {
-    let engine = engine(&["--startup-delay-ms", "120"], configuration());
+    let gate = TestFile::new();
+    let engine = engine(&["--startup-gate-file", gate.argument()], configuration());
     let mut status = engine.status();
     assert!(matches!(*status.borrow(), EngineStatus::Starting));
     let mut query = within(engine.submit(streaming(60))).await.unwrap();
+    assert!(matches!(*status.borrow(), EngineStatus::Starting));
+    gate.release();
     ready(&mut status).await;
     assert!(matches!(event(&mut query).await, QueryEvent::Partial(_)));
     final_result(&mut query).await;
@@ -541,7 +612,10 @@ async fn stable_subscription_id_cancels_the_replayed_query() {
 
 #[tokio::test]
 async fn shutdown_is_not_blocked_by_an_unread_subscription() {
-    let engine = engine(&[], configuration());
+    let mut config = configuration();
+    // Forcing an unfinished long search to exit is the behavior under test.
+    config.shutdown_timeout = Duration::from_millis(100);
+    let engine = engine(&[], config);
     let clone = engine.clone();
     let mut status = engine.status();
     ready(&mut status).await;
@@ -556,38 +630,28 @@ async fn shutdown_is_not_blocked_by_an_unread_subscription() {
 
 #[tokio::test]
 async fn startup_queue_preserves_equal_priority_fifo_past_ten_requests() {
+    let gate = TestFile::new();
     let engine = engine(
-        &["--threads", "1", "--startup-delay-ms", "1000"],
+        &["--threads", "1", "--startup-gate-file", gate.argument()],
         configuration(),
     );
     let mut status = engine.status();
-    let (completed, mut completion_order) = tokio::sync::mpsc::channel(16);
-    let mut readers = Vec::new();
-    for ordinal in 0..16 {
-        let mut query = within(engine.submit(request(json!({"maxVisits": 30}))))
+    let mut queries = Vec::new();
+    for _ in 0..16 {
+        queries.push(within(engine.submit(streaming(100_000))).await.unwrap());
+    }
+    assert!(matches!(*status.borrow(), EngineStatus::Starting));
+    gate.release();
+    ready(&mut status).await;
+    // Each long search holds the only slot until cancelled. A wrong queue
+    // order blocks the expected subscription; reader scheduling cannot hide it.
+    for query in &mut queries {
+        assert!(matches!(event(query).await, QueryEvent::Partial(_)));
+        within(engine.terminate(query.id().to_owned()))
             .await
             .unwrap();
-        let completed = completed.clone();
-        readers.push(tokio::spawn(async move {
-            assert!(matches!(event(&mut query).await, QueryEvent::Final(_)));
-            completed.send(ordinal).await.unwrap();
-            assert!(within(query.recv()).await.is_none());
-        }));
-    }
-    drop(completed);
-    assert!(matches!(*status.borrow(), EngineStatus::Starting));
-    ready(&mut status).await;
-    let order = within(async {
-        let mut order = Vec::new();
-        while let Some(ordinal) = completion_order.recv().await {
-            order.push(ordinal);
-        }
-        order
-    })
-    .await;
-    assert_eq!(order, (0..16).collect::<Vec<_>>());
-    for reader in readers {
-        within(reader).await.unwrap();
+        assert!(matches!(event(query).await, QueryEvent::Terminated));
+        assert!(within(query.recv()).await.is_none());
     }
     stop(engine, &mut status).await;
 }
@@ -607,8 +671,8 @@ async fn dropping_all_handles_stops_the_process_with_status_observer_retained() 
 #[tokio::test]
 async fn terminating_during_restart_backoff_prevents_replay() {
     let mut config = configuration();
-    config.restart_backoff = Duration::from_millis(300);
-    config.max_restart_backoff = Duration::from_millis(300);
+    config.restart_backoff = NON_TARGET_TIMEOUT;
+    config.max_restart_backoff = NON_TARGET_TIMEOUT;
     let engine = engine(&["--crash-after-queries", "2"], config);
     let mut status = engine.status();
     ready(&mut status).await;
@@ -627,6 +691,7 @@ async fn terminating_during_restart_backoff_prevents_replay() {
         QueryEvent::Terminated
     ));
     assert!(within(interrupted.recv()).await.is_none());
+    advance_clock(NON_TARGET_TIMEOUT + Duration::from_secs(1)).await;
     ready(&mut status).await;
     // If the cancelled query had been replayed, this would be the new process's
     // second query and crash it again instead of finishing without a restart.

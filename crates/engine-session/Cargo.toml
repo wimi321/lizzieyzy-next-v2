@@ -16,6 +16,7 @@ uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 fake-katago = { path = "../../tools/fake-katago" }
+tokio = { version = "1", features = ["test-util"] }
 
 [lints]
 workspace = true
