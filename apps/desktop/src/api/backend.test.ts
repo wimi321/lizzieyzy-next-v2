@@ -28,7 +28,11 @@ const events: AppEvent[] = [
       revision: 1,
       view: {
         board: null,
-        tree: { root: 0, current: 0, main_line: [0], variation_count: 0 },
+        tree: { root: 0, current: 0, main_line: [0], variation_count: 0, structure_revision: 1 },
+        game_info: {
+          black_name: null, black_rank: null, white_name: null, white_rank: null,
+          komi: 7.5, rules: null, handicap: null, result: null, date: null, event: null,
+        },
         graph: {
           points: [{ node_id: 0, move_number: 0, summary: null }],
           current_index: 0,

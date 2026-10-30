@@ -112,20 +112,14 @@ fn apply_node(
         position.analysis_moves.clear();
     }
 
-    let black = single(node, properties, "B")?;
-    let white = single(node, properties, "W")?;
-    let (color, value, name) = match (black, white) {
-        (Some(value), None) => (Color::Black, value, "B"),
-        (None, Some(value)) => (Color::White, value, "W"),
-        (None, None) => return Ok(()),
-        (Some(_), Some(_)) => return Err(invalid(node, "B/W", "both move colors in one node")),
+    let Some(mv) = recorded_move(node, properties, size)? else {
+        return Ok(());
     };
-    let mv = Move::from_sgf(color, value, size).map_err(|_| invalid(node, name, value))?;
     let outcome = position
         .board
         .play_unchecked_ko(mv)
         .map_err(|reason| DocError::IllegalMove { node, reason })?;
-    match color {
+    match mv.color() {
         Color::Black => {
             position.captured_by.black += outcome.captured.len();
             position.captured_by.white += outcome.self_captured.len();
@@ -138,6 +132,26 @@ fn apply_node(
     position.moves.push(mv);
     position.analysis_moves.push(mv);
     Ok(())
+}
+
+/// Decode a recorded move without replaying its ancestors or checking legality.
+/// Both replay and the variation tree use the same SGF validation rules.
+pub(crate) fn recorded_move(
+    node: NodeId,
+    properties: &[Property],
+    size: BoardSize,
+) -> Result<Option<Move>, DocError> {
+    let black = single(node, properties, "B")?;
+    let white = single(node, properties, "W")?;
+    let (color, value, name) = match (black, white) {
+        (Some(value), None) => (Color::Black, value, "B"),
+        (None, Some(value)) => (Color::White, value, "W"),
+        (None, None) => return Ok(None),
+        (Some(_), Some(_)) => return Err(invalid(node, "B/W", "both move colors in one node")),
+    };
+    Move::from_sgf(color, value, size)
+        .map(Some)
+        .map_err(|_| invalid(node, name, value))
 }
 
 fn stones_with_points(stones: &[Option<Color>], size: BoardSize) -> Vec<(Color, Point)> {

@@ -13,6 +13,8 @@ use tauri::{
 use tempfile::TempDir;
 use tokio::sync::{mpsc, oneshot};
 
+mod variation;
+
 const SAFETY: Duration = Duration::from_secs(5);
 
 async fn within<T>(future: impl Future<Output = T>) -> T {
@@ -323,7 +325,11 @@ async fn commands_forward_edits_navigation_storage_settings_and_errors() {
         initial.tree.root
     );
     assert_eq!(harness.invoke("redo", json!({})).await, 6);
-    assert_eq!(harness.document(42, 6).await, played);
+    let redone = harness.document(42, 6).await;
+    assert!(redone.tree.structure_revision > played.tree.structure_revision);
+    let mut expected = played;
+    expected.tree.structure_revision = redone.tree.structure_revision;
+    assert_eq!(redone, expected);
     let path = harness.directory.path().join("saved game.sgf");
     harness.invoke("save", json!({ "path": path })).await;
     let saved = std::fs::read_to_string(&path).unwrap();
@@ -432,6 +438,10 @@ async fn capability_denies_other_windows_remote_origins_and_unneeded_plugins() {
         (&harness.main, "settings", "https://example.com/"),
         (&other, "detect_engines", local_url()),
         (&harness.main, "detect_engines", "https://example.com/"),
+        (&other, "variation_tree", local_url()),
+        (&harness.main, "variation_tree", "https://example.com/"),
+        (&other, "preview_variation", local_url()),
+        (&harness.main, "preview_variation", "https://example.com/"),
         (&other, "try_configure_engine", local_url()),
         (
             &harness.main,

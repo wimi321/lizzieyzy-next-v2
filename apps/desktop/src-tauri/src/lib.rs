@@ -36,6 +36,8 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::document::go_to,
             commands::document::undo,
             commands::document::redo,
+            commands::variation::variation_tree,
+            commands::variation::preview_variation,
             commands::analysis::set_pondering,
             commands::analysis::subscribe,
             commands::analysis::unsubscribe,

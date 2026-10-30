@@ -8,6 +8,8 @@ import type { MoveView } from "./generated/MoveView";
 import type { Revision } from "./generated/Revision";
 import type { Settings } from "./generated/Settings";
 import type { SubscriptionId } from "./generated/SubscriptionId";
+import type { VariationPreviewView } from "./generated/VariationPreviewView";
+import type { VariationTreeView } from "./generated/VariationTreeView";
 
 export type { AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings };
 export type { AnalysisSource } from "./generated/AnalysisSource";
@@ -21,8 +23,12 @@ export type { DocumentWarningView } from "./generated/DocumentWarningView";
 export type { EngineStatus } from "./generated/EngineStatus";
 export type { GraphPointView } from "./generated/GraphPointView";
 export type { GraphView } from "./generated/GraphView";
+export type { GameInfoView } from "./generated/GameInfoView";
 export type { PointView } from "./generated/PointView";
+export type { PreviewStoneView } from "./generated/PreviewStoneView";
 export type { TreeView } from "./generated/TreeView";
+export type { VariationNodeView } from "./generated/VariationNodeView";
+export type { VariationPreviewView, VariationTreeView };
 export type { WarningKindView } from "./generated/WarningKindView";
 export type { SubscriptionId };
 export type EventListener = (event: AppEvent) => void;
@@ -37,6 +43,10 @@ export interface Backend {
   goTo(nodeId: number): Promise<Revision>;
   undo(): Promise<Revision>;
   redo(): Promise<Revision>;
+  /** Fetch when tree.structure_revision changes; keep only a matching reply. */
+  variationTree(): Promise<VariationTreeView>;
+  /** Read-only PV replay. Compare reply revision/node_id with the requested focus. */
+  previewVariation(nodeId: number, moves: MoveView[]): Promise<VariationPreviewView>;
   setPondering(enabled: boolean): Promise<void>;
   configureEngine(profile: EngineProfile | null): Promise<void>;
   detectEngines(): Promise<EngineDiscovery>;
@@ -58,6 +68,9 @@ export const step: Backend["step"] = (count) => invoke("step", { count });
 export const goTo: Backend["goTo"] = (nodeId) => invoke("go_to", { nodeId });
 export const undo: Backend["undo"] = () => invoke("undo");
 export const redo: Backend["redo"] = () => invoke("redo");
+export const variationTree: Backend["variationTree"] = () => invoke("variation_tree");
+export const previewVariation: Backend["previewVariation"] = (nodeId, moves) =>
+  invoke("preview_variation", { nodeId, moves });
 export const setPondering: Backend["setPondering"] = (enabled) =>
   invoke("set_pondering", { enabled });
 export const configureEngine: Backend["configureEngine"] = (profile) =>
