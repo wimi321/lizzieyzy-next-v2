@@ -12,9 +12,9 @@ pub enum FoxError {
     InvalidGameId,
     #[error("invalid Fox client configuration")]
     InvalidConfiguration,
-    #[error("Fox request timed out")]
+    #[error("Fox network request timed out")]
     Timeout,
-    #[error("Fox transport failed: {0}")]
+    #[error("Fox network request failed")]
     Transport(#[source] reqwest::Error),
     #[error("Fox HTTP status {status}")]
     Http { status: u16 },
@@ -42,7 +42,11 @@ impl From<reqwest::Error> for FoxError {
 }
 
 impl FoxError {
-    pub(crate) fn is_retryable_transport(&self) -> bool {
+    /// Stable network-failure classification, independent of OS socket details.
+    /// A deadline may expire while connecting or reading; interrupted bodies
+    /// may be wrapped as request, body or decode errors by the HTTP stack.
+    /// HTTP status, complete-but-invalid JSON and API failures are not retried.
+    pub fn is_retryable_transport(&self) -> bool {
         match self {
             Self::Timeout => true,
             Self::Transport(error) => {

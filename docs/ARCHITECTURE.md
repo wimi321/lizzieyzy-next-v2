@@ -204,10 +204,10 @@ pub enum EngineStatus {
 - `FoxClient::list(uid, cursor)` 使用服务端最后一项对局 id 翻页，每页上限 100；不足 100 项（包括空页）表示没有下一页，重复游标报错。`download(game_id)` 先用 okhttp UA 依次 POST 主、备用棋谱 CGI，再回退到 H5 GET；HTTP 错误、非 JSON、非零结果或空棋谱均继续下一接口。
 - HTTP 使用独立的 20 秒连接超时、默认 25 秒读取空闲超时；持续收到数据会重置读取期限，慢响应不会因总传输超过 25 秒而失败。每次操作（含重试和退避）另有 3 分钟上限、每份响应最多 4 MiB。只有超时、连接和正文传输错误最多尝试 3 次，重试前依次等待 350/700ms；HTTP 状态、JSON、API 和大小错误不重试。`with_endpoints` 的 Duration 参数仅覆盖读取空闲超时，供本地 HTTP 测试注入。
 - 下载成功后删除 BOM 和 SGF 属性值外的反斜杠，再按 Java 的确定性规则选择首个含着手的变化、合并根信息和整理着手为主线。保留所选主线的注释、未知属性和值内转义，不依赖全局棋盘去推测拼接窗口碎片。原始 `KM` 保持不变，贴目解释仍由 document 执行；例如 `AP[foxwq]`、中国规则的 `KM[375]` 打开后是 7.5 目。损坏结构返回类型化错误供接口回退。
-- 所有失败返回 `FoxError`；确认的无账号响应（101201 且 UID 空或 0）与 HTTP、网络、其他 API 或格式错误分开，未知非零码保守作为 API 错误。
+- 所有失败返回 `FoxError`；`is_retryable_transport()` 是跨平台的网络重试判定，连接失败、连接/读取超时和正文中断均属于这一类，不依赖系统错误码。保留 `Timeout` 与 `Transport` 诊断区别；reqwest 在连接完成前也检查读取期限，因此短期限下 Windows 的连接拒绝可能表现为 `Timeout`。网络错误的 Display 使用可读文案，底层细节只保留在错误源/Debug 中。确认的无账号响应（101201 且 UID 空或 0）与 HTTP、网络、其他 API 或格式错误分开，未知非零码保守作为 API 错误。
 - `AppCore::{fox_search, fox_next_page, fox_open_game, fox_clear_history}` 是壳层唯一入口。调用 future 执行 HTTP，应用 actor 只处理客户端取得、历史持久化和下载完成后的 `open_bytes`，慢网络不会占住文档/设置命令。分页参数显式传入，不共享可覆盖的全局游标；下载后沿用本地 SGF 的打开事务、事件及焦点更新流程，失败保留当前文档。
 - 成功取得账号和第一页后，才把 `FoxAccount` 记入 `Settings.fox_history`，按 UID 去重、最近成功完成的搜索在前、最多 10 条；加载设置也规范化历史，清空通过同一原子保存流程持久化。`AppConfig.fox_client` 可注入本地测试端点，默认客户端惰性创建。
-- Tauri 的 `commands/fox.rs` 提供 `fox_search(query)`、`fox_next_page(uid, cursor)`、`fox_open_game(gameId)`、`fox_clear_history()`，仅授权本地 main 窗口。`CommandError::Fox(FoxFailure)` 保留可本地化的错误分类及 HTTP/API 状态码；其余错误维持原有应用错误边界。所有野狐 DTO 和错误类型由 Rust 递归生成 TS，前端 backend 与 E2E mock 仅转发或回放命令，不实现网络协议或解析。
+- Tauri 的 `commands/fox.rs` 提供 `fox_search(query)`、`fox_next_page(uid, cursor)`、`fox_open_game(gameId)`、`fox_clear_history()`，仅授权本地 main 窗口。`CommandError::Fox(FoxFailure)` 保留可本地化的 `Network`（网络错误）、`Timeout`（网络超时）分类及 HTTP/API 状态码；下载回退耗尽时若包含网络原因，仍返回网络分类（优先 Network，其次 Timeout），纯协议失败才返回 DownloadFailed。IPC 只传类型和数据，不暴露平台错误文本；最终提示由界面本地化。其余错误维持原有应用错误边界。所有野狐 DTO 和错误类型由 Rust 递归生成 TS，前端 backend 与 E2E mock 仅转发或回放命令，不实现网络协议或解析。
 - 普通测试使用 `fixtures/fox/` 的真实录制和本地假 HTTP 服务；列表裁为 5 盘，昵称、UID 及 SGF 的 PB/PW 一致脱敏，保留字段类型和业务结果，清理敏感字段。录制日期和接口在测试注释中注明。`fox-recorded-2026-10-30.sgf` 保留录制的 177 手棋谱；此外保留 Java 八手回归片段和 [Leela Zero #2285](https://github.com/leela-zero/leela-zero/issues/2285) 公开发布的 313 手完整野狐棋谱；SGF 样本由独立 oracle 校验。`app-core/tests/fox_live.rs` 的联网验收显式 `#[ignore]`，经生产 AppCore 完成昵称、列表、CGI/H5 下载和打开，报告列表盘数、对局 id、手数和贴目，仅使用临时目录，不把未脱敏网络响应写入仓库。
 
 ## 5. 主流程时序（导航到下一手）

@@ -16,7 +16,7 @@ pub enum FoxFailure {
     InvalidGameId,
     #[error("invalid Fox client configuration")]
     InvalidConfiguration,
-    #[error("Fox request timed out")]
+    #[error("Fox network request timed out")]
     Timeout,
     #[error("Fox network request failed")]
     Network,
@@ -49,8 +49,27 @@ impl From<FoxError> for FoxFailure {
             FoxError::Api { code } => Self::Api { code },
             FoxError::Json(_) | FoxError::InvalidResponse(_) => Self::InvalidResponse,
             FoxError::ResponseTooLarge => Self::ResponseTooLarge,
-            FoxError::DownloadFailed { .. } => Self::DownloadFailed,
+            FoxError::DownloadFailed { failures } => download_failure(failures),
         }
+    }
+}
+
+fn download_failure(mut failures: Vec<FoxError>) -> FoxFailure {
+    let mut timed_out = false;
+    while let Some(error) = failures.pop() {
+        match error {
+            // A usable fallback may fail on the network after older endpoints
+            // returned protocol errors. Keep that actionable cause visible.
+            FoxError::Transport(_) => return FoxFailure::Network,
+            FoxError::Timeout => timed_out = true,
+            FoxError::DownloadFailed { failures: nested } => failures.extend(nested),
+            _ => {}
+        }
+    }
+    if timed_out {
+        FoxFailure::Timeout
+    } else {
+        FoxFailure::DownloadFailed
     }
 }
 

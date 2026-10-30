@@ -96,6 +96,15 @@ test("forwards every command with typed arguments and preserves results/errors",
   await expect(backend.foxSearch(query)).rejects.toEqual(missing);
 });
 
+test.each(["Timeout", "Network"] as const)("preserves Fox %s errors for search and open", async (type) => {
+  const backend = await import("./backend");
+  const error = { type: "Fox", data: { type } } as const;
+  ipc.invoke.mockRejectedValueOnce(error);
+  await expect(backend.foxSearch({ type: "Nickname", value: "sample" })).rejects.toBe(error);
+  ipc.invoke.mockRejectedValueOnce(error);
+  await expect(backend.foxOpenGame("game-id")).rejects.toBe(error);
+});
+
 test("one channel preserves all event kinds, including snapshots before subscribe resolves", async () => {
   const backend = await import("./backend");
   const first = vi.fn();

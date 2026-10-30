@@ -377,23 +377,42 @@ async fn truncated_http_body_is_not_accepted_as_a_complete_payload() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let task = tokio::spawn(async move {
-        let (mut socket, _) = listener.accept().await.unwrap();
-        read_request(&mut socket).await;
-        socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 999\r\nConnection: close\r\n\r\n{\"result\":0}").await.unwrap();
+        let mut requests = Vec::new();
+        // Keep listening for every retry. Dropping the listener after the
+        // first response replaces the body error with a later connect error
+        // (often a timeout on Windows), so it no longer tests body truncation.
+        for _ in 0..3 {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            requests.push(read_request(&mut socket).await);
+            // This would be a valid account if accepted as a complete body.
+            socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 999\r\nConnection: close\r\n\r\n{\"result\":0,\"uid\":\"123\",\"username\":\"truncated\"}").await.unwrap();
+            socket.shutdown().await.unwrap();
+        }
+        requests
     });
     let client = FoxClient::with_endpoints(
         FoxEndpoints {
             user_url: format!("http://{address}/user"),
             ..FoxEndpoints::default()
         },
-        Duration::from_secs(2),
+        Duration::from_secs(1),
     )
     .unwrap();
-    assert!(matches!(
-        client.lookup("truncated").await,
-        Err(FoxError::Transport(_))
-    ));
-    task.await.unwrap();
+    let error = tokio::time::timeout(Duration::from_secs(5), client.lookup("truncated"))
+        .await
+        .expect("truncated response retry deadline")
+        .expect_err("an incomplete HTTP body must not be accepted");
+    assert!(error.is_retryable_transport(), "truncated body: {error:?}");
+    let requests = tokio::time::timeout(Duration::from_secs(5), task)
+        .await
+        .expect("server must receive all three retries")
+        .unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(
+        requests
+            .iter()
+            .all(|request| request.starts_with("GET /user?"))
+    );
 }
 
 #[tokio::test]
@@ -498,16 +517,18 @@ async fn timeout_transport_and_response_limit_are_typed() {
         ..FoxEndpoints::default()
     };
     let client = FoxClient::with_endpoints(endpoints.clone(), Duration::from_millis(100)).unwrap();
-    assert!(matches!(
-        client.lookup("timeout").await,
-        Err(FoxError::Timeout)
-    ));
+    let error = client.lookup("timeout").await.unwrap_err();
+    assert!(
+        matches!(error, FoxError::Timeout),
+        "idle response: {error:?}"
+    );
+    assert!(error.is_retryable_transport(), "idle response: {error:?}");
     task.abort();
     task.await.unwrap_err();
-    assert!(matches!(
-        client.lookup("refused").await,
-        Err(FoxError::Transport(_))
-    ));
+    let error = client.lookup("refused").await.unwrap_err();
+    // A closed Windows port can hit reqwest's short deadline before the OS
+    // reports refusal; both outcomes must stay retryable network failures.
+    assert!(error.is_retryable_transport(), "closed port: {error:?}");
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let task = tokio::spawn(async move {

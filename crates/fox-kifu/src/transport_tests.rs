@@ -225,8 +225,14 @@ async fn connection_refusal_is_retried_with_backoff() {
     .unwrap();
     let start = Instant::now();
     let error = within(client.lookup("sample")).await.unwrap_err();
-    assert!(matches!(error, FoxError::Transport(ref error) if error.is_connect()));
-    assert!(start.elapsed() >= Duration::from_millis(1050));
+    // Windows can keep the TCP connect pending past this short read deadline.
+    // reqwest checks that deadline before polling the connection/response, so
+    // Timeout and a socket refusal have the same retryable network semantics.
+    assert!(error.is_retryable_transport(), "closed port: {error:?}");
+    assert!(
+        start.elapsed() >= Duration::from_millis(1050),
+        "network retries must include both backoffs: {error:?}"
+    );
 }
 
 #[tokio::test]
@@ -277,6 +283,10 @@ async fn http_status_json_api_and_size_errors_are_not_retried() {
         let error = within(server.client(Duration::from_secs(1)).lookup("sample"))
             .await
             .unwrap_err();
+        assert!(
+            !error.is_retryable_transport(),
+            "non-network failure: {error:?}"
+        );
         match reply {
             Reply::Json(503, _) => assert!(matches!(error, FoxError::Http { status: 503 })),
             Reply::Json(_, ref body) if body == "{" => assert!(matches!(error, FoxError::Json(_))),
