@@ -189,8 +189,9 @@ test("a failed search says why and allows another try", async () => {
   expect((screen.getByTestId("fox-search") as HTMLButtonElement).disabled).toBe(false);
 });
 
-test("the close button closes", () => {
+test("the close button and Escape close", () => {
   const { onClose } = dialog();
   fireEvent.click(screen.getByTestId("fox-close"));
-  expect(onClose).toHaveBeenCalled();
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(onClose).toHaveBeenCalledTimes(2);
 });

@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import type { Backend, FoxAccount, FoxGame, FoxQuery } from "@/api/backend";
 import { Icon } from "../toolbar/icons";
 import { type FoxErrorLabels, type FoxResultLabels, errorText, resultText, shortTime } from "./format";
@@ -57,6 +57,14 @@ export function FoxDialog({ backend, labels, history, onHistoryChanged, onClose 
   const [openError, setOpenError] = useState<string | null>(null);
   const [closeAfterOpen, setCloseAfterOpen] = useState(true);
   const busy = status.kind === "searching" || opening !== null;
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
   const search = (query: FoxQuery) => {
     setStatus({ kind: "searching" });
