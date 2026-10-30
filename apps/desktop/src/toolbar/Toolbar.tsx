@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { EngineStatus } from "@/api/backend";
 import { Icon, type IconName } from "./icons";
 
@@ -7,6 +8,8 @@ export const JUMP = 1_000_000;
 export interface TopBarLabels {
   open: string;
   save: string;
+  fox: string;
+  strength: string;
   first: string;
   previous: string;
   next: string;
@@ -43,8 +46,12 @@ export interface TopBarProps {
   coordinates: boolean;
   ownership: boolean;
   engine: EngineStatus;
+  /** Extra controls at the start of the right group, such as whole-game analysis. */
+  extra?: ReactNode;
   onOpen(): void;
   onSave(): void;
+  onOpenFox(): void;
+  onOpenStrength(): void;
   onStep(steps: number): void;
   onTogglePondering(): void;
   onToggleCoordinates(): void;
@@ -60,6 +67,9 @@ export function TopBar(props: TopBarProps) {
       <div className="topbar-group">
         <IconButton icon="open" label={labels.open} testId="open-file" onClick={props.onOpen} showLabel />
         <IconButton icon="save" label={labels.save} testId="save-file" onClick={props.onSave} disabled={!props.canSave} showLabel />
+        <span className="topbar-divider" aria-hidden="true" />
+        <IconButton icon="fox" label={labels.fox} testId="open-fox" onClick={props.onOpenFox} showLabel />
+        <IconButton icon="strength" label={labels.strength} testId="open-strength" onClick={props.onOpenStrength} showLabel />
       </div>
       <nav className="nav-pill" aria-label={labels.move}>
         <IconButton icon="first" label={labels.first} testId="nav-first" onClick={() => props.onStep(-JUMP)} />
@@ -72,6 +82,7 @@ export function TopBar(props: TopBarProps) {
         <IconButton icon="last" label={labels.last} testId="nav-last" onClick={() => props.onStep(JUMP)} />
       </nav>
       <div className="topbar-group end">
+        {props.extra}
         <button
           type="button"
           className="chip"

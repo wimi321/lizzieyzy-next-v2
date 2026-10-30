@@ -1,4 +1,5 @@
-import type { Backend, CommandError, DocumentView, Settings, VariationNodeView, VariationTreeView, WireAppEvent } from "../src/api/backend";
+import type { Backend, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import { emptyStrengthEstimate } from "./fixtures";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
@@ -52,6 +53,20 @@ const calls: MockCall[] = [];
 let dispatching = false;
 /** The newest document delivered to the app, for answering unscripted read-only queries. */
 let lastDocument: { revision: number; view: DocumentView } | null = null;
+let lastProgress: WholeGameProgress | null = null;
+/** A test-provided problem-move view, answered for every unscripted read. */
+let problemMovesView: ProblemMovesView | null = null;
+
+export function setProblemMoves(view: ProblemMovesView | null): void {
+  problemMovesView = structuredClone(view);
+}
+
+/** A test-provided strength estimate, answered for every unscripted read. */
+let strengthView: StrengthEstimateView | null = null;
+
+export function setStrengthEstimate(view: StrengthEstimateView | null): void {
+  strengthView = structuredClone(view);
+}
 
 /** Install deterministic replies and events. No Go or analysis logic is simulated. */
 export function setScript(script: MockScript): void {
@@ -74,6 +89,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
     while (listeners.size !== 0 && pendingEvents.length !== 0) {
       const event = pendingEvents.shift()!;
       if (event.type === "DocumentChanged") lastDocument = structuredClone(event.data);
+      if (event.type === "WholeGameProgress") lastProgress = structuredClone(event.data);
       for (const listener of [...listeners.values()]) {
         try {
           listener(structuredClone(event));
@@ -124,7 +140,7 @@ export const redo: Backend["redo"] = () => command("redo", []);
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation">(
+function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "problemMoves" | "strengthEstimate">(
   name: K,
   args: Parameters<Backend[K]>,
   fallback: () => Awaited<ReturnType<Backend[K]>>,
@@ -162,14 +178,32 @@ export const resumeWholeGameAnalysis: Backend["resumeWholeGameAnalysis"] = () =>
   command("resumeWholeGameAnalysis", []);
 export const cancelWholeGameAnalysis: Backend["cancelWholeGameAnalysis"] = () =>
   command("cancelWholeGameAnalysis", []);
-export const wholeGameProgress: Backend["wholeGameProgress"] = () => command("wholeGameProgress", []);
+export const wholeGameProgress: Backend["wholeGameProgress"] = () => query("wholeGameProgress", [], () => lastProgress);
 export const wholeGameResult: Backend["wholeGameResult"] = (nodeId) => command("wholeGameResult", [nodeId]);
 export const problemMoves: Backend["problemMoves"] =
-  (query = { minimum_rank: "Inaccuracy", color: null, sort: "LossDesc" }) =>
-    command("problemMoves", [query]);
+  (filter = { minimum_rank: "Inaccuracy", color: null, sort: "LossDesc" }) =>
+    query("problemMoves", [filter], () => problemMovesView ? { ...problemMovesView, query: filter } : ({
+      revision: lastDocument?.revision ?? 0,
+      settings: { mode: "Auto", winrate_thresholds: [1, 3, 6, 12, 24], score_thresholds: [0.5, 1.5, 3, 6, 12] },
+      query: filter,
+      entries: [],
+      // No losses without whole-game results: one empty bar per graph point.
+      error_bar: (lastDocument?.view.graph.points ?? []).map((point) => ({
+        node_id: point.node_id,
+        move_number: point.move_number,
+        mv: null,
+        loss: null,
+      })),
+      current_index: lastDocument?.view.graph.current_index ?? 0,
+    }));
 export const setMoveRankSettings: Backend["setMoveRankSettings"] =
   (settings) => command("setMoveRankSettings", [settings]);
-export const strengthEstimate: Backend["strengthEstimate"] = () => command("strengthEstimate", []);
+export const strengthEstimate: Backend["strengthEstimate"] = () =>
+  query("strengthEstimate", [], () => strengthView ?? {
+    ...emptyStrengthEstimate(lastDocument?.revision ?? 0),
+    // Nothing analysed: every move of the displayed line is still to do.
+    total_moves: Math.max(0, (lastDocument?.view.graph.points.length ?? 1) - 1),
+  });
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);
@@ -211,6 +245,8 @@ export interface MockControls {
   setScript: typeof setScript;
   pushEvents: typeof pushEvents;
   recordedCalls: typeof recordedCalls;
+  setProblemMoves: typeof setProblemMoves;
+  setStrengthEstimate: typeof setStrengthEstimate;
 }
 
 declare global {
@@ -223,6 +259,6 @@ declare global {
 }
 
 if (typeof window !== "undefined") {
-  window.__mockBackend = { setScript, pushEvents, recordedCalls };
+  window.__mockBackend = { setScript, pushEvents, recordedCalls, setProblemMoves, setStrengthEstimate };
   if (window.__mockInitialScript) setScript(window.__mockInitialScript);
 }

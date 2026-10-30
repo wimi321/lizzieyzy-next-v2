@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import type { AnalysisView, CandidateView, GraphPointView, VariationTreeView } from "@/api/backend";
+import type { AnalysisView, BoardView, CandidateView, GraphPointView, VariationTreeView } from "@/api/backend";
+import en from "../locales/en.json";
 import zh from "../locales/zh-CN.json";
 import { CandidateTable } from "./CandidateTable";
 import { InfoPanel } from "./InfoPanel";
@@ -162,4 +163,48 @@ test("the info panel shows captures, the winrate bar and the last move's change"
   expect(screen.getByText("白方")).toBeTruthy();
   expect(screen.getByTestId("winrate-bar").dataset.black).toBe("62.0");
   expect(screen.getByTestId("lead-line").textContent).toBe("黑领先 2.4 目最后一手 (#1)：+12.0% +1.9 目");
+});
+
+test("the game's komi, handicap, rules, result and date sit under the players", () => {
+  const board: BoardView = {
+    width: 19, height: 19, stones: [], last_move: null, to_play: "White", move_number: 0, captured_black: 0, captured_white: 0,
+  };
+  const game = {
+    black_name: "甲", black_rank: null, white_name: "乙", white_rank: null, komi: 7.5, rules: "Chinese",
+    handicap: null, result: "B+R", date: "2026-10-28", event: "野狐 十段赛",
+  };
+  const { rerender } = render(
+    <InfoPanel board={board} black={{ name: "甲", rank: null }} white={{ name: "乙", rank: null }} points={[]} currentIndex={0} game={game} labels={zh.info} />,
+  );
+  expect(screen.getByTestId("game-meta").textContent).toBe("贴 7.5 · 中国规则 · B+R · 2026-10-28");
+  expect(screen.getByTestId("game-meta").getAttribute("title")).toBe("野狐 十段赛");
+
+  rerender(
+    <InfoPanel
+      board={board}
+      black={{ name: "甲", rank: null }}
+      white={{ name: "乙", rank: null }}
+      points={[]}
+      currentIndex={0}
+      game={{ ...game, komi: 0.5, handicap: 3, rules: "tromp_taylor", result: null, date: null, event: null }}
+      labels={en.info}
+    />,
+  );
+  expect(screen.getByTestId("game-meta").textContent).toBe("Komi 0.5 · 3 handicap · Tromp-Taylor rules");
+  expect(screen.getByTestId("game-meta").getAttribute("title")).toBeNull();
+});
+
+test("the player rows show the match rate once the strength estimate has one", () => {
+  const board: BoardView = {
+    width: 19, height: 19, stones: [], last_move: null, to_play: "Black", move_number: 0, captured_black: 0, captured_white: 0,
+  };
+  const { rerender } = render(
+    <InfoPanel board={board} black={{ name: "甲", rank: null, match: 0.736 }} white={{ name: "乙", rank: null, match: null }} points={[]} currentIndex={0} labels={zh.info} />,
+  );
+  expect(screen.getByTestId("player-match-black").textContent).toBe("吻合 74%");
+  expect(screen.getByTestId("player-match-black").getAttribute("title")).toBe(zh.info.matchHint);
+  expect(screen.queryByTestId("player-match-white")).toBeNull();
+
+  rerender(<InfoPanel board={board} black={{ name: "甲", rank: null }} white={{ name: "乙", rank: null }} points={[]} currentIndex={0} labels={zh.info} />);
+  expect(screen.queryByTestId("player-match-black")).toBeNull();
 });

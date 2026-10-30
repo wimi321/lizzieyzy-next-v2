@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import type { AppEvent, PointView } from "../src/api/backend";
 import {
   analysisUpdated,
+  captureVariation,
   documentChanged,
   emptyNineteen,
   midGame,
@@ -59,9 +60,13 @@ test.describe("screenshots", () => {
     await expect(board).toHaveScreenshot("ownership.png");
   });
 
-  test("hovering a candidate previews its variation", async ({ page }) => {
-    const { board } = await start(page, [documentChanged(midGame(), 7), analysisUpdated(midGameAnalysis(7, 20))]);
-    await board.hover({ position: await pixelOf(page, { x: 10, y: 6 }) });
+  test("hovering a candidate shows Rust's replay of its variation, captures included", async ({ page }) => {
+    const { analysis, moves, replay } = captureVariation(7);
+    const { board } = await start(page, [documentChanged(midGame(), 7), analysisUpdated(analysis)], [
+      { command: "previewVariation", result: replay },
+    ]);
+    await board.hover({ position: await pixelOf(page, { x: 4, y: 3 }) });
+    await expect.poll(() => calls(page)).toEqual([{ command: "previewVariation", args: [20, moves] }]);
     await expect(board).toHaveScreenshot("variation.png");
   });
 

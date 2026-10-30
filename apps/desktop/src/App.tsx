@@ -1,14 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import * as backend from "@/api/backend";
-import type { EngineProfile, PointView, VariationTreeView } from "@/api/backend";
+import type { ColorView, EngineProfile, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
 import { formatVisits } from "./board/format";
+import { useVariationPreview } from "./board/useVariationPreview";
+import { FoxDialog } from "./fox/FoxDialog";
 import { liveGraph } from "./graph/scale";
 import { WinrateGraph } from "./graph/WinrateGraph";
 import { getMessages } from "./locales";
 import { CandidateTable } from "./panels/CandidateTable";
 import { InfoPanel } from "./panels/InfoPanel";
 import { MoveTree } from "./panels/MoveTree";
+import { AutoAnalysis } from "./review/AutoAnalysis";
+import { ProblemList } from "./review/ProblemList";
+import { StrengthDialog } from "./review/StrengthDialog";
+import { TIER_ORDER } from "./review/strength";
+import { useProblemMoves } from "./review/useProblemMoves";
+import { useStrength } from "./review/useStrength";
+import { useWholeGame } from "./review/useWholeGame";
 import { EngineSetup } from "./settings/EngineSetup";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { JUMP, TopBar } from "./toolbar/Toolbar";
@@ -44,9 +53,28 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [pondering, setPondering] = useState(true);
   const [profile, setProfile] = useState<EngineProfile | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [foxOpen, setFoxOpen] = useState(false);
+  // Mounted on first use and then only hidden, so a minimized window keeps its list.
+  const [foxUsed, setFoxUsed] = useState(false);
+  const [strengthOpen, setStrengthOpen] = useState(false);
+  const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
   // A preview belongs to one position: once the current node changes it no longer applies.
   const [preview, setPreview] = useState<{ node: number; point: PointView } | null>(null);
+  const [boardHover, setBoardHover] = useState<PointView | null>(null);
   const [tree, setTree] = useState<VariationTreeView | null>(null);
+  const wholeGame = useWholeGame(backend);
+  const [problemColor, setProblemColor] = useState<ColorView | null>(null);
+  const [problemSort, setProblemSort] = useState<ProblemMoveSort>("LossDesc");
+  const [notesTab, setNotesTab] = useState<"problems" | "comment">("problems");
+  const problemQuery = useMemo<ProblemMovesQuery>(
+    () => ({ minimum_rank: "Inaccuracy", color: problemColor, sort: problemSort }),
+    [problemColor, problemSort],
+  );
+  const reviewSignals = { revision, progress: wholeGame.progress?.completed ?? 0, live: analysis?.visits ?? 0 };
+  const problems = useProblemMoves(backend, problemQuery, reviewSignals);
+  const strength = useStrength(backend, reviewSignals);
+  // Match rates join the player rows only once the estimate has enough moves to mean something.
+  const strengthReport = strength?.report.has_enough_data ? strength.report : null;
 
   useEffect(() => {
     let active = true;
@@ -56,6 +84,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         if (!active) return;
         setPondering(settings.pondering);
         setProfile(settings.engine);
+        setFoxHistory(settings.fox_history);
         // First run: nothing to analyse with until an engine is set up.
         if (!settings.engine) setSetupOpen(true);
       })
@@ -105,7 +134,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const line = useMemo(() => points.map((point) => point.node_id), [points]);
   const currentIndex = document?.graph.current_index ?? 0;
   const previewPoint = preview && document && preview.node === document.tree.current ? preview.point : null;
+  const variation = useVariationPreview(backend, document?.tree.current ?? null, revision, analysis, boardHover ?? previewPoint);
   const info = document?.game_info ?? null;
+  // The mistake bars share the graph's line and indexing; anything else is stale.
+  const mistakes = problems && problems.error_bar.length === points.length ? problems.error_bar : undefined;
+  const analysed = points.some((point) => point.summary !== null);
   const play = (point: PointView) => {
     if (!board) return;
     backend.play({ type: "Play", data: { color: board.to_play, point } }).catch(report);
@@ -123,6 +156,13 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     backend
       .setPondering(next)
       .then(() => setPondering(next))
+      .catch(report);
+  };
+  // The backend records searches in the settings; read them back rather than guess.
+  const refreshFoxHistory = () => {
+    backend
+      .settings()
+      .then((settings) => setFoxHistory(settings.fox_history))
       .catch(report);
   };
   const jump = (nodeId: number) => {
@@ -159,8 +199,24 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         coordinates={coordinates}
         ownership={ownership}
         engine={engine}
+        extra={
+          <AutoAnalysis
+            progress={wholeGame.progress}
+            positions={points.length}
+            labels={messages.review}
+            onStart={wholeGame.start}
+            onPause={wholeGame.pause}
+            onResume={wholeGame.resume}
+            onCancel={wholeGame.cancel}
+          />
+        }
         onOpen={() => void openFile().catch(report)}
         onSave={() => void saveFile().catch(report)}
+        onOpenFox={() => {
+          setFoxUsed(true);
+          setFoxOpen(true);
+        }}
+        onOpenStrength={() => setStrengthOpen(true)}
         onStep={step}
         onTogglePondering={togglePondering}
         onToggleCoordinates={() => setCoordinates((value) => !value)}
@@ -171,10 +227,19 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         <aside className="side side-left">
           <InfoPanel
             board={board}
-            black={{ name: info?.black_name ?? null, rank: info?.black_rank ?? null }}
-            white={{ name: info?.white_name ?? null, rank: info?.white_rank ?? null }}
+            black={{
+              name: info?.black_name ?? null,
+              rank: info?.black_rank ?? null,
+              match: strengthReport && strengthReport.black.sample_count > 0 ? strengthReport.black.match_rate : null,
+            }}
+            white={{
+              name: info?.white_name ?? null,
+              rank: info?.white_rank ?? null,
+              match: strengthReport && strengthReport.white.sample_count > 0 ? strengthReport.white.match_rate : null,
+            }}
             points={points}
             currentIndex={currentIndex}
+            game={info}
             labels={messages.info}
           />
           <section className="section graph-section" aria-label={messages.graph.title}>
@@ -186,14 +251,52 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               </span>
             </div>
             <div className="graph-wrap">
-              {document ? <WinrateGraph graph={document.graph} analysis={analysis} labels={messages.graph} onJump={jump} /> : null}
+              {document ? (
+                <WinrateGraph graph={document.graph} analysis={analysis} mistakes={mistakes} labels={messages.graph} onJump={jump} />
+              ) : null}
             </div>
           </section>
-          {document?.comment ? (
-            <section className="section comment" aria-label={messages.info.comment} data-testid="comment">
-              <p>{document.comment}</p>
-            </section>
-          ) : null}
+          <section className="section notes-section">
+            <div className="tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={notesTab === "problems"}
+                data-testid="tab-problems"
+                onClick={() => setNotesTab("problems")}
+              >
+                {messages.problems.title}
+                {problems && problems.entries.length > 0 ? <span className="tab-count">{problems.entries.length}</span> : null}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={notesTab === "comment"}
+                data-testid="tab-comment"
+                onClick={() => setNotesTab("comment")}
+              >
+                {messages.problems.comment}
+                {document?.comment ? <span className="tab-dot" aria-hidden="true" /> : null}
+              </button>
+            </div>
+            {notesTab === "problems" ? (
+              <ProblemList
+                view={problems}
+                current={document?.tree.current ?? -1}
+                color={problemColor}
+                sort={problemSort}
+                analysed={analysed}
+                labels={messages.problems}
+                onColor={setProblemColor}
+                onSort={setProblemSort}
+                onJump={jump}
+              />
+            ) : (
+              <div className="comment" data-testid="comment">
+                {document?.comment ? <p>{document.comment}</p> : <p className="panel-empty">{messages.problems.noComment}</p>}
+              </div>
+            )}
+          </section>
         </aside>
         <section className="board-area" data-testid="board-area" data-revision={revision} data-node-id={document?.tree.current}>
           {board ? (
@@ -205,6 +308,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               maxCandidates={maxCandidates}
               label={messages.board.label}
               preview={previewPoint}
+              variation={variation}
+              onHoverCandidate={setBoardHover}
               onPlay={play}
             />
           ) : (
@@ -237,6 +342,29 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           />
         </aside>
       </div>
+      {strengthOpen ? (
+        <StrengthDialog
+          view={strength}
+          progress={wholeGame.progress}
+          black={{ name: info?.black_name || messages.info.black, rank: info?.black_rank ?? null }}
+          white={{ name: info?.white_name || messages.info.white, rank: info?.white_rank ?? null }}
+          chinese={navigator.language.toLowerCase().startsWith("zh")}
+          labels={messages.strength}
+          tierNames={TIER_ORDER.map((rank) => messages.problems.ranks[rank])}
+          onAnalyze={() => wholeGame.start(1000)}
+          onClose={() => setStrengthOpen(false)}
+        />
+      ) : null}
+      {foxUsed ? (
+        <FoxDialog
+          open={foxOpen}
+          backend={backend}
+          labels={messages.fox}
+          history={foxHistory}
+          onHistoryChanged={refreshFoxHistory}
+          onClose={() => setFoxOpen(false)}
+        />
+      ) : null}
       {setupOpen ? (
         <EngineSetup
           backend={backend}

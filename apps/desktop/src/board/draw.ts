@@ -1,4 +1,4 @@
-import type { AnalysisView, BoardView, CandidateView, ColorView, PointView } from "@/api/backend";
+import type { AnalysisView, BoardView, CandidateView, ColorView, PointView, PreviewStoneView } from "@/api/backend";
 import { candidateTier, columnLabel, formatScore, formatVisits, formatWinrate, forMover, rowLabel, winrateLoss } from "./format";
 import { type Geometry, pointIndex, pointToPixel, starPoints } from "./geometry";
 import type { Palette } from "./palette";
@@ -333,6 +333,27 @@ function drawVariation(context: CanvasRenderingContext2D, geometry: Geometry, pa
     context.textBaseline = "middle";
     context.fillText(String(index + 1), x, y + cell * 0.02);
   });
+}
+
+/** Move numbers on the stones of a replayed variation; captured stones are already gone. */
+export function drawPreviewLabels(
+  context: CanvasRenderingContext2D,
+  geometry: Geometry,
+  palette: Palette,
+  stones: readonly PreviewStoneView[],
+) {
+  const { cell } = geometry;
+  if (cell <= 0) return;
+  context.save();
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  for (const stone of stones) {
+    const { x, y } = pointToPixel(geometry, stone.point);
+    context.fillStyle = stone.color === "Black" ? palette.lastMoveOnBlack : palette.lastMoveOnWhite;
+    context.font = `600 ${cell * (stone.move_number < 10 ? 0.42 : 0.34)}px ${FONT}`;
+    context.fillText(String(stone.move_number), x, y + cell * 0.02);
+  }
+  context.restore();
 }
 
 function samePoint(a: PointView | null, b: PointView | null): boolean {
