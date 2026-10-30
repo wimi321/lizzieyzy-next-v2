@@ -31,12 +31,17 @@
     "last": "Last move",
     "pause": "Pause analysis",
     "resume": "Resume analysis",
-    "move": "Move"
+    "move": "Move",
+    "analysing": "Analysing",
+    "paused": "Paused"
   },
   "graph": {
     "label": "Winrate graph: Black's winrate and score lead",
     "empty": "No analysis yet",
-    "move": "Move {n}"
+    "move": "Move {n}",
+    "title": "Winrate",
+    "legendWinrate": "Black",
+    "legendScore": "Score"
   },
   "setup": {
     "open": "Engine",
@@ -57,5 +62,30 @@
     "starting": "Starting…",
     "close": "Close",
     "failed": "The engine did not start; settings are unchanged:"
+  },
+  "info": {
+    "black": "Black",
+    "white": "White",
+    "captures": "Captures {n}",
+    "blackLeads": "B+{score}",
+    "whiteLeads": "W+{score}",
+    "even": "Even",
+    "lastMove": "Last move (#{n}): {winrate}% {score}",
+    "noAnalysis": "No analysis",
+    "comment": "Comment"
+  },
+  "table": {
+    "label": "Candidates",
+    "order": "#",
+    "winrate": "Winrate",
+    "visits": "Visits",
+    "share": "Share",
+    "score": "Score",
+    "move": "Move",
+    "empty": "Waiting for the engine's candidates"
+  },
+  "tree": {
+    "label": "Moves",
+    "variations": "{n} variations"
   }
 }
