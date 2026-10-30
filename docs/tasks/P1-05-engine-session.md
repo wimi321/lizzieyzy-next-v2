@@ -4,6 +4,7 @@ title: engine-session：每个引擎一个 actor
 depends_on: [P1-04]
 paths:
   - crates/engine-session/**
+  - tools/fake-katago/**
   - Cargo.toml
   - docs/ARCHITECTURE.md
 ---
@@ -23,6 +24,7 @@ paths:
   - terminate 之后吞掉迟到的结果。
   - shutdown 后不留僵尸进程。
 - 所有超时都可配置，测试里用短值。用 `tracing` 打日志，记录请求 id 和耗时。
+- 测试辅助 `fake_katago::binary_path()` 被同一进程的多个测试线程同时调用时只构建一次（验收时发现的竞争：cargo 会先删掉再重新链接可执行文件，并发的线程会找不到它）。
 
 ## 不做
 
@@ -40,3 +42,4 @@ paths:
 8. `--threads 1` 下，高 priority 的请求先完成。
 9. shutdown 之后进程已经退出（等到退出码），状态为 Stopped。
 10. 测试里不用 sleep 做同步；预算检查通过（没有 Mutex、RwLock、atomic、线程）。
+11. `cargo test -p engine-session` 连续跑 10 遍全部通过。
