@@ -588,5 +588,17 @@
     "license": "Open source under GPL-3.0",
     "source": "Source code",
     "close": "Close"
+  },
+  "sync": {
+    "starting": "Starting the board sync tool…",
+    "ready": "Sync tool ready",
+    "syncing": "Syncing the board",
+    "move": "move {n}",
+    "failed": "Board sync failed",
+    "stop": "Stop",
+    "stopHint": "Stop syncing and close the sync tool",
+    "close": "Close",
+    "unsupported": "Board sync works on Windows only",
+    "missing": "The board sync tool was not found: {path}"
   }
 }

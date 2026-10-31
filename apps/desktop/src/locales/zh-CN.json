@@ -588,5 +588,17 @@
     "license": "以 GPL-3.0 许可开源",
     "source": "源代码",
     "close": "关闭"
+  },
+  "sync": {
+    "starting": "正在启动棋盘同步工具…",
+    "ready": "同步工具已就绪",
+    "syncing": "棋盘同步中",
+    "move": "第 {n} 手",
+    "failed": "棋盘同步出错",
+    "stop": "停止",
+    "stopHint": "停止同步并关闭同步工具",
+    "close": "关闭",
+    "unsupported": "棋盘同步只能在 Windows 上使用",
+    "missing": "没有找到棋盘同步工具：{path}"
   }
 }

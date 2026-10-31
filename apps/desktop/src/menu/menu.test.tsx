@@ -5,7 +5,7 @@ import en from "../locales/en.json";
 import legacyEn from "../locales/legacy/en-US.json";
 import legacyZh from "../locales/legacy/zh-CN.json";
 import zhCN from "../locales/zh-CN.json";
-import { menuBindings, type MenuActions, type MenuBindings, type MenuState } from "./bindings";
+import { isEnabled, menuBindings, type MenuActions, type MenuBindings, type MenuState } from "./bindings";
 import { MenuBar } from "./MenuBar";
 import { engineMenu, labelOf, MENUS, type MenuEntry, menusFor } from "./spec";
 
@@ -107,6 +107,8 @@ function actions(): MenuActions {
     step: vi.fn(),
     goTo: vi.fn(),
     openFox: vi.fn(),
+    startBoardSync: vi.fn(),
+    toggleSyncOption: vi.fn(),
     openEngineSetup: vi.fn(),
     restartEngine: vi.fn(),
     openAbout: vi.fn(),
@@ -121,6 +123,9 @@ const IDLE: MenuState = {
   wholeGameActive: false,
   hasBestMove: true,
   engineFailed: false,
+  windows: false,
+  syncPhase: "Stopped",
+  syncOptions: { always_sync: true, always_goto_last: false },
   tree: null,
   current: null,
 };
@@ -168,6 +173,21 @@ describe("what the menu can do now", () => {
     expect(busy.restartCurrentEngine?.enabled).toBe(true);
     expect(busy.saveAs?.enabled).toBe(false);
     expect(busy.jumpToLast?.enabled).toBe(false);
+  });
+
+  test("readboard starts on Windows only, once, and its options show as checks", () => {
+    const run = actions();
+    expect(isEnabled(menuBindings(IDLE, run).readBoard)).toBe(false);
+    const windows = menuBindings({ ...IDLE, windows: true }, run);
+    expect(isEnabled(windows.readBoard)).toBe(true);
+    windows.readBoard?.run?.();
+    expect(run.startBoardSync).toHaveBeenCalledTimes(1);
+    expect(isEnabled(menuBindings({ ...IDLE, windows: true, syncPhase: "Syncing" }, run).readBoard)).toBe(false);
+    expect(isEnabled(menuBindings({ ...IDLE, windows: true, syncPhase: "Failed" }, run).readBoard)).toBe(true);
+    expect(windows.alwaysKeepBoardStatSync?.checked).toBe(true);
+    expect(windows.alwaysGoToLastMove?.checked).toBe(false);
+    windows.alwaysGoToLastMove?.run?.();
+    expect(run.toggleSyncOption).toHaveBeenCalledWith("always_goto_last");
   });
 
   test("branch entries go where Java would", () => {

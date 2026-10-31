@@ -97,6 +97,7 @@ describe("Java's keys", () => {
     [{ code: "Comma" }, "playBestMove"],
     [{ code: "KeyX", altKey: true }, "engineConfig"],
     [{ code: "KeyX" }, null],
+    [{ code: "KeyO", altKey: true }, "readBoard"],
     [{ code: "ArrowLeft", repeat: true }, "jumpToLeft"],
     [{ code: "ArrowDown" }, "nextMove"],
     [{ code: "ArrowUp", ctrlKey: true }, "back10"],
