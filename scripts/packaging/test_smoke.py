@@ -103,16 +103,15 @@ class PortTests(unittest.TestCase):
             listener.listen()
             self.assertFalse(smoke.port_is_free(listener.getsockname()[1]))
 
-    @unittest.skipIf(os.name == "nt", "Windows has no SO_REUSEADDR semantics to rely on")
-    def test_connections_left_in_time_wait_do_not_block_the_next_run(self):
-        listener = socket.socket()
-        listener.bind(("127.0.0.1", 0))
-        listener.listen()
-        port = listener.getsockname()[1]
-        client = socket.create_connection(("127.0.0.1", port))
-        accepted, _ = listener.accept()
-        # The side that closes first keeps the port in TIME_WAIT.
-        accepted.close()
-        listener.close()
-        client.close()
+    def test_each_run_gets_ports_nothing_listens_on(self):
+        port = smoke.unused_port()
         self.assertTrue(smoke.port_is_free(port))
+
+
+class SavedPathTests(unittest.TestCase):
+    def test_extended_length_windows_paths_match_their_plain_form(self):
+        with tempfile.TemporaryDirectory() as directory:
+            plain = Path(directory) / "katago.exe"
+            self.assertTrue(smoke.same_path(str(plain), plain))
+            self.assertTrue(smoke.same_path("\\\\?\\" + str(plain), plain))
+            self.assertFalse(smoke.same_path(str(plain.with_name("other.exe")), plain))

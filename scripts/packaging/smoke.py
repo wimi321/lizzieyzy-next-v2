@@ -60,10 +60,6 @@ def request(method: str, url: str, body=None, timeout: float = 5):
 
 def port_is_free(port: int) -> bool:
     with socket.socket() as probe:
-        # Connections the last run closed linger in TIME_WAIT; only a listener should count.
-        # Windows' SO_REUSEADDR would also allow binding over a listener, so it stays off there.
-        if os.name != "nt":
-            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             probe.bind(("127.0.0.1", port))
         except OSError:
@@ -74,6 +70,20 @@ def port_is_free(port: int) -> bool:
 def free_port(port: int) -> None:
     # A previous run's driver may still be exiting.
     poll(lambda: port_is_free(port), 10, f"Port {port} is still in use")
+
+
+def unused_port() -> int:
+    """A port nothing listens on now, so back-to-back runs never share the driver's ports."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def same_path(saved: str, expected: Path) -> bool:
+    # Windows may save the extended-length form (\\?\D:\...) of the same path.
+    if saved.startswith("\\\\?\\") and not saved.startswith("\\\\?\\UNC\\"):
+        saved = saved[4:]
+    return Path(saved).resolve() == expected.resolve()
 
 
 def poll(check, seconds: float, message: str):
@@ -99,7 +109,7 @@ def verify_settings(settings: dict, resources: Path, config_dir: Path, platform:
         "config": config_dir / "analysis.cfg",
     }
     for field, path in expected.items():
-        if Path(profile.get(field, "")).resolve() != path.resolve():
+        if not same_path(str(profile.get(field, "")), path):
             raise AcceptanceError(f"Auto-setup chose unexpected {field}: {profile.get(field)}; expected {path}")
     if profile.get("canonical_model_name") != model_name:
         raise AcceptanceError("Auto-setup did not recognize the bundled B11 identity")
@@ -159,8 +169,8 @@ def run(args: argparse.Namespace) -> dict:
     settings_file = config_dir / "settings.json"
     if settings_file.exists():
         raise AcceptanceError("Smoke config directory is not clean")
-    free_port(4444)
-    free_port(4445)
+    driver_port = unused_port()
+    native_port = unused_port()
     windows = platform == "windows-x64"
     if windows:
         free_port(9222)
@@ -173,12 +183,13 @@ def run(args: argparse.Namespace) -> dict:
     driver = None
     app = None
     session = None
-    base = "http://127.0.0.1:4444"
+    base = f"http://127.0.0.1:{driver_port}"
     report = {"platform": platform, "application": str(application), "realEngine": True}
     with (diagnostics / "process.log").open("w", encoding="utf-8") as log:
         try:
             driver_args = [str(args.driver.resolve())]
-            driver_args.extend(["--port=4444"] if windows else ["--port", "4444", "--native-port", "4445"])
+            driver_args.extend([f"--port={driver_port}"] if windows
+                               else ["--port", str(driver_port), "--native-port", str(native_port)])
             driver = subprocess.Popen(driver_args, stdout=log, stderr=log, env=environment,
                                       start_new_session=not windows)
 
