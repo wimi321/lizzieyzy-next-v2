@@ -121,6 +121,11 @@ def locate(payload: Path, platform: str) -> tuple[Path, Path]:
         application = root / "lizzieyzy-desktop.exe"
     else:
         application = root.parent.parent / "bin" / "lizzieyzy-desktop"
+        # An extracted AppImage starts through AppRun, as users' AppImages do: it sets up the
+        # environment WebKit's helper processes are found from.
+        app_run = root.parent.parent.parent / "AppRun"
+        if app_run.is_file():
+            application = app_run
     if not application.is_file():
         raise AcceptanceError(f"Packaged application not found: {application}")
     return root, application

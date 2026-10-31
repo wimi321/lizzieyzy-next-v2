@@ -73,8 +73,9 @@ def extract(archive, destination):
         for member in zipped.infolist():
             name = PurePosixPath(member.filename)
             mode = member.external_attr >> 16
+            # zipfile turns "\\" into "/" on Windows; the raw name keeps what the archive says.
             if (not name.parts or name.is_absolute() or ".." in name.parts
-                    or "\\" in member.filename or ":" in member.filename
+                    or "\\" in member.orig_filename or ":" in member.orig_filename
                     or stat.S_ISLNK(mode)
                     or (stat.S_IFMT(mode) not in (0, stat.S_IFREG, stat.S_IFDIR))):
                 raise BundleError(f"Unsafe archive member: {member.filename}")

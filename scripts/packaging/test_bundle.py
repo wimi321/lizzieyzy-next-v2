@@ -67,9 +67,12 @@ class BundleTests(unittest.TestCase):
         link = zipfile.ZipInfo("link")
         link.create_system = 3
         link.external_attr = (stat.S_IFLNK | 0o777) << 16
+        # ZipInfo would turn the backslash into "/" on Windows; write the raw name instead.
+        backslash = zipfile.ZipInfo("placeholder")
+        backslash.filename = "folder\\escaped"
         cases = [
             [("../escaped", b"bad")], [("/absolute", b"bad")],
-            [("folder\\escaped", b"bad")], [("C:/escaped", b"bad")],
+            [(backslash, b"bad")], [("C:/escaped", b"bad")],
             [(link, b"/etc/passwd")], [("FILE", b"a"), ("file", b"b")],
         ]
         for index, entries in enumerate(cases):

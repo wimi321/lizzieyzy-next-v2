@@ -48,6 +48,11 @@ class PayloadAcceptanceTests(unittest.TestCase):
         self.assertEqual(result["resourceBytes"], sum(map(len, self.files.values())))
         self.assertEqual(locate(self.base / "payload", "linux-x64"), (self.resources, self.app))
 
+    def test_an_extracted_appimage_starts_through_apprun(self):
+        app_run = self.base / "payload/AppRun"
+        app_run.write_text("#!/bin/sh\n")
+        self.assertEqual(locate(self.base / "payload", "linux-x64"), (self.resources, app_run))
+
     def test_rejects_changed_bytes_even_at_same_size(self):
         path = self.resources / "weights/default.bin.gz"
         path.write_bytes(b"X" * path.stat().st_size)
