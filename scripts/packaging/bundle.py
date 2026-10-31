@@ -215,8 +215,10 @@ def prepare(platform, cache, output, catalog=None, pins=None):
             extract(download(readboard), extracted)
             source = engine_root(extracted, "readboard.exe")
             shutil.copytree(source, staged / "readboard")
-            transformations["readboard/readboard.exe"] = patch_readboard(
-                staged / "readboard/readboard.exe", readboard)
+            # Releases before v3.1 asked for administrator rights; later ones run as invoker.
+            if readboard.get("elevationPatch", True):
+                transformations["readboard/readboard.exe"] = patch_readboard(
+                    staged / "readboard/readboard.exe", readboard)
         for license_spec in pins["licenses"]:
             if platform not in license_spec.get("platforms", PLATFORMS):
                 continue

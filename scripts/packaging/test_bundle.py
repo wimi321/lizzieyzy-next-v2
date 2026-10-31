@@ -201,6 +201,28 @@ class BundleTests(unittest.TestCase):
         self.assertEqual(transformation["replacements"], 1)
         self.assertNotEqual(transformation["originalSha256"], transformation["packagedSha256"])
 
+    def test_windows_preparation_packs_a_readboard_that_needs_no_patch_unchanged(self):
+        engine_zip = self.archive([("katago.exe", b"engine")])
+        engine_zip.rename(self.root / "engine.zip")
+        engine_zip = self.root / "engine.zip"
+        original = b'<!-- level="requireAdministrator" --> level="asInvoker"'
+        readboard_zip = self.archive([("readboard/readboard.exe", original),
+                                      ("readboard/coreclr.dll", b"runtime")])
+        engine = pin(engine_zip.read_bytes())
+        engine.update(assetName="engine.zip", executableSha256=pin(b"engine")["sha256"])
+        model = pin(b"model")
+        model["downloadUrl"] = model["url"]
+        model_path = self.root / "model"
+        model_path.write_bytes(b"model")
+        catalog = {"assets": {"windows-cpu": engine}, "engineReleaseRepository": "owner/repo",
+                   "engineReleaseTag": "fixed", "models": {"b11": model}, "defaultModelId": "b11"}
+        pins = {"readboard": dict(pin(readboard_zip.read_bytes()), elevationPatch=False), "licenses": []}
+        output = self.root / "output"
+        with patch("bundle.fetch", side_effect=[engine_zip, model_path, readboard_zip]):
+            receipt = bundle.prepare("windows-x64", self.root / "cache", output, catalog, pins)
+        self.assertEqual((output / "readboard/readboard.exe").read_bytes(), original)
+        self.assertNotIn("readboard/readboard.exe", receipt["transformations"])
+
     def test_signing_rejects_unbundled_library_after_verifying_signature(self):
         binary = self.root / "katago"
         binary.write_bytes(b"\xcf\xfa\xed\xfecode")
