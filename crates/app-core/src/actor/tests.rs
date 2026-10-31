@@ -61,6 +61,7 @@ pub(super) fn snapshot(actor: &Actor, visits: u64, winrate: f64) -> AnalysisSnap
         }))
         .unwrap(),
         source: analysis::SnapshotSource::Live,
+        visits_per_second: None,
     }
 }
 

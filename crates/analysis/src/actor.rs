@@ -1,6 +1,7 @@
 use crate::{
     AnalysisConfig, AnalysisError, AnalysisSnapshot, AnalysisStatus, Focus, LiveSettings,
-    SnapshotSource, cache::Cache, delivery::Delivery, request, throttle::Throttle,
+    SnapshotSource, cache::Cache, delivery::Delivery, request, speed::SearchSpeed,
+    throttle::Throttle,
 };
 use document::{AnalysisKey, NodeId, Revision};
 use engine_session::{EngineHandle, QueryEvent, QuerySubscription};
@@ -42,6 +43,7 @@ impl From<&Focus> for Identity {
 struct Active {
     identity: Identity,
     subscription: QuerySubscription,
+    speed: SearchSpeed,
 }
 
 struct Actor {
@@ -204,6 +206,7 @@ impl Actor {
                 key: focus.key,
                 response,
                 source: SnapshotSource::Cache,
+                visits_per_second: None,
             });
         }
     }
@@ -253,6 +256,7 @@ impl Actor {
             self.active = Some(Active {
                 identity: Identity::from(focus),
                 subscription,
+                speed: SearchSpeed::default(),
             });
             self.status.send_replace(AnalysisStatus::Analyzing);
         }
@@ -260,7 +264,9 @@ impl Actor {
     }
 
     fn event(&mut self, event: Option<QueryEvent>) {
-        let Some(active) = &self.active else { return };
+        let Some(active) = &mut self.active else {
+            return;
+        };
         let identity = active.identity;
         if self.focus.as_ref().map(Identity::from) != Some(identity) {
             return;
@@ -268,6 +274,12 @@ impl Actor {
         match event {
             Some(QueryEvent::Partial(response) | QueryEvent::Final(response)) => {
                 let final_result = !response.is_during_search;
+                // Measure every received Partial, before display-depth filtering
+                // or throttling. A Final retains the last measured speed.
+                if !final_result {
+                    active.speed.record(response.root_info.visits);
+                }
+                let visits_per_second = active.speed.visits_per_second();
                 self.cache.insert(
                     identity.key,
                     &self.config.engine_fingerprint,
@@ -279,6 +291,7 @@ impl Actor {
                     key: identity.key,
                     response,
                     source: SnapshotSource::Live,
+                    visits_per_second,
                 });
                 if final_result {
                     self.active = None;
@@ -288,6 +301,7 @@ impl Actor {
                 }
             }
             Some(QueryEvent::Restarted) => {
+                active.speed = SearchSpeed::default();
                 self.throttle.clear_pending();
                 // Keep the old display until the new process reports progress.
                 self.display_floor = None;

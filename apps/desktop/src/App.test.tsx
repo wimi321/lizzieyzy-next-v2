@@ -26,6 +26,23 @@ test("renders the board, move number and analysis from backend events", async ()
   expect(screen.getByTestId("analysis-move").dataset.revision).toBe("3");
 });
 
+test("the analysis chip shows the search speed while the engine reports one", async () => {
+  setScript({
+    initialEvents: [documentChanged(midGame(), 3), analysisUpdated({ ...midGameAnalysis(3, 20), visits_per_second: 1234.4 })],
+  });
+  render(<App />);
+  const speed = await screen.findByTestId("analysis-speed");
+  expect(speed.textContent).toBe("1.2k/s");
+  expect(screen.getByTestId("analysis-move").getAttribute("title")).toContain("1234 visits per second");
+});
+
+test("no speed is shown until the engine has measured one", async () => {
+  setScript({ initialEvents: [documentChanged(midGame(), 3), analysisUpdated({ ...midGameAnalysis(3, 20), visits_per_second: null })] });
+  render(<App />);
+  await screen.findByTestId("analysis-move");
+  expect(screen.queryByTestId("analysis-speed")).toBeNull();
+});
+
 test("shows why a recorded position cannot be displayed", async () => {
   const view = { ...midGame(), board: null, position_error: "illegal move at node 7" };
   setScript({ initialEvents: [documentChanged(view, 2)] });

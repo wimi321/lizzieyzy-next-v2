@@ -8,6 +8,8 @@
     "analysis": "Analysis",
     "noAnalysis": "none",
     "visits": "{visits} visits",
+    "speed": "{speed}/s",
+    "speedTitle": "{speed} visits per second",
     "coordinates": "Coordinates",
     "ownership": "Territory",
     "positionError": "This position cannot be computed: {reason}",

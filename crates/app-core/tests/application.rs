@@ -307,6 +307,7 @@ async fn merged_user_override_reaches_ready_and_keeps_white_to_play_values_black
             key: position.analysis_key(),
             response: black,
             source: analysis::SnapshotSource::Live,
+            visits_per_second: None,
         },
         position.board.size(),
         position.board.to_play(),
@@ -342,6 +343,62 @@ async fn comment_revision_reuses_completed_query_and_pause_clears_unread_output(
     within(handle.configure_engine(Some(engine))).await.unwrap();
     within(handle.set_pondering(true)).await.unwrap();
     final_analysis(&mut output, revision, 0).await;
+    within(handle.shutdown()).await.unwrap();
+}
+
+#[tokio::test]
+async fn live_analysis_view_reports_search_speed_and_preserves_it_after_completion() {
+    let directory = TempDir::new().unwrap();
+    let engine = profile(directory.path(), &["--visits-per-sec", "1000"]);
+    let mut config = AppConfig::default();
+    config.analysis.live.max_visits = 1500;
+    config.analysis.live.report_interval = Duration::from_millis(100);
+    config.session.write_timeout = Duration::from_secs(60);
+    config.session.shutdown_timeout = Duration::from_secs(60);
+    let (handle, mut output) = within(app_core::spawn_with_config(directory.path(), config))
+        .await
+        .unwrap();
+    within(handle.configure_engine(Some(engine))).await.unwrap();
+
+    let partial = within(async {
+        loop {
+            match output.recv().await.expect("app event stream closed") {
+                AppEvent::AnalysisUpdated(view) => {
+                    assert_eq!((view.revision, view.node_id), (0, 0));
+                    assert!(view.is_during_search, "no speed before the search ended");
+                    if let Some(speed) = view.visits_per_second {
+                        assert!(speed.is_finite() && speed > 0.0, "{speed}");
+                        return view;
+                    }
+                }
+                AppEvent::EngineStatusChanged(EngineStatus::Failed {
+                    reason,
+                    stderr_tail,
+                }) => panic!("engine failed: {reason} {stderr_tail:?}"),
+                _ => {}
+            }
+        }
+    })
+    .await;
+    assert_eq!(partial.source, app_core::AnalysisSource::Live);
+
+    let finished = final_analysis(&mut output, 0, 0).await;
+    assert_eq!(finished.visits, 1500);
+    let speed = finished.visits_per_second.expect("final lost search speed");
+    assert!(speed.is_finite() && speed > 0.0, "{speed}");
+    // Reading retained analysis must not present an earlier search's speed as
+    // a measurement for cache or whole-game results.
+    let stored = within(handle.whole_game_result(0)).await.unwrap().unwrap();
+    assert_eq!(stored.source, app_core::AnalysisSource::Cache);
+    assert_eq!(stored.visits_per_second, None);
+
+    let revision = within(handle.apply(document::Command::SetComment("completed".into())))
+        .await
+        .unwrap();
+    document(&mut output, revision).await;
+    let mut republished = final_analysis(&mut output, revision, 0).await;
+    republished.revision = finished.revision;
+    assert_eq!(republished, finished);
     within(handle.shutdown()).await.unwrap();
 }
 

@@ -30,6 +30,8 @@ export interface AnalysisBadge {
   revision: number;
   visits: number;
   text: string;
+  /** Search speed while the engine reports one, such as "1.2k/秒". */
+  speed: string | null;
   title: string;
 }
 
@@ -103,6 +105,11 @@ export function TopBar(props: TopBarProps) {
           >
             {props.analysis?.text ?? props.noAnalysis}
           </strong>
+          {props.analysis?.speed ? (
+            <span className="chip-speed" data-testid="analysis-speed">
+              {props.analysis.speed}
+            </span>
+          ) : null}
         </button>
         <span className="topbar-divider" aria-hidden="true" />
         <IconButton icon="coordinates" label={labels.coordinates} testId="toggle-coordinates" pressed={props.coordinates} onClick={props.onToggleCoordinates} />

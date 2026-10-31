@@ -8,6 +8,8 @@
     "analysis": "分析",
     "noAnalysis": "暂无",
     "visits": "{visits} 次计算",
+    "speed": "{speed}/秒",
+    "speedTitle": "每秒 {speed} 次计算",
     "coordinates": "坐标",
     "ownership": "领地",
     "positionError": "这一手的局面无法计算：{reason}",

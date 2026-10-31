@@ -48,6 +48,7 @@ const events: AppEvent[] = [
     data: {
       node_id: 0, revision: 1, winrate: 0.5, score_lead: 0, visits: 10,
       summary: { winrate: 0.6, score_lead: 2, visits: 20 },
+      visits_per_second: 1200,
       candidates: [], ownership: null, is_during_search: false, source: "Live",
     },
   },
@@ -199,6 +200,25 @@ test("a throwing listener does not interrupt ordered delivery to other listeners
 const loadMock = () => vi.importActual<typeof import("../../e2e/mock-backend")>(
   "../../e2e/mock-backend",
 );
+
+test("mock supplies fixed live speed and preserves scripted speed, zero and null", async () => {
+  const mock = await loadMock();
+  const { analysisView, analysisUpdated } = await import("../../e2e/fixtures");
+  const legacy = analysisView(1, 0, []);
+  delete legacy.visits_per_second;
+  const scripted = [850, 0, null].map((visits_per_second) =>
+    analysisUpdated(analysisView(1, 0, [], { visits_per_second })));
+  mock.setScript({ initialEvents: [
+    analysisUpdated(legacy),
+    analysisUpdated({ ...legacy, source: "Cache" }),
+    ...scripted,
+  ] });
+  const received: AppEvent[] = [];
+  const id = await mock.subscribe((event) => received.push(event));
+  expect(received.map((event) => event.type === "AnalysisUpdated" ? event.data.visits_per_second : undefined))
+    .toEqual([1200, null, 850, 0, null]);
+  await mock.unsubscribe(id);
+});
 
 test("mock replies and all three event kinds follow the script without domain logic", async () => {
   const mock = await loadMock();

@@ -172,6 +172,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     setFoxOpen(true);
   };
   const current = document?.tree.current ?? null;
+  const speed = analysis?.visits_per_second ?? null;
   const best = analysis && analysis.node_id === current ? analysis.candidates[0] : undefined;
   const wholeGameStatus = wholeGame.progress?.status.type;
   const bindings = menuBindings(
@@ -236,7 +237,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
                 revision: analysis.revision,
                 visits: analysis.visits,
                 text: `${board.move_number} · ${formatVisits(analysis.visits)}`,
-                title: messages.board.visits.replace("{visits}", String(analysis.visits)),
+                speed: speed === null ? null : messages.board.speed.replace("{speed}", formatVisits(speed)),
+                title: [
+                  messages.board.visits.replace("{visits}", String(analysis.visits)),
+                  ...(speed === null ? [] : [messages.board.speedTitle.replace("{speed}", String(Math.round(speed)))]),
+                ].join(" · "),
               }
             : null
         }

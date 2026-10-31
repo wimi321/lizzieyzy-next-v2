@@ -66,6 +66,7 @@ impl Actor {
                 key: stored.key,
                 response: stored.response,
                 source: SnapshotSource::Cache,
+                visits_per_second: None,
             },
             position.board.size(),
             position.board.to_play(),
@@ -318,6 +319,7 @@ impl Actor {
                 key: result.key,
                 response: result.response,
                 source: SnapshotSource::Cache,
+                visits_per_second: None,
             };
             let view = AnalysisView::from_snapshot(
                 snapshot.clone(),

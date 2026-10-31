@@ -126,6 +126,7 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
         winrate: 0.73,
         score_lead: 5.2,
         visits: 43,
+        visits_per_second: Some(1250.5),
         summary: AnalysisSummary {
             winrate: 0.73,
             score_lead: 5.2,
@@ -173,6 +174,7 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
         key: document::AnalysisKey([7; 32]),
         response,
         source: analysis::SnapshotSource::Live,
+        visits_per_second: Some(1250.5),
     };
     let size = BoardSize::new(19, 19).unwrap();
     assert_eq!(
@@ -181,11 +183,13 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
     );
     let mut cached = snapshot;
     cached.source = analysis::SnapshotSource::Cache;
+    cached.visits_per_second = None;
     let view = AnalysisView::from_snapshot(cached, size, Color::White).unwrap();
     assert_eq!(view.source, AnalysisSource::Cache);
     assert_eq!(view.winrate, expected.winrate);
     assert_eq!(view.score_lead, expected.score_lead);
     assert_eq!(view.summary, expected.summary);
+    assert_eq!(view.visits_per_second, None);
 }
 
 fn rectangular_snapshot() -> analysis::AnalysisSnapshot {
@@ -217,6 +221,7 @@ fn rectangular_snapshot() -> analysis::AnalysisSnapshot {
         }))
         .unwrap(),
         source: analysis::SnapshotSource::Live,
+        visits_per_second: None,
     }
 }
 
@@ -395,9 +400,26 @@ fn event_serialization_and_typescript_declarations_agree_on_public_shape() {
     }
     assert!(AppEvent::decl().contains("revision: number"));
     assert!(AnalysisView::decl().contains("visits: number"));
+    assert!(AnalysisView::decl().contains("visits_per_second?: number | null"));
     assert!(AnalysisView::decl().contains("summary: AnalysisSummary"));
     assert!(CandidateView::decl().contains("point: PointView | null"));
     assert!(CandidateView::decl().contains("pv: Array<MoveView>"));
+}
+
+#[test]
+fn analysis_serialization_preserves_optional_search_speed() {
+    for speed in [None, Some(1234.5)] {
+        let mut snapshot = rectangular_snapshot();
+        snapshot.visits_per_second = speed;
+        let view =
+            AnalysisView::from_snapshot(snapshot, BoardSize::new(9, 13).unwrap(), Color::White)
+                .unwrap();
+        assert_eq!(view.visits_per_second, speed);
+        let event = AppEvent::AnalysisUpdated(view);
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["data"]["visits_per_second"], json!(speed));
+        assert_eq!(serde_json::from_value::<AppEvent>(json).unwrap(), event);
+    }
 }
 
 #[test]
