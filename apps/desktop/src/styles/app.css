@@ -515,6 +515,14 @@ button.chip:hover {
   color: var(--text-3);
 }
 
+/* Fixed width, so the bar does not shift as the digits change. */
+.chip-speed {
+  min-width: 4.6em;
+  font-weight: 500;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
 .live-dot {
   width: 7px;
   height: 7px;
@@ -574,6 +582,7 @@ button.chip:hover {
 }
 
 @media (max-width: 1100px) {
+  .topbar .chip-speed,
   .topbar .chip-label,
   .topbar .icon-button > span {
     display: none;
