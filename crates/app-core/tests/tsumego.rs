@@ -312,6 +312,7 @@ async fn generated_and_restored_analysis_use_fresh_namespaces_and_exact_setup_qu
             "--request-log".into(),
             log.to_str().unwrap().into(),
         ],
+        canonical_model_name: None,
     };
     let mut config = AppConfig::default();
     config.analysis.live.max_visits = 10;
