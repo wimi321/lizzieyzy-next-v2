@@ -67,6 +67,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   // Mounted on first use and then only hidden, so a minimized window keeps its list.
   const [foxUsed, setFoxUsed] = useState(false);
   const [strengthOpen, setStrengthOpen] = useState(false);
+  const [strengthBounds, setStrengthBounds] = useState<[number, number] | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   // State, not a ref: menu bindings are built during render and only call it later.
   const [autoAnalysis, setAutoAnalysis] = useState<AutoAnalysisHandle | null>(null);
@@ -84,7 +85,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   );
   const reviewSignals = { revision, progress: wholeGame.progress?.completed ?? 0, live: analysis?.visits ?? 0 };
   const problems = useProblemMoves(backend, problemQuery, reviewSignals);
-  const strength = useStrength(backend, reviewSignals);
+  const strength = useStrength(backend, reviewSignals, strengthBounds);
   // Match rates join the player rows only once the estimate has enough moves to mean something.
   const strengthReport = strength?.report.has_enough_data ? strength.report : null;
 
@@ -402,6 +403,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           chinese={navigator.language.toLowerCase().startsWith("zh")}
           labels={messages.strength}
           tierNames={TIER_ORDER.map((rank) => messages.problems.ranks[rank])}
+          bounds={strengthBounds}
+          onBounds={setStrengthBounds}
           onAnalyze={() => wholeGame.start(1000)}
           onClose={() => setStrengthOpen(false)}
         />

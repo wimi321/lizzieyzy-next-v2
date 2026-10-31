@@ -212,6 +212,7 @@
     "mistakeRate": "失误率",
     "points": "{n} 目",
     "tiers": "每手分档",
+    "assessment": "测评",
     "phases": "分阶段",
     "phaseNames": {
       "opening": "布局",
@@ -219,10 +220,27 @@
       "endgame": "官子"
     },
     "phaseRange": "第 {a}–{b} 手",
-    "phaseFrom": "第 {a} 手起",
     "unplayed": "未下到",
     "avgLossShort": "平均目损",
-    "firstChoiceShort": "一选率",
+    "phase": {
+      "title": "对局阶段",
+      "hint": "拖动分界线可以调整每个阶段的手数",
+      "reset": "恢复默认",
+      "notReached": "这盘棋没有下到这个阶段",
+      "tooFew": "手数太少",
+      "even": "双方水平相当",
+      "slightly": "{name}略好一些",
+      "clearly": "{name}明显更好",
+      "best": "最好",
+      "weakest": "最弱",
+      "divider": "{a}与{b}的分界：第 {n} 手",
+      "review": "复盘时可以重点看看：{item}。",
+      "reviewBoth": "复盘时可以重点看看：{a}和{b}。",
+      "reviewItem": "{name}的{phase}",
+      "reviewSame": "复盘时可以重点看看：双方的{phase}。",
+      "steady": "双方各阶段的发挥都比较平稳。",
+      "caveat": "每个阶段的手数比整盘少，估算的起伏会比整盘更大，仅供复盘参考。"
+    },
     "help": {
       "rank": "根据整盘棋的表现估算的段位，只供复盘参考，不是正式段位。",
       "band": "用另一套经验规则得出的档位，算法和估算段位不同，两者可能不一致。",
