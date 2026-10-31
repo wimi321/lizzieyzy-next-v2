@@ -17,6 +17,7 @@ mod engine_auto_setup;
 mod problem_moves;
 mod review;
 mod strength;
+mod tsumego;
 mod variation;
 
 const SAFETY: Duration = Duration::from_secs(5);

@@ -15,18 +15,22 @@ export type {
   MoveRank, MoveRankEvaluationMode, MoveRankSettings, MoveLoss, ProblemMovesQuery,
   ProblemMovesView, ProblemMoveSort, ProblemMoveView, MistakeBarPoint,
   StrengthEstimateView, StrengthReport, SideReport, PhaseReport, Confidence, Sample, MoveCategory,
+  TsumegoOptions, TsumegoStatus, TsumegoToPlay, TsumegoAttacker, TsumegoKoThreat,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "unsubscribe">;
-// Older UI fixtures can omit either new settings field without weakening the
+// Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
-  ? Omit<Settings, "fox_history" | "move_rank"> & Partial<Pick<Settings, "fox_history" | "move_rank">>
+  ? Omit<Settings, "fox_history" | "move_rank" | "tsumego"> & Partial<Pick<Settings, "fox_history" | "move_rank" | "tsumego">>
   : Awaited<ReturnType<Backend[K]>>;
 const defaultMoveRank: Settings["move_rank"] = {
   mode: "Auto",
   winrate_thresholds: [1, 3, 6, 12, 24],
   score_thresholds: [0.5, 1.5, 3, 6, 12],
+};
+const defaultTsumego: Settings["tsumego"] = {
+  to_play: "Inherit", attacker: "Auto", ko_threat: "Both", wall_distance: 1,
 };
 export type MockCall = {
   [K in CommandName]: { command: K; args: Parameters<Backend[K]> }
@@ -128,6 +132,7 @@ async function command<K extends CommandName>(
       ...next.result,
       fox_history: next.result.fox_history ?? [],
       move_rank: next.result.move_rank ?? defaultMoveRank,
+      tsumego: next.result.tsumego ?? defaultTsumego,
     }
     : next.result;
   return structuredClone(result) as Awaited<ReturnType<Backend[K]>>;
@@ -141,6 +146,9 @@ export const step: Backend["step"] = (count) => command("step", [count]);
 export const goTo: Backend["goTo"] = (nodeId) => command("goTo", [nodeId]);
 export const undo: Backend["undo"] = () => command("undo", []);
 export const redo: Backend["redo"] = () => command("redo", []);
+export const generateTsumego: Backend["generateTsumego"] = (options) => command("generateTsumego", [options]);
+export const exitTsumego: Backend["exitTsumego"] = () => command("exitTsumego", []);
+export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoStatus", []);
 /**
  * Read-only queries follow the script when it lists them next; otherwise they
  * are answered from the last document, unrecorded, so a UI that fetches its

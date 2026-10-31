@@ -15,6 +15,7 @@ mod review;
 mod settings;
 mod storage;
 mod strength_estimate;
+mod tsumego;
 mod view;
 
 pub use auto_setup::{AutoSetupAttempt, AutoSetupError};
@@ -29,6 +30,7 @@ pub use problem_moves::*;
 pub use review::*;
 pub use settings::{EngineProfile, Settings, SettingsError};
 pub use strength_estimate::*;
+pub use tsumego::*;
 pub use view::*;
 
 use std::path::PathBuf;
@@ -66,6 +68,8 @@ pub enum AppError {
     MoveRank(#[from] MoveRankError),
     #[error(transparent)]
     Strength(#[from] strength::model::ModelError),
+    #[error(transparent)]
+    Tsumego(#[from] TsumegoError),
 }
 
 /// Runtime tuning, separate from the versioned user settings. Defaults use the

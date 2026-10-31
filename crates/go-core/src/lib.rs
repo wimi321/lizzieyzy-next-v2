@@ -3,6 +3,7 @@
 mod coordinates;
 mod position;
 mod rules;
+pub mod tsumego;
 mod types;
 mod zobrist;
 
