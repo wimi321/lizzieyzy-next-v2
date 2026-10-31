@@ -58,9 +58,22 @@ def request(method: str, url: str, body=None, timeout: float = 5):
     return result
 
 
-def free_port(port: int) -> None:
+def port_is_free(port: int) -> bool:
     with socket.socket() as probe:
-        probe.bind(("127.0.0.1", port))
+        # Connections the last run closed linger in TIME_WAIT; only a listener should count.
+        # Windows' SO_REUSEADDR would also allow binding over a listener, so it stays off there.
+        if os.name != "nt":
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
+
+
+def free_port(port: int) -> None:
+    # A previous run's driver may still be exiting.
+    poll(lambda: port_is_free(port), 10, f"Port {port} is still in use")
 
 
 def poll(check, seconds: float, message: str):
@@ -154,7 +167,8 @@ def run(args: argparse.Namespace) -> dict:
     environment = dict(os.environ)
     # Keep system dependencies while removing engine discovery through build,
     # Java or Homebrew PATH entries. Exact saved paths are checked below too.
-    system_path = str(Path(environment["SystemRoot"]) / "System32") if windows else "/usr/bin:/bin"
+    # os.environ ignores case on Windows; the copied dict does not.
+    system_path = str(Path(os.environ["SystemRoot"]) / "System32") if windows else "/usr/bin:/bin"
     environment["PATH"] = str(Path.home() / ".cargo" / "bin") + os.pathsep + system_path
     driver = None
     app = None

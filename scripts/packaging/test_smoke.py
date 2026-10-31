@@ -1,12 +1,15 @@
 import copy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
+import socket
 import tempfile
 import threading
 import unittest
 
 from acceptance import AcceptanceError
+import smoke
 from smoke import request, verify_settings
 
 
@@ -91,3 +94,25 @@ class WebDriverTransportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PortTests(unittest.TestCase):
+    def test_a_listener_keeps_its_port_busy(self):
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen()
+            self.assertFalse(smoke.port_is_free(listener.getsockname()[1]))
+
+    @unittest.skipIf(os.name == "nt", "Windows has no SO_REUSEADDR semantics to rely on")
+    def test_connections_left_in_time_wait_do_not_block_the_next_run(self):
+        listener = socket.socket()
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        client = socket.create_connection(("127.0.0.1", port))
+        accepted, _ = listener.accept()
+        # The side that closes first keeps the port in TIME_WAIT.
+        accepted.close()
+        listener.close()
+        client.close()
+        self.assertTrue(smoke.port_is_free(port))
