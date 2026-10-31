@@ -16,6 +16,7 @@ export type {
   ProblemMovesView, ProblemMoveSort, ProblemMoveView, MistakeBarPoint,
   StrengthEstimateView, StrengthReport, SideReport, PhaseReport, Confidence, Sample, MoveCategory,
   TsumegoOptions, TsumegoStatus, TsumegoToPlay, TsumegoAttacker, TsumegoKoThreat,
+  StrengthPhasesReport, PhaseEstimate, PhaseExtremes,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "unsubscribe">;
@@ -212,8 +213,10 @@ export const problemMoves: Backend["problemMoves"] =
     }));
 export const setMoveRankSettings: Backend["setMoveRankSettings"] =
   (settings) => command("setMoveRankSettings", [settings]);
-export const strengthEstimate: Backend["strengthEstimate"] = () =>
-  query("strengthEstimate", [], () => strengthView ?? {
+// Custom-bound replies come from the script or setStrengthEstimate too: the mock
+// must not normalize bounds, split samples or calculate estimates in TypeScript.
+export const strengthEstimate: Backend["strengthEstimate"] = (bounds) =>
+  query("strengthEstimate", bounds === undefined ? [] : [bounds], () => strengthView ?? {
     ...emptyStrengthEstimate(lastDocument?.revision ?? 0),
     // Nothing analysed: every move of the displayed line is still to do.
     total_moves: Math.max(0, (lastDocument?.view.graph.points.length ?? 1) - 1),
