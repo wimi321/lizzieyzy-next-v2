@@ -5,7 +5,7 @@ import { strengthPhases, strengthView } from "../../e2e/fixtures";
 import en from "../locales/en.json";
 import zh from "../locales/zh-CN.json";
 import { StrengthDialog } from "./StrengthDialog";
-import { reviewLine, verdict } from "./StrengthPhases";
+import { reviewLine, verdict } from "./phases";
 
 afterEach(cleanup);
 

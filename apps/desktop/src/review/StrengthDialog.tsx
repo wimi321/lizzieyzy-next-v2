@@ -1,7 +1,8 @@
 import { type ReactNode, useEffect, useState } from "react";
 import type { Confidence, SideReport, StrengthEstimateView, WholeGameProgress } from "@/api/backend";
 import { type BandLabels, bandText, percent } from "./strength";
-import { type PhaseLabels, StrengthPhases } from "./StrengthPhases";
+import type { PhaseLabels } from "./phases";
+import { StrengthPhases } from "./StrengthPhases";
 
 export interface StrengthLabels {
   title: string;
