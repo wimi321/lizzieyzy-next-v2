@@ -7,14 +7,29 @@ const KATAGO = "/opt/homebrew/bin/katago";
 const KATA1 = "/opt/homebrew/share/katago/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
 const G170 = "/opt/homebrew/share/katago/g170e-b20c256x2-s5303129600-d1228401921.bin.gz";
 const FOUND: EngineDiscovery = { programs: [KATAGO], models: [KATA1, G170], configs: [] };
+const B11 = "/Applications/LizzieYzy Next.app/Contents/app/weights/default.bin.gz";
+const B11_PROFILE = { program: KATAGO, model: B11, config: "", extra_args: [], canonical_model_name: "kata1-tf3-b11c768-s12002M-d6304M.bin.gz" };
+const NOTHING_STARTED: MockCommand = {
+  command: "autoConfigureEngine",
+  result: B11_PROFILE,
+  error: {
+    type: "AutoSetup",
+    data: { type: "AllFailed", data: { attempts: [{ program: KATAGO, model: KATA1, reason: "engine exited with status 1" }], reason: "every pair failed" } },
+  },
+};
 
-/** Scripts the start-up commands too: the app asks for settings as soon as it mounts. */
-async function firstRun(page: Page, commands: MockCommand[]) {
+/**
+ * Scripts the start-up commands too: the app asks for settings as soon as it mounts and,
+ * with no engine saved, tries automatic setup. Setup opens only when that fails.
+ */
+async function firstRun(page: Page, commands: MockCommand[], auto: MockCommand = NOTHING_STARTED) {
+  const opens = auto.error !== undefined;
   const script: MockScript = {
     initialEvents: [documentChanged(emptyNineteen(), 1)],
     commands: [
       { command: "settings", result: { version: 1, engine: null, pondering: true } },
-      { command: "detectEngines", result: FOUND },
+      auto,
+      ...(opens ? [{ command: "detectEngines", result: FOUND } as const] : []),
       ...commands,
     ],
   };
@@ -29,9 +44,18 @@ async function calls(page: Page) {
   return page.evaluate(() => window.__mockBackend?.recordedCalls() ?? []);
 }
 
-test("first run opens setup with the recommended engine files selected", async ({ page }) => {
+test("first run sets the engine up by itself, B11 named from the catalog, without opening setup", async ({ page }) => {
+  await firstRun(page, [], { command: "autoConfigureEngine", result: B11_PROFILE });
+  await expect(page.getByTestId("menubar").getByRole("menuitem").last()).toHaveText("kata1-tf3-b11c768");
+  await expect(page.getByTestId("engine-setup")).toHaveCount(0);
+  await expect.poll(async () => (await calls(page)).map((call) => call.command)).toEqual(["settings", "autoConfigureEngine"]);
+});
+
+test("when automatic setup fails, setup opens, says why and preselects the recommended files", async ({ page }) => {
   const dialog = await firstRun(page, []);
   await expect(dialog).toBeVisible();
+  await expect(page.getByTestId("setup-notice")).toContainText("None of the 1 program and model pairs found would start");
+  await expect(page.getByTestId("setup-notice")).toContainText("katago + kata1-b18c384nbt-s9996604416-d4316597426.bin.gz: engine exited with status 1");
   await expect(page.getByTestId("setup-program")).toHaveValue(KATAGO);
   await expect(page.getByTestId("setup-model")).toHaveValue(KATA1);
   await expect(page.getByTestId("setup-model").locator("option", { hasText: "recommended" })).toHaveText(/kata1-b18c384nbt/);

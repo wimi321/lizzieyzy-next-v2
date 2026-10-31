@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
-import type { ColorView, EngineProfile, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, VariationTreeView } from "@/api/backend";
+import type { AutoSetupError, ColorView, EngineProfile, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
 import { formatVisits } from "./board/format";
 import { useVariationPreview } from "./board/useVariationPreview";
@@ -37,15 +37,40 @@ const WINDOWS = navigator.userAgent.includes("Windows");
 /** A wheel notch (or this much trackpad travel) moves one move, as on Java's board. */
 const WHEEL_STEP = 40;
 
-/** "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz" reads as "kata1-b18c384nbt". */
-function engineName(model: string): string {
+/**
+ * "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz" reads as "kata1-b18c384nbt", and
+ * "kata1-tf3-b11c768-s12002M-d6304M.bin.gz" as "kata1-tf3-b11c768". A model the engine
+ * catalog recognised is named by its catalog file, so "default.bin.gz" reads as B11.
+ */
+function engineName(profile: EngineProfile): string {
+  const model = profile.canonical_model_name ?? profile.model;
   const file = model.split(/[\\/]/).pop() ?? model;
   const base = file.replace(/\.(bin|txt)(\.gz)?$/i, "");
-  return base.replace(/-s\d+-d\d+$/, "") || file;
+  return base.replace(/-s\d+[KMG]?-d\d+[KMG]?$/i, "") || file;
 }
 
 function report(error: unknown) {
   console.error("Backend command failed", error);
+}
+
+function fileName(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path;
+}
+
+/** Why automatic setup gave up, for the setup dialog it opens instead. */
+function autoSetupFailure(error: unknown, labels: { autoNoPrograms: string; autoNoModels: string; autoAllFailed: string }): string {
+  const failure =
+    typeof error === "object" && error !== null && "type" in error && error.type === "AutoSetup" && "data" in error
+      ? (error.data as AutoSetupError)
+      : null;
+  if (failure?.type === "NoPrograms") return labels.autoNoPrograms;
+  if (failure?.type === "NoModels") return labels.autoNoModels;
+  if (failure?.type === "AllFailed") {
+    const tried = failure.data.attempts.map((attempt) => `${fileName(attempt.program)} + ${fileName(attempt.model)}: ${attempt.reason}`);
+    return [labels.autoAllFailed.replace("{n}", String(failure.data.attempts.length)), ...tried, failure.data.reason].join("\n");
+  }
+  if (typeof error === "object" && error !== null && "data" in error && typeof error.data === "string") return error.data;
+  return error instanceof Error ? error.message : String(error);
 }
 
 /** LizzieYzy Next's window: info and graph left, board centre, the game tree right. */
@@ -63,6 +88,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [pondering, setPondering] = useState(true);
   const [profile, setProfile] = useState<EngineProfile | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
+  // First run picks an engine by itself; setup opens only when that fails, saying why.
+  const [autoSetup, setAutoSetup] = useState(false);
+  const [autoSetupFailed, setAutoSetupFailed] = useState<{ error: unknown } | null>(null);
   const [foxOpen, setFoxOpen] = useState(false);
   // Mounted on first use and then only hidden, so a minimized window keeps its list.
   const [foxUsed, setFoxUsed] = useState(false);
@@ -92,13 +120,23 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     let active = true;
     backend
       .settings()
-      .then((settings) => {
+      .then(async (settings) => {
         if (!active) return;
         setPondering(settings.pondering);
         setProfile(settings.engine);
         setFoxHistory(settings.fox_history);
-        // First run: nothing to analyse with until an engine is set up.
-        if (!settings.engine) setSetupOpen(true);
+        if (settings.engine) return;
+        setAutoSetup(true);
+        try {
+          const configured = await backend.autoConfigureEngine();
+          if (active) setProfile(configured);
+        } catch (error) {
+          if (!active) return;
+          setAutoSetupFailed({ error });
+          setSetupOpen(true);
+        } finally {
+          if (active) setAutoSetup(false);
+        }
       })
       .catch(report);
     return () => {
@@ -213,7 +251,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     },
   );
   useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen));
-  const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(profile ? engineName(profile.model) : null)], [profile]);
+  const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(profile ? engineName(profile) : null)], [profile]);
 
   return (
     <main className="app">
@@ -249,7 +287,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         canSave={document !== null}
         coordinates={coordinates}
         ownership={ownership}
-        engine={engine}
+        engine={autoSetup && engine.type === "Stopped" ? { type: "Starting" } : engine}
         extra={
           <AutoAnalysis
             ref={setAutoAnalysis}
@@ -422,12 +460,17 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           backend={backend}
           labels={messages.setup}
           current={profile}
+          notice={autoSetupFailed ? autoSetupFailure(autoSetupFailed.error, messages.setup) : null}
           engineRunning={engine.type === "Starting" || engine.type === "Ready" || engine.type === "Restarting"}
           onConfigured={(configured) => {
             setProfile({ ...configured, config: configured.config ?? "" });
+            setAutoSetupFailed(null);
             setSetupOpen(false);
           }}
-          onClose={() => setSetupOpen(false)}
+          onClose={() => {
+            setAutoSetupFailed(null);
+            setSetupOpen(false);
+          }}
         />
       ) : null}
     </main>
