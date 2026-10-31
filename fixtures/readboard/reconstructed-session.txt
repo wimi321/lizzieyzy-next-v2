@@ -1,0 +1,35 @@
+# Reconstructed from qiyi71w/readboard a292eea71caaf0cc2f087d3a7563e35db01684b4.
+# Sources: LaunchOptions.cs, LegacyProtocolAdapter.cs, OutboundBoardSnapshotEmitter.cs.
+# These are protocol examples, not a recording of a real Windows recognition session.
+ready
+version 220430
+start 5 3 424242
+sync
+syncPlatform fox
+roomToken opaque-test-room
+foxMoveNumber 1
+lastMoveSource redBlueMarker
+re=0,0,0,0,0
+re=0,0,3,0,0
+re=0,0,0,0,0
+end
+syncPlatform fox
+foxMoveNumber 2
+lastMoveSource redBlueMarker
+re=0,0,0,0,0
+re=0,0,1,4,0
+re=0,0,0,0,0
+end
+clear
+forceRebuild
+recordCurrentMove 42
+recordTotalMove 88
+recordAtEnd 0
+recordTitleFingerprint opaque-test-title
+liveTitleMove 88
+re=1,0,0,0,0
+re=0,2,0,4,0
+re=0,0,0,0,1
+end
+stopsync
+endsync

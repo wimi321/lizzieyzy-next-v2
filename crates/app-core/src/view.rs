@@ -367,6 +367,7 @@ impl From<engine_session::EngineStatus> for EngineStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum AppEvent {
+    BoardSyncStatusChanged(crate::BoardSyncStatus),
     DocumentChanged {
         #[ts(type = "number")]
         revision: u64,

@@ -13,6 +13,7 @@ use tauri::{
 use tempfile::TempDir;
 use tokio::sync::{mpsc, oneshot};
 
+mod board_sync;
 mod engine_auto_setup;
 mod problem_moves;
 mod review;
@@ -63,6 +64,9 @@ impl Harness {
         std::fs::write(&default_config_source, "reportAnalysisWinratesAs = BLACK\n").unwrap();
         let app = crate::commands(mock_builder())
             .manage(crate::DesktopState::new(core.clone(), subscription))
+            .manage(crate::board_sync::BoardSyncEnvironment::from_resource_dir(
+                &directory.path().join("resources"),
+            ))
             .manage(crate::engine_setup::SetupEnvironment {
                 roots: app_core::engine_setup::SearchRoots {
                     application_dirs: vec![directory.path().to_owned()],
@@ -137,7 +141,9 @@ impl Harness {
                     AppEvent::AnalysisUpdated(view) => {
                         assert!(view.revision < revision, "analysis overtook its document");
                     }
-                    AppEvent::EngineStatusChanged(_) | AppEvent::WholeGameProgress(_) => {}
+                    AppEvent::EngineStatusChanged(_)
+                    | AppEvent::WholeGameProgress(_)
+                    | AppEvent::BoardSyncStatusChanged(_) => {}
                 }
             }
         })

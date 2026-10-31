@@ -37,6 +37,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             running: None,
             trial: None,
             auto_setup: Default::default(),
+            board_sync: Default::default(),
             focus: Some(focus),
             output,
         },
@@ -249,7 +250,9 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                     assert_eq!(view.graph.points[0].summary, None, "{rejection}");
                 }
                 AppEvent::AnalysisUpdated(_) => panic!("forwarded {rejection} snapshot"),
-                AppEvent::EngineStatusChanged(_) | AppEvent::WholeGameProgress(_) => {}
+                AppEvent::EngineStatusChanged(_)
+                | AppEvent::WholeGameProgress(_)
+                | AppEvent::BoardSyncStatusChanged(_) => {}
             }
         }
         assert_eq!(documents, 1);

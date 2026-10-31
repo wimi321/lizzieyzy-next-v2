@@ -1,7 +1,7 @@
 use crate::AppEvent;
 use tokio::sync::watch;
 
-// Four latest-state slots keep delivery bounded without ever blocking edits.
+// Latest-state slots keep delivery bounded without ever blocking edits.
 // Clearing analysis on a transition invalidates even an unread old result.
 #[derive(Clone, Default)]
 struct Mailbox {
@@ -10,13 +10,14 @@ struct Mailbox {
     analysis: Option<(u64, AppEvent)>,
     engine: Option<(u64, AppEvent)>,
     review: Option<(u64, AppEvent)>,
+    board_sync: Option<(u64, AppEvent)>,
 }
 
 pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 4],
+    read: [Option<u64>; 5],
 }
 
 pub(crate) fn channel() -> (Delivery, AppSubscription) {
@@ -25,7 +26,7 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 4],
+            read: [None; 5],
         },
     )
 }
@@ -39,6 +40,7 @@ impl Delivery {
                 AppEvent::AnalysisUpdated(_) => &mut mailbox.analysis,
                 AppEvent::EngineStatusChanged(_) => &mut mailbox.engine,
                 AppEvent::WholeGameProgress(_) => &mut mailbox.review,
+                AppEvent::BoardSyncStatusChanged(_) => &mut mailbox.board_sync,
             };
             *slot = Some((mailbox.serial, event));
         });
@@ -62,6 +64,7 @@ impl AppSubscription {
                     &mailbox.analysis,
                     &mailbox.engine,
                     &mailbox.review,
+                    &mailbox.board_sync,
                 ]
                 .into_iter()
                 .enumerate()

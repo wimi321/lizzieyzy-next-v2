@@ -1,4 +1,4 @@
-import type { Backend, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import type { Backend, BoardSyncStatus, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 import { emptyStrengthEstimate } from "./fixtures";
 
 export type {
@@ -12,12 +12,14 @@ export type {
   GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
   WireAppEvent, WholeGameOptions, WholeGamePreset, WholeGameProgress, WholeGameStatus,
   WholeGameProgressListener,
+  BoardSyncCommands, BoardSyncOptions, BoardSyncStatus, BoardSyncPhase, BoardSyncError,
+  BoardSyncLanguage, BoardSyncStatusListener,
   MoveRank, MoveRankEvaluationMode, MoveRankSettings, MoveLoss, ProblemMovesQuery,
   ProblemMovesView, ProblemMoveSort, ProblemMoveView, MistakeBarPoint,
   StrengthEstimateView, StrengthReport, SideReport, PhaseReport, Confidence, Sample, MoveCategory,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "unsubscribe">;
+type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "unsubscribe">;
 // Older UI fixtures can omit either new settings field without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -55,6 +57,7 @@ let dispatching = false;
 /** The newest document delivered to the app, for answering unscripted read-only queries. */
 let lastDocument: { revision: number; view: DocumentView } | null = null;
 let lastProgress: WholeGameProgress | null = null;
+let lastBoardSyncStatus: BoardSyncStatus = { phase: "Stopped", always_sync: true, always_goto_last: false, remote_move_number: null, error: null };
 /** A test-provided problem-move view, answered for every unscripted read. */
 let problemMovesView: ProblemMovesView | null = null;
 
@@ -71,6 +74,7 @@ export function setStrengthEstimate(view: StrengthEstimateView | null): void {
 
 /** Install deterministic replies and events. No Go or analysis logic is simulated. */
 export function setScript(script: MockScript): void {
+  lastBoardSyncStatus = { phase: "Stopped", always_sync: true, always_goto_last: false, remote_move_number: null, error: null };
   pendingEvents = structuredClone(script.initialEvents ?? []);
   commands = structuredClone(script.commands ?? []);
   calls.length = 0;
@@ -96,6 +100,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       }
       if (event.type === "DocumentChanged") lastDocument = structuredClone(event.data);
       if (event.type === "WholeGameProgress") lastProgress = structuredClone(event.data);
+      if (event.type === "BoardSyncStatusChanged") lastBoardSyncStatus = structuredClone(event.data);
       for (const listener of [...listeners.values()]) {
         try {
           listener(structuredClone(event));
@@ -146,7 +151,7 @@ export const redo: Backend["redo"] = () => command("redo", []);
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "problemMoves" | "strengthEstimate">(
+function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "boardSyncStatus" | "problemMoves" | "strengthEstimate">(
   name: K,
   args: Parameters<Backend[K]>,
   fallback: () => Awaited<ReturnType<Backend[K]>>,
@@ -186,6 +191,11 @@ export const cancelWholeGameAnalysis: Backend["cancelWholeGameAnalysis"] = () =>
   command("cancelWholeGameAnalysis", []);
 export const wholeGameProgress: Backend["wholeGameProgress"] = () => query("wholeGameProgress", [], () => lastProgress);
 export const wholeGameResult: Backend["wholeGameResult"] = (nodeId) => command("wholeGameResult", [nodeId]);
+export const startBoardSync: Backend["startBoardSync"] = (options = { always_sync: true, always_goto_last: false, language: "Cn" }) =>
+  command("startBoardSync", [options]);
+export const stopBoardSync: Backend["stopBoardSync"] = () => command("stopBoardSync", []);
+export const boardSyncStatus: Backend["boardSyncStatus"] = () =>
+  query("boardSyncStatus", [], () => lastBoardSyncStatus);
 export const problemMoves: Backend["problemMoves"] =
   (filter = { minimum_rank: "Inaccuracy", color: null, sort: "LossDesc" }) =>
     query("problemMoves", [filter], () => problemMovesView ? { ...problemMovesView, query: filter } : ({
@@ -230,7 +240,7 @@ export const quit: Backend["quit"] = () => command("quit", []);
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "WholeGameProgress") listener(event);
+    if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged") listener(event);
   });
   pushEvents([]);
   return id;
@@ -240,6 +250,15 @@ export const subscribeWholeGameProgress: Backend["subscribeWholeGameProgress"] =
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
     if (event.type === "WholeGameProgress") listener(event.data);
+  });
+  pushEvents([]);
+  return id;
+};
+
+export const subscribeBoardSyncStatus: Backend["subscribeBoardSyncStatus"] = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => {
+    if (event.type === "BoardSyncStatusChanged") listener(event.data);
   });
   pushEvents([]);
   return id;

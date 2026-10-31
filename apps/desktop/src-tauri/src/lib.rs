@@ -1,5 +1,6 @@
 //! Desktop adapters; application state and all business decisions live in AppCore.
 pub mod bindings;
+pub mod board_sync;
 pub mod commands;
 pub mod engine_setup;
 pub mod error;
@@ -42,6 +43,9 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::analysis::set_pondering,
             commands::analysis::subscribe,
             commands::analysis::unsubscribe,
+            commands::board_sync::start_board_sync,
+            commands::board_sync::stop_board_sync,
+            commands::board_sync::board_sync_status,
             commands::review::start_whole_game_analysis,
             commands::review::pause_whole_game_analysis,
             commands::review::resume_whole_game_analysis,
@@ -72,6 +76,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let app = commands(tauri::Builder::default())
         .setup(move |app| {
             app.manage(engine_setup::SetupEnvironment::for_app(app.handle())?);
+            app.manage(board_sync::BoardSyncEnvironment::for_app(app.handle())?);
             let default_dir = match &options.config_dir {
                 Some(directory) => directory.clone(),
                 None => app.path().app_config_dir()?,

@@ -3,6 +3,7 @@
 
 mod actor;
 mod auto_setup;
+mod board_sync;
 mod delivery;
 pub mod engine_setup;
 mod engine_trial;
@@ -18,6 +19,9 @@ mod strength_estimate;
 mod view;
 
 pub use auto_setup::{AutoSetupAttempt, AutoSetupError};
+pub use board_sync::{
+    BoardSyncError, BoardSyncLanguage, BoardSyncOptions, BoardSyncPhase, BoardSyncStatus,
+};
 pub use delivery::AppSubscription;
 pub use engine_trial::{EngineSetupError, EngineSetupProfile};
 pub use graph::{AnalysisSummary, GraphPointView, GraphView};
@@ -58,6 +62,8 @@ pub enum AppError {
     EngineSetup(#[from] EngineSetupError),
     #[error(transparent)]
     AutoSetup(#[from] AutoSetupError),
+    #[error(transparent)]
+    BoardSync(#[from] BoardSyncError),
     #[error(transparent)]
     Fox(#[from] fox::FoxError),
     #[error(transparent)]

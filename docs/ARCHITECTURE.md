@@ -22,6 +22,7 @@ crates/
   analysis/                分析协调：焦点变化、过期丢弃、缓存、节流（tokio）
   strength/                棋力特征、XGBoost 推理、残差校准与统计（纯同步）
   fox-kifu/                野狐公开账号、分页棋谱及 SGF 的 HTTP 客户端（不依赖工作区 crate）
+  readboard/               棋盘同步的纯同步行协议解码和命令编码
   app-core/                应用内核 actor：持有文档、协调器、设置；对外唯一入口（tokio，不依赖 tauri）
 apps/desktop/
   src-tauri/               Tauri 壳（包名 lizzieyzy-desktop）；commands/<领域>.rs 只做转发
@@ -30,6 +31,7 @@ apps/desktop/
     board/ graph/ toolbar/ settings/ state/ styles/ locales/
   e2e/                     Playwright 用例与 mock 后端（不进生产包）
 tools/fake-katago/         测试用假 KataGo（Rust 二进制 + binary_path() 库函数）
+tools/fake-readboard/      独立测试二进制，按文本回放同一 stdio 协议
 fixtures/                  SGF 语料、KataGo 真实录制、期望结果
 resources/katago/          应用自带的 analysis.cfg 模板与模型身份目录
 scripts/                   验收门禁（维护者所有）
@@ -42,6 +44,7 @@ docs/                      ARCHITECTURE / ROADMAP / ACCEPTANCE / decisions / tas
 go-core ← sgf ← document ←──────────── analysis ← app-core ← lizzieyzy-desktop
 katago-protocol ← engine-session ←───┘
 fox-kifu ← app-core
+go-core ← readboard ← app-core
 katago-protocol ← fake-katago（engine-session / analysis / app-core / desktop 仅在测试里依赖它）
 strength ← app-core（strength 无 workspace 内部依赖）
 ```
@@ -169,8 +172,8 @@ pub enum EngineStatus {
 - `app_core::spawn(settings_directory)` / `spawn_with_config(settings_directory, AppConfig)` 异步加载设置，返回可 clone 的 `AppCore` 命令句柄和单消费者 `AppSubscription`。actor 独占 `GameDocument`、engine-session、协调器和设置，64 槽命令通道串行处理，保证"文档修改 → 焦点更新 → 分析"的顺序。`AppConfig` 提供会话超时和协调器参数；引擎指纹及 pondering 由档案/用户设置决定。
 - 命令包括 `open_bytes(Vec<u8>)`、`open_path(PathBuf)`、`save(PathBuf)`、`play(Move)`、`step(i32)`、`go_to(u32)`、`apply(document::Command)`、`undo()`、`redo()`、`set_pondering(bool)`、`configure_engine(Option<EngineProfile>)`、`settings()`、`shutdown(self)`。成功回复表示命令已应用，不等待分析完成；引擎失败通过事件报告，不撤销已成功的文档操作。所有文档实际变化均向协调器发送 `Focus`，仅 revision 变化也照常发送，由协调器保持查询。
 - 对外 revision 是应用生命周期内单调增加的 u64，初始为 0；每次打开和实际文档变化递增，无操作不递增。打开仅取 `sgf::Collection` 的第一盘，并建立新协调器隔离旧文档的节点编号和缓存；解析失败保留原文档。保存使用 `GameDocument::to_sgf` + `sgf::serialize`，同目录临时文件完整写入、flush/sync 后替换目标；保存不改变文档或 revision。
-- `AppSubscription::recv()` 取消安全；watch 邮箱为文档、引擎状态、分析、整盘进度各保留一个最新事件，按发布顺序读取，慢消费者的中间事件会合并且不会阻塞命令。文档变化、暂停实时分析、换引擎和关闭清除未读分析；发送分析前再次核对 revision/node/key。导航成功返回后，尚未读取的旧分析也不可再读。关闭或丢弃最后一个句柄会取消实时与整盘查询并等待进程回收，单独保留订阅不延长 actor 生命周期。
-- 对外事件：`DocumentChanged { revision, view }`、`AnalysisUpdated(AnalysisView)`、`EngineStatusChanged(EngineStatus)`、`WholeGameProgress(WholeGameProgress)`。
+- `AppSubscription::recv()` 取消安全；watch 邮箱为文档、引擎状态、分析、整盘进度、棋盘同步状态各保留一个最新事件，按发布顺序读取，慢消费者的中间事件会合并且不会阻塞命令。文档变化、暂停实时分析、换引擎和关闭清除未读分析；发送分析前再次核对 revision/node/key。导航成功返回后，尚未读取的旧分析也不可再读。关闭或丢弃最后一个句柄会取消实时与整盘查询并等待进程回收，单独保留订阅不延长 actor 生命周期。
+- 对外事件：`DocumentChanged { revision, view }`、`AnalysisUpdated(AnalysisView)`、`EngineStatusChanged(EngineStatus)`、`WholeGameProgress(WholeGameProgress)`、`BoardSyncStatusChanged(BoardSyncStatus)`（见 4.10）。
 - 视图 DTO（前端只认这些）：
   - `BoardView`：宽高、每点棋子 `stones`、最后一手（含 pass）、轮走方、手数、黑白提子数。`stones` 与 `AnalysisView.ownership` 均为行优先、从左上角开始，下标 `i` 对应 `PointView { x: i % width, y: i / width }`；`y = 0` 是最上面一行（SGF 的 a 行，19 路为 GTP 第 19 行，矩形棋盘为第 height 行）。数组不翻转、不转置，非正方形棋盘也按 width 计算行跨度。
   - `TreeView`：root/current 节点 ID、含根和空节点的第一子节点主线、当前节点直接子节点数（包含主线），以及整树结构版本 `structure_revision`。`DocumentView.game_info: GameInfoView` 提供 black_name、black_rank、white_name、white_rank、komi、rules、handicap、result、date、event，遵循 document 的根信息语义，不因焦点改变。`DocumentView` 还含当前注释、由 `warnings()` 映射的结构化诊断。非法记录仍可导航，board 为 None，position_error 保留原因；协调器暂停直到回到可分析局面，不伪造棋盘。
@@ -186,7 +189,7 @@ pub enum EngineStatus {
 - 整盘命令由独立 `app-core::review` 和 `actor::review` 模块提供：`start_whole_game_analysis(WholeGameOptions)`、`pause_whole_game_analysis()`、`resume_whole_game_analysis()`、`cancel_whole_game_analysis()` 返回已应用命令后的 `WholeGameProgress`，不等待全部搜索完成；`whole_game_progress()` 可随时读取最新状态。`WholeGameOptions { visits }` 默认 1000，范围 500..=1,000,000；`WholeGamePreset::{Quick, Standard, Deep, Professional}` 分别对应 500、1000、3000、10000。非法选项或非法待分析局面在替换旧任务前报错。
 - 开始时固定当前显示线：根到当前节点，再沿第一子节点到变化末尾，包含根、空节点、pass 和摆子节点；导航不会把任务切换成另一条线。每次提交或继续均按节点/key 检查保留结果，visits 不少于本次目标的直接计为已完成且不提交。暂停 terminate 剩余查询并保留结果，继续只补未完成节点；取消保留已完成结果并停止进度增长。`WholeGameProgress { completed, total, visits, status }` 的 completed 包括跳过的节点，status 为 Running / Paused / Completed / Cancelled / Error { reason }；完成时也取消仍多余的后台查询。已固定的节点被删除或局面改变后报 Error；打开别的棋谱、停用或切换引擎时取消任务，解析失败不取消原任务。
 - `StoredAnalysis { node_id, key, response: AnalysisResponse }` 由 app actor 按节点保存在当前文档内存中，独立于协调器 LRU，保留完整 rootInfo、moveInfos（含每个候选点的 PV）及其余已解析统计。通过校验并转发的实时结果（包括 Partial）和整盘 Final 均可更新该表，同 key 只取更大 visits，相等时采用后来接受的值。P1-24/P1-25 通过 Rust `AppCore::whole_game_analysis(node_id)` 读取原始完整结果；`whole_game_result(node_id)` 提供同一结果的 `AnalysisView`，revision 使用读取时的应用版本，缺失、已删除或 key 不符的节点返回 None。打开新棋谱或引擎指纹变化清空；打开失败、同指纹恢复、导航、注释、暂停与取消保留。关闭实时分析仍可在导航时显示有效 Cache，Live 输出仍受 pondering 控制。
-- Tauri 的 `commands/review.rs` 薄转发六个命令：上述四个控制命令及 `whole_game_progress`、`whole_game_result`，仅授权本地 main 窗口。TS 的 `api/review.ts` 提供对应 camelCase 封装，DTO 全部由 ts-rs 生成。生成的 `AppEvent`（导出为 `WireAppEvent`）包含四种事件；为保持本卡之外现有界面兼容，`backend.ts` 对原有 `subscribe` 暴露的 `AppEvent` 类型排除 `WholeGameProgress`，新增 `subscribeWholeGameProgress(listener)` 单独提供进度，仍共享同一个有序 IPC Channel 和 unsubscribe 生命周期。调用方先订阅再读取 `wholeGameProgress()` 初始化；mock-backend 只提供脚本指定进度和结果，不在 TS 实现整盘分析。
+- Tauri 的 `commands/review.rs` 薄转发六个命令：上述四个控制命令及 `whole_game_progress`、`whole_game_result`，仅授权本地 main 窗口。TS 的 `api/review.ts` 提供对应 camelCase 封装，DTO 全部由 ts-rs 生成。生成的 `AppEvent`（导出为 `WireAppEvent`）包含整盘进度及其他领域事件；为保持本卡之外现有界面兼容，`backend.ts` 对原有 `subscribe` 暴露的 `AppEvent` 类型排除 `WholeGameProgress`，新增 `subscribeWholeGameProgress(listener)` 单独提供进度，仍共享同一个有序 IPC Channel 和 unsubscribe 生命周期。调用方先订阅再读取 `wholeGameProgress()` 初始化；mock-backend 只提供脚本指定进度和结果，不在 TS 实现整盘分析。
 - P1-24 问题手由独立 `app-core::problem_moves` / `actor::problem_moves` 模块提供：`AppCore::problem_moves(ProblemMovesQuery)` / Tauri `problem_moves(query)` / TS `problemMoves(query?)` 返回 `ProblemMovesView { revision, settings, query, entries, error_bar, current_index }`。查询在 app actor 中读取与 `whole_game_analysis(node_id)` 相同的 P1-23 保留表，按当前节点到根再沿第一子节点到末尾构建显示线；不沿后台任务固定线，不修改文档、焦点、撤销栈、查询进度或启动分析。
 - `MoveLoss { winrate_loss, score_loss, rank, is_best, candidate_rank, visits, before_visits }` 使用落子前父节点中 `order` 最小的候选点评估减去落子后节点的根评估；黑方取前减后、白方取后减前。胜率从概率转成百分点，目差单位为目，改善分别截为 0；首选手两项损失强制为 0。这些字段是落子方的损失，原始局面评估仍为黑方视角。`candidate_rank` 为引擎 `order + 1`，未命中为 null；pass 同样匹配。`visits` 为落子后根 visits（与 Java 列表一致），`before_visits` 保留父节点根 visits。
 - 仅在前后节点保留结果均匹配当前 AnalysisKey、根 visits 和最佳候选 visits 大于 0、评估数值有效时计算损失。没有父节点的根着手、缺分析、非法记录、落子同时发生摆子/实际轮走重置、或落子颜色与父局面轮走方不一致时为 null，不将不同局面的变化归因于这手。普通首手可使用根节点的分析；空节点不计手，后续着手使用紧邻父节点的结果。停用/切换引擎、换谱时沿用 P1-23 失效规则，删除节点不显示，撤销恢复后仍须校验 key。
@@ -208,7 +211,7 @@ pub enum EngineStatus {
 - Java 固定根依据 `package_macos_dmg.sh`、`package_windows_exe.sh` 和 `package_release.sh`：macOS 查 `/Applications`、`~/Applications` 及新版应用邻近位置的 `LizzieYzy Next.app/Contents/app`；Windows 查 ProgramFiles / ProgramFiles(x86) 及新版应用邻近位置下 Java 包的固定名称目录（含 OpenCL、NVIDIA、TensorRT 等分包名）中的 `app/`，也查新版可执行目录旁的 `app/`。Linux 包是 portable `Lizzieyzy/`，脚本没有规定默认安装位置，因此保守约定只查 `/opt/Lizzieyzy`、`~/Lizzieyzy` 和新版应用旁的 `Lizzieyzy/`，任意解压位置不会自动全盘查找。所有测试注入假根，不依赖这些位置实际安装了 Java 版。
 - Tauri 层：`commands/{document,variation,analysis,engine,settings}.rs` 的业务命令只做参数转换和调用 `AppCore`。文档入口为 `open_bytes`、`open_path`、`save`、`play`、`step`、`go_to`、`undo`、`redo`；只读展示入口为 `variation_tree`、`preview_variation`；分析和设置入口为 `set_pondering`、`configure_engine`、`settings`。`play` 及预览着手接受现有 `MoveView` 后转换；壳层不依赖 document / go-core，不复制其业务规则。
 - 首次设置的 Tauri 命令为 `detect_engines() -> EngineDiscovery`、`try_configure_engine(profile: EngineSetupProfile) -> ()` 和 `auto_configure_engine() -> EngineProfile`，只授权本地 main 窗口。探测在 blocking 任务执行，根目录与模板来源由壳层托管；测试注入临时目录。前端 `detectEngines` / `tryConfigureEngine` / `autoConfigureEngine` 是薄 IPC 封装，新增 DTO 同样经 export-bindings 生成；E2E mock 仅返回脚本指定结果，不实现探测或试启动业务。自动配置接口本身不打开设置窗口；首次启动调用、失败后展示设置窗口和规范模型名称展示属于 `App.tsx` / `settings/` / `locales/` 的后续界面接线，不能仅凭此后端接口验收首次启动的完整界面行为。
-- `subscribe` / `unsubscribe` 管理传输订阅。四种 `AppEvent` 共用一个 `tauri::ipc::Channel<AppEvent>`，由单个转发任务按 `AppSubscription::recv()` 的顺序发送；不分事件种类并发转发，确保 revision N 的 `DocumentChanged` 在其 `AnalysisUpdated` 之前。转发任务保留最近的文档、引擎状态和整盘进度三条事件，按原收取顺序回放给新订阅，不缓存或回放分析；分析的有效性仍由 AppCore 决定。没有活跃 Channel 时暂停读取 `AppSubscription`，由 AppCore 的有界邮箱保留最新有效事件并清除过期分析；首次订阅前或断连期间产生的有效最终结果不会被壳层提前消费丢弃。仅有一个活跃 Channel，新订阅替换旧订阅；订阅 ID 是单调递增的 u32，耗尽时报错，过期 ID 的取消操作幂等且不影响新订阅。前端 `src/api/backend.ts` 是统一业务入口，封装命令和订阅生命周期；多个界面监听者共享同一传输订阅。
+- `subscribe` / `unsubscribe` 管理传输订阅。五种 `AppEvent` 共用一个 `tauri::ipc::Channel<AppEvent>`，由单个转发任务按 `AppSubscription::recv()` 的顺序发送；不分事件种类并发转发，确保 revision N 的 `DocumentChanged` 在其 `AnalysisUpdated` 之前。转发任务保留最近的文档、引擎状态、整盘进度和棋盘同步状态四条事件，按原收取顺序回放给新订阅，不缓存或回放分析；分析的有效性仍由 AppCore 决定。没有活跃 Channel 时暂停读取 `AppSubscription`，由 AppCore 的有界邮箱保留最新有效事件并清除过期分析；首次订阅前或断连期间产生的有效最终结果不会被壳层提前消费丢弃。仅有一个活跃 Channel，新订阅替换旧订阅；订阅 ID 是单调递增的 u32，耗尽时报错，过期 ID 的取消操作幂等且不影响新订阅。前端 `src/api/backend.ts` 是统一业务入口，封装命令和订阅生命周期；多个界面监听者共享同一传输订阅。
 - 启动默认使用 Tauri 的应用配置目录，可用 `--config-dir <路径>` 或 `--config-dir=<路径>` 覆盖；棋谱路径可用一个位置参数或 `--open=<路径>` 指定，交给 `AppCore::open_path`。等号写法将选项和路径放在同一个原生参数中，兼容将每项参数都视为 Chromium 开关的 Windows WebDriver；桌面 E2E 在所有平台统一采用等号写法。参数顺序不受限，`--` 后的参数仅作棋谱路径，不再识别选项；未知选项、重复配置目录、多个棋谱和缺少或空路径均报错，混用两种写法仍按同一配置目录／棋谱参数检查重复。路径保持原生 OS 编码；启动打开失败时等待 AppCore 关闭后返回错误，不留下后台引擎。
 - 主窗口 capability 仅匹配本地 `main` 窗口，逐项允许应用命令、`dialog:allow-open` / `dialog:allow-save`，以及「文件 → 退出」关闭自身用的 `core:window:allow-close`；不授权远程页面或宽泛 core / shell / fs 权限。`tauri-build::AppManifest::commands` 为应用命令生成 ACL 定义，确保命令同样受 capability 约束；生成的 permissions 与 schemas 不入库。Channel 内部的数据提取命令由 Tauri 自身处理，不需要额外的 core capability。
 
@@ -233,6 +236,21 @@ pub enum EngineStatus {
 - 成功取得账号和第一页后，才把 `FoxAccount` 记入 `Settings.fox_history`，按 UID 去重、最近成功完成的搜索在前、最多 10 条；加载设置也规范化历史，清空通过同一原子保存流程持久化。`AppConfig.fox_client` 可注入本地测试端点，默认客户端惰性创建。
 - Tauri 的 `commands/fox.rs` 提供 `fox_search(query)`、`fox_next_page(uid, cursor)`、`fox_open_game(gameId)`、`fox_clear_history()`，仅授权本地 main 窗口。`CommandError::Fox(FoxFailure)` 保留可本地化的 `Network`（网络错误）、`Timeout`（网络超时）分类及 HTTP/API 状态码；下载回退耗尽时若包含网络原因，仍返回网络分类（优先 Network，其次 Timeout），纯协议失败才返回 DownloadFailed。IPC 只传类型和数据，不暴露平台错误文本；最终提示由界面本地化。其余错误维持原有应用错误边界。所有野狐 DTO 和错误类型由 Rust 递归生成 TS，前端 backend 与 E2E mock 仅转发或回放命令，不实现网络协议或解析。
 - 普通测试使用 `fixtures/fox/` 的真实录制和本地假 HTTP 服务；列表裁为 5 盘，昵称、UID 及 SGF 的 PB/PW 一致脱敏，保留字段类型和业务结果，清理敏感字段。录制日期和接口在测试注释中注明。`fox-recorded-2026-10-30.sgf` 保留录制的 177 手棋谱；此外保留 Java 八手回归片段和 [Leela Zero #2285](https://github.com/leela-zero/leela-zero/issues/2285) 公开发布的 313 手完整野狐棋谱；SGF 样本由独立 oracle 校验。`app-core/tests/fox_live.rs` 的联网验收显式 `#[ignore]`，经生产 AppCore 完成昵称、列表、CGI/H5 下载和打开，报告列表盘数、对局 id、手数和贴目，仅使用临时目录，不把未脱敏网络响应写入仓库。
+
+### 4.10 Windows 棋盘同步（readboard）
+
+- 协议来源为 [qiyi71w/readboard](https://github.com/qiyi71w/readboard/tree/a292eea71caaf0cc2f087d3a7563e35db01684b4) 的 `Program.cs`、`MainForm.WebView.cs`、[LaunchOptions.cs](https://github.com/qiyi71w/readboard/blob/a292eea71caaf0cc2f087d3a7563e35db01684b4/readboard/Core/Models/LaunchOptions.cs)、[OutboundBoardSnapshotEmitter.cs](https://github.com/qiyi71w/readboard/blob/a292eea71caaf0cc2f087d3a7563e35db01684b4/readboard/Core/Protocol/OutboundBoardSnapshotEmitter.cs) 和 `SyncSessionCoordinator*`，以及只读 Java 参考仓库的 `analysis/ReadBoard.java`、`ReadBoardStream.java`、`SyncSnapshotClassifier`、`SyncSnapshotRebuildPolicy`、`SyncSnapshotDiffChecker`、`SyncRemoteContext`。以该上游提交的实际发包源码为准，不将旧 fixture 中没有逗号的简写当成当前协议。
+- Windows 壳固定解析 `<resource_dir>/readboard/readboard.exe`，工作目录为其所在目录，不接受来自 IPC 的程序路径，不经过 shell。启动参数逐项为 `yzy`、单个空格、单个空格、单个空格、`0`、`cn` 或 `en`、`-1`；三个空格占位是禁用自动落子的时间/访问数配置，不能丢失参数边界。`0/-1` 选择管道方式。Java 还支持 `1/<port>` 的 TCP 回连方式，新版只实现 stdio，无监听端口。P1-34 负责捆绑 exe 及其运行依赖，本卡不下载、更新或打包识别器。
+- 双向 UTF-8、LF/CRLF 分行。helper 发 `ready` 后宿主只发送一次 `version\n` 和 `analysisState running\n` 或 `analysisState paused\n`；收到 `version N` 可识别版本但不发自动更新能力。退出发送 `quit\n` 并关闭 stdin。写入与正常退出各有 2 秒期限，超时强杀后等待实际退出；启动后 15 秒没有 ready 报错。stdout 的部分行取消安全地保留，单行限 8192 字节，stderr 持续排空但不当协议解析，避免日志阻塞进程。
+- `start W H [hwnd]` 设置尺寸并清空未完成帧；裸 `start` 保留尺寸（初始 19）。每个 `re=` 行是以逗号分隔的一整行棋盘，恰有 W 项；H 行后 `end` 才提交完整快照。编码 `0=空、1=黑、2=白、3=黑末手、4=白末手`，行优先、左上原点，与 BoardView 相同。`clear` 只丢弃半帧，`forceRebuild` 标记下一完整帧必须重建。尺寸、行列数、码值、多末手、坏元信息均验证，损坏帧不提交，后续 start/clear 可恢复；超长行、非法 UTF-8、意外 EOF 为进程级错误并回收进程。
+- 帧元信息包括 `syncPlatform`、`roomToken`、`foxMoveNumber`、`liveTitleMove`、`recordCurrentMove`、`recordTotalMove`、`recordAtEnd`、`recordTitleFingerprint`、`lastMoveSource`，都在 end/clear/start 后清除，不能沿用前帧。可用的野狐手数要求平台 fox、明确 foxMoveNumber，且标题/棋谱手数没有冲突。房间、平台、棋谱身份变化不跨局拼接。`lastMoveSource` 区分真实末手标记与棋子数推断，后者不能决定轮走方。
+- `sync` 开始持续同步；完整快照亦进入 Syncing。`stopsync` 回到 Ready，保留工具进程；`endsync` 正常结束工具会话并回收进程。`clearBoard` 清空文档但保持棋盘尺寸。`noponder/resumeponder` 暂停/恢复本次同步的分析，不改保存的设置。未知扩展消息忽略；`play/both/noboth/inboard/notinboard` 等自动落子/浮动棋盘控制不在本卡范围，`pass` 是 helper 的交换轮走按钮而非实际停一手，新版暂不执行，绝不伪造 SGF pass。
+- `readboard::Decoder`、`Snapshot`、`Cell`、`RemoteContext` 和 `Command::encode` 都是纯同步类型，只依赖 go-core 与 thiserror；不持有 I/O 或线程。唯一 app-core actor 同时独占 readboard 子进程、解码器、同步状态及 GameDocument，通过 select 接收命令和完整行；无额外文档写入任务、锁或共享可变状态。停止命令、应用关闭、丢弃最后一个 AppCore 句柄都等待进程回收，订阅不会延长会话寿命。相同程序与选项重复开始为幂等；新程序启动失败保留原会话。成功打开另一棋谱会先结束同步，解析失败保留现有棋谱和会话。
+- 局面整合先匹配同步末端；可信野狐手数还允许匹配主线已有历史节点。唯一新增且末手标记匹配、合法落子及提子后的全盘与快照完全一致时逐手追加，复用已有直接子节点；无标记仅允许可信野狐手数严格 +1 且仅增加一子的情形。无法接上时，无历史、尺寸/房间变化、明确 forceRebuild 或可信远端手数跳变直接重建；已有历史的其他冲突须连续两份相同快照确认，第一帧保持原文档。重建保留对局信息，以 AB/AW/PL 建立合法摆子根，保存可信远端 MN，不编造未看见的历史着手；零气等非法摆子拒绝且保留原文档。应用 revision 持续递增，重建重置节点命名空间、旧分析缓存及整盘任务。
+- `BoardSyncOptions { always_sync, always_goto_last, language }` 默认 true、false、Cn，沿用 Java 两个独立选项。`always_sync` 对应「总是保持棋盘一致」：增量后推进同步末端；关闭它不禁用全盘差异校验、提子核验和冲突重建。Java 当前 `shouldResyncAfterIncrementalSync` 本身不使用该开关。`always_goto_last` 决定新手到来时是否跳离用户正在浏览的历史；默认 false 时恢复浏览节点，重复帧不把视图拉回。同步分析焦点独立指向已接受的远端节点：用户浏览其他节点时结果仅更新该远端节点的保留分析和图，不发可叠到错误盘面的 AnalysisUpdated。开始同步自动分析最新局面，停止恢复保存的 pondering 设置；没有已配置的引擎仍可同步棋谱，不伪造分析结果。
+- `AppCore::start_board_sync(program, options)`、`stop_board_sync()`、`board_sync_status()` 返回 `BoardSyncStatus { phase, always_sync, always_goto_last, remote_move_number, error }`。phase 为 Stopped/Starting/Ready/Syncing/Failed；开始回复表示子进程已创建，ready/快照通过后续事件确认。远端手数与重建后本地已知手数独立；`error` 保留类型化 UnsupportedPlatform/MissingExecutable/InvalidOptions/Process/Protocol。缺 exe 在启动命令返回 MissingExecutable，不自动下载。Tauri 三个同名命令为薄适配，仅本地 main 窗口可用；非 Windows 开始命令返回 UnsupportedPlatform。没有 macOS/Linux 识别实现。
+- `BoardSyncStatusChanged` 与既有事件共享有序 IPC Channel 和第五个有界最新状态槽，壳层重连回放状态；`subscribeBoardSyncStatus` 从同一连接分流，旧 `subscribe` 的事件类型排除此扩展。TS 的 `startBoardSync`、`stopBoardSync`、`boardSyncStatus` 只传命令，所有 DTO 由 export-bindings 生成；mock 仅回放脚本。菜单、状态展示、语言化错误提示和选项界面由后续界面工作接线，本卡没有修改这些部分。
+- `fixtures/readboard/reconstructed-session.txt` 是依据上述固定提交的发包源码构造的回放样例，**不是 Windows 实机录制**；公开上游未提供可直接使用的完整现场 wire dump。golden 测试固定解码结果，property 测试检查往返及任意输入不会 panic。fake-readboard 是独立 std-only Cargo workspace，由测试使用本克隆 target 构建；以同样七个参数启动，收到 version 后回放工作目录 replay.txt，记录收到的命令并在退出前写标记。普通集成测试不依赖 Windows、真实识别器或 GPU；这些结果不能替代 P1-34 的 Windows 安装包与真实客户端验收。
 
 ## 5. 主流程时序（导航到下一手）
 
@@ -297,4 +315,4 @@ UI  ◀──Channel──    重绘候选点
 
 ## 9. 暂不做
 
-GTP 后端、人机对局、陪练、readboard、远程算力、弈客、HumanSL 棋力评估、AI 解说、死活题、网页棋盘，见 ROADMAP 的 P3。
+GTP 后端、人机对局、陪练、远程算力、弈客、HumanSL 棋力评估、AI 解说、死活题、网页棋盘，见 ROADMAP 的 P3。readboard 本阶段仅实现 4.10 的 Windows 同步后端。

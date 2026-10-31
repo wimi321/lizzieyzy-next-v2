@@ -9,6 +9,7 @@ members = [
     "crates/analysis",
     "crates/fox-kifu",
     "crates/strength",
+    "crates/readboard",
     "crates/app-core",
     "tools/fake-katago",
     "apps/desktop/src-tauri",
