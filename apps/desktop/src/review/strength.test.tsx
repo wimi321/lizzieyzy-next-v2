@@ -12,8 +12,13 @@ afterEach(cleanup);
 
 const TIERS = TIER_ORDER.map((rank) => zh.problems.ranks[rank]);
 
-function dialog(view: StrengthEstimateView | null, progress: WholeGameProgress | null = null, chinese = true) {
-  const handlers = { onAnalyze: vi.fn(), onClose: vi.fn() };
+function dialog(
+  view: StrengthEstimateView | null,
+  progress: WholeGameProgress | null = null,
+  chinese = true,
+  bounds: [number, number] | null = null,
+) {
+  const handlers = { onAnalyze: vi.fn(), onClose: vi.fn(), onBounds: vi.fn() };
   render(
     <StrengthDialog
       view={view}
@@ -23,6 +28,7 @@ function dialog(view: StrengthEstimateView | null, progress: WholeGameProgress |
       chinese={chinese}
       labels={chinese ? zh.strength : en.strength}
       tierNames={TIERS}
+      bounds={bounds}
       {...handlers}
     />,
   );
@@ -42,7 +48,7 @@ test("bands read like LizzieYzy Next's", () => {
   expect(percent(0.736)).toBe("74%");
 });
 
-test("a full report shows both sides, the phases and the note", () => {
+test("a full report shows both sides and the note", () => {
   dialog(strengthView(3));
   const black = screen.getByTestId("strength-black");
   expect(screen.getByTestId("strength-black-rank").textContent).toBe("业余5.3段");
@@ -57,14 +63,8 @@ test("a full report shows both sides, the phases and the note", () => {
   const tiers = within(black).getAllByTestId("strength-black-tier").map((item) => item.textContent);
   expect(tiers).toEqual(["最佳51", "好棋27", "普通14", "疑问手7", "问题手5", "恶手2"]);
 
-  // The side that lost less in a phase is marked; the ranges come from the report's phases.
-  const opening = screen.getByTestId("strength-phase-opening");
-  expect(opening.textContent).toContain("第 1–60 手");
-  const cells = within(opening).getAllByRole("cell");
-  expect(cells[0]?.className).toContain("better");
-  expect(cells[1]?.className).not.toContain("better");
-  expect(within(screen.getByTestId("strength-phase-endgame")).getAllByRole("cell")[1]?.className).toContain("better");
-  expect(screen.getByTestId("strength-phase-endgame").textContent).toContain("第 161 手起");
+  expect(screen.getByTestId("strength-tab-assessment").getAttribute("aria-selected")).toBe("true");
+  expect(screen.queryByTestId("strength-phases")).toBeNull();
   expect(screen.queryByTestId("strength-partial")).toBeNull();
   expect(screen.getByText(zh.strength.note)).toBeTruthy();
 });
@@ -73,15 +73,6 @@ test("English uses Rust's English rank label", () => {
   dialog(strengthView(3), null, false);
   expect(screen.getByTestId("strength-black-rank").textContent).toBe("5.3 dan");
   expect(screen.getByText("5-6 dan")).toBeTruthy();
-});
-
-test("a phase nobody reached says so", () => {
-  const view = strengthView(3);
-  view.report.white.endgame = { ...view.report.white.endgame, sample_count: 0 };
-  dialog(view);
-  const cells = within(screen.getByTestId("strength-phase-endgame")).getAllByRole("cell");
-  expect(cells[1]?.textContent).toBe("未下到");
-  expect(cells[0]?.className).not.toContain("better");
 });
 
 test("partial coverage offers the whole-game analysis", () => {

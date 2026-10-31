@@ -216,17 +216,35 @@
     "mistakeRate": "Mistakes",
     "points": "{n} pts",
     "tiers": "Move quality",
-    "phases": "By phase",
+    "assessment": "Assessment",
+    "phases": "Phases",
     "phaseNames": {
       "opening": "Opening",
       "middlegame": "Middle game",
       "endgame": "Endgame"
     },
     "phaseRange": "Moves {a}–{b}",
-    "phaseFrom": "Move {a} on",
     "unplayed": "Not reached",
     "avgLossShort": "Avg. loss",
-    "firstChoiceShort": "1st choice",
+    "phase": {
+      "title": "Game phases",
+      "hint": "Drag a divider to change where a phase starts",
+      "reset": "Reset",
+      "notReached": "The game ended before this phase",
+      "tooFew": "Too few moves",
+      "even": "Both sides played at the same level",
+      "slightly": "{name} played a little better",
+      "clearly": "{name} played clearly better",
+      "best": "Best",
+      "weakest": "Weakest",
+      "divider": "Boundary between {a} and {b}: move {n}",
+      "review": "Worth a closer look in review: {item}.",
+      "reviewBoth": "Worth a closer look in review: {a} and {b}.",
+      "reviewItem": "{name} in the {phase}",
+      "reviewSame": "Worth a closer look in review: the {phase} of both sides.",
+      "steady": "Both sides played at an even level throughout the game.",
+      "caveat": "Each phase has fewer moves than the whole game, so its estimate varies more. Use it as a pointer for review."
+    },
     "help": {
       "rank": "A rank estimated from this game's play; for review only, not an official rank.",
       "band": "A band from a separate rule of thumb; it can differ from the estimated rank.",
@@ -588,6 +606,43 @@
     "license": "Open source under GPL-3.0",
     "source": "Source code",
     "close": "Close"
+  },
+  "tsumego": {
+    "title": "Tsumego frame",
+    "intro": "Frame the current position as a problem: walls and ko threats fill the rest of the board, so the AI reads only this group.",
+    "toPlay": "To play",
+    "toPlayOptions": {
+      "Inherit": "Keep on",
+      "Black": "Black",
+      "White": "White"
+    },
+    "attacker": "Attacker",
+    "attackerOptions": {
+      "Auto": "Auto detect",
+      "Black": "Black",
+      "White": "White"
+    },
+    "koThreat": "Add ko threats",
+    "koThreatOptions": {
+      "Both": "Both",
+      "Attacker": "Attacker",
+      "Defender": "Defender",
+      "None": "None"
+    },
+    "wallDistance": "Wall distance",
+    "wallDistanceHint": "Empty lines between the wall and the problem",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "close": "Close",
+    "failed": "Could not frame the problem:",
+    "active": "Tsumego",
+    "attacks": "{color} attacks",
+    "black": "Black",
+    "white": "White",
+    "noRoom": "No room for {color}'s ko threats",
+    "noRoomShort": "Ko threats did not fit",
+    "exit": "Exit",
+    "exitHint": "Leave the problem and go back to the original position"
   },
   "sync": {
     "starting": "Starting the board sync tool…",

@@ -25,6 +25,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
     (
         Actor {
             document,
+            tsumego: None,
             tree: VariationTreeView::default(),
             summaries: HashMap::new(),
             review: Default::default(),

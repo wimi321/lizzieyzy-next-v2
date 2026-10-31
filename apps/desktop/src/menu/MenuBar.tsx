@@ -302,7 +302,7 @@ export function MenuBar({ menus, bindings, labels, label, tray }: MenuBarProps) 
           </button>
         ))}
       </div>
-      {tray ? <div className="menubar-tray">{tray}</div> : null}
+      <div className="menubar-tray">{tray}</div>
       </div>
       {top !== null
         ? createPortal(

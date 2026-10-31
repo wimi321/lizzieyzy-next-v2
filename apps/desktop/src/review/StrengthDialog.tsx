@@ -1,6 +1,8 @@
-import { type ReactNode, useEffect } from "react";
-import type { Confidence, PhaseReport, SideReport, StrengthEstimateView, WholeGameProgress } from "@/api/backend";
-import { type BandLabels, PHASES, bandText, percent } from "./strength";
+import { type ReactNode, useEffect, useState } from "react";
+import type { Confidence, SideReport, StrengthEstimateView, WholeGameProgress } from "@/api/backend";
+import { type BandLabels, bandText, percent } from "./strength";
+import type { PhaseLabels } from "./phases";
+import { StrengthPhases } from "./StrengthPhases";
 
 export interface StrengthLabels {
   title: string;
@@ -22,13 +24,13 @@ export interface StrengthLabels {
   mistakeRate: string;
   points: string;
   tiers: string;
+  assessment: string;
   phases: string;
-  phaseNames: Record<(typeof PHASES)[number]["key"], string>;
+  phaseNames: Record<"opening" | "middlegame" | "endgame", string>;
   phaseRange: string;
-  phaseFrom: string;
   unplayed: string;
   avgLossShort: string;
-  firstChoiceShort: string;
+  phase: PhaseLabels;
   help: {
     rank: string;
     band: string;
@@ -69,14 +71,19 @@ export interface StrengthDialogProps {
   labels: StrengthLabels;
   /** Display names of the six move tiers, best first. */
   tierNames: readonly string[];
+  /** Phase boundaries the user dragged to, or null for the defaults. */
+  bounds: readonly [number, number] | null;
+  onBounds(bounds: [number, number] | null): void;
   onAnalyze(): void;
   onClose(): void;
 }
 
 const TIER_CLASSES = ["best", "good", "normal", "inaccuracy", "mistake", "blunder"] as const;
 
-/** LizzieYzy Next's strength window: both sides' estimated level and how they played, by phase. */
-export function StrengthDialog({ view, progress, black, white, chinese, labels, tierNames, onAnalyze, onClose }: StrengthDialogProps) {
+/** LizzieYzy Next's strength window: both sides' estimated level, and by phase on its own page. */
+export function StrengthDialog(props: StrengthDialogProps) {
+  const { view, progress, black, white, chinese, labels, tierNames, bounds, onBounds, onAnalyze, onClose } = props;
+  const [tab, setTab] = useState<"assessment" | "phases">("assessment");
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -126,12 +133,40 @@ export function StrengthDialog({ view, progress, black, white, chinese, labels, 
             {analyzeAction}
           </div>
         ) : null}
-        <div className="strength-sides">
-          <SideCard color="black" player={black} side={view.report.black} chinese={chinese} labels={labels} tierNames={tierNames} />
-          <SideCard color="white" player={white} side={view.report.white} chinese={chinese} labels={labels} tierNames={tierNames} />
+        <div className="tabs strength-tabs" role="tablist">
+          {(["assessment", "phases"] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              data-testid={`strength-tab-${key}`}
+              onClick={() => setTab(key)}
+            >
+              {labels[key]}
+            </button>
+          ))}
         </div>
-        <Phases black={view.report.black} white={view.report.white} labels={labels} />
-        <p className="strength-note">{labels.note}</p>
+        {tab === "assessment" ? (
+          <>
+            <div className="strength-sides">
+              <SideCard color="black" player={black} side={view.report.black} chinese={chinese} labels={labels} tierNames={tierNames} />
+              <SideCard color="white" player={white} side={view.report.white} chinese={chinese} labels={labels} tierNames={tierNames} />
+            </div>
+            <p className="strength-note">{labels.note}</p>
+          </>
+        ) : (
+          <StrengthPhases
+            report={view.phases}
+            requested={bounds}
+            lastMove={view.total_moves}
+            samples={[...view.report.black.samples, ...view.report.white.samples]}
+            names={{ black: black.name, white: white.name }}
+            chinese={chinese}
+            labels={labels}
+            onBounds={onBounds}
+          />
+        )}
       </div>
     );
   }
@@ -272,74 +307,5 @@ function Row({ label, value, help }: { label: string; value: string; help: strin
       <dt>{label}</dt>
       <dd>{value}</dd>
     </div>
-  );
-}
-
-function Phases({ black, white, labels }: { black: SideReport; white: SideReport; labels: StrengthLabels }) {
-  return (
-    <section className="strength-phases" aria-label={labels.phases}>
-      <span className="strength-section-label">{labels.phases}</span>
-      <div className="phase-table" role="table">
-        <div className="phase-row phase-head" role="row">
-          <span role="columnheader" />
-          <span role="columnheader" className="phase-side">
-            <span className="stone-icon black" aria-hidden="true" />
-            {labels.avgLossShort} · {labels.firstChoiceShort}
-          </span>
-          <span role="columnheader" className="phase-side">
-            <span className="stone-icon white" aria-hidden="true" />
-            {labels.avgLossShort} · {labels.firstChoiceShort}
-          </span>
-        </div>
-        {PHASES.map((phase) => {
-          const b = black[phase.key];
-          const w = white[phase.key];
-          const better = betterSide(b, w);
-          const range =
-            phase.last === null
-              ? labels.phaseFrom.replace("{a}", String(phase.first))
-              : labels.phaseRange.replace("{a}", String(phase.first)).replace("{b}", String(phase.last));
-          return (
-            <div className="phase-row" role="row" key={phase.key} data-testid={`strength-phase-${phase.key}`}>
-              <span role="rowheader" className="phase-name">
-                {labels.phaseNames[phase.key]}
-                <small>{range}</small>
-              </span>
-              <PhaseCell phase={b} better={better === "black"} labels={labels} />
-              <PhaseCell phase={w} better={better === "white"} labels={labels} />
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-/** The side that lost less in a phase, when both played in it. */
-function betterSide(black: PhaseReport, white: PhaseReport): "black" | "white" | null {
-  if (black.sample_count === 0 || white.sample_count === 0) return null;
-  const b = black.average_score_loss ?? black.average_winrate_loss;
-  const w = white.average_score_loss ?? white.average_winrate_loss;
-  if (Math.abs(b - w) < 1e-9) return null;
-  return b < w ? "black" : "white";
-}
-
-function PhaseCell({ phase, better, labels }: { phase: PhaseReport; better: boolean; labels: StrengthLabels }) {
-  if (phase.sample_count === 0) {
-    return (
-      <span role="cell" className="phase-cell muted">
-        {labels.unplayed}
-      </span>
-    );
-  }
-  const loss =
-    phase.average_score_loss === null
-      ? `${phase.average_winrate_loss.toFixed(1)}%`
-      : labels.points.replace("{n}", phase.average_score_loss.toFixed(2));
-  return (
-    <span role="cell" className={better ? "phase-cell better" : "phase-cell"}>
-      <b>{loss}</b>
-      <span>{percent(phase.first_choice_rate)}</span>
-    </span>
   );
 }

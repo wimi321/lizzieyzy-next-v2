@@ -109,6 +109,7 @@ function actions(): MenuActions {
     openFox: vi.fn(),
     startBoardSync: vi.fn(),
     toggleSyncOption: vi.fn(),
+    openTsumego: vi.fn(),
     openEngineSetup: vi.fn(),
     restartEngine: vi.fn(),
     openAbout: vi.fn(),

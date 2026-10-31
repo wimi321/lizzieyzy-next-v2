@@ -150,6 +150,7 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
             winrate_thresholds: [2.0, 4.0, 8.0, 16.0, 32.0],
             score_thresholds: [1.0, 2.0, 4.0, 8.0, 16.0],
         },
+        tsumego: crate::TsumegoOptions::default(),
     };
     settings.save(directory.path()).await.unwrap();
     // Saving normalizes the stored copy without mutating the caller's settings.

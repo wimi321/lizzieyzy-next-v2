@@ -6,6 +6,7 @@ import type { ReviewCommands, WholeGameProgressListener } from "./review";
 import type { BoardSyncCommands, BoardSyncStatusListener } from "./board-sync";
 import type { ProblemMoveCommands } from "./problem-moves";
 import type { StrengthCommands } from "./strength";
+import type { TsumegoCommands } from "./tsumego";
 import type { EngineProfile } from "./generated/EngineProfile";
 import type { EngineSetupProfile } from "./generated/EngineSetupProfile";
 import type { EngineDiscovery } from "./generated/EngineDiscovery";
@@ -27,6 +28,7 @@ export * from "./review";
 export * from "./board-sync";
 export * from "./problem-moves";
 export * from "./strength";
+export * from "./tsumego";
 export type { AnalysisSource } from "./generated/AnalysisSource";
 export type { AnalysisSummary } from "./generated/AnalysisSummary";
 export type { AnalysisView } from "./generated/AnalysisView";
@@ -61,7 +63,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends ReviewCommands, BoardSyncCommands, ProblemMoveCommands, StrengthCommands {
+export interface Backend extends ReviewCommands, BoardSyncCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands {
   openBytes(bytes: number[]): Promise<Revision>;
   openPath(path: string): Promise<Revision>;
   save(path: string): Promise<void>;

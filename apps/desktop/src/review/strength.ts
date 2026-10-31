@@ -36,10 +36,3 @@ export function bandText(band: string, labels: BandLabels): string | null {
 export function percent(rate: number): string {
   return `${Math.round(rate * 100)}%`;
 }
-
-/** Phase boundaries used by the Rust report, in move numbers. */
-export const PHASES = [
-  { key: "opening", first: 1, last: 60 },
-  { key: "middlegame", first: 61, last: 160 },
-  { key: "endgame", first: 161, last: null },
-] as const;

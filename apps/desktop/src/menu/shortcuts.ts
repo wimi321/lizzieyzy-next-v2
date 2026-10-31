@@ -8,6 +8,7 @@ interface Shortcut {
   /** Ctrl, or Cmd on macOS, as Java's `controlIsPressed` reads it. */
   control?: boolean;
   alt?: boolean;
+  shift?: boolean;
   /** Navigation repeats while the key is held; commands run once per press. */
   repeat?: boolean;
 }
@@ -25,6 +26,7 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "backToMainBranch", code: "KeyB" },
   { id: "engineConfig", code: "KeyX", alt: true },
   { id: "readBoard", code: "KeyO", alt: true },
+  { id: "tsumeGoMenu", code: "KeyE", shift: true },
   { id: "jumpToFirst", code: "Home" },
   { id: "jumpToLast", code: "End" },
   { id: "jumpToLeft", code: "ArrowLeft", repeat: true },
@@ -45,7 +47,6 @@ function codeOf(event: KeyPress): string {
 }
 
 export function matchShortcut(event: KeyPress): string | null {
-  if (event.shiftKey) return null;
   const code = codeOf(event);
   const control = event.ctrlKey || event.metaKey;
   const shortcut = SHORTCUTS.find(
@@ -53,6 +54,7 @@ export function matchShortcut(event: KeyPress): string | null {
       candidate.code === code &&
       Boolean(candidate.control) === control &&
       Boolean(candidate.alt) === event.altKey &&
+      Boolean(candidate.shift) === event.shiftKey &&
       (!event.repeat || candidate.repeat),
   );
   return shortcut?.id ?? null;

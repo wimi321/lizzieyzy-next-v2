@@ -216,6 +216,7 @@
     "mistakeRate": "失误率",
     "points": "{n} 目",
     "tiers": "每手分档",
+    "assessment": "测评",
     "phases": "分阶段",
     "phaseNames": {
       "opening": "布局",
@@ -223,10 +224,27 @@
       "endgame": "官子"
     },
     "phaseRange": "第 {a}–{b} 手",
-    "phaseFrom": "第 {a} 手起",
     "unplayed": "未下到",
     "avgLossShort": "平均目损",
-    "firstChoiceShort": "一选率",
+    "phase": {
+      "title": "对局阶段",
+      "hint": "拖动分界线可以调整每个阶段的手数",
+      "reset": "恢复默认",
+      "notReached": "这盘棋没有下到这个阶段",
+      "tooFew": "手数太少",
+      "even": "双方水平相当",
+      "slightly": "{name}略好一些",
+      "clearly": "{name}明显更好",
+      "best": "最好",
+      "weakest": "最弱",
+      "divider": "{a}与{b}的分界：第 {n} 手",
+      "review": "复盘时可以重点看看：{item}。",
+      "reviewBoth": "复盘时可以重点看看：{a}和{b}。",
+      "reviewItem": "{name}的{phase}",
+      "reviewSame": "复盘时可以重点看看：双方的{phase}。",
+      "steady": "双方各阶段的发挥都比较平稳。",
+      "caveat": "每个阶段的手数比整盘少，估算的起伏会比整盘更大，仅供复盘参考。"
+    },
     "help": {
       "rank": "根据整盘棋的表现估算的段位，只供复盘参考，不是正式段位。",
       "band": "用另一套经验规则得出的档位，算法和估算段位不同，两者可能不一致。",
@@ -588,6 +606,43 @@
     "license": "以 GPL-3.0 许可开源",
     "source": "源代码",
     "close": "关闭"
+  },
+  "tsumego": {
+    "title": "死活题",
+    "intro": "以当前局面出题：其余地方补上围墙和劫材，让 AI 只算这块棋的死活。",
+    "toPlay": "先手方",
+    "toPlayOptions": {
+      "Inherit": "继承",
+      "Black": "黑先",
+      "White": "白先"
+    },
+    "attacker": "进攻方",
+    "attackerOptions": {
+      "Auto": "自动检测",
+      "Black": "黑方",
+      "White": "白方"
+    },
+    "koThreat": "添加劫材",
+    "koThreatOptions": {
+      "Both": "双方",
+      "Attacker": "进攻方",
+      "Defender": "防守方",
+      "None": "无"
+    },
+    "wallDistance": "墙面间距",
+    "wallDistanceHint": "围墙和题目之间空出的路数",
+    "confirm": "确定",
+    "cancel": "取消",
+    "close": "关闭",
+    "failed": "没能生成死活题：",
+    "active": "死活题",
+    "attacks": "{color}进攻",
+    "black": "黑方",
+    "white": "白方",
+    "noRoom": "没有布置{color}劫材的空间",
+    "noRoomShort": "劫材放不下",
+    "exit": "退出",
+    "exitHint": "退出死活题，回到原来的局面"
   },
   "sync": {
     "starting": "正在启动棋盘同步工具…",

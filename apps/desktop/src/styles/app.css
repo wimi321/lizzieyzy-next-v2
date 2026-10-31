@@ -2139,81 +2139,378 @@ button.fox-row[aria-busy="true"] {
   border-radius: 2px;
 }
 
-.strength-phases {
-  margin-top: 16px;
+.strength-tabs {
+  margin: 0 0 14px;
 }
 
-.phase-table {
-  background: var(--bg-panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
+/* Phases page */
+
+.phase-view {
+  --phase-0: 216, 170, 94;
+  --phase-1: 127, 167, 217;
+  --phase-2: 95, 199, 154;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.phase-row {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
+.phase-view-header {
+  display: flex;
+  align-items: baseline;
   gap: 12px;
-  min-height: 42px;
-  padding: 0 16px;
+  min-height: 26px;
+}
+
+.phase-view-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-1);
+}
+
+.phase-view-header p {
+  flex: 1;
+  margin: 0;
   font-size: 12px;
-}
-
-.phase-row + .phase-row {
-  border-top: 1px solid var(--line);
-}
-
-.phase-head {
-  min-height: 32px;
-  font-size: 11px;
   color: var(--text-3);
 }
 
-.phase-side {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.phase-reset {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  cursor: pointer;
 }
 
-.phase-side .stone-icon {
+.phase-reset:hover {
+  color: var(--text-1);
+}
+
+.phase-timeline {
+  padding: 2px 2px 0 22px;
+  user-select: none;
+}
+
+.phase-labels {
+  position: relative;
+  height: 20px;
+}
+
+.phase-label {
+  position: absolute;
+  top: 0;
+  box-sizing: border-box;
+  padding: 0 8px;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.phase-label b {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.phase-track {
+  position: relative;
+}
+
+.phase-key {
+  position: absolute;
+  left: -22px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  padding: 6px 0;
+}
+
+.phase-key .stone-icon {
   width: 10px;
   height: 10px;
 }
 
-.phase-name {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  font-weight: 600;
-  color: var(--text-1);
+.phase-bar {
+  position: relative;
+  height: 64px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
 
-.phase-name small {
-  font-size: 11px;
-  font-weight: 400;
+.phase-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.phase-band.p0 {
+  border-radius: 9px 0 0 9px;
+  background: rgba(var(--phase-0), 0.07);
+  box-shadow: inset 0 2px 0 rgba(var(--phase-0), 0.65);
+}
+
+.phase-band.p1 {
+  background: rgba(var(--phase-1), 0.07);
+  box-shadow: inset 0 2px 0 rgba(var(--phase-1), 0.65);
+}
+
+.phase-band.p2 {
+  border-radius: 0 9px 9px 0;
+  background: rgba(var(--phase-2), 0.07);
+  box-shadow: inset 0 2px 0 rgba(var(--phase-2), 0.65);
+}
+
+.phase-band.unreached {
+  border-radius: 0 9px 9px 0;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0 5px, transparent 5px 10px);
+}
+
+.phase-strip {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 100%;
+  height: calc(100% - 14px);
+}
+
+.phase-strip .mid {
+  stroke: var(--line-strong);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase-strip rect {
+  opacity: 0.9;
+}
+
+.phase-strip .best {
+  fill: var(--rank-best);
+}
+
+.phase-strip .good {
+  fill: var(--rank-good);
+}
+
+.phase-strip .normal {
+  fill: var(--rank-normal);
+}
+
+.phase-strip .inaccuracy {
+  fill: var(--rank-inaccuracy);
+}
+
+.phase-strip .mistake {
+  fill: var(--rank-mistake);
+}
+
+.phase-strip .blunder {
+  fill: var(--rank-blunder);
+}
+
+/* A divider: a hairline through the bar with a grip that drags or takes arrow keys. */
+.phase-grip {
+  position: absolute;
+  top: -27px;
+  bottom: -4px;
+  width: 16px;
+  margin-left: -8px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.phase-grip::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 22px;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: rgba(236, 235, 230, 0.55);
+}
+
+.phase-grip::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: calc(50% + 4px);
+  width: 10px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--text-1);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 3px var(--text-1),
+    inset 0 0 0 4px rgba(0, 0, 0, 0.18);
+  transform: translateY(-50%);
+  transition: transform 120ms ease;
+}
+
+.phase-grip:hover::after,
+.phase-grip:focus-visible::after {
+  transform: translateY(-50%) scale(1.12);
+}
+
+.phase-grip:focus-visible {
+  outline: none;
+}
+
+.phase-grip:focus-visible::before {
+  background: var(--accent);
+}
+
+.phase-axis {
+  position: relative;
+  height: 18px;
+  margin-top: 4px;
+  font-size: 10px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
-.phase-cell {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-2);
+.phase-axis span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
 }
 
-.phase-cell b {
-  min-width: 4.5em;
-  font-weight: 600;
+.phase-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.phase-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: inset 0 2px 0 rgba(var(--phase), 0.65);
+}
+
+.phase-card.p0 {
+  --phase: var(--phase-0);
+}
+
+.phase-card.p1 {
+  --phase: var(--phase-1);
+}
+
+.phase-card.p2 {
+  --phase: var(--phase-2);
+}
+
+.phase-card header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.phase-card-name {
+  font-size: 13px;
+  font-weight: 650;
   color: var(--text-1);
 }
 
-.phase-cell.better b {
-  color: var(--good);
+.phase-card-range {
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
 }
 
-.phase-cell.muted {
+.phase-side-line {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.phase-side-line .stone-icon {
+  width: 10px;
+  height: 10px;
+}
+
+.phase-player {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.phase-rank {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.phase-badge {
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 16px;
+  border-radius: 999px;
+}
+
+.phase-badge.best {
+  color: var(--good);
+  background: rgba(79, 194, 139, 0.13);
+}
+
+.phase-badge.weakest {
+  color: var(--bad);
+  background: rgba(228, 107, 93, 0.13);
+}
+
+.phase-side-stats {
+  margin: 3px 0 0 18px;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.phase-verdict {
+  margin: 2px 0 0;
+  padding-top: 10px;
+  font-size: 12px;
+  color: var(--text-1);
+  border-top: 1px solid var(--line);
+}
+
+.phase-card[data-played="false"] {
+  box-shadow: none;
+}
+
+.phase-unreached {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.phase-review {
+  margin: 2px 2px 0;
+  font-size: 13px;
+  color: var(--text-1);
+}
+
+.phase-caveat {
+  margin: 0 2px 4px;
+  font-size: 11px;
   color: var(--text-3);
 }
 
@@ -2221,6 +2518,105 @@ button.fox-row[aria-busy="true"] {
   margin: 12px 2px 4px;
   font-size: 11px;
   color: var(--text-3);
+}
+
+/* Tsumego */
+
+.tsumego-dialog {
+  width: min(31rem, 100%);
+}
+
+.tsumego-intro {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.tsumego-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.tsumego-row {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.tsumego-choice button {
+  padding: 6px 0;
+}
+
+.tsumego-distance {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tsumego-distance .text-input {
+  flex: none;
+  width: 4.5rem;
+  height: 30px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tsumego-distance span {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.tsumego-footer {
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.tsumego-chip {
+  gap: 7px;
+  padding-right: 4px;
+  color: var(--text-1);
+  background: rgba(216, 170, 94, 0.1);
+  border-color: rgba(216, 170, 94, 0.34);
+}
+
+.tsumego-mark {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 1.5px;
+  background: var(--accent);
+  transform: rotate(45deg);
+}
+
+.tsumego-warning {
+  font-size: 11px;
+  color: var(--rank-inaccuracy);
+}
+
+.tsumego-exit {
+  height: 22px;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-1);
+  background: var(--bg-active);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.tsumego-exit:hover {
+  background: var(--bg-hover);
+}
+
+.tsumego-exit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* Board synchronization */

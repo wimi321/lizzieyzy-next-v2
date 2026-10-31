@@ -409,5 +409,6 @@ test.each([
       winrate_thresholds: [1, 3, 6, 12, 24],
       score_thresholds: [0.5, 1.5, 3, 6, 12],
     },
+    tsumego: { to_play: "Inherit", attacker: "Auto", ko_threat: "Both", wall_distance: 1 },
   });
 });
