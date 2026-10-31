@@ -2,8 +2,8 @@
  * LizzieYzy Next's menu bar as `Menu.java` builds it by default (reference commit 993e288),
  * entry for entry. Ids are the Java variable names; `key` is the legacy string the label
  * comes from. Left out: entries cut in docs/inventory/FEATURES.md (appearance themes, Yike
- * web pages, force quit), menus Java hides by default (quick links, the second engine) and
- * the AI buttons on the strip.
+ * web pages, force quit, the contribute menu), menus Java hides by default (quick links, the
+ * second engine) and the AI buttons on the strip.
  */
 export type MenuEntry =
   | { readonly kind: "separator" }
@@ -459,14 +459,23 @@ export const MENUS: readonly MenuSubmenu[] = [
     SEP,
     check("playSound", "Menu.playSound"),
     check("notPlaySoundInSync", "Menu.notPlaySoundInSync"),
-    check("showContribute", "Menu.showContribute"),
-  ]),
-  sub("contributeMenu", "Menu.contributeMenu", [
-    item("kataGoDistributedTraining", "Menu.kataGoDistributedTraining"),
-    item("kataGoTrainingSettings", "Menu.kataGoTrainingSettings"),
-    item("kataGoOfficialWebsite", "Menu.kataGoOfficialWebsite"),
   ]),
 ];
+
+/** Entries Java adds on Windows only: readboard, the board synchronization tool, is Windows software. */
+const WINDOWS_ONLY: ReadonlySet<string> = new Set(["readBoard"]);
+
+function without(menu: MenuSubmenu, ids: ReadonlySet<string>): MenuSubmenu {
+  const items = menu.items
+    .filter((entry) => entry.kind === "separator" || !ids.has(entry.id))
+    .map((entry) => (entry.kind === "submenu" ? without(entry, ids) : entry));
+  return { ...menu, items };
+}
+
+/** The menus as Java builds them on this platform. */
+export function menusFor(windows: boolean): readonly MenuSubmenu[] {
+  return windows ? MENUS : MENUS.map((menu) => without(menu, WINDOWS_ONLY));
+}
 
 /**
  * The engine menu follows the others. Java titles it with the current engine's name and

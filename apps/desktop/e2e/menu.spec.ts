@@ -38,7 +38,6 @@ test("LizzieYzy Next's menus sit above the toolbar, in Java's order", async ({ p
     "同步",
     "帮助",
     "设置",
-    "跑谱贡献",
     "kata1-b18c384nbt",
   ]);
 

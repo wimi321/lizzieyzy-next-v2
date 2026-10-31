@@ -10,8 +10,6 @@
     "visits": "{visits} 次计算",
     "coordinates": "坐标",
     "ownership": "领地",
-    "candidates": "候选点",
-    "candidatesAll": "全部",
     "positionError": "这一手的局面无法计算：{reason}",
     "loading": "正在载入…"
   },
@@ -87,16 +85,6 @@
       "new-zealand": "新西兰规则",
       "tromp-taylor": "Tromp-Taylor 规则"
     }
-  },
-  "table": {
-    "label": "候选点",
-    "order": "序号",
-    "winrate": "胜率",
-    "visits": "计算量",
-    "share": "占比",
-    "score": "目差",
-    "move": "着手",
-    "empty": "等待引擎给出候选点"
   },
   "tree": {
     "label": "棋谱",
@@ -338,7 +326,6 @@
     "Menu.continueGameAgainstAi": "人机续弈",
     "Menu.continueGenmoveGameAsBlack": "续弈[AI执白](Genmove模式)(回车)",
     "Menu.continueGenmoveGameAsWhite": "续弈[AI执黑](Genmove模式)(回车)",
-    "Menu.contributeMenu": "跑谱贡献",
     "Menu.convertCurrentPositionToStartingPosition": "将当前盘面设为起始局面...",
     "Menu.coordsMenu": "坐标(C)",
     "Menu.copyBoardScreen": "复制主棋盘到剪贴板(Shift+C)",
@@ -407,9 +394,6 @@
     "Menu.kataEstimateOnMainBoard": "显示在大棋盘上",
     "Menu.kataEstimateOnSubBoard": "显示在小棋盘上",
     "Menu.kataEstimateSaveState": "记忆评估显示状态",
-    "Menu.kataGoDistributedTraining": "可视化KataGo分布式训练",
-    "Menu.kataGoOfficialWebsite": "KataGo官方网站",
-    "Menu.kataGoTrainingSettings": "KataGo训练设置",
     "Menu.kataScolreLead": "目数显示",
     "Menu.kataSettings": "KataGo相关设置",
     "Menu.largeSubBoard": "放大小棋盘(Ctrl+F)",
@@ -512,7 +496,6 @@
     "Menu.showCandidateController": "选点显示控制",
     "Menu.showCandidateInfoController": "选点信息控制",
     "Menu.showCommentConrolPane": "显示评论/问题手面板顶部控制条",
-    "Menu.showContribute": "显示跑谱贡献菜单",
     "Menu.showDoubleMenuBtn": "独立/合并工具栏按钮",
     "Menu.showGameController": "对局控制",
     "Menu.showGobanMenu": "棋盘",

@@ -46,7 +46,7 @@ test("navigation keys call step as in Java (up and down are moves); keys typed i
   await screen.findByTestId("board");
   await act(async () => {
     fireEvent.keyDown(window, { key: "End" });
-    fireEvent.keyDown(screen.getByTestId("max-candidates"), { key: "ArrowUp" });
+    fireEvent.keyDown(screen.getByTestId("problems-sort"), { key: "ArrowUp" });
     fireEvent.keyDown(window, { key: "ArrowUp" });
   });
   expect(recordedCalls()).toEqual([
