@@ -1,10 +1,12 @@
 //! Pure, synchronous Java-compatible player strength estimation from saved analysis.
 pub mod model;
+pub mod phases;
 mod rank;
 mod sample;
 mod stats;
 
 pub use model::{ModelError, XGBoostStrengthModel};
+pub use phases::{PhaseEstimate, PhaseExtremes, StrengthPhasesReport};
 pub use rank::{RankLocale, format_rank, scale_position, scale_tier};
 pub use sample::{CandidateInput, MoveCategory, MoveInput, Sample};
 pub use stats::{Confidence, PhaseReport, SideReport, StrengthReport};
@@ -37,6 +39,18 @@ impl Estimator {
 
     pub fn summarize(&self, samples: &[Sample]) -> SideReport {
         stats::summarize(samples, &self.model)
+    }
+
+    /// Re-estimates each side's original samples within the requested move ranges.
+    /// The whole-game report and its fixed model-feature phases remain unchanged.
+    /// Missing bounds use 60/150; supplied bounds follow Java's upward normalization.
+    pub fn estimate_phases(
+        &self,
+        report: &StrengthReport,
+        bounds: Option<[i32; 2]>,
+        last_move: u32,
+    ) -> StrengthPhasesReport {
+        phases::split(self, report, bounds, last_move)
     }
 }
 
