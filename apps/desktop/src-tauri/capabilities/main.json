@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Local main window: application commands and file selection dialogs only.",
+  "description": "Local main window: application commands, file selection dialogs and closing itself (文件 → 退出).",
   "local": true,
   "windows": ["main"],
   "permissions": [
@@ -35,6 +35,7 @@
     "allow-settings",
     "allow-subscribe",
     "allow-unsubscribe",
+    "core:window:allow-close",
     "dialog:allow-open",
     "dialog:allow-save"
   ]

@@ -1,4 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import type { AppEvent as WireAppEvent } from "./generated/AppEvent";
 import type { ReviewCommands, WholeGameProgressListener } from "./review";
@@ -82,6 +83,8 @@ export interface Backend extends ReviewCommands, ProblemMoveCommands, StrengthCo
   pickOpenPath(): Promise<string | null>;
   pickSavePath(): Promise<string | null>;
   pickEngineFile(kind: EngineFileKind): Promise<string | null>;
+  /** 文件 → 退出: closing the only window ends the app. */
+  quit(): Promise<void>;
   subscribe(listener: EventListener): Promise<number>;
   subscribeWholeGameProgress(listener: WholeGameProgressListener): Promise<number>;
   unsubscribe(id: number): Promise<void>;
@@ -121,6 +124,8 @@ export const pickOpenPath: Backend["pickOpenPath"] = async () => {
 
 export const pickSavePath: Backend["pickSavePath"] = async () =>
   (await saveDialog({ filters: SGF_FILTERS })) ?? null;
+
+export const quit: Backend["quit"] = () => getCurrentWindow().close();
 
 const ENGINE_FILTERS: Record<EngineFileKind, { name: string; extensions: string[] }[] | undefined> = {
   program: undefined,

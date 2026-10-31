@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import type { WholeGameProgress } from "@/api/backend";
 import { Icon } from "../toolbar/icons";
 
@@ -55,7 +55,12 @@ export interface AutoAnalysisProps {
 }
 
 /** The top-bar entry for whole-game analysis: a button at rest, a progress chip while it runs. */
-export function AutoAnalysis({ progress, positions, labels, onStart, onPause, onResume, onCancel }: AutoAnalysisProps) {
+/** Lets the 分析 menu and the A key open the panel. */
+export interface AutoAnalysisHandle {
+  show(): void;
+}
+
+export function AutoAnalysis({ progress, positions, labels, onStart, onPause, onResume, onCancel, ref }: AutoAnalysisProps & { ref?: Ref<AutoAnalysisHandle> }) {
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
   const [choice, setChoice] = useState<number | "custom">(1000);
@@ -66,12 +71,26 @@ export function AutoAnalysis({ progress, positions, labels, onStart, onPause, on
   const active = status === "Running" || status === "Paused";
   const share = progress && progress.total > 0 ? progress.completed / progress.total : 0;
 
-  const toggle = () => {
+  const place = () => {
     // Fixed position: the top bar clips overflow so narrow windows never overlap.
     const rect = root.current?.getBoundingClientRect();
     if (rect) setAnchor({ top: rect.bottom + 8, right: Math.max(8, window.innerWidth - rect.right) });
+  };
+  const toggle = () => {
+    place();
     setOpen((value) => !value);
   };
+  // Created once: `place` reads the element when called and the setters never change.
+  useImperativeHandle(
+    ref,
+    () => ({
+      show() {
+        place();
+        setOpen(true);
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     if (!open) return;

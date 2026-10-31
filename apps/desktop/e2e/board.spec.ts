@@ -89,7 +89,7 @@ test("clicking an empty point plays there; occupied points are ignored", async (
   ]);
 });
 
-test("arrow keys, Home and End step through the game", async ({ page }) => {
+test("up and down arrows, Home and End step through the game", async ({ page }) => {
   await start(
     page,
     [documentChanged(midGame(), 7)],
@@ -100,7 +100,8 @@ test("arrow keys, Home and End step through the game", async ({ page }) => {
       { command: "step", result: 11, events: [] },
     ],
   );
-  for (const key of ["ArrowRight", "ArrowLeft", "Home", "End"]) await page.keyboard.press(key);
+  // Java's keys: up and down step through moves; left and right switch branches.
+  for (const key of ["ArrowDown", "ArrowUp", "Home", "End"]) await page.keyboard.press(key);
   await expect.poll(() => calls(page)).toEqual([
     { command: "step", args: [1] },
     { command: "step", args: [-1] },
