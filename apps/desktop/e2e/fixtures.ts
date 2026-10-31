@@ -10,8 +10,10 @@ import type {
   MoveView,
   PhaseReport,
   PointView,
+  Sample,
   VariationPreviewView,
   StrengthEstimateView,
+  StrengthPhasesReport,
   SideReport,
 } from "../src/api/backend";
 
@@ -94,6 +96,37 @@ export function strengthSide(options: {
   };
 }
 
+/**
+ * Every move of a 211-move game for one side, with losses from a fixed sequence: mostly small,
+ * a few mistakes, Black weaker in the middle game and White in the endgame.
+ */
+function strengthSamples(black: boolean): Sample[] {
+  const samples: Sample[] = [];
+  let seed = black ? 7 : 13;
+  for (let move = black ? 1 : 2; move <= 211; move += 2) {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    const roll = seed / 2147483648;
+    const weak = black ? move > 60 && move <= 150 : move > 150;
+    const loss = roll < (weak ? 0.12 : 0.05) ? 3 + roll * 40 : roll < 0.3 ? 0.6 + roll * 2 : roll * 0.5;
+    const category = loss >= 6 ? "Blunder" : loss >= 3 ? "Mistake" : loss >= 1.2 ? "Inaccuracy" : loss >= 0.5 ? "Good" : loss >= 0.2 ? "Great" : "Excellent";
+    samples.push({
+      move_number: move,
+      is_black: black,
+      coordinate: "D4",
+      winrate_loss: loss * 2.4,
+      score_loss: loss,
+      first_choice: loss < 0.2,
+      ai_rank: loss < 0.2 ? 0 : 3,
+      category,
+      move_rank: 0,
+      score_equivalent_loss: loss,
+      complexity: 0.4,
+      adjusted_weight: 1,
+    });
+  }
+  return samples;
+}
+
 /** A finished 211-move game: Black a little stronger, both well analysed. */
 export function strengthView(revision: number, analyzed = 211): StrengthEstimateView {
   const black = strengthSide({
@@ -106,11 +139,59 @@ export function strengthView(revision: number, analyzed = 211): StrengthEstimate
     tiers: [43, 25, 17, 9, 6, 5],
     phases: [phase(30, 0.55, 0.5), phase(50, 1.31, 0.36), phase(25, 0.62, 0.44)],
   });
+  black.samples = strengthSamples(true);
+  white.samples = strengthSamples(false);
   return {
     revision,
     report: { black, white, overall: black, has_enough_data: true },
+    phases: strengthPhases(),
     total_moves: 211,
     analyzed_moves: analyzed,
+  };
+}
+
+/** Scripted 60/150 split for the phases tab; estimates and extrema are fixed data. */
+export function strengthPhases(): StrengthPhasesReport {
+  const blackOpening = strengthSide({
+    rank: 6.4, zh: "业余6.4段", en: "6.4 dan", band: "5-6d", match: 0.82, first: 0.6,
+    tiers: [18, 7, 3, 1, 1, 0],
+    phases: [phase(30, 0.42, 0.6), phase(0, 0.42, 0.6), phase(0, 0.42, 0.6)],
+  });
+  const whiteOpening = strengthSide({
+    rank: 4.2, zh: "业余4.2段", en: "4.2 dan", band: "3-4d", match: 0.68, first: 0.43,
+    tiers: [13, 7, 5, 3, 1, 1],
+    phases: [phase(30, 0.72, 0.43), phase(0, 0.72, 0.43), phase(0, 0.72, 0.43)],
+  });
+  const blackMiddle = strengthSide({
+    rank: 4.1, zh: "业余4.1段", en: "4.1 dan", band: "3-4d", match: 0.64, first: 0.4,
+    tiers: [18, 11, 7, 5, 3, 1],
+    phases: [phase(0, 1.18, 0.4), phase(45, 1.18, 0.4), phase(0, 1.18, 0.4)],
+  });
+  const whiteMiddle = strengthSide({
+    rank: 5.2, zh: "业余5.2段", en: "5.2 dan", band: "5-6d", match: 0.76, first: 0.51,
+    tiers: [23, 12, 6, 2, 1, 1],
+    phases: [phase(0, 0.64, 0.51), phase(45, 0.64, 0.51), phase(0, 0.64, 0.51)],
+  });
+  const blackEndgame = strengthSide({
+    rank: 5.7, zh: "业余5.7段", en: "5.7 dan", band: "5-6d", match: 0.78, first: 0.55,
+    tiers: [17, 8, 4, 1, 1, 0],
+    // The existing model's fixed 160 boundary stays distinct from the tab's 150.
+    phases: [phase(0, 0.58, 0.55), phase(5, 0.63, 0.6), phase(26, 0.57, 0.54)],
+  });
+  const whiteEndgame = strengthSide({
+    rank: 3.7, zh: "业余3.7段", en: "3.7 dan", band: "3-4d", match: 0.62, first: 0.37,
+    tiers: [11, 8, 5, 3, 2, 1],
+    phases: [phase(0, 1.09, 0.37), phase(5, 1.26, 0.4), phase(25, 1.06, 0.36)],
+  });
+  return {
+    bounds: [60, 150],
+    phases: [
+      { index: 0, first: 1, last: 60, played: true, black: blackOpening, white: whiteOpening, black_ranked: true, white_ranked: true },
+      { index: 1, first: 61, last: 150, played: true, black: blackMiddle, white: whiteMiddle, black_ranked: true, white_ranked: true },
+      { index: 2, first: 151, last: 211, played: true, black: blackEndgame, white: whiteEndgame, black_ranked: true, white_ranked: true },
+    ],
+    black: { best: 0, worst: 1, worth_reviewing: true },
+    white: { best: 1, worst: 2, worth_reviewing: true },
   };
 }
 
@@ -354,6 +435,16 @@ export function emptyStrengthEstimate(revision = 0): StrengthEstimateView {
     report: {
       black: structuredClone(side), white: structuredClone(side), overall: structuredClone(side),
       has_enough_data: false,
+    },
+    phases: {
+      bounds: [60, 150],
+      phases: [
+        { index: 0, first: 1, last: 0, played: false, black: structuredClone(side), white: structuredClone(side), black_ranked: false, white_ranked: false },
+        { index: 1, first: 61, last: 0, played: false, black: structuredClone(side), white: structuredClone(side), black_ranked: false, white_ranked: false },
+        { index: 2, first: 151, last: 0, played: false, black: structuredClone(side), white: structuredClone(side), black_ranked: false, white_ranked: false },
+      ],
+      black: { best: null, worst: null, worth_reviewing: false },
+      white: { best: null, worst: null, worth_reviewing: false },
     },
   };
 }
