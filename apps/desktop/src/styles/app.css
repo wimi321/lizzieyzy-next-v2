@@ -2216,7 +2216,7 @@ button.fox-row[aria-busy="true"] {
 
 .tsumego-row {
   display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr);
+  grid-template-columns: 7rem minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   font-size: 12px;
