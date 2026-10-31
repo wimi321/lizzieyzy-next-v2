@@ -9,6 +9,7 @@ use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
 mod auto_setup;
+mod board_sync;
 mod fox;
 mod problem_moves;
 mod review;
@@ -32,6 +33,10 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    BoardSync(
+        crate::board_sync::Request,
+        oneshot::Sender<Result<crate::BoardSyncStatus, AppError>>,
+    ),
     BeginAutoSetup(oneshot::Sender<Result<crate::auto_setup::Start, AppError>>),
     TryAutoEngine(
         crate::auto_setup::Trial,
@@ -113,6 +118,7 @@ struct Actor {
     running: Option<Running>,
     trial: Option<PendingTrial>,
     auto_setup: auto_setup::State,
+    board_sync: board_sync::State,
     focus: Option<ViewFocus>,
     output: Delivery,
 }
@@ -139,6 +145,7 @@ pub(crate) async fn run(
         running: None,
         trial: None,
         auto_setup: Default::default(),
+        board_sync: Default::default(),
         focus: None,
         output,
     };
@@ -146,9 +153,11 @@ pub(crate) async fn run(
         actor.failed(error.to_string());
     }
     actor.start_engine().await;
+    actor.publish_sync();
     loop {
         tokio::select! {
             command = commands.recv() => match command {
+                Some(Command::BoardSync(request, reply)) => { let _ = reply.send(actor.board_sync_command(request).await); }
                 Some(Command::TsumegoStatus(reply)) => { let _ = reply.send(actor.tsumego_status()); }
                 Some(Command::StrengthEstimate(bounds, reply)) => { let _ = reply.send(actor.strength_estimate(bounds)); }
                 Some(Command::Fox(request)) => actor.fox_request(request).await,
@@ -174,7 +183,8 @@ pub(crate) async fn run(
                 Some(Command::Apply(Input::Shutdown, reply)) => {
                     actor.auto_setup.cancel();
                     actor.cancel_trial().await;
-                    let result = actor.stop_engine().await.map(|()| actor.revision);
+                    let sync_result = actor.stop_board_sync().await;
+                    let result = actor.stop_engine().await.and(sync_result).map(|()| actor.revision);
                     let _ = reply.send(result);
                     break;
                 }
@@ -185,11 +195,12 @@ pub(crate) async fn run(
                     actor.auto_setup.cancel();
                     actor.begin_trial(profile, source, reply).await;
                 }
-                None => { actor.cancel_trial().await; let _ = actor.stop_engine().await; break; }
+                None => { actor.cancel_trial().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
             },
             signal = next_signal(&mut actor.running) => actor.signal(signal),
             result = review::receive(&mut actor.review) => actor.review_signal(result).await,
             result = trial::wait(&mut actor.trial) => actor.finish_trial(result).await,
+            result = board_sync::receive(&mut actor.board_sync) => actor.board_sync_line(result).await,
         }
     }
 }
@@ -238,7 +249,7 @@ impl Actor {
     fn signal(&mut self, signal: Signal) {
         match signal {
             Signal::Snapshot(snapshot) => {
-                if (self.settings.pondering || snapshot.source == analysis::SnapshotSource::Cache)
+                if (self.pondering() || snapshot.source == analysis::SnapshotSource::Cache)
                     && let Some(focus) = &self.focus
                     && (focus.revision, focus.node_id, focus.key)
                         == (snapshot.revision, snapshot.node_id.0, snapshot.key)
@@ -260,7 +271,11 @@ impl Actor {
                                     }
                                 })
                                 .or_insert(latest);
-                            self.output.send(AppEvent::AnalysisUpdated(view));
+                            if view.node_id == self.document.current().0 {
+                                self.output.send(AppEvent::AnalysisUpdated(view));
+                            } else if let Err(error) = self.publish_document() {
+                                self.failed(error.to_string());
+                            }
                         }
                         Err(error) => {
                             self.output.clear_analysis();
@@ -335,11 +350,18 @@ impl Actor {
                 self.document_changed().await?;
             }
             Input::SetPondering(enabled) => {
-                if enabled != self.settings.pondering {
+                let changed = enabled != self.settings.pondering;
+                if changed {
                     let mut settings = self.settings.clone();
                     settings.pondering = enabled;
                     settings.save(&self.directory).await?;
                     self.settings = settings;
+                }
+                let sync_changed = self.sync_active() && self.board_sync.analysis_paused == enabled;
+                if changed || sync_changed {
+                    if self.sync_active() {
+                        self.board_sync.analysis_paused = !enabled;
+                    }
                     self.output.clear_analysis();
                     if enabled
                         && self.review_running()
@@ -407,6 +429,11 @@ impl Actor {
         let collection = sgf::parse(&bytes)?;
         let tree = collection.games.first().ok_or(AppError::EmptyCollection)?;
         let document = GameDocument::from_sgf(tree)?;
+        self.stop_board_sync().await?;
+        self.replace_document(document).await
+    }
+
+    async fn replace_document(&mut self, document: GameDocument) -> Result<(), AppError> {
         self.next_revision()?;
         self.document = document;
         self.tsumego = None;
@@ -458,7 +485,14 @@ impl Actor {
         if self.running.is_none() {
             return;
         }
-        let node_id = self.document.current();
+        let node_id = if self.sync_active() {
+            self.board_sync
+                .resolved_node
+                .filter(|id| self.document.node(*id).is_ok())
+                .unwrap_or(self.document.current())
+        } else {
+            self.document.current()
+        };
         let Ok(position) = self.document.position_at(node_id) else {
             self.focus = None;
             if let Some(running) = &self.running
@@ -503,11 +537,7 @@ impl Actor {
             match running.coordinator.focus_with_cached(focus, cached).await {
                 Ok(()) => {
                     self.focus = Some(view_focus);
-                    if let Err(error) = running
-                        .coordinator
-                        .set_pondering(self.settings.pondering)
-                        .await
-                    {
+                    if let Err(error) = running.coordinator.set_pondering(self.pondering()).await {
                         self.analysis_failed(error.to_string());
                     }
                 }
@@ -526,7 +556,7 @@ impl Actor {
     ) -> Result<(AnalysisHandle, AnalysisSubscription), AppError> {
         let mut config = self.config.analysis.clone();
         config.engine_fingerprint = fingerprint.to_owned();
-        config.pondering = self.settings.pondering;
+        config.pondering = self.pondering();
         Ok(analysis::spawn(engine.clone(), config)?)
     }
 

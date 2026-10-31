@@ -18,6 +18,8 @@ import { MoveTree } from "./panels/MoveTree";
 import { AutoAnalysis, type AutoAnalysisHandle } from "./review/AutoAnalysis";
 import { ProblemList } from "./review/ProblemList";
 import { StrengthDialog } from "./review/StrengthDialog";
+import { BoardSyncChip } from "./sync/BoardSyncChip";
+import { useBoardSync } from "./sync/useBoardSync";
 import { TsumegoChip } from "./tsumego/TsumegoChip";
 import { TsumegoDialog } from "./tsumego/TsumegoDialog";
 import { TIER_ORDER } from "./review/strength";
@@ -88,6 +90,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const engine = useAppState(store, (state) => state.engine);
   const revision = useAppState(store, (state) => state.revision);
   const messages = getMessages(navigator.language);
+  const chinese = navigator.language.toLowerCase().startsWith("zh");
   const [coordinates, setCoordinates] = useState(true);
   const [ownership, setOwnership] = useState(false);
   const [pondering, setPondering] = useState(true);
@@ -113,6 +116,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [boardHover, setBoardHover] = useState<PointView | null>(null);
   const [tree, setTree] = useState<VariationTreeView | null>(null);
   const wholeGame = useWholeGame(backend);
+  const sync = useBoardSync(backend);
+  // Java's defaults: keep the board in step with the client, but leave the viewed move alone.
+  const [syncOptions, setSyncOptions] = useState({ always_sync: true, always_goto_last: false });
   const [problemColor, setProblemColor] = useState<ColorView | null>(null);
   const [problemSort, setProblemSort] = useState<ProblemMoveSort>("LossDesc");
   const [notesTab, setNotesTab] = useState<"problems" | "comment">("problems");
@@ -262,6 +268,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       wholeGameActive: wholeGameStatus === "Running" || wholeGameStatus === "Paused",
       hasBestMove: board !== null && best !== undefined,
       engineFailed: engine.type === "Failed" && profile !== null,
+      windows: WINDOWS,
+      syncPhase: sync.status?.phase ?? "Stopped",
+      syncOptions,
       tree: tree && document && tree.revision === document.tree.structure_revision ? tree : null,
       current,
     },
@@ -283,6 +292,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       step,
       goTo: jump,
       openFox,
+      startBoardSync: () => sync.start({ ...syncOptions, language: chinese ? "Cn" : "En" }),
+      toggleSyncOption: (key) => setSyncOptions((options) => ({ ...options, [key]: !options[key] })),
       openTsumego: () => setTsumegoOpen(true),
       openEngineSetup: () => setSetupOpen(true),
       restartEngine: () => {
@@ -297,7 +308,18 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   return (
     <main className="app">
       <h1 className="visually-hidden">{messages.app.title}</h1>
-      <MenuBar menus={menus} bindings={bindings} labels={messages.menu} label={messages.menuBar.label} />
+      <MenuBar
+        menus={menus}
+        bindings={bindings}
+        labels={messages.menu}
+        label={messages.menuBar.label}
+        tray={
+          <>
+            {tsumego ? <TsumegoChip status={tsumego} labels={messages.tsumego} onExit={exitTsumego} /> : null}
+            {sync.status && sync.status.phase !== "Stopped" ? <BoardSyncChip status={sync.status} labels={messages.sync} onStop={sync.stop} /> : null}
+          </>
+        }
+      />
       <TopBar
         labels={{
           ...messages.toolbar,
@@ -330,19 +352,16 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         ownership={ownership}
         engine={autoSetup && engine.type === "Stopped" ? { type: "Starting" } : engine}
         extra={
-          <>
-            {tsumego ? <TsumegoChip status={tsumego} labels={messages.tsumego} onExit={exitTsumego} /> : null}
-            <AutoAnalysis
-              ref={setAutoAnalysis}
-              progress={wholeGame.progress}
-              positions={points.length}
-              labels={messages.review}
-              onStart={wholeGame.start}
-              onPause={wholeGame.pause}
-              onResume={wholeGame.resume}
-              onCancel={wholeGame.cancel}
-            />
-          </>
+          <AutoAnalysis
+            ref={setAutoAnalysis}
+            progress={wholeGame.progress}
+            positions={points.length}
+            labels={messages.review}
+            onStart={wholeGame.start}
+            onPause={wholeGame.pause}
+            onResume={wholeGame.resume}
+            onCancel={wholeGame.cancel}
+          />
         }
         onOpen={() => void openFile().catch(report)}
         onSave={() => void saveFile().catch(report)}
@@ -481,7 +500,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           progress={wholeGame.progress}
           black={{ name: info?.black_name || messages.info.black, rank: info?.black_rank ?? null }}
           white={{ name: info?.white_name || messages.info.white, rank: info?.white_rank ?? null }}
-          chinese={navigator.language.toLowerCase().startsWith("zh")}
+          chinese={chinese}
           labels={messages.strength}
           tierNames={TIER_ORDER.map((rank) => messages.problems.ranks[rank])}
           bounds={strengthBounds}

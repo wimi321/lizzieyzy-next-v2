@@ -13,6 +13,8 @@ pub enum CommandError {
     Fox(FoxFailure),
     #[error("{0}")]
     AutoSetup(app_core::AutoSetupError),
+    #[error("{0}")]
+    BoardSync(app_core::BoardSyncError),
     #[error("event stream is closed")]
     StreamClosed,
     #[error("subscription identifiers are exhausted")]
@@ -26,6 +28,7 @@ impl From<app_core::AppError> for CommandError {
         match error {
             app_core::AppError::Fox(error) => Self::Fox(error.into()),
             app_core::AppError::AutoSetup(error) => Self::AutoSetup(error),
+            app_core::AppError::BoardSync(error) => Self::BoardSync(error),
             other => Self::App(other.to_string()),
         }
     }

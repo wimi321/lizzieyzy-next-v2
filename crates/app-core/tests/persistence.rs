@@ -23,6 +23,7 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                     return view;
                 }
                 AppEvent::EngineStatusChanged(_) => {}
+                AppEvent::BoardSyncStatusChanged(_) => {}
                 AppEvent::WholeGameProgress(_) => {
                     panic!("unexpected review without starting a task")
                 }

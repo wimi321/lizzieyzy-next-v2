@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import type { AppEvent as WireAppEvent } from "./generated/AppEvent";
 import type { ReviewCommands, WholeGameProgressListener } from "./review";
+import type { BoardSyncCommands, BoardSyncStatusListener } from "./board-sync";
 import type { ProblemMoveCommands } from "./problem-moves";
 import type { StrengthCommands } from "./strength";
 import type { TsumegoCommands } from "./tsumego";
@@ -19,11 +20,12 @@ import type { FoxSearchResult } from "./generated/FoxSearchResult";
 import type { VariationPreviewView } from "./generated/VariationPreviewView";
 import type { VariationTreeView } from "./generated/VariationTreeView";
 
-/** Existing UI consumers receive their original event set. The review UI uses
- * subscribeWholeGameProgress; both subscriptions share one ordered IPC channel. */
-export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" }>;
+/** Domain status subscriptions share one ordered IPC channel while existing
+ * document/analysis UI consumers retain their original event set. */
+export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" | "BoardSyncStatusChanged" }>;
 export type { WireAppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings };
 export * from "./review";
+export * from "./board-sync";
 export * from "./problem-moves";
 export * from "./strength";
 export * from "./tsumego";
@@ -61,7 +63,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends ReviewCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands {
+export interface Backend extends ReviewCommands, BoardSyncCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands {
   openBytes(bytes: number[]): Promise<Revision>;
   openPath(path: string): Promise<Revision>;
   save(path: string): Promise<void>;
@@ -93,6 +95,7 @@ export interface Backend extends ReviewCommands, ProblemMoveCommands, StrengthCo
   quit(): Promise<void>;
   subscribe(listener: EventListener): Promise<number>;
   subscribeWholeGameProgress(listener: WholeGameProgressListener): Promise<number>;
+  subscribeBoardSyncStatus(listener: BoardSyncStatusListener): Promise<number>;
   unsubscribe(id: number): Promise<void>;
 }
 
@@ -191,7 +194,7 @@ async function subscribeWire(listener: (event: WireAppEvent) => void): Promise<n
 }
 
 export const subscribe: Backend["subscribe"] = (listener) => subscribeWire((event) => {
-  if (event.type !== "WholeGameProgress") listener(event);
+  if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged") listener(event);
 });
 
 /** Progress shares transport/lifetime with document subscriptions. Subscribe
@@ -200,6 +203,12 @@ export const subscribe: Backend["subscribe"] = (listener) => subscribeWire((even
 export const subscribeWholeGameProgress: Backend["subscribeWholeGameProgress"] =
   (listener) => subscribeWire((event) => {
     if (event.type === "WholeGameProgress") listener(event.data);
+  });
+
+/** Subscribe before reading boardSyncStatus(); use unsubscribe() for this ID. */
+export const subscribeBoardSyncStatus: Backend["subscribeBoardSyncStatus"] =
+  (listener) => subscribeWire((event) => {
+    if (event.type === "BoardSyncStatusChanged") listener(event.data);
   });
 
 /** Idempotent. Only the final listener detaches the Rust channel. */

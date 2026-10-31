@@ -25,6 +25,7 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "coordsMenu", code: "KeyC" },
   { id: "backToMainBranch", code: "KeyB" },
   { id: "engineConfig", code: "KeyX", alt: true },
+  { id: "readBoard", code: "KeyO", alt: true },
   { id: "tsumeGoMenu", code: "KeyE", shift: true },
   { id: "jumpToFirst", code: "Home" },
   { id: "jumpToLast", code: "End" },

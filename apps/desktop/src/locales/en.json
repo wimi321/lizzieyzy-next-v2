@@ -643,5 +643,17 @@
     "noRoomShort": "Ko threats did not fit",
     "exit": "Exit",
     "exitHint": "Leave the problem and go back to the original position"
+  },
+  "sync": {
+    "starting": "Starting the board sync tool…",
+    "ready": "Sync tool ready",
+    "syncing": "Syncing the board",
+    "move": "move {n}",
+    "failed": "Board sync failed",
+    "stop": "Stop",
+    "stopHint": "Stop syncing and close the sync tool",
+    "close": "Close",
+    "unsupported": "Board sync works on Windows only",
+    "missing": "The board sync tool was not found: {path}"
   }
 }

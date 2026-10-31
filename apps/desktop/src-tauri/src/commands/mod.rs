@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod board_sync;
 pub mod document;
 pub mod engine;
 pub mod fox;

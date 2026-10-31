@@ -1,4 +1,4 @@
-import type { VariationTreeView } from "@/api/backend";
+import type { BoardSyncPhase, VariationTreeView } from "@/api/backend";
 import { JUMP } from "../toolbar/Toolbar";
 import { branchTarget, mainTrunkTarget } from "./branch";
 
@@ -26,6 +26,10 @@ export interface MenuState {
   /** The engine's first choice for the displayed position, if it has one. */
   hasBestMove: boolean;
   engineFailed: boolean;
+  /** Java offers readboard, the board synchronization tool, on Windows only. */
+  windows: boolean;
+  syncPhase: BoardSyncPhase;
+  syncOptions: { always_sync: boolean; always_goto_last: boolean };
   tree: VariationTreeView | null;
   current: number | null;
 }
@@ -45,6 +49,8 @@ export interface MenuActions {
   step(steps: number): void;
   goTo(node: number): void;
   openFox(): void;
+  startBoardSync(): void;
+  toggleSyncOption(key: "always_sync" | "always_goto_last"): void;
   openTsumego(): void;
   openEngineSetup(): void;
   restartEngine(): void;
@@ -109,6 +115,10 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     forward10: step(10),
 
     foxKifu: when(true, actions.openFox),
+    // Started once; readboard's own window stops it, as does the toolbar chip.
+    readBoard: when(state.windows && (state.syncPhase === "Stopped" || state.syncPhase === "Failed"), actions.startBoardSync),
+    alwaysKeepBoardStatSync: { run: () => actions.toggleSyncOption("always_sync"), checked: state.syncOptions.always_sync },
+    alwaysGoToLastMove: { run: () => actions.toggleSyncOption("always_goto_last"), checked: state.syncOptions.always_goto_last },
     about: when(true, actions.openAbout),
     engineConfig: when(true, actions.openEngineSetup),
     languageDefault: always,

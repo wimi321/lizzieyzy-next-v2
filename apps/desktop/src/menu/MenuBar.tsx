@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { isEnabled, type MenuBindings } from "./bindings";
 import { splitHint } from "./hint";
@@ -10,6 +10,8 @@ export interface MenuBarProps {
   /** Labels by legacy key. */
   labels: Readonly<Record<string, string>>;
   label: string;
+  /** Status chips at the strip's right end, such as board synchronization. */
+  tray?: ReactNode;
 }
 
 /** One open popup: the top menu's at depth 0, then each open submenu. */
@@ -54,7 +56,7 @@ function nextSelectable(entries: readonly MenuEntry[], bindings: MenuBindings, f
  * Popups are fixed-position siblings in one layer, so long menus can scroll without
  * clipping their submenus.
  */
-export function MenuBar({ menus, bindings, labels, label }: MenuBarProps) {
+export function MenuBar({ menus, bindings, labels, label, tray }: MenuBarProps) {
   const uid = useId();
   const [top, setTop] = useState<number | null>(null);
   const [focusTop, setFocusTop] = useState(0);
@@ -274,6 +276,7 @@ export function MenuBar({ menus, bindings, labels, label }: MenuBarProps) {
 
   return (
     <>
+      <div className="menubar-row">
       <div className="menubar" role="menubar" aria-label={label} ref={strip} data-testid="menubar">
         {menus.map((menu, index) => (
           <button
@@ -298,6 +301,8 @@ export function MenuBar({ menus, bindings, labels, label }: MenuBarProps) {
             {labelOf(menu, labels)}
           </button>
         ))}
+      </div>
+      <div className="menubar-tray">{tray}</div>
       </div>
       {top !== null
         ? createPortal(

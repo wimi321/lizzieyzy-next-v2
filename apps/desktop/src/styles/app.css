@@ -128,17 +128,46 @@ select {
  * LizzieYzy Next's menu strip: the same menus in the same places, drawn in the window above
  * the toolbar as Java draws it. Popups follow the app's chrome; the lit row is the brass accent.
  */
-.menubar {
+.menubar-row {
   display: flex;
   align-items: center;
-  gap: 1px;
   height: 30px;
-  padding: 0 8px;
-  overflow: hidden;
   background: var(--bg-window);
   border-bottom: 1px solid var(--line);
   user-select: none;
   -webkit-user-select: none;
+}
+
+.menubar {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  overflow: hidden;
+}
+
+/* Status chips ride at the strip's right end, out of the toolbar's way. */
+.menubar-tray {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.menubar-tray .chip {
+  height: 22px;
+  padding: 0 3px 0 9px;
+  font-size: 11px;
+}
+
+.menubar-tray .chip button {
+  height: 16px;
+  padding: 0 7px;
+  font-size: 10.5px;
 }
 
 .menubar-item {
@@ -2588,4 +2617,67 @@ button.fox-row[aria-busy="true"] {
 .tsumego-exit:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+/* Board synchronization */
+
+.sync-chip {
+  gap: 7px;
+  padding-right: 4px;
+  color: var(--text-1);
+  background: rgba(79, 194, 139, 0.08);
+  border-color: rgba(79, 194, 139, 0.3);
+}
+
+.sync-chip[data-phase="Failed"] {
+  background: rgba(228, 107, 93, 0.1);
+  border-color: rgba(228, 107, 93, 0.36);
+}
+
+.sync-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--good);
+}
+
+.sync-chip[data-phase="Starting"] .sync-dot,
+.sync-chip[data-phase="Ready"] .sync-dot {
+  background: var(--status-busy);
+}
+
+.sync-chip[data-phase="Failed"] .sync-dot {
+  background: var(--bad);
+}
+
+.sync-chip[data-phase="Syncing"] .sync-dot {
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+.sync-stop {
+  height: 22px;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-1);
+  background: var(--bg-active);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.sync-stop:hover {
+  background: var(--bg-hover);
+}
+
+.sync-stop:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-chip[data-phase="Syncing"] .sync-dot {
+    animation: none;
+  }
 }
