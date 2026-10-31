@@ -33,7 +33,7 @@ test("shows why a recorded position cannot be displayed", async () => {
   expect((await screen.findByTestId("position-error")).textContent).toContain("illegal move at node 7");
 });
 
-test("navigation keys call step; keys typed into controls do not", async () => {
+test("navigation keys call step as in Java (up and down are moves); keys typed into controls do not", async () => {
   setScript({
     initialEvents: [documentChanged(midGame(), 3)],
     commands: [
@@ -46,8 +46,8 @@ test("navigation keys call step; keys typed into controls do not", async () => {
   await screen.findByTestId("board");
   await act(async () => {
     fireEvent.keyDown(window, { key: "End" });
-    fireEvent.keyDown(screen.getByTestId("max-candidates"), { key: "ArrowLeft" });
-    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    fireEvent.keyDown(screen.getByTestId("max-candidates"), { key: "ArrowUp" });
+    fireEvent.keyDown(window, { key: "ArrowUp" });
   });
   expect(recordedCalls()).toEqual([
     { command: "settings", args: [] },

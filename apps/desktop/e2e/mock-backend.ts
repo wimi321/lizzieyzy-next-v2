@@ -218,6 +218,7 @@ export const settings: Backend["settings"] = () => command("settings", []);
 export const pickOpenPath: Backend["pickOpenPath"] = () => command("pickOpenPath", []);
 export const pickSavePath: Backend["pickSavePath"] = () => command("pickSavePath", []);
 export const pickEngineFile: Backend["pickEngineFile"] = (kind) => command("pickEngineFile", [kind]);
+export const quit: Backend["quit"] = () => command("quit", []);
 
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;

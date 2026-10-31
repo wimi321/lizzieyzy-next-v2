@@ -56,9 +56,10 @@ async function navigation(browser: Browser) {
   const initial = await ready(browser);
   // One real keypress per acknowledged document change; never wait for a search
   // to finish between keys. The observer watches all intervening DOM updates.
+  // Down is the next move, as in LizzieYzy Next; left and right switch branches.
   for (let move = 1; move <= 20; move++) {
-    await browser.keys(Key.ArrowRight);
-    await until(browser, (probe) => probe.current.move === move, `ArrowRight ${move} did not advance`);
+    await browser.keys(Key.ArrowDown);
+    await until(browser, (probe) => probe.current.move === move, `ArrowDown ${move} did not advance`);
   }
   const navigated = await until(browser, (probe) => probe.current.move === 20 && hasAnalysis(probe),
     "analysis did not catch up with move 20");
@@ -118,7 +119,7 @@ async function recovery(browser: Browser, { faultMarker }: { faultMarker: string
     "the fault must occur only once");
   assert.equal(resumed.current.engineState, "Ready");
   // A new position additionally rules out accepting only cached pre-crash data.
-  await browser.keys(Key.ArrowRight);
+  await browser.keys(Key.ArrowDown);
   const recovered = await until(browser, (probe) => probe.current.move === 1 && hasAnalysis(probe)
     && probe.analysisVersion > afterRestart.analysisVersion,
     "restarted engine did not analyse a new position");
@@ -134,7 +135,7 @@ async function windowsRecovery(browser: Browser, { faultMarker }: { faultMarker:
   // after removing it, this navigation is guaranteed to reach query >= 2.
   assert.ok((await stat(faultMarker)).isFile(), "startup fault suppression marker is missing");
   await rm(faultMarker);
-  await browser.keys(Key.ArrowRight);
+  await browser.keys(Key.ArrowDown);
   const restarted = await until(browser, (probe) => {
     const index = probe.states.findIndex((entry) => entry.state === "Restarting");
     return index > 0 && probe.states.slice(0, index).some((entry) => entry.state === "Ready")
@@ -151,7 +152,7 @@ async function windowsRecovery(browser: Browser, { faultMarker }: { faultMarker:
   assert.ok(Number(resumed.current.revision) > Number(initial.current.revision));
   // This is at least query 2 in the restarted engine. Analysis at a new node
   // proves the marker prevents a second crash, without racing a wall clock.
-  await browser.keys(Key.ArrowRight);
+  await browser.keys(Key.ArrowDown);
   const recovered = await until(browser, (probe) => probe.current.move === 2 && hasAnalysis(probe)
     && probe.analysisVersion > resumed.analysisVersion,
     "restarted engine did not analyse move 2 beyond its query crash threshold");

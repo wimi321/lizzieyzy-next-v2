@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
 import type { ColorView, EngineProfile, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
@@ -8,10 +8,15 @@ import { FoxDialog } from "./fox/FoxDialog";
 import { liveGraph } from "./graph/scale";
 import { WinrateGraph } from "./graph/WinrateGraph";
 import { getMessages } from "./locales";
+import { AboutDialog } from "./menu/AboutDialog";
+import { menuBindings } from "./menu/bindings";
+import { MenuBar } from "./menu/MenuBar";
+import { useShortcuts } from "./menu/shortcuts";
+import { engineMenu, MENUS } from "./menu/spec";
 import { CandidateTable } from "./panels/CandidateTable";
 import { InfoPanel } from "./panels/InfoPanel";
 import { MoveTree } from "./panels/MoveTree";
-import { AutoAnalysis } from "./review/AutoAnalysis";
+import { AutoAnalysis, type AutoAnalysisHandle } from "./review/AutoAnalysis";
 import { ProblemList } from "./review/ProblemList";
 import { StrengthDialog } from "./review/StrengthDialog";
 import { TIER_ORDER } from "./review/strength";
@@ -26,12 +31,15 @@ export { JUMP };
 
 const CANDIDATE_LIMITS = [5, 10, 20, 361] as const;
 
-const KEY_STEPS: Record<string, number> = {
-  ArrowLeft: -1,
-  ArrowRight: 1,
-  Home: -JUMP,
-  End: JUMP,
-};
+/** A wheel notch (or this much trackpad travel) moves one move, as on Java's board. */
+const WHEEL_STEP = 40;
+
+/** "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz" reads as "kata1-b18c384nbt". */
+function engineName(model: string): string {
+  const file = model.split(/[\\/]/).pop() ?? model;
+  const base = file.replace(/\.(bin|txt)(\.gz)?$/i, "");
+  return base.replace(/-s\d+-d\d+$/, "") || file;
+}
 
 function report(error: unknown) {
   console.error("Backend command failed", error);
@@ -57,6 +65,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   // Mounted on first use and then only hidden, so a minimized window keeps its list.
   const [foxUsed, setFoxUsed] = useState(false);
   const [strengthOpen, setStrengthOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  // State, not a ref: menu bindings are built during render and only call it later.
+  const [autoAnalysis, setAutoAnalysis] = useState<AutoAnalysisHandle | null>(null);
+  const wheel = useRef(0);
   const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
   // A preview belongs to one position: once the current node changes it no longer applies.
   const [preview, setPreview] = useState<{ node: number; point: PointView } | null>(null);
@@ -114,21 +126,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     backend.step(steps).catch(report);
   };
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target;
-      if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      const steps = KEY_STEPS[event.key];
-      if (steps === undefined || event.metaKey || event.ctrlKey || event.altKey) return;
-      event.preventDefault();
-      backend.step(steps).catch(report);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
   const board = document?.board ?? null;
   const points = useMemo(() => (document ? liveGraph(document.graph, analysis) : []), [document, analysis]);
   const line = useMemo(() => points.map((point) => point.node_id), [points]);
@@ -168,10 +165,60 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const jump = (nodeId: number) => {
     backend.goTo(nodeId).catch(report);
   };
+  const pass = () => {
+    if (board) backend.play({ type: "Pass", data: { color: board.to_play } }).catch(report);
+  };
+  const openFox = () => {
+    setFoxUsed(true);
+    setFoxOpen(true);
+  };
+  const current = document?.tree.current ?? null;
+  const best = analysis && analysis.node_id === current ? analysis.candidates[0] : undefined;
+  const wholeGameStatus = wholeGame.progress?.status.type;
+  const bindings = menuBindings(
+    {
+      hasDocument: document !== null,
+      hasBoard: board !== null,
+      coordinates,
+      ownership,
+      wholeGameActive: wholeGameStatus === "Running" || wholeGameStatus === "Paused",
+      hasBestMove: board !== null && best !== undefined,
+      engineFailed: engine.type === "Failed" && profile !== null,
+      tree: tree && document && tree.revision === document.tree.structure_revision ? tree : null,
+      current,
+    },
+    {
+      open: () => void openFile().catch(report),
+      saveAs: () => void saveFile().catch(report),
+      quit: () => void backend.quit().catch(report),
+      toggleCoordinates: () => setCoordinates((value) => !value),
+      setOwnership,
+      togglePondering,
+      openAutoAnalysis: () => autoAnalysis?.show(),
+      cancelAutoAnalysis: wholeGame.cancel,
+      openStrength: () => setStrengthOpen(true),
+      playBestMove: () => {
+        if (best?.point) play(best.point);
+        else if (best) pass();
+      },
+      pass,
+      step,
+      goTo: jump,
+      openFox,
+      openEngineSetup: () => setSetupOpen(true),
+      restartEngine: () => {
+        if (profile) backend.configureEngine(profile).catch(report);
+      },
+      openAbout: () => setAboutOpen(true),
+    },
+  );
+  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen));
+  const menus = useMemo(() => [...MENUS, engineMenu(profile ? engineName(profile.model) : null)], [profile]);
 
   return (
     <main className="app">
       <h1 className="visually-hidden">{messages.app.title}</h1>
+      <MenuBar menus={menus} bindings={bindings} labels={messages.menu} label={messages.menuBar.label} />
       <TopBar
         labels={{
           ...messages.toolbar,
@@ -201,6 +248,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         engine={engine}
         extra={
           <AutoAnalysis
+            ref={setAutoAnalysis}
             progress={wholeGame.progress}
             positions={points.length}
             labels={messages.review}
@@ -212,10 +260,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         }
         onOpen={() => void openFile().catch(report)}
         onSave={() => void saveFile().catch(report)}
-        onOpenFox={() => {
-          setFoxUsed(true);
-          setFoxOpen(true);
-        }}
+        onOpenFox={openFox}
         onOpenStrength={() => setStrengthOpen(true)}
         onStep={step}
         onTogglePondering={togglePondering}
@@ -298,7 +343,20 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             )}
           </section>
         </aside>
-        <section className="board-area" data-testid="board-area" data-revision={revision} data-node-id={document?.tree.current}>
+        <section
+          className="board-area"
+          data-testid="board-area"
+          data-revision={revision}
+          data-node-id={document?.tree.current}
+          onWheel={(event) => {
+            // Lines (Firefox, some mice) count as whole notches.
+            wheel.current += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * WHEEL_STEP;
+            if (Math.abs(wheel.current) < WHEEL_STEP) return;
+            const steps = Math.sign(wheel.current);
+            wheel.current = 0;
+            step(steps);
+          }}
+        >
           {board ? (
             <Board
               board={board}
@@ -365,6 +423,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onClose={() => setFoxOpen(false)}
         />
       ) : null}
+      {aboutOpen ? <AboutDialog name={messages.app.title} labels={messages.about} onClose={() => setAboutOpen(false)} /> : null}
       {setupOpen ? (
         <EngineSetup
           backend={backend}

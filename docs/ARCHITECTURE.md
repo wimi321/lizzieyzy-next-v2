@@ -203,7 +203,7 @@ pub enum EngineStatus {
 - 首次设置的 Tauri 命令为 `detect_engines() -> EngineDiscovery`、`try_configure_engine(profile: EngineSetupProfile) -> ()`，只授权本地 main 窗口。探测在 blocking 任务执行，根目录与模板来源由壳层托管；测试注入临时目录。前端 `detectEngines` / `tryConfigureEngine` 是薄 IPC 封装，新增 DTO 同样经 export-bindings 生成；E2E mock 仅返回脚本指定结果，不实现探测或试启动业务。
 - `subscribe` / `unsubscribe` 管理传输订阅。四种 `AppEvent` 共用一个 `tauri::ipc::Channel<AppEvent>`，由单个转发任务按 `AppSubscription::recv()` 的顺序发送；不分事件种类并发转发，确保 revision N 的 `DocumentChanged` 在其 `AnalysisUpdated` 之前。转发任务保留最近的文档、引擎状态和整盘进度三条事件，按原收取顺序回放给新订阅，不缓存或回放分析；分析的有效性仍由 AppCore 决定。没有活跃 Channel 时暂停读取 `AppSubscription`，由 AppCore 的有界邮箱保留最新有效事件并清除过期分析；首次订阅前或断连期间产生的有效最终结果不会被壳层提前消费丢弃。仅有一个活跃 Channel，新订阅替换旧订阅；订阅 ID 是单调递增的 u32，耗尽时报错，过期 ID 的取消操作幂等且不影响新订阅。前端 `src/api/backend.ts` 是统一业务入口，封装命令和订阅生命周期；多个界面监听者共享同一传输订阅。
 - 启动默认使用 Tauri 的应用配置目录，可用 `--config-dir <路径>` 或 `--config-dir=<路径>` 覆盖；棋谱路径可用一个位置参数或 `--open=<路径>` 指定，交给 `AppCore::open_path`。等号写法将选项和路径放在同一个原生参数中，兼容将每项参数都视为 Chromium 开关的 Windows WebDriver；桌面 E2E 在所有平台统一采用等号写法。参数顺序不受限，`--` 后的参数仅作棋谱路径，不再识别选项；未知选项、重复配置目录、多个棋谱和缺少或空路径均报错，混用两种写法仍按同一配置目录／棋谱参数检查重复。路径保持原生 OS 编码；启动打开失败时等待 AppCore 关闭后返回错误，不留下后台引擎。
-- 主窗口 capability 仅匹配本地 `main` 窗口，逐项允许应用命令和 `dialog:allow-open` / `dialog:allow-save`；不授权远程页面或宽泛 core / shell / fs 权限。`tauri-build::AppManifest::commands` 为应用命令生成 ACL 定义，确保命令同样受 capability 约束；生成的 permissions 与 schemas 不入库。Channel 内部的数据提取命令由 Tauri 自身处理，不需要额外的 core capability。
+- 主窗口 capability 仅匹配本地 `main` 窗口，逐项允许应用命令、`dialog:allow-open` / `dialog:allow-save`，以及「文件 → 退出」关闭自身用的 `core:window:allow-close`；不授权远程页面或宽泛 core / shell / fs 权限。`tauri-build::AppManifest::commands` 为应用命令生成 ACL 定义，确保命令同样受 capability 约束；生成的 permissions 与 schemas 不入库。Channel 内部的数据提取命令由 Tauri 自身处理，不需要额外的 core capability。
 
 ### 4.8 strength（棋力评估）
 
