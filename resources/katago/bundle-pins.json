@@ -6,13 +6,14 @@
   },
   "readboard": {
     "releaseRepository": "qiyi71w/readboard",
-    "releaseTag": "v3.0.6",
-    "sourceCommit": "e7b4108478bb153f13dc9211d0ddc811a739173b",
-    "url": "https://github.com/qiyi71w/readboard/releases/download/v3.0.6/readboard-github-release-v3.0.6.zip",
-    "sha256": "1ba4c265f560cd988be24f4ea0eeb29516883f42ece477bd32b72f8bccf6565d",
-    "sizeBytes": 92512856,
+    "releaseTag": "v3.2.0",
+    "sourceCommit": "b82039d379c13bf8e53e53cdfeaf59f90dfed56d",
+    "url": "https://github.com/qiyi71w/readboard/releases/download/v3.2.0/readboard-webview2-v3.2.0.zip",
+    "sha256": "6abb1c2764fe14f72f77a2444d314e037d1d1e95c6c95974cd6c9c67de6e9512",
+    "sizeBytes": 126901426,
     "archiveRoot": "readboard",
-    "applicationLicense": "not-published-by-upstream"
+    "applicationLicense": "redistributed-with-author-permission",
+    "elevationPatch": false
   },
   "licenses": [
     {
@@ -28,8 +29,8 @@
       "id": "readboard-notice",
       "source": "resources/licenses/readboard-NOTICE.txt",
       "destination": "readboard/lizzieyzy-next2-NOTICE.txt",
-      "sizeBytes": 802,
-      "sha256": "ebaa647fb883c75242da37eeb2d71a8aafe9a606bdaf4380b2a2cc8abf2a1634",
+      "sizeBytes": 391,
+      "sha256": "bf1536a4636dda47215313d27bd39627344e54244c38c2bcc37b0734829b173a",
       "platforms": [
         "windows-x64"
       ]
