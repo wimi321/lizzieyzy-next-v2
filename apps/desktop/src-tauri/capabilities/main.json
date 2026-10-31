@@ -27,6 +27,7 @@
     "allow-strength-estimate",
     "allow-configure-engine",
     "allow-detect-engines",
+    "allow-auto-configure-engine",
     "allow-try-configure-engine",
     "allow-fox-search",
     "allow-fox-next-page",

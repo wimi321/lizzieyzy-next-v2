@@ -50,6 +50,7 @@ impl EngineSetupProfile {
             model: self.model,
             config,
             extra_args: self.extra_args,
+            canonical_model_name: None,
         })
     }
 }

@@ -42,6 +42,7 @@ async fn live_results_completing_review_terminate_the_still_pending_batch() {
     actor.directory = directory.path().to_owned();
     actor.settings.pondering = false;
     actor.settings.engine = Some(EngineProfile {
+        canonical_model_name: None,
         model: program.clone(),
         config: program.clone(),
         program,
@@ -153,6 +154,7 @@ async fn batch_boundary_omits_later_turns_that_live_analysis_already_completed()
     actor.directory = directory.path().to_owned();
     actor.settings.pondering = false;
     actor.settings.engine = Some(EngineProfile {
+        canonical_model_name: None,
         model: program.clone(),
         config: program.clone(),
         program,

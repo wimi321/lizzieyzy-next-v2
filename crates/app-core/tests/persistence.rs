@@ -213,6 +213,7 @@ async fn configured_profile_and_pause_setting_survive_application_restart() {
     assert_eq!(within(app.settings()).await.unwrap(), Settings::default());
     // Missing files are intentionally editable settings, so no process starts.
     let profile = EngineProfile {
+        canonical_model_name: None,
         program: directory.path().join("missing-engine"),
         model: directory.path().join("missing-model.bin.gz"),
         config: directory.path().join("analysis.cfg"),

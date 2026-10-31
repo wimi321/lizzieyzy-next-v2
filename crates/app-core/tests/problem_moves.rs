@@ -32,6 +32,7 @@ async fn app(directory: &Path) -> (AppCore, AppSubscription) {
 fn profile(directory: &Path, speed: u64) -> EngineProfile {
     let program = fake_katago::binary_path().unwrap();
     EngineProfile {
+        canonical_model_name: None,
         model: program.clone(),
         config: program.clone(),
         program,

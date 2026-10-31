@@ -22,6 +22,20 @@ pub async fn detect_engines(
 }
 
 #[tauri::command]
+pub async fn auto_configure_engine(
+    state: State<'_, DesktopState>,
+    environment: State<'_, SetupEnvironment>,
+) -> Result<EngineProfile, CommandError> {
+    Ok(state
+        .core
+        .auto_configure_engine(
+            environment.roots.clone(),
+            environment.default_config_source.clone(),
+        )
+        .await?)
+}
+
+#[tauri::command]
 pub async fn try_configure_engine(
     state: State<'_, DesktopState>,
     environment: State<'_, SetupEnvironment>,

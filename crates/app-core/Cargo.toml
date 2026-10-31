@@ -17,9 +17,10 @@ katago-protocol = { path = "../katago-protocol" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-tokio = { version = "1", features = ["rt", "macros", "sync", "time", "fs"] }
+tokio = { version = "1", features = ["rt", "macros", "sync", "time", "fs", "process", "io-util"] }
 ts-rs = "11"
 blake3 = "1"
+sha2 = "0.10"
 tempfile = "3"
 
 [dev-dependencies]

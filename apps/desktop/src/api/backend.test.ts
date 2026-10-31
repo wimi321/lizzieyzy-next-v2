@@ -1,5 +1,5 @@
 import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
-import type { AppEvent, Backend, MoveRankSettings, Settings } from "./backend";
+import type { AppEvent, Backend, CommandError, MoveRankSettings, Settings } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn(), channels: [] as FakeChannel[] }));
 
@@ -78,6 +78,7 @@ test("forwards every command with typed arguments and preserves results/errors",
     [() => backend.configureEngine(profile), "configure_engine", { profile }, undefined],
     [() => backend.configureEngine(null), "configure_engine", { profile: null }, undefined],
     [() => backend.detectEngines(), "detect_engines", undefined, discovery],
+    [() => backend.autoConfigureEngine(), "auto_configure_engine", undefined, profile],
     [() => backend.tryConfigureEngine(setup), "try_configure_engine", { profile: setup }, undefined],
     [() => backend.foxSearch(query), "fox_search", { query }, search],
     [() => backend.foxNextPage("123", "cursor"), "fox_next_page", { uid: "123", cursor: "cursor" }, page],
@@ -95,6 +96,29 @@ test("forwards every command with typed arguments and preserves results/errors",
   const missing = { type: "Fox", data: { type: "UserNotFound" } };
   ipc.invoke.mockRejectedValueOnce(missing);
   await expect(backend.foxSearch(query)).rejects.toEqual(missing);
+});
+
+test("preserves automatic setup reasons and canonical model names", async () => {
+  const backend = await import("./backend");
+  const profile = {
+    program: "katago", model: "default.bin.gz", config: "analysis.cfg", extra_args: [],
+    canonical_model_name: "kata1-tf3-b11c768-s12002M-d6304M.bin.gz",
+  };
+  ipc.invoke.mockResolvedValueOnce(profile);
+  expect(await backend.autoConfigureEngine()).toEqual(profile);
+  const errors = [
+    { type: "NoPrograms" },
+    { type: "NoModels" },
+    { type: "AllFailed", data: {
+      attempts: [{ program: "katago", model: "default.bin.gz", reason: "version too old" }],
+      reason: "no usable pair",
+    } },
+  ] as const;
+  for (const data of errors) {
+    const error = { type: "AutoSetup", data };
+    ipc.invoke.mockRejectedValueOnce(error);
+    await expect(backend.autoConfigureEngine()).rejects.toBe(error);
+  }
 });
 
 test.each(["Timeout", "Network"] as const)("preserves Fox %s errors for search and open", async (type) => {
@@ -276,6 +300,32 @@ test("mock scripts discovery, setup success and readable setup failure", async (
     { command: "tryConfigureEngine", args: [profile] },
     { command: "tryConfigureEngine", args: [profile] },
   ]);
+});
+
+test("mock replays automatic setup profiles, analysis events and typed failures", async () => {
+  const mock = await loadMock();
+  const profile = {
+    program: "katago", model: "default.bin.gz", config: "analysis.cfg", extra_args: [],
+    canonical_model_name: "kata1-tf3-b11c768-s12002M-d6304M.bin.gz",
+  };
+  const error: CommandError = { type: "AutoSetup", data: { type: "AllFailed", data: {
+    attempts: [{ program: "katago", model: "default.bin.gz", reason: "trial failed" }],
+    reason: "all pairs failed",
+  } } };
+  mock.setScript({ commands: [
+    { command: "autoConfigureEngine", result: profile, events: [events[1]!] },
+    { command: "autoConfigureEngine", result: profile, error },
+  ] });
+  const listener = vi.fn();
+  const id = await mock.subscribe(listener);
+  expect(await mock.autoConfigureEngine()).toEqual(profile);
+  expect(listener).toHaveBeenCalledExactlyOnceWith(events[1]);
+  await expect(mock.autoConfigureEngine()).rejects.toEqual(error);
+  expect(mock.recordedCalls()).toEqual([
+    { command: "autoConfigureEngine", args: [] },
+    { command: "autoConfigureEngine", args: [] },
+  ]);
+  await mock.unsubscribe(id);
 });
 
 test("mock rejects unexpected commands and scripted errors", async () => {

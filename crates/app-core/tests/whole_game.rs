@@ -29,6 +29,7 @@ fn profile(directory: &Path, visits_per_second: u64, args: &[&str]) -> EnginePro
     ];
     extra_args.extend(args.iter().map(|arg| (*arg).into()));
     EngineProfile {
+        canonical_model_name: None,
         program: fake_katago::binary_path().unwrap(),
         model,
         config,

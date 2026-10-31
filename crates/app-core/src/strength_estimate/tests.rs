@@ -27,6 +27,7 @@ async fn whole_game_completion_exposes_both_players_and_invalidates_on_new_game_
     assert!(!empty.report.has_enough_data);
 
     within(app.configure_engine(Some(EngineProfile {
+        canonical_model_name: None,
         model: program.clone(),
         config: program.clone(),
         program,
