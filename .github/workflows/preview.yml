@@ -2,6 +2,16 @@ name: Preview installers
 
 on:
   workflow_dispatch:
+  # Formal-release workflows can call this job instead of maintaining a second
+  # download / packaging / acceptance path.
+  workflow_call:
+    inputs:
+      artifact_prefix:
+        type: string
+        default: preview
+      retention_days:
+        type: number
+        default: 14
 
 permissions:
   contents: read
@@ -14,21 +24,24 @@ jobs:
   bundle:
     name: Preview (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
             platform: windows
+            python: python
             bundles: nsis
             artifacts: target/release/bundle/nsis/*.exe
           - os: macos-latest
             platform: macos
+            python: python3
             bundles: dmg
             artifacts: target/release/bundle/dmg/*.dmg
           - os: ubuntu-latest
             platform: linux
+            python: python3
             bundles: appimage,deb
             artifacts: |
               target/release/bundle/appimage/*.AppImage
@@ -38,10 +51,26 @@ jobs:
         shell: bash
     env:
       CARGO_TERM_COLOR: always
+      PYTHON: ${{ matrix.python }}
+      WEBKIT_DISABLE_DMABUF_RENDERER: '1'
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Select bundled engine platform and start timer
+        id: platform
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "PACKAGING_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+          case "$RUNNER_OS/$RUNNER_ARCH" in
+            Windows/X64) platform=windows-x64 ;;
+            Linux/X64) platform=linux-x64 ;;
+            macOS/ARM64) platform=macos-arm64 ;;
+            macOS/X64) platform=macos-amd64 ;;
+            *) echo "Unsupported bundle platform: $RUNNER_OS/$RUNNER_ARCH" >&2; exit 1 ;;
+          esac
+          echo "engine=$platform" >> "$GITHUB_OUTPUT"
 
       - name: Install Linux Tauri prerequisites
         if: runner.os == 'Linux'
@@ -51,7 +80,7 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             build-essential curl wget file pkg-config libwebkit2gtk-4.1-dev \
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
-            patchelf
+            patchelf webkit2gtk-driver xvfb xauth dbus-x11
 
       - name: Install Rust toolchain
         run: |
@@ -77,16 +106,150 @@ jobs:
           export PATH="$HOME/.cargo/bin:$PATH"
           pnpm -C apps/desktop install --frozen-lockfile
 
-      # P1 deliberately supplies no signing credentials and no KataGo binaries/models.
-      - name: Build unsigned installers
+      - name: Test packaging helpers without network
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
-          pnpm -C apps/desktop tauri build --ci --no-sign --bundles "${{ matrix.bundles }}" -- --locked --no-default-features
+          "$PYTHON" -m unittest discover -s scripts/packaging -p 'test_*.py' -v
+
+      - name: Cache pinned downloads
+        uses: actions/cache@v5
+        with:
+          path: target/packaging-cache
+          key: bundled-v1-${{ steps.platform.outputs.engine }}-${{ hashFiles('resources/katago/*.json', 'scripts/packaging/*.py') }}
+
+      - name: Prepare and verify bundled resources
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          started_at=$(date +%s)
+          "$PYTHON" scripts/packaging/bundle.py prepare \
+            --platform "${{ steps.platform.outputs.engine }}" \
+            --cache target/packaging-cache --output target/bundled-resources
+          printf 'Resource download, SHA-256 verification and staging: %s seconds.\n' \
+            "$(( $(date +%s) - started_at ))" >> "$GITHUB_STEP_SUMMARY"
+
+      # No publisher credentials. macOS still needs ad-hoc signing of the app
+      # after Tauri patches its executable; signingIdentity is "-" in the override.
+      # The engine and dylibs were individually signed before their hash receipt.
+      - name: Build preview installers
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          started_at=$(date +%s)
+          signing_args=(--no-sign)
+          if [ "$RUNNER_OS" = macOS ]; then signing_args=(); fi
+          pnpm -C apps/desktop tauri build --ci "${signing_args[@]}" \
+            --config src-tauri/tauri.bundled.conf.json \
+            --bundles "${{ matrix.bundles }}" -- --locked --no-default-features
+          printf 'Installer compilation and packaging: %s seconds.\n' \
+            "$(( $(date +%s) - started_at ))" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Extract installers and compare bundled hashes
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          shopt -s nullglob
+          installers=(target/release/bundle/nsis/*.exe target/release/bundle/dmg/*.dmg \
+            target/release/bundle/appimage/*.AppImage target/release/bundle/deb/*.deb)
+          test "${#installers[@]}" -gt 0
+          for installer in "${installers[@]}"; do
+            format=$(basename "$(dirname "$installer")")
+            "$PYTHON" scripts/packaging/acceptance.py \
+              --platform "${{ steps.platform.outputs.engine }}" \
+              --staged target/bundled-resources --installer "$installer" \
+              --output "target/packaging-acceptance/$format"
+          done
+
+      - name: Install Linux application WebDriver
+        if: runner.os == 'Linux'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo install tauri-driver --locked --version '=2.1.0'
+
+      - name: Install WebView2-matched Microsoft Edge WebDriver
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$HOME/.cargo/bin;$env:PATH"
+          $ErrorActionPreference = 'Stop'
+          $runtimeKeys = @(
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+            'HKCU:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+            'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          )
+          $runtimeVersion = $null
+          foreach ($key in $runtimeKeys) {
+            $candidate = Get-ItemPropertyValue -Path $key -Name pv -ErrorAction SilentlyContinue
+            if ($candidate -match '^\d+\.\d+\.\d+\.\d+$' -and $candidate -ne '0.0.0.0') {
+              $runtimeVersion = $candidate
+              break
+            }
+          }
+          if (-not $runtimeVersion) { throw 'WebView2 Runtime version was not found' }
+          $driverDirectory = Join-Path $env:RUNNER_TEMP 'bundled-engine-webdriver'
+          $archive = Join-Path $env:RUNNER_TEMP 'bundled-engine-webdriver.zip'
+          Invoke-WebRequest -Uri "https://msedgedriver.microsoft.com/$runtimeVersion/edgedriver_win64.zip" -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $driverDirectory
+          $driver = Join-Path $driverDirectory 'msedgedriver.exe'
+          $signature = Get-AuthenticodeSignature $driver
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+            throw 'Microsoft Edge WebDriver signature is invalid'
+          }
+          $driverVersion = (& $driver --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $driverVersion -notmatch '^Microsoft Edge WebDriver (\d+\.\d+\.\d+)\.') {
+            throw "Invalid Microsoft Edge WebDriver version: $driverVersion"
+          }
+          if ($Matches[1] -ne (($runtimeVersion -split '\.')[0..2] -join '.')) {
+            throw "WebView2 Runtime $runtimeVersion does not match $driverVersion"
+          }
+          "BUNDLED_SMOKE_DRIVER=$driver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WebView2: $runtimeVersion; driver: $driverVersion" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Check clean-profile B11 auto configuration (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          for format in appimage deb; do
+            dbus-run-session -- xvfb-run -a --server-args='-screen 0 1280x1024x24' \
+              "$PYTHON" scripts/packaging/smoke.py \
+                --acceptance-dir "target/packaging-acceptance/$format" \
+                --driver "$HOME/.cargo/bin/tauri-driver"
+          done
+
+      - name: Check clean-profile B11 auto configuration (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$HOME/.cargo/bin;$env:PATH"
+          & ./scripts/packaging/smoke-windows.ps1 -AcceptanceDir target/packaging-acceptance/nsis -Driver $env:BUNDLED_SMOKE_DRIVER
+
+      - name: Restore Windows smoke WebView2 policy
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$HOME/.cargo/bin;$env:PATH"
+          & ./scripts/packaging/smoke-windows.ps1 -Action Restore -AcceptanceDir target/packaging-acceptance/nsis -Driver $env:BUNDLED_SMOKE_DRIVER
 
       - name: Upload preview installers
         uses: actions/upload-artifact@v6
         with:
-          name: preview-${{ matrix.platform }}-${{ runner.arch }}-${{ github.run_id }}
+          name: ${{ inputs.artifact_prefix || 'preview' }}-${{ matrix.platform }}-${{ runner.arch }}-${{ github.run_id }}
           path: ${{ matrix.artifacts }}
           if-no-files-found: error
+          retention-days: ${{ inputs.retention_days || 14 }}
+
+      - name: Upload packaging diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: packaging-diagnostics-${{ matrix.platform }}-${{ runner.arch }}-${{ github.run_id }}
+          path: |
+            target/bundled-resources/bundle-manifest.json
+            target/packaging-acceptance/**/*.json
+            target/packaging-acceptance/**/*.log
+          if-no-files-found: ignore
           retention-days: 14
+
+      - name: Report total packaging time
+        if: always()
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          printf 'Packaging job steps: %s seconds (limit: 90 minutes).\n' \
+            "$(( $(date +%s) - PACKAGING_STARTED_AT ))" >> "$GITHUB_STEP_SUMMARY"
