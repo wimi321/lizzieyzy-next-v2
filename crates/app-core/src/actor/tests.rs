@@ -36,6 +36,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             config: AppConfig::default(),
             running: None,
             trial: None,
+            auto_setup: Default::default(),
             focus: Some(focus),
             output,
         },
@@ -98,6 +99,7 @@ async fn lru_eviction_restores_persistent_analysis_with_the_previous_best_summar
     let directory = tempfile::tempdir().unwrap();
     let program = fake_katago::binary_path().unwrap();
     let profile = EngineProfile {
+        canonical_model_name: None,
         model: program.clone(),
         config: program.clone(),
         program,

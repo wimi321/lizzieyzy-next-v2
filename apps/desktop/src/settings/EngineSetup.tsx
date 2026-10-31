@@ -19,6 +19,7 @@ export interface SetupLabels {
   starting: string;
   close: string;
   failed: string;
+  autoFailed: string;
 }
 
 type SetupBackend = Pick<Backend, "detectEngines" | "tryConfigureEngine" | "pickEngineFile">;
@@ -30,6 +31,8 @@ export interface EngineSetupProps {
   current: EngineProfile | null;
   /** The saved profile's engine is starting or ready, so applying it unchanged would do nothing. */
   engineRunning: boolean;
+  /** Why automatic setup gave up, when it opened this dialog. */
+  notice?: string | null;
   /** Called after the engine reached Ready and the profile was saved. */
   onConfigured(profile: EngineSetupProfile): void;
   onClose(): void;
@@ -38,7 +41,7 @@ export interface EngineSetupProps {
 type Phase = { kind: "editing" } | { kind: "starting" } | { kind: "failed"; message: string };
 
 /** Picks KataGo files and starts the engine before anything is saved (try-then-save). */
-export function EngineSetup({ backend, labels, current, engineRunning, onConfigured, onClose }: EngineSetupProps) {
+export function EngineSetup({ backend, labels, current, engineRunning, notice = null, onConfigured, onClose }: EngineSetupProps) {
   const [discovery, setDiscovery] = useState<EngineDiscovery | null>(null);
   const [program, setProgram] = useState(current?.program ?? "");
   const [model, setModel] = useState(current?.model ?? "");
@@ -136,6 +139,12 @@ export function EngineSetup({ backend, labels, current, engineRunning, onConfigu
           onChange={setConfig}
           onBrowse={() => void browse("config")}
         />
+        {notice && phase.kind === "editing" ? (
+          <div className="dialog-error" role="alert" data-testid="setup-notice">
+            <strong>{labels.autoFailed}</strong>
+            <pre>{notice}</pre>
+          </div>
+        ) : null}
         {phase.kind === "failed" ? (
           <div className="dialog-error" role="alert" data-testid="setup-error">
             <strong>{labels.failed}</strong>

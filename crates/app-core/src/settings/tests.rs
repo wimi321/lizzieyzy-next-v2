@@ -5,6 +5,7 @@ use std::{fs, time::Duration};
 
 fn profile(directory: &Path) -> EngineProfile {
     let profile = EngineProfile {
+        canonical_model_name: None,
         program: directory.join("engine"),
         model: directory.join("model.bin"),
         config: directory.join("analysis.cfg"),
@@ -50,6 +51,7 @@ async fn legacy_settings_default_missing_fields_and_ignore_unknown_fields() {
     assert_eq!(
         settings.engine.unwrap(),
         EngineProfile {
+            canonical_model_name: None,
             program: "katago".into(),
             ..EngineProfile::default()
         }
@@ -347,6 +349,7 @@ async fn missing_model_and_non_file_config_have_readable_errors() {
 #[test]
 fn local_transport_forces_black_and_preserves_argument_boundaries() {
     let profile = EngineProfile {
+        canonical_model_name: None,
         program: "path with spaces/katago".into(),
         model: "model with spaces.bin".into(),
         config: "custom config.cfg".into(),

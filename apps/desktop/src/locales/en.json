@@ -63,7 +63,11 @@
     "apply": "Apply",
     "starting": "Starting…",
     "close": "Close",
-    "failed": "The engine did not start; settings are unchanged:"
+    "failed": "The engine did not start; settings are unchanged:",
+    "autoFailed": "The engine could not be set up automatically. Choose the files below:",
+    "autoNoPrograms": "No KataGo program was found on this computer.",
+    "autoNoModels": "No model (network weights) file was found on this computer.",
+    "autoAllFailed": "None of the {n} program and model pairs found would start:"
   },
   "info": {
     "black": "Black",

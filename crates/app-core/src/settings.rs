@@ -21,6 +21,10 @@ pub struct EngineProfile {
     pub model: PathBuf,
     pub config: PathBuf,
     pub extra_args: Vec<String>,
+    // Catalog identity verified by size and SHA-256; display metadata only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub canonical_model_name: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

@@ -53,6 +53,7 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::strength::strength_estimate,
             commands::engine::configure_engine,
             commands::engine::detect_engines,
+            commands::engine::auto_configure_engine,
             commands::engine::try_configure_engine,
             commands::fox::fox_search,
             commands::fox::fox_next_page,

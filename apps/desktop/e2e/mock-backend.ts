@@ -8,6 +8,7 @@ export type {
   GraphPointView, GraphView,
   FoxAccount, FoxGame, FoxPage, FoxQuery, FoxSearchResult,
   FoxPlayer, FoxResult, FoxResultKind, FoxColor, FoxScoreUnit, FoxFailure, CommandError,
+  AutoSetupError, AutoSetupAttempt,
   GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
   WireAppEvent, WholeGameOptions, WholeGamePreset, WholeGameProgress, WholeGameStatus,
   WholeGameProgressListener,
@@ -213,6 +214,7 @@ export const setPondering: Backend["setPondering"] = (enabled) => command("setPo
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);
 export const detectEngines: Backend["detectEngines"] = () => command("detectEngines", []);
+export const autoConfigureEngine: Backend["autoConfigureEngine"] = () => command("autoConfigureEngine", []);
 export const tryConfigureEngine: Backend["tryConfigureEngine"] = (profile) =>
   command("tryConfigureEngine", [profile]);
 export const foxSearch: Backend["foxSearch"] = (query) => command("foxSearch", [query]);

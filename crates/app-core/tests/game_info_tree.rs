@@ -510,6 +510,7 @@ async fn previews_do_not_submit_engine_queries_or_publish_document_events() {
     std::fs::write(&model, "fake model").unwrap();
     std::fs::write(&config, "numAnalysisThreads = 1\n").unwrap();
     let engine = EngineProfile {
+        canonical_model_name: None,
         program: fake_katago::binary_path().unwrap(),
         model,
         config,

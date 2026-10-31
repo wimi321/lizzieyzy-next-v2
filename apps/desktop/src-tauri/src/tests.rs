@@ -13,6 +13,7 @@ use tauri::{
 use tempfile::TempDir;
 use tokio::sync::{mpsc, oneshot};
 
+mod engine_auto_setup;
 mod problem_moves;
 mod review;
 mod strength;
@@ -194,6 +195,7 @@ fn profile(directory: &Path) -> EngineProfile {
         model,
         config,
         extra_args: Vec::new(),
+        canonical_model_name: None,
     }
 }
 
@@ -443,6 +445,12 @@ async fn capability_denies_other_windows_remote_origins_and_unneeded_plugins() {
         (&harness.main, "settings", "https://example.com/"),
         (&other, "detect_engines", local_url()),
         (&harness.main, "detect_engines", "https://example.com/"),
+        (&other, "auto_configure_engine", local_url()),
+        (
+            &harness.main,
+            "auto_configure_engine",
+            "https://example.com/",
+        ),
         (&other, "variation_tree", local_url()),
         (&harness.main, "variation_tree", "https://example.com/"),
         (&other, "preview_variation", local_url()),

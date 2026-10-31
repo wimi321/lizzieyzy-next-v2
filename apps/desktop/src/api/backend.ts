@@ -54,6 +54,8 @@ export type { FoxColor } from "./generated/FoxColor";
 export type { FoxScoreUnit } from "./generated/FoxScoreUnit";
 export type { FoxFailure } from "./generated/FoxFailure";
 export type { CommandError } from "./generated/CommandError";
+export type { AutoSetupError } from "./generated/AutoSetupError";
+export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
@@ -73,6 +75,8 @@ export interface Backend extends ReviewCommands, ProblemMoveCommands, StrengthCo
   setPondering(enabled: boolean): Promise<void>;
   configureEngine(profile: EngineProfile | null): Promise<void>;
   detectEngines(): Promise<EngineDiscovery>;
+  /** Returns a saved profile unchanged, or discovers and starts the first usable pair. */
+  autoConfigureEngine(): Promise<EngineProfile>;
   tryConfigureEngine(profile: EngineSetupProfile): Promise<void>;
   foxSearch(query: FoxQuery): Promise<FoxSearchResult>;
   foxNextPage(uid: string, cursor: string): Promise<FoxPage>;
@@ -106,6 +110,7 @@ export const setPondering: Backend["setPondering"] = (enabled) =>
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   invoke("configure_engine", { profile });
 export const detectEngines: Backend["detectEngines"] = () => invoke("detect_engines");
+export const autoConfigureEngine: Backend["autoConfigureEngine"] = () => invoke("auto_configure_engine");
 export const tryConfigureEngine: Backend["tryConfigureEngine"] = (profile) =>
   invoke("try_configure_engine", { profile });
 export const foxSearch: Backend["foxSearch"] = (query) => invoke("fox_search", { query });

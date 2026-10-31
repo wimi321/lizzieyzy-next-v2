@@ -33,6 +33,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
             config,
             running: None,
             trial: None,
+            auto_setup: Default::default(),
             focus: None,
             output,
         },

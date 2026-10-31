@@ -2,6 +2,7 @@
 //! engine session and analysis coordinator. Handles contain only channels.
 
 mod actor;
+mod auto_setup;
 mod delivery;
 pub mod engine_setup;
 mod engine_trial;
@@ -16,6 +17,7 @@ mod storage;
 mod strength_estimate;
 mod view;
 
+pub use auto_setup::{AutoSetupAttempt, AutoSetupError};
 pub use delivery::AppSubscription;
 pub use engine_trial::{EngineSetupError, EngineSetupProfile};
 pub use graph::{AnalysisSummary, GraphPointView, GraphView};
@@ -54,6 +56,8 @@ pub enum AppError {
     Session(#[from] engine_session::SessionError),
     #[error(transparent)]
     EngineSetup(#[from] EngineSetupError),
+    #[error(transparent)]
+    AutoSetup(#[from] AutoSetupError),
     #[error(transparent)]
     Fox(#[from] fox::FoxError),
     #[error(transparent)]

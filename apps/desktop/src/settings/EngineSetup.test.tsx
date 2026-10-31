@@ -21,7 +21,7 @@ const SAVED: EngineProfile = {
 
 function setup(
   tryConfigureEngine: (profile: EngineSetupProfile) => Promise<void>,
-  { current = null, engineRunning = false }: { current?: EngineProfile | null; engineRunning?: boolean } = {},
+  { current = null, engineRunning = false, notice = null }: { current?: EngineProfile | null; engineRunning?: boolean; notice?: string | null } = {},
 ) {
   const backend = {
     detectEngines: vi.fn(async () => FOUND),
@@ -36,6 +36,7 @@ function setup(
       labels={en.setup}
       current={current}
       engineRunning={engineRunning}
+      notice={notice}
       onConfigured={onConfigured}
       onClose={onClose}
     />,
@@ -101,4 +102,18 @@ test("shows the command error text and stays open when the engine fails", async 
   expect(screen.getByTestId("setup-error").textContent).toContain("engine setup failed: missing model");
   expect(onConfigured).not.toHaveBeenCalled();
   expect(startButton().disabled).toBe(false);
+});
+
+test("opened by a failed automatic setup, it says why until a start is tried", async () => {
+  setup(async () => {
+    throw { type: "App", data: "model not supported" };
+  }, { notice: "No KataGo program was found on this computer." });
+  expect((await screen.findByTestId("setup-notice")).textContent).toBe(`${en.setup.autoFailed}No KataGo program was found on this computer.`);
+  await act(async () => {});
+  expect((screen.getByTestId("setup-program") as HTMLSelectElement).value).toBe(FOUND.programs[0]);
+  await act(async () => {
+    fireEvent.click(screen.getByTestId("setup-start"));
+  });
+  expect(screen.queryByTestId("setup-notice")).toBeNull();
+  expect(screen.getByTestId("setup-error").textContent).toContain("model not supported");
 });

@@ -63,7 +63,11 @@
     "apply": "应用",
     "starting": "正在启动…",
     "close": "关闭",
-    "failed": "引擎没能启动，设置没有改动："
+    "failed": "引擎没能启动，设置没有改动：",
+    "autoFailed": "没能自动选好引擎，请在下面手动选择：",
+    "autoNoPrograms": "本机没有找到 KataGo 程序。",
+    "autoNoModels": "本机没有找到模型（网络权重）文件。",
+    "autoAllFailed": "找到的 {n} 组程序和模型都没能启动："
   },
   "info": {
     "black": "黑方",

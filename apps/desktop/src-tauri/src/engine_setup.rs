@@ -21,12 +21,38 @@ impl SetupEnvironment {
         #[cfg(not(target_os = "linux"))]
         let appimage: Option<PathBuf> = None;
         let application_dirs = application_directories(&executable, appimage.as_deref());
+        let resource_dir = app.path().resource_dir()?;
+        let home = app.path().home_dir().ok();
+        let install_bases = match std::env::consts::OS {
+            "macos" => vec![PathBuf::from("/Applications")],
+            "windows" => ["ProgramFiles", "ProgramFiles(x86)"]
+                .into_iter()
+                .filter_map(std::env::var_os)
+                .map(PathBuf::from)
+                .collect(),
+            // package_release.sh distributes a portable Lizzieyzy/ tree,
+            // with no installer or prescribed system installation directory.
+            "linux" => vec![PathBuf::from("/opt")],
+            _ => Vec::new(),
+        };
+        let java_install_dirs = java_content_roots(
+            std::env::consts::OS,
+            &application_dirs,
+            home.as_deref(),
+            &install_bases,
+        );
         let path_dirs = std::env::var_os("PATH")
             .map(|paths| std::env::split_paths(&paths).collect())
             .unwrap_or_default();
         let mut roots = SearchRoots {
             path_dirs,
             application_dirs,
+            resource_dirs: vec![resource_dir.clone()],
+            java_install_dirs,
+            platform_dirs: platform_directory(std::env::consts::OS, std::env::consts::ARCH)
+                .map(str::to_owned)
+                .into_iter()
+                .collect(),
             ..Default::default()
         };
         if cfg!(target_os = "macos") {
@@ -51,9 +77,74 @@ impl SetupEnvironment {
         }
         Ok(Self {
             roots,
-            default_config_source: app.path().resource_dir()?.join("katago/analysis.cfg"),
+            default_config_source: resource_dir.join("katago/analysis.cfg"),
         })
     }
+}
+
+fn platform_directory(os: &str, arch: &str) -> Option<&'static str> {
+    match (os, arch) {
+        ("macos", "aarch64") => Some("macos-arm64"),
+        ("macos", "x86_64") => Some("macos-amd64"),
+        ("windows", "x86_64") => Some("windows-x64"),
+        ("linux", "x86_64") => Some("linux-x64"),
+        _ => None,
+    }
+}
+
+/// Fixed content roots from Java's package_macos_dmg.sh,
+/// package_windows_exe.sh and package_release.sh. No directory enumeration.
+fn java_content_roots(
+    os: &str,
+    application_dirs: &[PathBuf],
+    home: Option<&Path>,
+    install_bases: &[PathBuf],
+) -> Vec<PathBuf> {
+    let mut bases = install_bases.to_vec();
+    let mut roots = Vec::new();
+    match os {
+        "macos" => {
+            if let Some(home) = home {
+                bases.push(home.join("Applications"));
+            }
+            bases.extend_from_slice(application_dirs);
+            roots.extend(
+                bases
+                    .into_iter()
+                    .map(|base| base.join("LizzieYzy Next.app/Contents/app")),
+            );
+        }
+        "windows" => {
+            // jpackage's machine-wide installer uses ProgramFiles/<name>/app.
+            // Portable archives retain the same name/app layout.
+            const NAMES: &[&str] = &[
+                "LizzieYzy Next",
+                "LizzieYzy Next OpenCL",
+                "LizzieYzy Next NVIDIA",
+                "LizzieYzy Next NVIDIA TensorRT",
+                "LizzieYzy Next DirectML Experimental",
+                "LizzieYzy Next OpenVINO Experimental",
+                "LizzieYzy Next ROCm gfx103x Experimental",
+                "LizzieYzy Next ROCm gfx110x Experimental",
+                "LizzieYzy Next ROCm gfx1151 Experimental",
+                "LizzieYzy Next ROCm gfx120x Experimental",
+            ];
+            bases.extend_from_slice(application_dirs);
+            for base in bases {
+                roots.extend(NAMES.iter().map(|name| base.join(name).join("app")));
+            }
+            roots.extend(application_dirs.iter().map(|base| base.join("app")));
+        }
+        "linux" => {
+            bases.extend_from_slice(application_dirs);
+            if let Some(home) = home {
+                bases.push(home.to_owned());
+            }
+            roots.extend(bases.into_iter().map(|base| base.join("Lizzieyzy")));
+        }
+        _ => {}
+    }
+    roots
 }
 
 fn application_directories(executable: &Path, appimage: Option<&Path>) -> Vec<PathBuf> {

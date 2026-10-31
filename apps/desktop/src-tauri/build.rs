@@ -22,6 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "strength_estimate",
         "configure_engine",
         "detect_engines",
+        "auto_configure_engine",
         "try_configure_engine",
         "fox_search",
         "fox_next_page",

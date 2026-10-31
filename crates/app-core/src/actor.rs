@@ -8,6 +8,7 @@ use engine_session::EngineHandle;
 use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
+mod auto_setup;
 mod fox;
 mod problem_moves;
 mod review;
@@ -28,6 +29,11 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    BeginAutoSetup(oneshot::Sender<Result<crate::auto_setup::Start, AppError>>),
+    TryAutoEngine(
+        crate::auto_setup::Trial,
+        oneshot::Sender<Result<EngineProfile, AppError>>,
+    ),
     StrengthEstimate(oneshot::Sender<Result<crate::StrengthEstimateView, AppError>>),
     Fox(crate::fox::Request),
     ProblemMoves(
@@ -98,6 +104,7 @@ struct Actor {
     config: AppConfig,
     running: Option<Running>,
     trial: Option<PendingTrial>,
+    auto_setup: auto_setup::State,
     focus: Option<ViewFocus>,
     output: Delivery,
 }
@@ -122,6 +129,7 @@ pub(crate) async fn run(
         config,
         running: None,
         trial: None,
+        auto_setup: Default::default(),
         focus: None,
         output,
     };
@@ -148,7 +156,13 @@ pub(crate) async fn run(
                     let _ = reply.send(result);
                 }
                 Some(Command::Settings(reply)) => { let _ = reply.send(actor.settings.clone()); }
+                Some(Command::BeginAutoSetup(reply)) => {
+                    let result = actor.begin_auto_setup().await;
+                    let _ = reply.send(result);
+                }
+                Some(Command::TryAutoEngine(trial, reply)) => actor.begin_auto_trial(trial, reply).await,
                 Some(Command::Apply(Input::Shutdown, reply)) => {
+                    actor.auto_setup.cancel();
                     actor.cancel_trial().await;
                     let result = actor.stop_engine().await.map(|()| actor.revision);
                     let _ = reply.send(result);
@@ -158,6 +172,7 @@ pub(crate) async fn run(
                     let _ = reply.send(actor.apply(input).await);
                 }
                 Some(Command::TryConfigureEngine(profile, source, reply)) => {
+                    actor.auto_setup.cancel();
                     actor.begin_trial(profile, source, reply).await;
                 }
                 None => { actor.cancel_trial().await; let _ = actor.stop_engine().await; break; }
@@ -336,6 +351,7 @@ impl Actor {
                 }
             }
             Input::ConfigureEngine(profile) => {
+                self.auto_setup.cancel();
                 self.cancel_trial().await;
                 // Validate argument conflicts before changing the saved configuration.
                 if let Some(profile) = &profile {
