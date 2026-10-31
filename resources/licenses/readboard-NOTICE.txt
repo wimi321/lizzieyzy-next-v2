@@ -1,0 +1,14 @@
+readboard v3.0.6
+
+Source: https://github.com/qiyi71w/readboard/tree/e7b4108478bb153f13dc9211d0ddc811a739173b
+Release: https://github.com/qiyi71w/readboard/releases/tag/v3.0.6
+
+This package preserves the upstream release payload and its runtime notices.
+The readboard application repository at this release has no LICENSE, COPYING,
+or NOTICE file and states no application license in its README. This notice
+does not grant a license or substitute for permission from the copyright holder.
+Maintainers must resolve the upstream application license before distribution.
+
+The readboard.exe execution manifest is changed from requireAdministrator to
+asInvoker, matching the Java LizzieYzy Next packaging script. The ZIP payload
+is verified before this same-length change; the packaged file is hashed again.

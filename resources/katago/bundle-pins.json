@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "engineDownload": {
+    "releaseTag": "next-2026-10-24.2",
+    "reason": "katago-assets.json names next-2026-10-28.1, still a draft; the published next-2026-10-24.2 carries the same engine archives with the same SHA-256."
+  },
+  "readboard": {
+    "releaseRepository": "qiyi71w/readboard",
+    "releaseTag": "v3.0.6",
+    "sourceCommit": "e7b4108478bb153f13dc9211d0ddc811a739173b",
+    "url": "https://github.com/qiyi71w/readboard/releases/download/v3.0.6/readboard-github-release-v3.0.6.zip",
+    "sha256": "1ba4c265f560cd988be24f4ea0eeb29516883f42ece477bd32b72f8bccf6565d",
+    "sizeBytes": 92512856,
+    "archiveRoot": "readboard",
+    "applicationLicense": "not-published-by-upstream"
+  },
+  "licenses": [
+    {
+      "id": "katago-network",
+      "source": "resources/licenses/KataGo-Network-LICENSE.txt",
+      "destination": "weights/LICENSE.txt",
+      "sizeBytes": 1247,
+      "sha256": "c24cdf46c3e711f56e1a9de6d50c034997831506380a207cf3fa1c13306a1c48",
+      "sourceUrl": "https://katagotraining.org/network_license/",
+      "sourcePageSha256": "590837548c66daca592955910aeeea36634daa49c722b1a80f6e24c0b714657e"
+    },
+    {
+      "id": "readboard-notice",
+      "source": "resources/licenses/readboard-NOTICE.txt",
+      "destination": "readboard/lizzieyzy-next2-NOTICE.txt",
+      "sizeBytes": 802,
+      "sha256": "ebaa647fb883c75242da37eeb2d71a8aafe9a606bdaf4380b2a2cc8abf2a1634",
+      "platforms": [
+        "windows-x64"
+      ]
+    }
+  ]
+}
