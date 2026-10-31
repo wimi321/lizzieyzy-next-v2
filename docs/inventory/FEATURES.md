@@ -310,10 +310,10 @@
 | 死活题（`game.tsumego`） | 分析 → 死活题 | `gui/Menu.java`；`gui/TsumeGoFrame.java` | KataGo；抓题依屏幕采集能力 | P3 | 死活题及采集明确属于 ROADMAP P3。 |
 | 抓取死活题（`menu.captureTsumeGo`） | 分析 → 抓取死活题 | `gui/Menu.java`；`gui/CaptureTsumeGoFrame.java` | KataGo；抓题依屏幕采集能力 | P3 | 死活题及采集明确属于 ROADMAP P3。 |
 | 棋力水平评估（`menu.playerStrengthEstimate`） | 分析 → 棋力水平评估 | `gui/Menu.java`；`gui/StrengthDialog.java` | KataGo / 评估模型与分析数据 | P3 | 棋力评估明确属于 ROADMAP P3。 |
-| 显示跑谱贡献菜单（`menu.showContribute`） | 设置 → 显示跑谱贡献菜单 | `gui/Menu.java` | 本地配置；具体贡献功能另需网络与引擎 | P3 | 分布式自我对弈贡献是独立工作流，复盘主线稳定后再评估。 |
-| 可视化KataGo分布式训练（`menu.kataGoDistributedTraining`） | 跑谱贡献 → 可视化KataGo分布式训练 | `gui/Menu.java` | 网络；KataGo contribute 与服务账号 | P3 | 分布式自我对弈贡献是独立工作流，复盘主线稳定后再评估。 |
-| KataGo训练设置（`menu.kataGoTrainingSettings`） | 跑谱贡献 → KataGo训练设置 | `gui/Menu.java` | 网络；KataGo contribute 与服务账号 | P3 | 分布式自我对弈贡献是独立工作流，复盘主线稳定后再评估。 |
-| KataGo官方网站（`menu.kataGoOfficialWebsite`） | 跑谱贡献 → KataGo官方网站 | `gui/Menu.java` | 网络；系统浏览器 / KataGo 训练网站 | P3 | 训练网站是贡献工作流的外部链接，随该功能按需提供。 |
+| 显示跑谱贡献菜单（`menu.showContribute`） | 设置 → 显示跑谱贡献菜单 | `gui/Menu.java` | 本地配置；具体贡献功能另需网络与引擎 | 砍掉 | 维护者 2026-10-31 决定不需要跑谱贡献。 |
+| 可视化KataGo分布式训练（`menu.kataGoDistributedTraining`） | 跑谱贡献 → 可视化KataGo分布式训练 | `gui/Menu.java` | 网络；KataGo contribute 与服务账号 | 砍掉 | 维护者 2026-10-31 决定不需要跑谱贡献。 |
+| KataGo训练设置（`menu.kataGoTrainingSettings`） | 跑谱贡献 → KataGo训练设置 | `gui/Menu.java` | 网络；KataGo contribute 与服务账号 | 砍掉 | 维护者 2026-10-31 决定不需要跑谱贡献。 |
+| KataGo官方网站（`menu.kataGoOfficialWebsite`） | 跑谱贡献 → KataGo官方网站 | `gui/Menu.java` | 网络；系统浏览器 / KataGo 训练网站 | 砍掉 | 维护者 2026-10-31 决定不需要跑谱贡献。 |
 | AI 陪练（`game.ai-coach`） | AI 陪练 | `gui/Menu.java`；`gui/NewHumanSlGameDialog.java` | KataGo 与 HumanSL 模型 | P3 | HumanSL 陪练明确属于 ROADMAP P3。 |
 | 人机对局（分析模式）（`menu.newAnalyzeModeGame`） | 棋局 → 新对局 → 人机对局（分析模式） | `gui/Menu.java`；`gui/NewAnaGameDialog.java` | 引擎 / 模型；Genmove 模式依 GTP | P3 | 人机对局及其用时控制明确属于 ROADMAP P3。 |
 | 对局时后台计算（`config.advanced.ponder`） | 设置 → 综合设置 → 高级选项 → 对局时后台计算 | `gui/ConfigDialog2.java`；`gui/LizzieFrame.java` | 引擎 / 模型；Genmove 模式依 GTP | P3 | 人机对局及其用时控制明确属于 ROADMAP P3。 |
