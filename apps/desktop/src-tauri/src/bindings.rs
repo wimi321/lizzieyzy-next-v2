@@ -5,8 +5,8 @@ use std::{fs, path::Path};
 use app_core::fox::{FoxPage, FoxQuery, FoxSearchResult};
 use app_core::{
     AppEvent, EngineSetupProfile, MoveView, ProblemMovesQuery, ProblemMovesView, Settings,
-    StrengthEstimateView, VariationPreviewView, VariationTreeView, WholeGameOptions,
-    WholeGamePreset, engine_setup::EngineDiscovery,
+    StrengthEstimateView, TsumegoOptions, TsumegoStatus, VariationPreviewView, VariationTreeView,
+    WholeGameOptions, WholeGamePreset, engine_setup::EngineDiscovery,
 };
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -37,6 +37,8 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     ProblemMovesQuery::export_all_to(directory)?;
     ProblemMovesView::export_all_to(directory)?;
     StrengthEstimateView::export_all_to(directory)?;
+    TsumegoOptions::export_all_to(directory)?;
+    TsumegoStatus::export_all_to(directory)?;
     Revision::export_all_to(directory)?;
     SubscriptionId::export_all_to(directory)?;
     Ok(())

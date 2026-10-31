@@ -45,6 +45,7 @@ export interface MenuActions {
   step(steps: number): void;
   goTo(node: number): void;
   openFox(): void;
+  openTsumego(): void;
   openEngineSetup(): void;
   restartEngine(): void;
   openAbout(): void;
@@ -95,6 +96,7 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     wholeGameDeepAnalysis: when(state.hasDocument, actions.openAutoAnalysis),
     stopAutoAnalyze: when(state.wholeGameActive, actions.cancelAutoAnalysis),
     playerStrengthEstimate: when(state.hasDocument, actions.openStrength),
+    tsumeGoMenu: when(state.hasBoard, actions.openTsumego),
 
     backToMainBranch: when(trunk !== null, goTo(trunk)),
     jumpToFirst: step(-JUMP),

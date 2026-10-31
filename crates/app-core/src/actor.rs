@@ -14,6 +14,7 @@ mod problem_moves;
 mod review;
 mod strength_estimate;
 mod trial;
+mod tsumego;
 use trial::PendingTrial;
 
 pub(crate) enum Input {
@@ -25,6 +26,8 @@ pub(crate) enum Input {
     Redo,
     SetPondering(bool),
     ConfigureEngine(Option<EngineProfile>),
+    GenerateTsumego(crate::TsumegoOptions),
+    ExitTsumego,
     Shutdown,
 }
 
@@ -34,6 +37,7 @@ pub(crate) enum Command {
         crate::auto_setup::Trial,
         oneshot::Sender<Result<EngineProfile, AppError>>,
     ),
+    TsumegoStatus(oneshot::Sender<crate::TsumegoStatus>),
     StrengthEstimate(
         Option<[i32; 2]>,
         oneshot::Sender<Result<crate::StrengthEstimateView, AppError>>,
@@ -96,6 +100,7 @@ struct ViewFocus {
 
 struct Actor {
     document: GameDocument,
+    tsumego: Option<tsumego::Session>,
     tree: VariationTreeView,
     summaries: HashMap<NodeId, AnalysisSummary>,
     review: review::ReviewState,
@@ -121,6 +126,7 @@ pub(crate) async fn run(
 ) {
     let mut actor = Actor {
         document: GameDocument::new(),
+        tsumego: None,
         tree: VariationTreeView::default(),
         summaries: HashMap::new(),
         review: review::ReviewState::default(),
@@ -143,6 +149,7 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             command = commands.recv() => match command {
+                Some(Command::TsumegoStatus(reply)) => { let _ = reply.send(actor.tsumego_status()); }
                 Some(Command::StrengthEstimate(bounds, reply)) => { let _ = reply.send(actor.strength_estimate(bounds)); }
                 Some(Command::Fox(request)) => actor.fox_request(request).await,
                 Some(Command::ProblemMoves(query, reply)) => { let _ = reply.send(actor.problem_moves(query)); }
@@ -298,6 +305,8 @@ impl Actor {
 
     async fn apply(&mut self, input: Input) -> Result<u64, AppError> {
         match input {
+            Input::GenerateTsumego(options) => self.generate_tsumego(options).await?,
+            Input::ExitTsumego => self.exit_tsumego().await?,
             Input::OpenPath(path) => self.open(tokio::fs::read(path).await?).await?,
             Input::OpenBytes(bytes) => self.open(bytes).await?,
             Input::Save(path) => {
@@ -399,9 +408,16 @@ impl Actor {
         let tree = collection.games.first().ok_or(AppError::EmptyCollection)?;
         let document = GameDocument::from_sgf(tree)?;
         self.next_revision()?;
+        self.document = document;
+        self.tsumego = None;
+        self.document_replaced().await
+    }
+
+    /// A new arena can reuse node IDs, so all analysis and tree namespaces
+    /// must be reset even when its root happens to have the same board key.
+    async fn document_replaced(&mut self) -> Result<(), AppError> {
         self.cancel_review().await;
         self.invalidate_review();
-        self.document = document;
         // Opening even an identical game starts a new node-ID namespace.
         // Every live document has a root, so clearing forces the next refresh.
         self.tree.nodes.clear();

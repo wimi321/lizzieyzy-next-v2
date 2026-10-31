@@ -2,5 +2,6 @@
 import type { EngineProfile } from "./EngineProfile";
 import type { FoxAccount } from "./FoxAccount";
 import type { MoveRankSettings } from "./MoveRankSettings";
+import type { TsumegoOptions } from "./TsumegoOptions";
 
-export type Settings = { version: number, engine: EngineProfile | null, pondering: boolean, fox_history: Array<FoxAccount>, move_rank: MoveRankSettings, };
+export type Settings = { version: number, engine: EngineProfile | null, pondering: boolean, fox_history: Array<FoxAccount>, move_rank: MoveRankSettings, tsumego: TsumegoOptions, };

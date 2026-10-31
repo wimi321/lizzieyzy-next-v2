@@ -606,5 +606,42 @@
     "license": "Open source under GPL-3.0",
     "source": "Source code",
     "close": "Close"
+  },
+  "tsumego": {
+    "title": "Tsumego frame",
+    "intro": "Frame the current position as a problem: walls and ko threats fill the rest of the board, so the AI reads only this group.",
+    "toPlay": "To play",
+    "toPlayOptions": {
+      "Inherit": "Keep on",
+      "Black": "Black",
+      "White": "White"
+    },
+    "attacker": "Attacker",
+    "attackerOptions": {
+      "Auto": "Auto detect",
+      "Black": "Black",
+      "White": "White"
+    },
+    "koThreat": "Add ko threats",
+    "koThreatOptions": {
+      "Both": "Both",
+      "Attacker": "Attacker",
+      "Defender": "Defender",
+      "None": "None"
+    },
+    "wallDistance": "Wall distance",
+    "wallDistanceHint": "Empty lines between the wall and the problem",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "close": "Close",
+    "failed": "Could not frame the problem:",
+    "active": "Tsumego",
+    "attacks": "{color} attacks",
+    "black": "Black",
+    "white": "White",
+    "noRoom": "No room for {color}'s ko threats",
+    "noRoomShort": "Ko threats did not fit",
+    "exit": "Exit",
+    "exitHint": "Leave the problem and go back to the original position"
   }
 }

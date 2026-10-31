@@ -35,6 +35,7 @@ pub struct Settings {
     pub pondering: bool,
     pub fox_history: Vec<crate::fox::FoxAccount>,
     pub move_rank: crate::MoveRankSettings,
+    pub tsumego: crate::TsumegoOptions,
 }
 
 impl Default for Settings {
@@ -45,6 +46,7 @@ impl Default for Settings {
             pondering: true,
             fox_history: Vec::new(),
             move_rank: crate::MoveRankSettings::default(),
+            tsumego: crate::TsumegoOptions::default(),
         }
     }
 }
@@ -66,6 +68,8 @@ pub enum SettingsError {
     InvalidProfile(String),
     #[error(transparent)]
     MoveRank(#[from] crate::MoveRankError),
+    #[error(transparent)]
+    Tsumego(#[from] crate::TsumegoError),
 }
 
 impl Settings {
@@ -112,6 +116,7 @@ impl Settings {
         self.version = SETTINGS_VERSION;
         crate::fox::normalize_history(&mut self.fox_history);
         self.move_rank.validate()?;
+        self.tsumego.validate()?;
         Ok(self)
     }
 }

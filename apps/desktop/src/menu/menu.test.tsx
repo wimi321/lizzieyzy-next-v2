@@ -107,6 +107,7 @@ function actions(): MenuActions {
     step: vi.fn(),
     goTo: vi.fn(),
     openFox: vi.fn(),
+    openTsumego: vi.fn(),
     openEngineSetup: vi.fn(),
     restartEngine: vi.fn(),
     openAbout: vi.fn(),
