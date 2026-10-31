@@ -51,7 +51,7 @@ fn candidate_losses_use_player_perspective_and_current_line_without_side_effects
     let mut actor = loaded();
     let document = actor.document.snapshot();
     let retained = actor.review.results.clone();
-    let estimate = actor.strength_estimate().unwrap();
+    let estimate = actor.strength_estimate(None).unwrap();
     assert_eq!((estimate.total_moves, estimate.analyzed_moves), (3, 3));
     for side in [&estimate.report.black, &estimate.report.white] {
         assert_eq!(side.average_score_loss, Some(2.0));
@@ -59,6 +59,13 @@ fn candidate_losses_use_player_perspective_and_current_line_without_side_effects
     }
     assert_eq!(estimate.report.black.move_rank_counts, [0, 0, 2, 0, 0, 0]);
     assert_eq!(estimate.report.white.move_rank_counts, [0, 0, 1, 0, 0, 0]);
+    assert_eq!(estimate.phases.phases[0].black, estimate.report.black);
+    assert_eq!(estimate.phases.phases[0].white, estimate.report.white);
+    assert!(!estimate.phases.phases[0].black_ranked);
+    assert!(!estimate.phases.phases[0].white_ranked);
+    assert!(estimate.phases.phases[0].played);
+    assert!(!estimate.phases.phases[1].played);
+    assert!(!estimate.phases.phases[2].played);
     assert_eq!(actor.document.snapshot(), document);
     assert_eq!(actor.review.results, retained);
     assert_eq!(actor.revision, 10);
@@ -67,7 +74,7 @@ fn candidate_losses_use_player_perspective_and_current_line_without_side_effects
         .apply(document::Command::GoTo(NodeId(5)))
         .unwrap();
     actor.publish_document().unwrap();
-    let branch = actor.strength_estimate().unwrap();
+    let branch = actor.strength_estimate(None).unwrap();
     assert_eq!((branch.total_moves, branch.analyzed_moves), (3, 3));
     assert_eq!(branch.report.white.samples[0].coordinate, "C7");
     // Java strength falls back to roots (both zero here), not P1-24's best
@@ -76,22 +83,37 @@ fn candidate_losses_use_player_perspective_and_current_line_without_side_effects
     assert_eq!(branch.report.white.samples[0].winrate_loss, 0.0);
     assert_eq!(branch.report.white.samples[0].ai_rank, 999);
     assert_eq!(branch.report.black.samples[1].coordinate, "D6");
+    assert_eq!(branch.phases.phases[0].black, branch.report.black);
+    assert_eq!(branch.phases.phases[0].white, branch.report.white);
+    assert_ne!(branch.phases, estimate.phases);
 }
 
 #[test]
 fn missing_or_stale_analysis_changes_coverage_and_cannot_be_cached_as_a_report() {
     let mut actor = loaded();
-    assert_eq!(actor.strength_estimate().unwrap().analyzed_moves, 3);
+    let original = actor.strength_estimate(None).unwrap();
+    assert_eq!(original.analyzed_moves, 3);
     let saved = actor.review.results.remove(&NodeId(2)).unwrap();
-    assert_eq!(actor.strength_estimate().unwrap().analyzed_moves, 2);
+    let partial = actor.strength_estimate(None).unwrap();
+    assert_eq!(partial.analyzed_moves, 2);
+    assert_eq!(partial.phases.phases[0].black.sample_count, 2);
+    assert_eq!(partial.phases.phases[0].white.sample_count, 0);
     actor.review.results.insert(NodeId(2), saved);
-    assert_eq!(actor.strength_estimate().unwrap().analyzed_moves, 3);
+    assert_eq!(actor.strength_estimate(None).unwrap(), original);
     actor.review.results.get_mut(&NodeId(3)).unwrap().key = document::AnalysisKey([0; 32]);
-    assert_eq!(actor.strength_estimate().unwrap().analyzed_moves, 1);
+    let stale = actor.strength_estimate(None).unwrap();
+    assert_eq!(stale.analyzed_moves, 1);
+    assert_eq!(stale.phases.phases[0].black.sample_count, 1);
+    assert_eq!(stale.phases.phases[0].white.sample_count, 0);
     actor.review.results.clear();
-    let empty = actor.strength_estimate().unwrap();
+    let empty = actor.strength_estimate(None).unwrap();
     assert_eq!((empty.total_moves, empty.analyzed_moves), (3, 0));
     assert!(!empty.report.has_enough_data);
+    assert!(empty.phases.phases[0].played);
+    for phase in empty.phases.phases {
+        assert_eq!((phase.black.sample_count, phase.white.sample_count), (0, 0));
+        assert!(!phase.black_ranked && !phase.white_ranked);
+    }
 }
 
 #[test]
@@ -123,7 +145,7 @@ fn java_root_fallback_preserves_black_and_white_loss_direction() {
         root.winrate = winrate;
         root.score_lead = score;
     }
-    let report = actor.strength_estimate().unwrap().report;
+    let report = actor.strength_estimate(None).unwrap().report;
     let black = &report.black.samples[0];
     let white = &report.white.samples[0];
     assert!((black.winrate_loss - 20.0).abs() < 1e-6);
@@ -131,4 +153,21 @@ fn java_root_fallback_preserves_black_and_white_loss_direction() {
     assert_eq!(white.winrate_loss, 25.0);
     assert_eq!(white.score_loss, Some(5.0));
     assert_eq!((black.ai_rank, white.ai_rank), (999, 999));
+}
+
+#[test]
+fn malformed_last_move_still_reaches_the_next_phase_on_the_displayed_line() {
+    let (mut actor, _) = actor();
+    let text = format!("(;SZ[9]{};B[invalid])", ";B[];W[]".repeat(30));
+    let games = sgf::parse(text.as_bytes()).unwrap();
+    actor.document = document::GameDocument::from_sgf(&games.games[0]).unwrap();
+    actor.publish_document().unwrap();
+    let estimate = actor.strength_estimate(None).unwrap();
+    // Keep the pre-existing valid-move coverage count unchanged.
+    assert_eq!((estimate.total_moves, estimate.analyzed_moves), (60, 0));
+    let middle = &estimate.phases.phases[1];
+    assert_eq!((middle.first, middle.last), (61, 61));
+    assert!(middle.played);
+    assert!(!middle.black_ranked && !middle.white_ranked);
+    assert!(!estimate.phases.phases[2].played);
 }

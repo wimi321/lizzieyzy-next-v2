@@ -10,6 +10,7 @@ pub struct StrengthEstimateView {
     #[ts(type = "number")]
     pub revision: u64,
     pub report: strength::StrengthReport,
+    pub phases: strength::StrengthPhasesReport,
     /// Includes moves lacking comparable analysis, so partial coverage is visible.
     pub total_moves: usize,
     pub analyzed_moves: usize,
@@ -18,10 +19,13 @@ pub struct StrengthEstimateView {
 impl AppCore {
     /// Re-read on DocumentChanged, AnalysisUpdated and WholeGameProgress.
     /// This command never starts analysis or changes the document/focus.
-    pub async fn strength_estimate(&self) -> Result<StrengthEstimateView, AppError> {
+    pub async fn strength_estimate(
+        &self,
+        bounds: Option<[i32; 2]>,
+    ) -> Result<StrengthEstimateView, AppError> {
         let (reply, response) = oneshot::channel();
         self.commands
-            .send(actor::Command::StrengthEstimate(reply))
+            .send(actor::Command::StrengthEstimate(bounds, reply))
             .await
             .map_err(|_| AppError::Closed)?;
         response.await.map_err(|_| AppError::Closed)?

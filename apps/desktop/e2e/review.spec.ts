@@ -122,3 +122,20 @@ test("a finished estimate", async ({ page }) => {
   await expect(dialog.getByTestId("strength-white-rank")).toHaveText("3.8 dan");
   await expect(dialog).toHaveScreenshot("strength-report.png");
 });
+
+test("the phases page", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(
+    ([events, view]) => {
+      window.__mockBackend?.setStrengthEstimate(view);
+      window.__mockBackend?.setScript({ initialEvents: events });
+    },
+    [[documentChanged(analysedGame(), 7)], strengthView(7)] as [WireAppEvent[], StrengthEstimateView],
+  );
+  await page.getByTestId("open-strength").click();
+  const dialog = page.getByTestId("strength-dialog");
+  await dialog.getByTestId("strength-tab-phases").click();
+  await expect(dialog.getByTestId("phase-0-black-rank")).toHaveText("6.4 dan");
+  await expect(dialog.getByTestId("phase-review")).toContainText("in the middle game");
+  await expect(dialog).toHaveScreenshot("strength-phases.png");
+});

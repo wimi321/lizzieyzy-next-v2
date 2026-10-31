@@ -5,10 +5,16 @@ use go_core::Move;
 use strength::{CandidateInput, Estimator, MoveInput};
 
 impl Actor {
-    pub(super) fn strength_estimate(&mut self) -> Result<StrengthEstimateView, AppError> {
+    pub(super) fn strength_estimate(
+        &mut self,
+        bounds: Option<[i32; 2]>,
+    ) -> Result<StrengthEstimateView, AppError> {
         // P1-24 validates both retained keys, replay context and finite losses.
         // Its unfiltered bar follows the same displayed line as the graph.
         let losses = self.problem_moves(ProblemMovesQuery::default())?;
+        // The graph counts malformed B/W records too. Preserve the existing
+        // coverage count below, but determine reached phases from that timeline.
+        let last_move = losses.error_bar.last().map_or(0, |point| point.move_number);
         let total_moves = losses
             .error_bar
             .iter()
@@ -95,11 +101,17 @@ impl Actor {
             None => self.strength.insert(Estimator::bundled()?),
         };
         let report = estimator.estimate(&inputs);
+        let phases = estimator.estimate_phases(
+            &report,
+            bounds,
+            u32::try_from(last_move).unwrap_or(u32::MAX),
+        );
         Ok(StrengthEstimateView {
             revision: self.revision,
             total_moves,
             analyzed_moves: report.overall.sample_count,
             report,
+            phases,
         })
     }
 }

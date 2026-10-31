@@ -34,7 +34,10 @@ pub(crate) enum Command {
         crate::auto_setup::Trial,
         oneshot::Sender<Result<EngineProfile, AppError>>,
     ),
-    StrengthEstimate(oneshot::Sender<Result<crate::StrengthEstimateView, AppError>>),
+    StrengthEstimate(
+        Option<[i32; 2]>,
+        oneshot::Sender<Result<crate::StrengthEstimateView, AppError>>,
+    ),
     Fox(crate::fox::Request),
     ProblemMoves(
         crate::ProblemMovesQuery,
@@ -140,7 +143,7 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             command = commands.recv() => match command {
-                Some(Command::StrengthEstimate(reply)) => { let _ = reply.send(actor.strength_estimate()); }
+                Some(Command::StrengthEstimate(bounds, reply)) => { let _ = reply.send(actor.strength_estimate(bounds)); }
                 Some(Command::Fox(request)) => actor.fox_request(request).await,
                 Some(Command::ProblemMoves(query, reply)) => { let _ = reply.send(actor.problem_moves(query)); }
                 Some(Command::SetMoveRankSettings(settings, reply)) => { let _ = reply.send(actor.set_move_rank_settings(settings).await); }
