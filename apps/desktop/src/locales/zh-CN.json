@@ -588,5 +588,42 @@
     "license": "以 GPL-3.0 许可开源",
     "source": "源代码",
     "close": "关闭"
+  },
+  "tsumego": {
+    "title": "死活题",
+    "intro": "以当前局面出题：其余地方补上围墙和劫材，让 AI 只算这块棋的死活。",
+    "toPlay": "先手方",
+    "toPlayOptions": {
+      "Inherit": "继承",
+      "Black": "黑先",
+      "White": "白先"
+    },
+    "attacker": "进攻方",
+    "attackerOptions": {
+      "Auto": "自动检测",
+      "Black": "黑方",
+      "White": "白方"
+    },
+    "koThreat": "添加劫材",
+    "koThreatOptions": {
+      "Both": "双方",
+      "Attacker": "进攻方",
+      "Defender": "防守方",
+      "None": "无"
+    },
+    "wallDistance": "墙面间距",
+    "wallDistanceHint": "围墙和题目之间空出的路数",
+    "confirm": "确定",
+    "cancel": "取消",
+    "close": "关闭",
+    "failed": "没能生成死活题：",
+    "active": "死活题",
+    "attacks": "{color}进攻",
+    "black": "黑方",
+    "white": "白方",
+    "noRoom": "没有布置{color}劫材的空间",
+    "noRoomShort": "劫材放不下",
+    "exit": "退出",
+    "exitHint": "退出死活题，回到原来的局面"
   }
 }

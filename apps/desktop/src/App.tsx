@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
-import type { AutoSetupError, ColorView, EngineProfile, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, VariationTreeView } from "@/api/backend";
+import type { AutoSetupError, ColorView, EngineProfile, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, TsumegoOptions, TsumegoStatus, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
 import { formatVisits } from "./board/format";
 import { useVariationPreview } from "./board/useVariationPreview";
@@ -18,6 +18,8 @@ import { MoveTree } from "./panels/MoveTree";
 import { AutoAnalysis, type AutoAnalysisHandle } from "./review/AutoAnalysis";
 import { ProblemList } from "./review/ProblemList";
 import { StrengthDialog } from "./review/StrengthDialog";
+import { TsumegoChip } from "./tsumego/TsumegoChip";
+import { TsumegoDialog } from "./tsumego/TsumegoDialog";
 import { TIER_ORDER } from "./review/strength";
 import { useProblemMoves } from "./review/useProblemMoves";
 import { useStrength } from "./review/useStrength";
@@ -33,6 +35,9 @@ const MAX_CANDIDATES = 10;
 
 /** Java shows the board synchronization tool on Windows only. */
 const WINDOWS = navigator.userAgent.includes("Windows");
+
+/** Java's starting 死活题 options, until the settings say otherwise. */
+const TSUMEGO_DEFAULTS: TsumegoOptions = { to_play: "Inherit", attacker: "Auto", ko_threat: "Both", wall_distance: 1 };
 
 /** A wheel notch (or this much trackpad travel) moves one move, as on Java's board. */
 const WHEEL_STEP = 40;
@@ -98,6 +103,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [aboutOpen, setAboutOpen] = useState(false);
   // State, not a ref: menu bindings are built during render and only call it later.
   const [autoAnalysis, setAutoAnalysis] = useState<AutoAnalysisHandle | null>(null);
+  const [tsumegoOpen, setTsumegoOpen] = useState(false);
+  const [tsumegoOptions, setTsumegoOptions] = useState<TsumegoOptions>(TSUMEGO_DEFAULTS);
+  // Set while a framed problem is on the board; null otherwise.
+  const [tsumego, setTsumego] = useState<TsumegoStatus | null>(null);
   const wheel = useRef(0);
   const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
   const [boardHover, setBoardHover] = useState<PointView | null>(null);
@@ -125,6 +134,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         setPondering(settings.pondering);
         setProfile(settings.engine);
         setFoxHistory(settings.fox_history);
+        setTsumegoOptions(settings.tsumego);
         if (settings.engine) return;
         setAutoSetup(true);
         try {
@@ -160,8 +170,37 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     };
   }, [structure]);
 
+  // Rust ends a problem when another game is opened; while one is on, re-read its status.
+  const framing = tsumego !== null;
+  useEffect(() => {
+    if (!framing) return;
+    let active = true;
+    backend
+      .tsumegoStatus()
+      .then((status) => {
+        if (active && status.revision >= revision) setTsumego(status.active ? status : null);
+      })
+      .catch(report);
+    return () => {
+      active = false;
+    };
+  }, [framing, revision]);
+
   const step = (steps: number) => {
     backend.step(steps).catch(report);
+  };
+  const generateTsumego = async (options: TsumegoOptions) => {
+    await backend.generateTsumego(options);
+    setTsumegoOptions(options);
+    setTsumegoOpen(false);
+    const status = await backend.tsumegoStatus();
+    setTsumego(status.active ? status : null);
+  };
+  const exitTsumego = () => {
+    backend
+      .exitTsumego()
+      .then(() => setTsumego(null))
+      .catch(report);
   };
 
   const board = document?.board ?? null;
@@ -243,6 +282,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       step,
       goTo: jump,
       openFox,
+      openTsumego: () => setTsumegoOpen(true),
       openEngineSetup: () => setSetupOpen(true),
       restartEngine: () => {
         if (profile) backend.configureEngine(profile).catch(report);
@@ -250,7 +290,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       openAbout: () => setAboutOpen(true),
     },
   );
-  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen));
+  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen));
   const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(profile ? engineName(profile) : null)], [profile]);
 
   return (
@@ -289,16 +329,19 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         ownership={ownership}
         engine={autoSetup && engine.type === "Stopped" ? { type: "Starting" } : engine}
         extra={
-          <AutoAnalysis
-            ref={setAutoAnalysis}
-            progress={wholeGame.progress}
-            positions={points.length}
-            labels={messages.review}
-            onStart={wholeGame.start}
-            onPause={wholeGame.pause}
-            onResume={wholeGame.resume}
-            onCancel={wholeGame.cancel}
-          />
+          <>
+            {tsumego ? <TsumegoChip status={tsumego} labels={messages.tsumego} onExit={exitTsumego} /> : null}
+            <AutoAnalysis
+              ref={setAutoAnalysis}
+              progress={wholeGame.progress}
+              positions={points.length}
+              labels={messages.review}
+              onStart={wholeGame.start}
+              onPause={wholeGame.pause}
+              onResume={wholeGame.resume}
+              onCancel={wholeGame.cancel}
+            />
+          </>
         }
         onOpen={() => void openFile().catch(report)}
         onSave={() => void saveFile().catch(report)}
@@ -455,6 +498,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         />
       ) : null}
       {aboutOpen ? <AboutDialog name={messages.app.title} labels={messages.about} onClose={() => setAboutOpen(false)} /> : null}
+      {tsumegoOpen ? (
+        <TsumegoDialog options={tsumegoOptions} labels={messages.tsumego} onConfirm={generateTsumego} onClose={() => setTsumegoOpen(false)} />
+      ) : null}
       {setupOpen ? (
         <EngineSetup
           backend={backend}
