@@ -7,7 +7,7 @@ import legacyZh from "../locales/legacy/zh-CN.json";
 import zhCN from "../locales/zh-CN.json";
 import { menuBindings, type MenuActions, type MenuBindings, type MenuState } from "./bindings";
 import { MenuBar } from "./MenuBar";
-import { engineMenu, labelOf, MENUS, type MenuEntry } from "./spec";
+import { engineMenu, labelOf, MENUS, type MenuEntry, menusFor } from "./spec";
 
 const ALL = [...MENUS, engineMenu("kata1-b18c384nbt")];
 
@@ -29,7 +29,6 @@ describe("the menu matches LizzieYzy Next's", () => {
       "同步",
       "帮助",
       "设置",
-      "跑谱贡献",
       "未加载引擎",
     ]);
     expect(labelOf(ALL[ALL.length - 1]!, zhCN.menu)).toBe("kata1-b18c384nbt");
@@ -50,9 +49,9 @@ describe("the menu matches LizzieYzy Next's", () => {
     expect(count).toBeGreaterThan(250);
   });
 
-  test("ids are unique and separators only ever divide entries", () => {
+  test.each([true, false])("ids are unique and separators only ever divide entries (Windows: %s)", (windows) => {
     const ids: string[] = [];
-    walk(ALL, (entry, siblings) => {
+    walk([...menusFor(windows), engineMenu("kata1-b18c384nbt")], (entry, siblings) => {
       if (entry.kind !== "separator") {
         ids.push(entry.id);
         return;
@@ -69,12 +68,26 @@ describe("the menu matches LizzieYzy Next's", () => {
     walk(ALL, (entry) => {
       if (entry.kind !== "separator") ids.add(entry.id);
     });
-    for (const id of ["forceExit", "appearanceMenu", "theme", "frameLooks", "yikeLiveWeb", "yikeRoom", "quickLinks", "engineMenu2"]) {
+    const cut = ["forceExit", "appearanceMenu", "theme", "frameLooks", "yikeLiveWeb", "yikeRoom", "quickLinks", "engineMenu2"];
+    for (const id of [...cut, "contributeMenu", "kataGoDistributedTraining", "showContribute"]) {
       expect(ids.has(id), id).toBe(false);
     }
     for (const id of ["foxKifu", "autoAnalyze", "playerStrengthEstimate", "togglePonder", "jumpToLeft", "about"]) {
       expect(ids.has(id), id).toBe(true);
     }
+  });
+
+  test("the board synchronization tool is there on Windows only, as in Java", () => {
+    const has = (windows: boolean) => {
+      let found = false;
+      walk(menusFor(windows), (entry) => {
+        if (entry.kind !== "separator" && entry.id === "readBoard") found = true;
+      });
+      return found;
+    };
+    expect(has(true)).toBe(true);
+    expect(has(false)).toBe(false);
+    expect(menusFor(false).find((menu) => menu.id === "live")?.items.some((entry) => entry.kind === "submenu" && entry.id === "readBoardSettings")).toBe(true);
   });
 });
 

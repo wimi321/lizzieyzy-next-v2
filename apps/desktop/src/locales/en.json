@@ -10,8 +10,6 @@
     "visits": "{visits} visits",
     "coordinates": "Coordinates",
     "ownership": "Territory",
-    "candidates": "Candidates",
-    "candidatesAll": "All",
     "positionError": "This position cannot be computed: {reason}",
     "loading": "Loading…"
   },
@@ -87,16 +85,6 @@
       "new-zealand": "New Zealand rules",
       "tromp-taylor": "Tromp-Taylor rules"
     }
-  },
-  "table": {
-    "label": "Candidates",
-    "order": "#",
-    "winrate": "Winrate",
-    "visits": "Visits",
-    "share": "Share",
-    "score": "Score",
-    "move": "Move",
-    "empty": "Waiting for the engine's candidates"
   },
   "tree": {
     "label": "Moves",
@@ -338,7 +326,6 @@
     "Menu.continueGameAgainstAi": "Continue game against AI",
     "Menu.continueGenmoveGameAsBlack": "Continue game(AI plays white)(Genmove)(Enter)",
     "Menu.continueGenmoveGameAsWhite": "Continue game(AI plays black)(Genmove)(Enter)",
-    "Menu.contributeMenu": "Contribute",
     "Menu.convertCurrentPositionToStartingPosition": "Set current board as starting position...",
     "Menu.coordsMenu": "Coordinates (C)",
     "Menu.copyBoardScreen": "Copy Board Screen shot (Shift+C)",
@@ -407,9 +394,6 @@
     "Menu.kataEstimateOnMainBoard": "On main board",
     "Menu.kataEstimateOnSubBoard": "On sub board",
     "Menu.kataEstimateSaveState": "Remember display status",
-    "Menu.kataGoDistributedTraining": "Visualized KataGo distributed training",
-    "Menu.kataGoOfficialWebsite": "Katago official website",
-    "Menu.kataGoTrainingSettings": "KataGo training settings",
     "Menu.kataScolreLead": "Show score lead",
     "Menu.kataSettings": "KataGo settings",
     "Menu.largeSubBoard": "Large sub board (Ctrl+F)",
@@ -512,7 +496,6 @@
     "Menu.showCandidateController": "Candidate display Controller",
     "Menu.showCandidateInfoController": "Candidate info Controller",
     "Menu.showCommentConrolPane": "Show comment/blunder panel toolbar",
-    "Menu.showContribute": "Show contribute menu",
     "Menu.showDoubleMenuBtn": "Combine/Separate tool bar button",
     "Menu.showGameController": "Game controller",
     "Menu.showGobanMenu": "Goban",

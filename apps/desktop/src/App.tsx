@@ -12,8 +12,7 @@ import { AboutDialog } from "./menu/AboutDialog";
 import { menuBindings } from "./menu/bindings";
 import { MenuBar } from "./menu/MenuBar";
 import { useShortcuts } from "./menu/shortcuts";
-import { engineMenu, MENUS } from "./menu/spec";
-import { CandidateTable } from "./panels/CandidateTable";
+import { engineMenu, menusFor } from "./menu/spec";
 import { InfoPanel } from "./panels/InfoPanel";
 import { MoveTree } from "./panels/MoveTree";
 import { AutoAnalysis, type AutoAnalysisHandle } from "./review/AutoAnalysis";
@@ -29,7 +28,11 @@ import { JUMP, TopBar } from "./toolbar/Toolbar";
 
 export { JUMP };
 
-const CANDIDATE_LIMITS = [5, 10, 20, 361] as const;
+/** Candidates drawn on the board. */
+const MAX_CANDIDATES = 10;
+
+/** Java shows the board synchronization tool on Windows only. */
+const WINDOWS = navigator.userAgent.includes("Windows");
 
 /** A wheel notch (or this much trackpad travel) moves one move, as on Java's board. */
 const WHEEL_STEP = 40;
@@ -45,7 +48,7 @@ function report(error: unknown) {
   console.error("Backend command failed", error);
 }
 
-/** LizzieYzy Next's window: info and graph left, board centre, candidates and the game tree right. */
+/** LizzieYzy Next's window: info and graph left, board centre, the game tree right. */
 export default function App({ store: provided }: { store?: Store } = {}) {
   const [store] = useState(() => provided ?? createStore());
   useEffect(() => connect(store, backend), [store]);
@@ -57,7 +60,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const messages = getMessages(navigator.language);
   const [coordinates, setCoordinates] = useState(true);
   const [ownership, setOwnership] = useState(false);
-  const [maxCandidates, setMaxCandidates] = useState<number>(10);
   const [pondering, setPondering] = useState(true);
   const [profile, setProfile] = useState<EngineProfile | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -70,8 +72,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [autoAnalysis, setAutoAnalysis] = useState<AutoAnalysisHandle | null>(null);
   const wheel = useRef(0);
   const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
-  // A preview belongs to one position: once the current node changes it no longer applies.
-  const [preview, setPreview] = useState<{ node: number; point: PointView } | null>(null);
   const [boardHover, setBoardHover] = useState<PointView | null>(null);
   const [tree, setTree] = useState<VariationTreeView | null>(null);
   const wholeGame = useWholeGame(backend);
@@ -130,8 +130,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const points = useMemo(() => (document ? liveGraph(document.graph, analysis) : []), [document, analysis]);
   const line = useMemo(() => points.map((point) => point.node_id), [points]);
   const currentIndex = document?.graph.current_index ?? 0;
-  const previewPoint = preview && document && preview.node === document.tree.current ? preview.point : null;
-  const variation = useVariationPreview(backend, document?.tree.current ?? null, revision, analysis, boardHover ?? previewPoint);
+  const variation = useVariationPreview(backend, document?.tree.current ?? null, revision, analysis, boardHover);
   const info = document?.game_info ?? null;
   // The mistake bars share the graph's line and indexing; anything else is stale.
   const mistakes = problems && problems.error_bar.length === points.length ? problems.error_bar : undefined;
@@ -213,7 +212,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     },
   );
   useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen));
-  const menus = useMemo(() => [...MENUS, engineMenu(profile ? engineName(profile.model) : null)], [profile]);
+  const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(profile ? engineName(profile.model) : null)], [profile]);
 
   return (
     <main className="app">
@@ -363,9 +362,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               analysis={analysis}
               coordinates={coordinates}
               ownership={ownership}
-              maxCandidates={maxCandidates}
+              maxCandidates={MAX_CANDIDATES}
               label={messages.board.label}
-              preview={previewPoint}
               variation={variation}
               onHoverCandidate={setBoardHover}
               onPlay={play}
@@ -379,16 +377,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           )}
         </section>
         <aside className="side side-right">
-          <CandidateTable
-            analysis={analysis}
-            toPlay={board?.to_play ?? null}
-            maxCandidates={maxCandidates}
-            candidateLimits={CANDIDATE_LIMITS}
-            labels={{ ...messages.table, limit: messages.board.candidates, limitAll: messages.board.candidatesAll }}
-            onMaxCandidates={setMaxCandidates}
-            onPreview={(point) => setPreview(point && document ? { node: document.tree.current, point } : null)}
-            onPlay={play}
-          />
           <MoveTree
             tree={tree}
             current={document?.tree.current ?? -1}

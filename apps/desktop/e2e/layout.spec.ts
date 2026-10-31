@@ -17,7 +17,7 @@ async function calls(page: Page) {
   return page.evaluate(() => window.__mockBackend?.recordedCalls() ?? []);
 }
 
-test("the window follows LizzieYzy Next: info and graph left, board centre, moves and candidates right", async ({ page }) => {
+test("the window follows LizzieYzy Next: info and graph left, board centre, the game tree right", async ({ page }) => {
   const analysis = midGameAnalysis(7, 20);
   await start(page, [documentChanged(analysedGame(), 7), analysisUpdated(analysis)]);
 
@@ -27,7 +27,8 @@ test("the window follows LizzieYzy Next: info and graph left, board centre, move
   await expect(left.getByTestId("winrate-graph")).toBeVisible();
   await expect(page.getByTestId("board")).toBeVisible();
   await expect(right.getByTestId("move-tree")).toBeVisible();
-  await expect(right.getByTestId("candidate-row")).toHaveCount(analysis.candidates.length);
+  // Candidates are drawn on the board only; the right column is the tree.
+  await expect(page.getByTestId("candidate-row")).toHaveCount(0);
 
   const [leftBox, boardBox, rightBox] = await Promise.all([left.boundingBox(), page.getByTestId("board").boundingBox(), right.boundingBox()]);
   expect(leftBox && boardBox && leftBox.x + leftBox.width <= boardBox.x).toBe(true);
