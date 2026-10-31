@@ -5,6 +5,11 @@ import type { CandidateView } from "./CandidateView";
 
 export type AnalysisView = { node_id: number, revision: number, winrate: number, score_lead: number, visits: number, 
 /**
+ * Recent live-search root visits per second; absent for cache/review results
+ * or until enough intermediate samples have arrived.
+ */
+visits_per_second?: number | null, 
+/**
  * Best root evaluation for this node, document and engine fingerprint.
  * AppCore merges this independently of the current result above, so the
  * graph can retain deeper analysis while candidates and ownership update.

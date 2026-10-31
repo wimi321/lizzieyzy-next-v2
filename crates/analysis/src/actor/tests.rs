@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, ffi::OsString, time::Duration};
 use document::GameDocument;
 use engine_session::{SessionConfig, TransportSpec};
 use serde_json::json;
-use tokio::time::timeout;
+use tokio::time::{advance, pause, resume, timeout};
 
 use super::*;
 use crate::{AnalysisSubscription, delivery};
@@ -72,6 +72,7 @@ fn snapshot(actor: &Actor, visits: u64, source: SnapshotSource) -> AnalysisSnaps
         }))
         .unwrap(),
         source,
+        visits_per_second: None,
     }
 }
 
@@ -274,5 +275,225 @@ async fn retained_seed_respects_deeper_lru_and_does_not_replace_published_same_f
     let republished = immediately_available(&mut output).await;
     assert_eq!(republished.response, cached.response);
     assert_eq!(republished.revision, revised.revision);
+    stop(actor).await;
+}
+
+fn partial(actor: &mut Actor, visits: u64) {
+    let response = snapshot(actor, visits, SnapshotSource::Live).response;
+    actor.event(Some(QueryEvent::Partial(response)));
+}
+
+// Process I/O uses real time; only the deterministic injected samples below
+// use the paused clock. No test waits for a delay to synchronise with KataGo.
+async fn command_between_samples(actor: &mut Actor, input: Input) {
+    resume();
+    timeout(Duration::from_secs(5), actor.command(input))
+        .await
+        .expect("coordinator command exceeded its safety deadline")
+        .unwrap();
+    pause();
+}
+
+async fn start_sampling(actor: &mut Actor) {
+    timeout(Duration::from_secs(5), actor.start())
+        .await
+        .expect("coordinator start exceeded its safety deadline")
+        .unwrap();
+    pause();
+}
+
+#[tokio::test]
+async fn speed_samples_partials_even_when_cached_depth_suppresses_their_display() {
+    let (mut actor, mut output) = actor();
+    start_sampling(&mut actor).await;
+    let cached = snapshot(&actor, 1000, SnapshotSource::Cache);
+    actor.offer(cached.clone());
+    assert_eq!(immediately_available(&mut output).await, cached);
+    partial(&mut actor, 100);
+    advance(Duration::from_millis(500)).await;
+    partial(&mut actor, 600);
+    assert_no_output(&mut output).await;
+    assert_eq!(actor.last_published, Some(cached));
+    advance(Duration::from_millis(500)).await;
+    partial(&mut actor, 1100);
+    let live = immediately_available(&mut output).await;
+    assert_eq!(live.source, SnapshotSource::Live);
+    assert_eq!(live.visits_per_second, Some(1000.0));
+    resume();
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn speed_survives_revision_refresh_and_final_without_sampling_the_final() {
+    let (mut actor, mut output) = actor();
+    start_sampling(&mut actor).await;
+    let query_id = actor.active.as_ref().unwrap().subscription.id().to_owned();
+    partial(&mut actor, 100);
+    assert_eq!(
+        immediately_available(&mut output).await.visits_per_second,
+        None
+    );
+    advance(Duration::from_millis(500)).await;
+    partial(&mut actor, 600);
+    assert_eq!(
+        immediately_available(&mut output).await.visits_per_second,
+        Some(1000.0)
+    );
+
+    let mut focus = actor.focus.clone().unwrap();
+    focus.revision += 1;
+    actor
+        .command(Input::Focus(Box::new(focus), None))
+        .await
+        .unwrap();
+    assert_eq!(actor.active.as_ref().unwrap().subscription.id(), query_id);
+    let refreshed = immediately_available(&mut output).await;
+    assert_eq!(refreshed.revision, 2);
+    assert_eq!(refreshed.visits_per_second, Some(1000.0));
+    advance(Duration::from_millis(500)).await;
+    partial(&mut actor, 1100);
+    assert_eq!(
+        immediately_available(&mut output).await.visits_per_second,
+        Some(1000.0)
+    );
+
+    // A delayed Final has a different visit count but must freeze the last
+    // Partial's speed rather than treating the quiet interval as slow search.
+    advance(Duration::from_secs(4)).await;
+    let mut final_response = snapshot(&actor, 9000, SnapshotSource::Live).response;
+    final_response.is_during_search = false;
+    actor.event(Some(QueryEvent::Final(final_response)));
+    let finished = immediately_available(&mut output).await;
+    assert!(!finished.response.is_during_search);
+    assert_eq!(finished.visits_per_second, Some(1000.0));
+    assert!(actor.active.is_none());
+    assert_eq!(*actor.status.borrow(), AnalysisStatus::Idle);
+    advance(Duration::from_secs(4)).await;
+    assert_eq!(actor.last_published, Some(finished));
+    assert_no_output(&mut output).await;
+    resume();
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn speed_is_preserved_on_pause_and_reset_on_resume_settings_and_restart() {
+    let (mut actor, mut output) = actor();
+    start_sampling(&mut actor).await;
+    partial(&mut actor, 100);
+    immediately_available(&mut output).await;
+    advance(Duration::from_millis(500)).await;
+    partial(&mut actor, 600);
+    let before_pause = immediately_available(&mut output).await;
+    assert_eq!(before_pause.visits_per_second, Some(1000.0));
+
+    command_between_samples(&mut actor, Input::SetPondering(false)).await;
+    assert!(actor.active.is_none());
+    advance(Duration::from_secs(4)).await;
+    assert_eq!(actor.last_published, Some(before_pause));
+    assert_no_output(&mut output).await;
+    command_between_samples(&mut actor, Input::SetPondering(true)).await;
+    // Keep visits increasing across new queries so the test proves lifecycle
+    // resets, independently of the counter-regression safeguard.
+    partial(&mut actor, 700);
+    flush_pending(&mut actor);
+    assert_eq!(
+        immediately_available(&mut output).await.visits_per_second,
+        None
+    );
+    advance(Duration::from_millis(500)).await;
+    partial(&mut actor, 1200);
+    assert_eq!(
+        immediately_available(&mut output).await.visits_per_second,
+        Some(1000.0)
+    );
+
+    let mut settings = actor.config.live.clone();
+    settings.max_visits += 1;
+    command_between_samples(&mut actor, Input::SetLiveSettings(settings)).await;
+    partial(&mut actor, 1300);
+    flush_pending(&mut actor);
+    assert_eq!(
+        immediately_available(&mut output).await.visits_per_second,
+        None
+    );
+    advance(Duration::from_millis(500)).await;
+    partial(&mut actor, 1800);
+    assert_eq!(
+        immediately_available(&mut output).await.visits_per_second,
+        Some(1000.0)
+    );
+
+    actor.event(Some(QueryEvent::Restarted));
+    assert_eq!(*actor.status.borrow(), AnalysisStatus::Restarting);
+    partial(&mut actor, 1900);
+    flush_pending(&mut actor);
+    assert_eq!(
+        immediately_available(&mut output).await.visits_per_second,
+        None
+    );
+    advance(Duration::from_millis(500)).await;
+    partial(&mut actor, 2400);
+    assert_eq!(
+        immediately_available(&mut output).await.visits_per_second,
+        Some(1000.0)
+    );
+    resume();
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn speed_restarts_for_node_or_position_key_changes_and_cache_has_no_speed() {
+    let (mut actor, mut output) = actor();
+    start_sampling(&mut actor).await;
+    partial(&mut actor, 100);
+    immediately_available(&mut output).await;
+    advance(Duration::from_millis(500)).await;
+    partial(&mut actor, 600);
+    assert_eq!(
+        immediately_available(&mut output).await.visits_per_second,
+        Some(1000.0)
+    );
+
+    for change_node in [true, false] {
+        let mut focus = actor.focus.clone().unwrap();
+        focus.revision += 1;
+        if change_node {
+            // A different node with an identical position can reuse its cache,
+            // but the new live query must never reuse its speed samples.
+            focus.node_id = NodeId(focus.node_id.0 + 1);
+        } else {
+            let mut document = GameDocument::new();
+            document
+                .apply(document::Command::Play(go_core::Move::Play(
+                    go_core::Color::Black,
+                    go_core::Point { x: 3, y: 3 },
+                )))
+                .unwrap();
+            focus.position = document.position_at(document.current()).unwrap();
+            focus.key = focus.position.analysis_key();
+        }
+        let query_id = actor.active.as_ref().unwrap().subscription.id().to_owned();
+        command_between_samples(&mut actor, Input::Focus(Box::new(focus), None)).await;
+        assert_ne!(actor.active.as_ref().unwrap().subscription.id(), query_id);
+        if change_node {
+            let cached = immediately_available(&mut output).await;
+            assert_eq!(cached.source, SnapshotSource::Cache);
+            assert_eq!(cached.visits_per_second, None);
+        }
+        let first_visits = if change_node { 1000 } else { 2000 };
+        partial(&mut actor, first_visits);
+        flush_pending(&mut actor);
+        assert_eq!(
+            immediately_available(&mut output).await.visits_per_second,
+            None
+        );
+        advance(Duration::from_millis(500)).await;
+        partial(&mut actor, first_visits + 500);
+        assert_eq!(
+            immediately_available(&mut output).await.visits_per_second,
+            Some(1000.0)
+        );
+    }
+    resume();
     stop(actor).await;
 }

@@ -6,6 +6,7 @@ mod cache;
 mod delivery;
 mod request;
 pub mod review;
+mod speed;
 mod throttle;
 
 pub use delivery::AnalysisSubscription;
@@ -93,6 +94,8 @@ pub struct AnalysisSnapshot {
     pub key: AnalysisKey,
     pub response: AnalysisResponse,
     pub source: SnapshotSource,
+    /// Current live query's visits per second; cached results have no speed.
+    pub visits_per_second: Option<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]

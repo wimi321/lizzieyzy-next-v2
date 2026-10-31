@@ -88,6 +88,11 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
   try {
     while (listeners.size !== 0 && pendingEvents.length !== 0) {
       const event = pendingEvents.shift()!;
+      // A fixed fixture value for older scripts; never infer speed from visits.
+      // Explicit null and zero remain available for warm-up and stopped cases.
+      if (event.type === "AnalysisUpdated" && event.data.visits_per_second === undefined) {
+        event.data.visits_per_second = event.data.source === "Live" ? 1200 : null;
+      }
       if (event.type === "DocumentChanged") lastDocument = structuredClone(event.data);
       if (event.type === "WholeGameProgress") lastProgress = structuredClone(event.data);
       for (const listener of [...listeners.values()]) {

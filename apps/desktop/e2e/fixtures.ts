@@ -224,7 +224,7 @@ export function analysisView(
   revision: number,
   nodeId: number,
   candidates: CandidateView[],
-  options: { visits?: number; ownership?: number[] | null } = {},
+  options: { visits?: number; visits_per_second?: number | null; ownership?: number[] | null } = {},
 ): AnalysisView {
   const best = candidates[0];
   const winrate = best?.winrate ?? 0.5;
@@ -237,6 +237,7 @@ export function analysisView(
     score_lead: scoreLead,
     visits,
     summary: { winrate, score_lead: scoreLead, visits },
+    visits_per_second: options.visits_per_second === undefined ? 1200 : options.visits_per_second,
     candidates,
     ownership: options.ownership ?? null,
     is_during_search: true,

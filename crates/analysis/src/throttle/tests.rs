@@ -21,6 +21,7 @@ fn snapshot(visits: u64) -> AnalysisSnapshot {
         key: AnalysisKey([1; 32]),
         response: *response,
         source: SnapshotSource::Live,
+        visits_per_second: None,
     }
 }
 

@@ -248,6 +248,10 @@ pub struct AnalysisView {
     pub score_lead: f64,
     #[ts(type = "number")]
     pub visits: u64,
+    /// Recent live-search root visits per second; absent for cache/review results
+    /// or until enough intermediate samples have arrived.
+    #[ts(optional = nullable)]
+    pub visits_per_second: Option<f64>,
     /// Best root evaluation for this node, document and engine fingerprint.
     /// AppCore merges this independently of the current result above, so the
     /// graph can retain deeper analysis while candidates and ownership update.
@@ -305,6 +309,7 @@ impl AnalysisView {
             winrate: response.root_info.winrate,
             score_lead: response.root_info.score_lead,
             visits: response.root_info.visits,
+            visits_per_second: value.visits_per_second,
             summary: AnalysisSummary {
                 winrate: response.root_info.winrate,
                 score_lead: response.root_info.score_lead,

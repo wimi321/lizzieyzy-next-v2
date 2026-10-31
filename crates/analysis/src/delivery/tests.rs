@@ -29,6 +29,7 @@ fn snapshot(revision: u64, visits: u64, source: SnapshotSource) -> AnalysisSnaps
         }))
         .unwrap(),
         source,
+        visits_per_second: None,
     }
 }
 

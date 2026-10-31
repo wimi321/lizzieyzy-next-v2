@@ -23,6 +23,7 @@ const progress: WholeGameProgress = {
 const result: AnalysisView = {
   node_id: 2, revision: 7, winrate: 0.6, score_lead: 1.5, visits: 1000,
   summary: { winrate: 0.6, score_lead: 1.5, visits: 1000 },
+  visits_per_second: null,
   candidates: [{
     coordinate: "pass", point: null, visits: 700, winrate: 0.6, score_lead: 1.5,
     prior: 0.2, order: 0, pv: [{ type: "Pass", data: { color: "Black" } }],
