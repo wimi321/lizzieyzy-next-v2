@@ -72,6 +72,8 @@ test("search a nickname, page through the games and open one", async ({ page }) 
   await expect(dialog.getByText("没有更多棋谱了")).toBeVisible();
   await expect(dialog.getByTestId("fox-game").nth(1)).toContainText("白胜 2.5 目");
   await expect(dialog.getByTestId("fox-game").nth(2)).toContainText("黑超时胜");
+  // The rows that loaded may sit under the pointer; a hover there made the shot flaky.
+  await page.mouse.move(0, 0);
   await expect(dialog).toHaveScreenshot("fox-games.png");
 
   await dialog.getByTestId("fox-game").nth(1).click();
