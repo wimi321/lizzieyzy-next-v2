@@ -4,6 +4,7 @@ import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialo
 import type { AppEvent as WireAppEvent } from "./generated/AppEvent";
 import type { ReviewCommands, WholeGameProgressListener } from "./review";
 import type { BoardSyncCommands, BoardSyncStatusListener } from "./board-sync";
+import type { BenchmarkCommands, BenchmarkProgressListener } from "./benchmark";
 import type { ProblemMoveCommands } from "./problem-moves";
 import type { StrengthCommands } from "./strength";
 import type { TsumegoCommands } from "./tsumego";
@@ -22,10 +23,11 @@ import type { VariationTreeView } from "./generated/VariationTreeView";
 
 /** Domain status subscriptions share one ordered IPC channel while existing
  * document/analysis UI consumers retain their original event set. */
-export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" | "BoardSyncStatusChanged" }>;
+export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" }>;
 export type { WireAppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings };
 export * from "./review";
 export * from "./board-sync";
+export * from "./benchmark";
 export * from "./problem-moves";
 export * from "./strength";
 export * from "./tsumego";
@@ -63,7 +65,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends ReviewCommands, BoardSyncCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands {
+export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands {
   openBytes(bytes: number[]): Promise<Revision>;
   openPath(path: string): Promise<Revision>;
   save(path: string): Promise<void>;
@@ -96,6 +98,7 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, ProblemMoveC
   subscribe(listener: EventListener): Promise<number>;
   subscribeWholeGameProgress(listener: WholeGameProgressListener): Promise<number>;
   subscribeBoardSyncStatus(listener: BoardSyncStatusListener): Promise<number>;
+  subscribeBenchmarkProgress(listener: BenchmarkProgressListener): Promise<number>;
   unsubscribe(id: number): Promise<void>;
 }
 
@@ -194,7 +197,7 @@ async function subscribeWire(listener: (event: WireAppEvent) => void): Promise<n
 }
 
 export const subscribe: Backend["subscribe"] = (listener) => subscribeWire((event) => {
-  if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged") listener(event);
+  if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress") listener(event);
 });
 
 /** Progress shares transport/lifetime with document subscriptions. Subscribe
@@ -209,6 +212,12 @@ export const subscribeWholeGameProgress: Backend["subscribeWholeGameProgress"] =
 export const subscribeBoardSyncStatus: Backend["subscribeBoardSyncStatus"] =
   (listener) => subscribeWire((event) => {
     if (event.type === "BoardSyncStatusChanged") listener(event.data);
+  });
+
+/** Subscribe before reading benchmarkStatus(); use unsubscribe() for this ID. */
+export const subscribeBenchmarkProgress: Backend["subscribeBenchmarkProgress"] =
+  (listener) => subscribeWire((event) => {
+    if (event.type === "BenchmarkProgress") listener(event.data);
   });
 
 /** Idempotent. Only the final listener detaches the Rust channel. */

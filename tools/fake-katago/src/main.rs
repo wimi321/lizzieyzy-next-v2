@@ -1,3 +1,4 @@
+mod benchmark;
 mod cli;
 mod model;
 
@@ -22,6 +23,8 @@ enum RunError {
     Crash,
     #[error("模型找不到")]
     MissingModel,
+    #[error("injected benchmark failure")]
+    BenchmarkFailure,
     #[error("could not read startup gate {}: {source}", path.display())]
     StartupGate {
         path: PathBuf,
@@ -403,6 +406,15 @@ fn claim_fault(marker: Option<&Path>) -> Result<bool, RunError> {
 }
 
 fn run(options: Options) -> Result<(), RunError> {
+    if let Some(path) = &options.launch_log {
+        let mut log = OpenOptions::new().create(true).append(true).open(path)?;
+        serde_json::to_writer(&mut log, &std::env::args().skip(1).collect::<Vec<_>>())?;
+        writeln!(log)?;
+        log.flush()?;
+    }
+    if options.benchmark {
+        return benchmark::run(&options);
+    }
     if options.fail_startup && claim_fault(options.fault_once_file.as_deref())? {
         return Err(RunError::MissingModel);
     }

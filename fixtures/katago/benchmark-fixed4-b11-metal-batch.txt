@@ -1,0 +1,47 @@
+2026-10-31 19:00:40-0700: Running with following config:
+analysisPVLen = 8
+logAllGTPCommunication = false
+logSearchInfo = false
+logToStderr = false
+maxVisits = 100
+nnCacheSizePowerOfTwo = 23
+nnMaxBatchSize = 64
+nnMutexPoolSizePowerOfTwo = 17
+nnRandomize = true
+numSearchThreads = 1
+reportAnalysisWinratesAs = BLACK
+warnUnusedFields = true
+
+2026-10-31 19:00:40-0700: Loading model and initializing benchmark...
+2026-10-31 19:00:40-0700: Testing with default positions for board size: 19
+NOTE: Your config hardcodes nnMaxBatchSize = 64. This benchmark ignores it, and the notes at the end say how to keep it consistent with what was measured.
+2026-10-31 19:00:40-0700: nnRandSeed0 = 16992587803289971759
+2026-10-31 19:00:40-0700: After dedups: nnModelFile0 = /Applications/LizzieYzy Next.app/Contents/app/weights/default.bin.gz useFP16 auto
+2026-10-31 19:00:40-0700: Initializing neural net buffer to be size 19 * 19 exactly
+Metal backend 0: GPU mode - using MPSGraph (GPU)
+Metal backend: MPSGraph initialized on Apple M4 Pro (mask optimized)
+Metal backend 0: Initialized MPSGraph GPU-only mode
+
+2026-10-31 19:00:45-0700: Loaded config /Users/haoc/Library/Application Support/io.github.wimi321.lizzieyzy.next2/analysis.cfg and/or command-line and query overrides
+2026-10-31 19:00:45-0700: Loaded model /Applications/LizzieYzy Next.app/Contents/app/weights/default.bin.gz
+
+Testing using 30 visits.
+
+You are currently using the Metal version of KataGo.
+
+Your GTP config is currently set to use numSearchThreads = 1
+Testing (board size 19x19): 
+numSearchThreads =  4: 0 / 2 positions, visits/s = nan (0.0 secs)      numSearchThreads =  4: 1 / 2 positions, visits/s = 9.60 (3.4 secs)      numSearchThreads =  4: 2 / 2 positions, visits/s = 15.75 nnEvals/s = 15.99 nnBatches/s = 8.35 avgBatchSize = 1.91 (4.2 secs) (EloDiff baseline)
+
+WARNING: Your config hardcodes nnMaxBatchSize = 64, but this benchmark used the batch size this backend derives from the number of threads.
+To make normal runs match what was measured, delete nnMaxBatchSize from your config (recommended), or set it to at least the numSearchThreads you choose.
+Running additional tests of a few other settings at numSearchThreads = 4.
+Re-measuring the current recommendation as a baseline:
+numSearchThreads =  4: 0 / 2 positions, visits/s = nan (0.0 secs)      numSearchThreads =  4: 1 / 2 positions, visits/s = 48.25 (0.7 secs)      numSearchThreads =  4: 2 / 2 positions, visits/s = 15.77 nnEvals/s = 15.53 nnBatches/s = 8.36 avgBatchSize = 1.86 (4.2 secs)
+Testing a max batch size of 2, half the search threads, which can pipeline better on some GPUs:
+numSearchThreads =  4: 0 / 2 positions, visits/s = nan (0.0 secs)      numSearchThreads =  4: 1 / 2 positions, visits/s = 44.16 (0.7 secs)      numSearchThreads =  4: 2 / 2 positions, visits/s = 44.95 nnEvals/s = 44.27 nnBatches/s = 23.84 avgBatchSize = 1.86 (1.5 secs) (EloDiff +383)
+Half batch size was 185.0% faster, will recommend it.
+
+ADDITIONAL RECOMMENDATION: a smaller batch size measured faster. To use this, set nnMaxBatchSize = 2 in your config. This is half of numSearchThreads rounded up, so update it if you change numSearchThreads.
+Your config currently sets nnMaxBatchSize = 64. Replace it with 2. This supersedes any earlier note in this output about deleting it.
+2026-10-31 19:00:55-0700: GPU -1 finishing, processed 202 rows 110 batches

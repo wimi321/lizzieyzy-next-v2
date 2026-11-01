@@ -48,3 +48,41 @@ fn invalid_analysis_thread_override_is_rejected() {
         );
     }
 }
+
+#[test]
+fn empty_override_removes_the_key_and_restores_default_threads() {
+    assert_eq!(
+        parse(&[
+            "-override-config",
+            "numAnalysisThreads=4,numAnalysisThreads="
+        ])
+        .threads,
+        1
+    );
+    assert_eq!(
+        parse(&[
+            "-override-config",
+            "numAnalysisThreads=,numAnalysisThreads=2"
+        ])
+        .threads,
+        2
+    );
+    assert_eq!(
+        parse(&[
+            "--threads",
+            "3",
+            "-override-config",
+            "numAnalysisThreads=4,numAnalysisThreads="
+        ])
+        .threads,
+        3
+    );
+    assert!(
+        parse(&[
+            "-override-config",
+            "unknown=,reportAnalysisWinratesAs=WHITE,reportAnalysisWinratesAs="
+        ])
+        .report_perspective
+        .is_none()
+    );
+}

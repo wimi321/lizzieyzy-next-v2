@@ -31,6 +31,9 @@ impl Actor {
     }
 
     pub(super) fn pondering(&self) -> bool {
+        if self.benchmark_active() {
+            return false;
+        }
         if self.sync_active() {
             !self.board_sync.analysis_paused
         } else {

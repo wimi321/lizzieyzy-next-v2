@@ -3,6 +3,7 @@
 //! Numeric evaluations are passed through unchanged. Configure the engine with
 //! `reportAnalysisWinratesAs = BLACK` before exposing them to the application.
 
+pub mod benchmark;
 mod request;
 mod response;
 

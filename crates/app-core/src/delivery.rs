@@ -11,13 +11,14 @@ struct Mailbox {
     engine: Option<(u64, AppEvent)>,
     review: Option<(u64, AppEvent)>,
     board_sync: Option<(u64, AppEvent)>,
+    benchmark: Option<(u64, AppEvent)>,
 }
 
 pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 5],
+    read: [Option<u64>; 6],
 }
 
 pub(crate) fn channel() -> (Delivery, AppSubscription) {
@@ -26,7 +27,7 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 5],
+            read: [None; 6],
         },
     )
 }
@@ -41,6 +42,7 @@ impl Delivery {
                 AppEvent::EngineStatusChanged(_) => &mut mailbox.engine,
                 AppEvent::WholeGameProgress(_) => &mut mailbox.review,
                 AppEvent::BoardSyncStatusChanged(_) => &mut mailbox.board_sync,
+                AppEvent::BenchmarkProgress(_) => &mut mailbox.benchmark,
             };
             *slot = Some((mailbox.serial, event));
         });
@@ -65,6 +67,7 @@ impl AppSubscription {
                     &mailbox.engine,
                     &mailbox.review,
                     &mailbox.board_sync,
+                    &mailbox.benchmark,
                 ]
                 .into_iter()
                 .enumerate()

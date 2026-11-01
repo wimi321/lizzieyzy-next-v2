@@ -99,6 +99,10 @@ impl Actor {
         reply: Reply,
         auto: Option<(Option<String>, Instant)>,
     ) {
+        if let Err(error) = self.ensure_no_benchmark() {
+            reply.send(Err(error));
+            return;
+        }
         self.cancel_trial().await;
         let prepared = async {
             let timeout =
@@ -117,8 +121,9 @@ impl Actor {
             }
             // Both startup paths share the same profile validation, override merge
             // and cache identity. The candidate never owns the old engine.
-            let transport = profile.transport()?;
             let fingerprint = profile.fingerprint().await?;
+            let benchmark = self.settings.benchmarks.get(&fingerprint);
+            let transport = profile.transport_with_benchmark(benchmark)?;
             Ok((profile, transport, fingerprint, timeout))
         };
         let prepared = if let Some((_, deadline)) = &auto {

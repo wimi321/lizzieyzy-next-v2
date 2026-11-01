@@ -1,0 +1,130 @@
+2026-10-31 18:47:06-0700: Running with following config:
+allowResignation = true
+lagBuffer = 1.0
+logAllGTPCommunication = true
+logDir = gtp_logs
+logSearchInfo = true
+logSearchInfoForChosenMove = false
+logToStderr = false
+maxTimePondering = 60.0
+maxVisits = 500
+numSearchThreads = 6
+ponderingEnabled = false
+resignConsecTurns = 3
+resignThreshold = -0.90
+rules = tromp-taylor
+searchFactorAfterOnePass = 0.50
+searchFactorAfterTwoPass = 0.25
+searchFactorWhenWinning = 0.40
+searchFactorWhenWinningThreshold = 0.95
+
+2026-10-31 18:47:06-0700: Loading model and initializing benchmark...
+2026-10-31 18:47:06-0700: Testing with default positions for board size: 19
+2026-10-31 18:47:06-0700: nnRandSeed0 = 8613285390616284840
+2026-10-31 18:47:06-0700: After dedups: nnModelFile0 = /Applications/LizzieYzy Next.app/Contents/app/weights/default.bin.gz useFP16 auto
+2026-10-31 18:47:06-0700: Initializing neural net buffer to be size 19 * 19 exactly
+Metal backend 0: GPU mode - using MPSGraph (GPU)
+Metal backend: MPSGraph initialized on Apple M4 Pro (mask optimized)
+Metal backend 0: Initialized MPSGraph GPU-only mode
+
+2026-10-31 18:47:12-0700: Loaded config /Applications/LizzieYzy Next.app/Contents/app/engines/katago/macos-arm64/default_gtp.cfg
+2026-10-31 18:47:12-0700: Loaded model /Applications/LizzieYzy Next.app/Contents/app/weights/default.bin.gz
+
+Testing using 60 visits.
+
+You are currently using the Metal version of KataGo.
+
+Your GTP config is currently set to use numSearchThreads = 6
+Automatically trying different numbers of threads to home in on the best (board size 19x19): 
+
+
+Possible numbers of threads to test: 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 
+
+(Rebuilding neural net evaluator for 5 threads, batch size 3)
+2026-10-31 18:47:12-0700: GPU -1 finishing, processed 5 rows 5 batches
+2026-10-31 18:47:12-0700: nnRandSeed0 = 2908047149612336942
+2026-10-31 18:47:12-0700: After dedups: nnModelFile0 = /Applications/LizzieYzy Next.app/Contents/app/weights/default.bin.gz useFP16 auto
+2026-10-31 18:47:12-0700: Initializing neural net buffer to be size 19 * 19 exactly
+Metal backend 0: GPU mode - using MPSGraph (GPU)
+Metal backend: MPSGraph initialized on Apple M4 Pro (mask optimized)
+Metal backend 0: Initialized MPSGraph GPU-only mode
+
+numSearchThreads =  5: 0 / 3 positions, visits/s = nan (0.0 secs)      numSearchThreads =  5: 1 / 3 positions, visits/s = 35.83 (1.8 secs)      numSearchThreads =  5: 2 / 3 positions, visits/s = 36.40 (3.5 secs)      numSearchThreads =  5: 3 / 3 positions, visits/s = 36.98 nnEvals/s = 36.40 nnBatches/s = 15.49 avgBatchSize = 2.35 (5.2 secs)
+(Rebuilding neural net evaluator for 12 threads, batch size 6)
+2026-10-31 18:47:21-0700: GPU -1 finishing, processed 193 rows 85 batches
+2026-10-31 18:47:21-0700: nnRandSeed0 = 5678545945784563226
+2026-10-31 18:47:21-0700: After dedups: nnModelFile0 = /Applications/LizzieYzy Next.app/Contents/app/weights/default.bin.gz useFP16 auto
+2026-10-31 18:47:21-0700: Initializing neural net buffer to be size 19 * 19 exactly
+Metal backend 0: GPU mode - using MPSGraph (GPU)
+Metal backend: MPSGraph initialized on Apple M4 Pro (mask optimized)
+Metal backend 0: Initialized MPSGraph GPU-only mode
+
+numSearchThreads = 12: 0 / 3 positions, visits/s = nan (0.0 secs)      numSearchThreads = 12: 1 / 3 positions, visits/s = 46.39 (1.5 secs)      numSearchThreads = 12: 2 / 3 positions, visits/s = 45.08 (3.1 secs)      numSearchThreads = 12: 3 / 3 positions, visits/s = 44.73 nnEvals/s = 44.30 nnBatches/s = 8.69 avgBatchSize = 5.10 (4.7 secs)
+(Rebuilding neural net evaluator for 3 threads, batch size 2)
+2026-10-31 18:47:31-0700: GPU -1 finishing, processed 214 rows 46 batches
+2026-10-31 18:47:31-0700: nnRandSeed0 = 4331670492809585356
+2026-10-31 18:47:31-0700: After dedups: nnModelFile0 = /Applications/LizzieYzy Next.app/Contents/app/weights/default.bin.gz useFP16 auto
+2026-10-31 18:47:31-0700: Initializing neural net buffer to be size 19 * 19 exactly
+Metal backend 0: GPU mode - using MPSGraph (GPU)
+Metal backend: MPSGraph initialized on Apple M4 Pro (mask optimized)
+Metal backend 0: Initialized MPSGraph GPU-only mode
+
+numSearchThreads =  3: 0 / 3 positions, visits/s = nan (0.0 secs)      numSearchThreads =  3: 1 / 3 positions, visits/s = 32.45 (1.9 secs)      numSearchThreads =  3: 2 / 3 positions, visits/s = 32.88 (3.8 secs)      numSearchThreads =  3: 3 / 3 positions, visits/s = 33.31 nnEvals/s = 32.42 nnBatches/s = 22.03 avgBatchSize = 1.47 (5.6 secs)
+(Rebuilding neural net evaluator for 6 threads, batch size 3)
+2026-10-31 18:47:41-0700: GPU -1 finishing, processed 186 rows 128 batches
+2026-10-31 18:47:41-0700: nnRandSeed0 = 1071444518876090704
+2026-10-31 18:47:41-0700: After dedups: nnModelFile0 = /Applications/LizzieYzy Next.app/Contents/app/weights/default.bin.gz useFP16 auto
+2026-10-31 18:47:41-0700: Initializing neural net buffer to be size 19 * 19 exactly
+Metal backend 0: GPU mode - using MPSGraph (GPU)
+Metal backend: MPSGraph initialized on Apple M4 Pro (mask optimized)
+Metal backend 0: Initialized MPSGraph GPU-only mode
+
+numSearchThreads =  6: 0 / 3 positions, visits/s = nan (0.0 secs)      numSearchThreads =  6: 1 / 3 positions, visits/s = 43.36 (1.5 secs)      numSearchThreads =  6: 2 / 3 positions, visits/s = 43.67 (3.0 secs)      numSearchThreads =  6: 3 / 3 positions, visits/s = 43.92 nnEvals/s = 43.25 nnBatches/s = 15.54 avgBatchSize = 2.78 (4.4 secs)
+(Rebuilding neural net evaluator for 8 threads, batch size 4)
+2026-10-31 18:47:50-0700: GPU -1 finishing, processed 197 rows 74 batches
+2026-10-31 18:47:50-0700: nnRandSeed0 = 7195584247724406272
+2026-10-31 18:47:50-0700: After dedups: nnModelFile0 = /Applications/LizzieYzy Next.app/Contents/app/weights/default.bin.gz useFP16 auto
+2026-10-31 18:47:50-0700: Initializing neural net buffer to be size 19 * 19 exactly
+Metal backend 0: GPU mode - using MPSGraph (GPU)
+Metal backend: MPSGraph initialized on Apple M4 Pro (mask optimized)
+Metal backend 0: Initialized MPSGraph GPU-only mode
+
+numSearchThreads =  8: 0 / 3 positions, visits/s = nan (0.0 secs)      numSearchThreads =  8: 1 / 3 positions, visits/s = 42.38 (1.6 secs)      numSearchThreads =  8: 2 / 3 positions, visits/s = 42.02 (3.2 secs)      numSearchThreads =  8: 3 / 3 positions, visits/s = 41.89 nnEvals/s = 42.10 nnBatches/s = 11.88 avgBatchSize = 3.54 (4.8 secs)
+(Rebuilding neural net evaluator for 10 threads, batch size 5)
+2026-10-31 18:47:59-0700: GPU -1 finishing, processed 207 rows 62 batches
+2026-10-31 18:47:59-0700: nnRandSeed0 = 12640661126705089118
+2026-10-31 18:47:59-0700: After dedups: nnModelFile0 = /Applications/LizzieYzy Next.app/Contents/app/weights/default.bin.gz useFP16 auto
+2026-10-31 18:47:59-0700: Initializing neural net buffer to be size 19 * 19 exactly
+Metal backend 0: GPU mode - using MPSGraph (GPU)
+Metal backend: MPSGraph initialized on Apple M4 Pro (mask optimized)
+Metal backend 0: Initialized MPSGraph GPU-only mode
+
+numSearchThreads = 10: 0 / 3 positions, visits/s = nan (0.0 secs)      numSearchThreads = 10: 1 / 3 positions, visits/s = 43.96 (1.5 secs)      numSearchThreads = 10: 2 / 3 positions, visits/s = 43.68 (3.1 secs)      numSearchThreads = 10: 3 / 3 positions, visits/s = 43.60 nnEvals/s = 43.60 nnBatches/s = 9.95 avgBatchSize = 4.38 (4.7 secs)
+
+
+Ordered summary of results: 
+
+numSearchThreads =  3: 3 / 3 positions, visits/s = 33.31 nnEvals/s = 32.42 nnBatches/s = 22.03 avgBatchSize = 1.47 (5.6 secs) (EloDiff baseline)
+numSearchThreads =  5: 3 / 3 positions, visits/s = 36.98 nnEvals/s = 36.40 nnBatches/s = 15.49 avgBatchSize = 2.35 (5.2 secs) (EloDiff +17)
+numSearchThreads =  6: 3 / 3 positions, visits/s = 43.92 nnEvals/s = 43.25 nnBatches/s = 15.54 avgBatchSize = 2.78 (4.4 secs) (EloDiff +70)
+numSearchThreads =  8: 3 / 3 positions, visits/s = 41.89 nnEvals/s = 42.10 nnBatches/s = 11.88 avgBatchSize = 3.54 (4.8 secs) (EloDiff +32)
+numSearchThreads = 10: 3 / 3 positions, visits/s = 43.60 nnEvals/s = 43.60 nnBatches/s = 9.95 avgBatchSize = 4.38 (4.7 secs) (EloDiff +26)
+numSearchThreads = 12: 3 / 3 positions, visits/s = 44.73 nnEvals/s = 44.30 nnBatches/s = 8.69 avgBatchSize = 5.10 (4.7 secs) (EloDiff +16)
+
+
+Based on some test data, each speed doubling gains perhaps ~250 Elo by searching deeper.
+Based on some test data, each thread costs perhaps 7 Elo if using 800 visits, and 2 Elo if using 5000 visits (by making MCTS worse).
+So APPROXIMATELY based on this benchmark, if you intend to do a 5 second search: 
+numSearchThreads =  3: (baseline)
+numSearchThreads =  5:   +17 Elo
+numSearchThreads =  6:   +70 Elo (recommended)
+numSearchThreads =  8:   +32 Elo
+numSearchThreads = 10:   +26 Elo
+numSearchThreads = 12:   +16 Elo
+
+If you care about performance, you may want to edit numSearchThreads in /Applications/LizzieYzy Next.app/Contents/app/engines/katago/macos-arm64/default_gtp.cfg based on the above results!
+If you intend to do much longer searches, configure the seconds per game move you expect with the '-time' flag and benchmark again.
+If you intend to do short or fixed-visit searches, use lower numSearchThreads for better strength, high threads will weaken strength.
+If interested see also other notes about performance and mem usage in the top of /Applications/LizzieYzy Next.app/Contents/app/engines/katago/macos-arm64/default_gtp.cfg
+
+2026-10-31 18:48:09-0700: GPU -1 finishing, processed 211 rows 52 batches

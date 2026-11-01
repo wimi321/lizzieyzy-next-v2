@@ -13,6 +13,7 @@ use tauri::{
 use tempfile::TempDir;
 use tokio::sync::{mpsc, oneshot};
 
+mod benchmark;
 mod board_sync;
 mod engine_auto_setup;
 mod problem_moves;
@@ -144,6 +145,7 @@ impl Harness {
                     }
                     AppEvent::EngineStatusChanged(_)
                     | AppEvent::WholeGameProgress(_)
+                    | AppEvent::BenchmarkProgress(_)
                     | AppEvent::BoardSyncStatusChanged(_) => {}
                 }
             }

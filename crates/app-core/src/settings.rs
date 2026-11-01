@@ -36,6 +36,8 @@ pub struct Settings {
     pub fox_history: Vec<crate::fox::FoxAccount>,
     pub move_rank: crate::MoveRankSettings,
     pub tsumego: crate::TsumegoOptions,
+    #[ts(as = "Option<BTreeMap<String, crate::BenchmarkResult>>", optional)]
+    pub benchmarks: BTreeMap<String, crate::BenchmarkResult>,
 }
 
 impl Default for Settings {
@@ -47,6 +49,7 @@ impl Default for Settings {
             fox_history: Vec::new(),
             move_rank: crate::MoveRankSettings::default(),
             tsumego: crate::TsumegoOptions::default(),
+            benchmarks: BTreeMap::new(),
         }
     }
 }
@@ -117,6 +120,15 @@ impl Settings {
         crate::fox::normalize_history(&mut self.fox_history);
         self.move_rank.validate()?;
         self.tsumego.validate()?;
+        if self
+            .benchmarks
+            .iter()
+            .any(|(key, result)| key != &result.engine_fingerprint || !result.valid())
+        {
+            return Err(SettingsError::InvalidProfile(
+                "invalid saved benchmark result".into(),
+            ));
+        }
         Ok(self)
     }
 }
@@ -170,7 +182,59 @@ impl EngineProfile {
     }
 
     pub fn transport(&self) -> Result<TransportSpec, SettingsError> {
+        self.transport_with_benchmark(None)
+    }
+
+    pub(crate) fn transport_with_benchmark(
+        &self,
+        benchmark: Option<&crate::BenchmarkResult>,
+    ) -> Result<TransportSpec, SettingsError> {
         let (overrides, extra_args) = self.prepare_extra_args()?;
+        let overrides = if let Some(benchmark) = benchmark {
+            if !benchmark.valid() {
+                return Err(SettingsError::InvalidProfile(
+                    "invalid benchmark recommendation".into(),
+                ));
+            }
+            let mut entries = overrides
+                .split(',')
+                .filter(|entry| {
+                    let key = entry.split('=').next().unwrap_or_default().trim();
+                    !key.eq_ignore_ascii_case("numSearchThreads")
+                        && !key.eq_ignore_ascii_case("numSearchThreadsPerAnalysisThread")
+                })
+                .map(str::to_owned)
+                .collect::<Vec<_>>();
+            // KataGo rejects both aliases together. Empty overrides delete keys
+            // even when the GTP alias originated in an included config file.
+            entries.push("numSearchThreads=".into());
+            entries.push(format!(
+                "numSearchThreadsPerAnalysisThread={}",
+                benchmark.recommended_threads
+            ));
+            // Match Java's managed GPU settings: override configuration-file
+            // defaults, but preserve an explicit user CLI override of either key.
+            for (key, value) in [
+                ("nnMaxBatchSize", benchmark.nn_max_batch_size),
+                (
+                    "numNNServerThreadsPerModel",
+                    benchmark.num_nn_server_threads_per_model,
+                ),
+            ] {
+                if let Some(value) = value
+                    && !entries.iter().any(|entry| {
+                        entry
+                            .split_once('=')
+                            .is_some_and(|(existing, _)| existing.trim().eq_ignore_ascii_case(key))
+                    })
+                {
+                    entries.push(format!("{key}={value}"));
+                }
+            }
+            entries.join(",")
+        } else {
+            overrides
+        };
         let mut args = vec![
             OsString::from("analysis"),
             OsString::from("-config"),
