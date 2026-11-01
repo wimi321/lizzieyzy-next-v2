@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { version } from "../../package.json";
+import logo from "../assets/logo.svg";
 
 export interface AboutLabels {
   title: string;
@@ -36,10 +37,7 @@ export function AboutDialog({ name, labels, onClose }: { name: string; labels: A
         <button type="button" className="dialog-close" aria-label={labels.close} data-testid="about-close" onClick={onClose}>
           ×
         </button>
-        <div className="about-mark" aria-hidden="true">
-          <span className="about-stone black" />
-          <span className="about-stone white" />
-        </div>
+        <img className="about-logo" src={logo} alt="" aria-hidden="true" />
         <h2 className="about-name">{name}</h2>
         <p className="about-version">{labels.version.replace("{version}", version)}</p>
         <p className="about-tagline">{labels.tagline}</p>
