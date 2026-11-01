@@ -18,6 +18,9 @@ import { MoveTree } from "./panels/MoveTree";
 import { AutoAnalysis, type AutoAnalysisHandle } from "./review/AutoAnalysis";
 import { ProblemList } from "./review/ProblemList";
 import { StrengthDialog } from "./review/StrengthDialog";
+import { BenchmarkChip } from "./benchmark/BenchmarkChip";
+import { BenchmarkDialog } from "./benchmark/BenchmarkDialog";
+import { useBenchmark } from "./benchmark/useBenchmark";
 import { BoardSyncChip } from "./sync/BoardSyncChip";
 import { useBoardSync } from "./sync/useBoardSync";
 import { TsumegoChip } from "./tsumego/TsumegoChip";
@@ -117,6 +120,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [tree, setTree] = useState<VariationTreeView | null>(null);
   const wholeGame = useWholeGame(backend);
   const sync = useBoardSync(backend);
+  const tuning = useBenchmark(backend);
+  const [tuningOpen, setTuningOpen] = useState(false);
   // Java's defaults: keep the board in step with the client, but leave the viewed move alone.
   const [syncOptions, setSyncOptions] = useState({ always_sync: true, always_goto_last: false });
   const [problemColor, setProblemColor] = useState<ColorView | null>(null);
@@ -268,6 +273,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       wholeGameActive: wholeGameStatus === "Running" || wholeGameStatus === "Paused",
       hasBestMove: board !== null && best !== undefined,
       engineFailed: engine.type === "Failed" && profile !== null,
+      engineConfigured: profile !== null,
       windows: WINDOWS,
       syncPhase: sync.status?.phase ?? "Stopped",
       syncOptions,
@@ -295,6 +301,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       startBoardSync: () => sync.start({ ...syncOptions, language: chinese ? "Cn" : "En" }),
       toggleSyncOption: (key) => setSyncOptions((options) => ({ ...options, [key]: !options[key] })),
       openTsumego: () => setTsumegoOpen(true),
+      openBenchmark: () => setTuningOpen(true),
       openEngineSetup: () => setSetupOpen(true),
       restartEngine: () => {
         if (profile) backend.configureEngine(profile).catch(report);
@@ -302,7 +309,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       openAbout: () => setAboutOpen(true),
     },
   );
-  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen));
+  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen || tuningOpen));
   const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(profile ? engineName(profile) : null)], [profile]);
 
   return (
@@ -317,6 +324,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           <>
             {tsumego ? <TsumegoChip status={tsumego} labels={messages.tsumego} onExit={exitTsumego} /> : null}
             {sync.status && sync.status.phase !== "Stopped" ? <BoardSyncChip status={sync.status} labels={messages.sync} onStop={sync.stop} /> : null}
+            {tuning.status && !tuningOpen ? (
+              <BenchmarkChip status={tuning.status} labels={messages.benchmark} onOpen={() => setTuningOpen(true)} onStop={tuning.cancel} />
+            ) : null}
           </>
         }
       />
@@ -520,6 +530,17 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         />
       ) : null}
       {aboutOpen ? <AboutDialog name={messages.app.title} labels={messages.about} onClose={() => setAboutOpen(false)} /> : null}
+      {tuningOpen ? (
+        <BenchmarkDialog
+          status={tuning.status}
+          model={profile ? engineName(profile) : null}
+          labels={messages.benchmark}
+          onStart={tuning.start}
+          onStop={tuning.cancel}
+          onReset={tuning.reset}
+          onClose={() => setTuningOpen(false)}
+        />
+      ) : null}
       {tsumegoOpen ? (
         <TsumegoDialog options={tsumegoOptions} labels={messages.tsumego} onConfirm={generateTsumego} onClose={() => setTsumegoOpen(false)} />
       ) : null}
