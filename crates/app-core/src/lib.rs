@@ -3,6 +3,7 @@
 
 mod actor;
 mod auto_setup;
+mod benchmark;
 mod board_sync;
 mod delivery;
 pub mod engine_setup;
@@ -20,6 +21,7 @@ mod tsumego;
 mod view;
 
 pub use auto_setup::{AutoSetupAttempt, AutoSetupError};
+pub use benchmark::*;
 pub use board_sync::{
     BoardSyncError, BoardSyncLanguage, BoardSyncOptions, BoardSyncPhase, BoardSyncStatus,
 };
@@ -42,6 +44,8 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    Benchmark(#[from] BenchmarkError),
     #[error("application core is closed")]
     Closed,
     #[error("application revision is exhausted")]

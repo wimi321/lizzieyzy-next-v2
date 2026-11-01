@@ -104,6 +104,7 @@ impl Actor {
     ) -> Result<WholeGameProgress, AppError> {
         match input {
             ReviewInput::Start(options) => {
+                self.ensure_no_benchmark()?;
                 options.validate()?;
                 let running = self.running.as_ref().ok_or(WholeGameError::NoEngine)?;
                 if matches!(
@@ -148,6 +149,7 @@ impl Actor {
                 }
             }
             ReviewInput::Resume => {
+                self.ensure_no_benchmark()?;
                 let progress = self
                     .review
                     .progress

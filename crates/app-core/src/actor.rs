@@ -9,6 +9,7 @@ use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
 mod auto_setup;
+mod benchmark;
 mod board_sync;
 mod fox;
 mod problem_moves;
@@ -33,6 +34,10 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    Benchmark(
+        crate::benchmark::Request,
+        oneshot::Sender<Result<crate::BenchmarkStatus, AppError>>,
+    ),
     BoardSync(
         crate::board_sync::Request,
         oneshot::Sender<Result<crate::BoardSyncStatus, AppError>>,
@@ -119,6 +124,7 @@ struct Actor {
     trial: Option<PendingTrial>,
     auto_setup: auto_setup::State,
     board_sync: board_sync::State,
+    benchmark: benchmark::State,
     focus: Option<ViewFocus>,
     output: Delivery,
 }
@@ -146,6 +152,7 @@ pub(crate) async fn run(
         trial: None,
         auto_setup: Default::default(),
         board_sync: Default::default(),
+        benchmark: Default::default(),
         focus: None,
         output,
     };
@@ -157,13 +164,17 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             command = commands.recv() => match command {
+                Some(Command::Benchmark(request, reply)) => { let _ = reply.send(actor.benchmark_command(request).await); }
                 Some(Command::BoardSync(request, reply)) => { let _ = reply.send(actor.board_sync_command(request).await); }
                 Some(Command::TsumegoStatus(reply)) => { let _ = reply.send(actor.tsumego_status()); }
                 Some(Command::StrengthEstimate(bounds, reply)) => { let _ = reply.send(actor.strength_estimate(bounds)); }
                 Some(Command::Fox(request)) => actor.fox_request(request).await,
                 Some(Command::ProblemMoves(query, reply)) => { let _ = reply.send(actor.problem_moves(query)); }
                 Some(Command::SetMoveRankSettings(settings, reply)) => { let _ = reply.send(actor.set_move_rank_settings(settings).await); }
-                Some(Command::Review(input, reply)) => { let _ = reply.send(actor.review_command(input).await); }
+                Some(Command::Review(input, reply)) => {
+                    actor.benchmark_review_input(&input);
+                    let _ = reply.send(actor.review_command(input).await);
+                }
                 Some(Command::ReviewProgress(reply)) => { let _ = reply.send(actor.review.progress.clone()); }
                 Some(Command::ReviewResult(node, reply)) => { let _ = reply.send(actor.review_view(node)); }
                 Some(Command::ReviewAnalysis(node, reply)) => { let _ = reply.send(actor.stored_analysis(node)); }
@@ -183,8 +194,9 @@ pub(crate) async fn run(
                 Some(Command::Apply(Input::Shutdown, reply)) => {
                     actor.auto_setup.cancel();
                     actor.cancel_trial().await;
+                    let benchmark_result = actor.stop_benchmark_process().await;
                     let sync_result = actor.stop_board_sync().await;
-                    let result = actor.stop_engine().await.and(sync_result).map(|()| actor.revision);
+                    let result = actor.stop_engine().await.and(sync_result).and(benchmark_result).map(|()| actor.revision);
                     let _ = reply.send(result);
                     break;
                 }
@@ -195,12 +207,13 @@ pub(crate) async fn run(
                     actor.auto_setup.cancel();
                     actor.begin_trial(profile, source, reply).await;
                 }
-                None => { actor.cancel_trial().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
+                None => { actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
             },
             signal = next_signal(&mut actor.running) => actor.signal(signal),
             result = review::receive(&mut actor.review) => actor.review_signal(result).await,
             result = trial::wait(&mut actor.trial) => actor.finish_trial(result).await,
             result = board_sync::receive(&mut actor.board_sync) => actor.board_sync_line(result).await,
+            result = benchmark::receive(&mut actor.benchmark) => actor.benchmark_signal(result).await,
         }
     }
 }
@@ -350,6 +363,7 @@ impl Actor {
                 self.document_changed().await?;
             }
             Input::SetPondering(enabled) => {
+                self.ensure_no_benchmark()?;
                 let changed = enabled != self.settings.pondering;
                 if changed {
                     let mut settings = self.settings.clone();
@@ -385,6 +399,7 @@ impl Actor {
                 }
             }
             Input::ConfigureEngine(profile) => {
+                self.ensure_no_benchmark()?;
                 self.auto_setup.cancel();
                 self.cancel_trial().await;
                 // Validate argument conflicts before changing the saved configuration.
@@ -567,8 +582,12 @@ impl Actor {
                 .send(AppEvent::EngineStatusChanged(EngineStatus::Stopped));
             return;
         };
-        let prepared =
-            async { Ok::<_, AppError>((profile.transport()?, profile.fingerprint().await?)) }.await;
+        let prepared = async {
+            let fingerprint = profile.fingerprint().await?;
+            let benchmark = self.settings.benchmarks.get(&fingerprint);
+            Ok::<_, AppError>((profile.transport_with_benchmark(benchmark)?, fingerprint))
+        }
+        .await;
         let (transport, fingerprint) = match prepared {
             Ok(prepared) => prepared,
             Err(error) => {

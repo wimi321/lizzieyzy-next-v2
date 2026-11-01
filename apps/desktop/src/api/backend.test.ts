@@ -403,6 +403,7 @@ test.each([
   expectTypeOf(result).toEqualTypeOf<Settings>();
   expect(result).toEqual({
     ...base,
+    benchmarks: {},
     fox_history: history ? customHistory : [],
     move_rank: rank ? customRank : {
       mode: "Auto",

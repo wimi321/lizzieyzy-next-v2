@@ -159,7 +159,9 @@ async fn synchronization_analyzes_remote_latest_without_overpainting_a_browsed_p
                     saw_graph = true;
                 }
                 AppEvent::BoardSyncStatusChanged(_) => break,
-                AppEvent::EngineStatusChanged(_) | AppEvent::WholeGameProgress(_) => {}
+                AppEvent::EngineStatusChanged(_)
+                | AppEvent::WholeGameProgress(_)
+                | AppEvent::BenchmarkProgress(_) => {}
             }
         }
     })

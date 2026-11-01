@@ -1,4 +1,4 @@
-import type { Backend, BoardSyncStatus, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import type { Backend, BenchmarkStatus, BoardSyncStatus, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 import { emptyStrengthEstimate } from "./fixtures";
 
 export type {
@@ -14,6 +14,8 @@ export type {
   WholeGameProgressListener,
   BoardSyncCommands, BoardSyncOptions, BoardSyncStatus, BoardSyncPhase, BoardSyncError,
   BoardSyncLanguage, BoardSyncStatusListener,
+  BenchmarkCommands, BenchmarkStatus, BenchmarkPhase, BenchmarkProgress,
+  BenchmarkMeasurement, BenchmarkResult, BenchmarkProgressListener,
   MoveRank, MoveRankEvaluationMode, MoveRankSettings, MoveLoss, ProblemMovesQuery,
   ProblemMovesView, ProblemMoveSort, ProblemMoveView, MistakeBarPoint,
   StrengthEstimateView, StrengthReport, SideReport, PhaseReport, Confidence, Sample, MoveCategory,
@@ -21,7 +23,7 @@ export type {
   StrengthPhasesReport, PhaseEstimate, PhaseExtremes,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "unsubscribe">;
+type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "unsubscribe">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -63,6 +65,8 @@ let dispatching = false;
 let lastDocument: { revision: number; view: DocumentView } | null = null;
 let lastProgress: WholeGameProgress | null = null;
 let lastBoardSyncStatus: BoardSyncStatus = { phase: "Stopped", always_sync: true, always_goto_last: false, remote_move_number: null, error: null };
+const idleBenchmark: BenchmarkStatus = { phase: "Idle", progress: null, measurements: [], last_result: null, error: null };
+let lastBenchmarkStatus: BenchmarkStatus = structuredClone(idleBenchmark);
 /** A test-provided problem-move view, answered for every unscripted read. */
 let problemMovesView: ProblemMovesView | null = null;
 
@@ -80,6 +84,7 @@ export function setStrengthEstimate(view: StrengthEstimateView | null): void {
 /** Install deterministic replies and events. No Go or analysis logic is simulated. */
 export function setScript(script: MockScript): void {
   lastBoardSyncStatus = { phase: "Stopped", always_sync: true, always_goto_last: false, remote_move_number: null, error: null };
+  lastBenchmarkStatus = structuredClone(idleBenchmark);
   pendingEvents = structuredClone(script.initialEvents ?? []);
   commands = structuredClone(script.commands ?? []);
   calls.length = 0;
@@ -106,6 +111,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       if (event.type === "DocumentChanged") lastDocument = structuredClone(event.data);
       if (event.type === "WholeGameProgress") lastProgress = structuredClone(event.data);
       if (event.type === "BoardSyncStatusChanged") lastBoardSyncStatus = structuredClone(event.data);
+      if (event.type === "BenchmarkProgress") lastBenchmarkStatus = structuredClone(event.data);
       for (const listener of [...listeners.values()]) {
         try {
           listener(structuredClone(event));
@@ -139,6 +145,7 @@ async function command<K extends CommandName>(
       fox_history: next.result.fox_history ?? [],
       move_rank: next.result.move_rank ?? defaultMoveRank,
       tsumego: next.result.tsumego ?? defaultTsumego,
+      benchmarks: next.result.benchmarks ?? {},
     }
     : next.result;
   return structuredClone(result) as Awaited<ReturnType<Backend[K]>>;
@@ -160,7 +167,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "boardSyncStatus" | "problemMoves" | "strengthEstimate">(
+function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate">(
   name: K,
   args: Parameters<Backend[K]>,
   fallback: () => Awaited<ReturnType<Backend[K]>>,
@@ -205,6 +212,11 @@ export const startBoardSync: Backend["startBoardSync"] = (options = { always_syn
 export const stopBoardSync: Backend["stopBoardSync"] = () => command("stopBoardSync", []);
 export const boardSyncStatus: Backend["boardSyncStatus"] = () =>
   query("boardSyncStatus", [], () => lastBoardSyncStatus);
+export const startBenchmark: Backend["startBenchmark"] = () => command("startBenchmark", []);
+export const cancelBenchmark: Backend["cancelBenchmark"] = () => command("cancelBenchmark", []);
+export const resetBenchmark: Backend["resetBenchmark"] = () => command("resetBenchmark", []);
+export const benchmarkStatus: Backend["benchmarkStatus"] = () =>
+  query("benchmarkStatus", [], () => lastBenchmarkStatus);
 export const problemMoves: Backend["problemMoves"] =
   (filter = { minimum_rank: "Inaccuracy", color: null, sort: "LossDesc" }) =>
     query("problemMoves", [filter], () => problemMovesView ? { ...problemMovesView, query: filter } : ({
@@ -251,7 +263,7 @@ export const quit: Backend["quit"] = () => command("quit", []);
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged") listener(event);
+    if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress") listener(event);
   });
   pushEvents([]);
   return id;
@@ -275,6 +287,65 @@ export const subscribeBoardSyncStatus: Backend["subscribeBoardSyncStatus"] = asy
   return id;
 };
 
+export const subscribeBenchmarkProgress: Backend["subscribeBenchmarkProgress"] = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => {
+    if (event.type === "BenchmarkProgress") listener(event.data);
+  });
+  pushEvents([]);
+  return id;
+};
+
+/** Explicit UI-development fixture; these illustrative speeds are not hardware
+ * measurements. Replay individual events with pushEvents to inspect each view. */
+export function benchmarkDemoEvents(outcome: "Completed" | "Failed" | "Cancelled" = "Completed", additionalAdvice = true): WireAppEvent[] {
+  const measurements = [
+    { threads: 1, completed_positions: 4, total_positions: 4, visits_per_second: 913.4, nn_evals_per_second: 886.2 },
+    { threads: 2, completed_positions: 4, total_positions: 4, visits_per_second: 1421.8, nn_evals_per_second: 1389.1 },
+    { threads: 4, completed_positions: 4, total_positions: 4, visits_per_second: 1832.6, nn_evals_per_second: 1774.3 },
+    { threads: 6, completed_positions: 4, total_positions: 4, visits_per_second: 1903.7, nn_evals_per_second: 1810.2 },
+  ];
+  const snapshots: BenchmarkStatus[] = [
+    { ...idleBenchmark, phase: "Running" },
+    { ...idleBenchmark, phase: "Running", progress: { threads: 1, completed_positions: 2, total_positions: 4, visits_per_second: null, nn_evals_per_second: null } },
+    { ...idleBenchmark, phase: "Running", progress: measurements[1]!, measurements: measurements.slice(0, 2) },
+    { ...idleBenchmark, phase: "Running", progress: { threads: 4, completed_positions: 3, total_positions: 4, visits_per_second: null, nn_evals_per_second: null }, measurements: measurements.slice(0, 2) },
+    {
+      phase: outcome, progress: measurements[3]!, measurements,
+      last_result: outcome === "Completed" ? {
+        engine_fingerprint: "mock-b11-metal-engine-fingerprint",
+        recommended_threads: 4,
+        visits_per_second: additionalAdvice ? 2448.9 : 1832.6,
+        nn_evals_per_second: additionalAdvice ? 2370.2 : 1774.3,
+        nn_max_batch_size: additionalAdvice ? 2 : null,
+        num_nn_server_threads_per_model: additionalAdvice ? 2 : null,
+        measured_at_unix_ms: 1793404800000,
+        canonical_model_name: "kata1-tf3-b11c768-s12002M-d6304M.bin.gz",
+      } : null,
+      error: outcome === "Failed" ? "KataGo benchmark exited with code 1: model could not be loaded" : null,
+    },
+  ];
+  return structuredClone(snapshots.map((data) => ({ type: "BenchmarkProgress" as const, data })));
+}
+
+/** A ready-made command script for the performance window. The recommended
+ * thread count deliberately differs from the highest raw visits/s candidate.
+ * Additional advice selects a separate final-setting measurement; without it,
+ * the displayed speeds retain the recommended main-search measurement. */
+export function benchmarkDemoScript(outcome: "Completed" | "Failed" | "Cancelled" = "Completed", additionalAdvice = true): MockScript {
+  const events = benchmarkDemoEvents(outcome, additionalAdvice);
+  const started = (events[0]! as Extract<WireAppEvent, { type: "BenchmarkProgress" }>).data;
+  const finished = (events[events.length - 1]! as Extract<WireAppEvent, { type: "BenchmarkProgress" }>).data;
+  return {
+    initialEvents: [{ type: "BenchmarkProgress", data: structuredClone(idleBenchmark) }],
+    commands: [
+      { command: "startBenchmark", result: started, events: outcome === "Cancelled" ? events.slice(0, -1) : events },
+      ...(outcome === "Cancelled" ? [{ command: "cancelBenchmark" as const, result: finished, events: events.slice(-1) }] : []),
+      { command: "resetBenchmark", result: idleBenchmark, events: [{ type: "BenchmarkProgress", data: idleBenchmark }] },
+    ],
+  };
+}
+
 export const unsubscribe: Backend["unsubscribe"] = async (id) => {
   listeners.delete(id);
 };
@@ -285,6 +356,8 @@ export interface MockControls {
   recordedCalls: typeof recordedCalls;
   setProblemMoves: typeof setProblemMoves;
   setStrengthEstimate: typeof setStrengthEstimate;
+  benchmarkDemoEvents: typeof benchmarkDemoEvents;
+  benchmarkDemoScript: typeof benchmarkDemoScript;
 }
 
 declare global {
@@ -297,6 +370,6 @@ declare global {
 }
 
 if (typeof window !== "undefined") {
-  window.__mockBackend = { setScript, pushEvents, recordedCalls, setProblemMoves, setStrengthEstimate };
+  window.__mockBackend = { setScript, pushEvents, recordedCalls, setProblemMoves, setStrengthEstimate, benchmarkDemoEvents, benchmarkDemoScript };
   if (window.__mockInitialScript) setScript(window.__mockInitialScript);
 }

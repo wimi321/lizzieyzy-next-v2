@@ -26,6 +26,8 @@ export interface MenuState {
   /** The engine's first choice for the displayed position, if it has one. */
   hasBestMove: boolean;
   engineFailed: boolean;
+  /** An engine profile is saved, so KataGo can be tuned. */
+  engineConfigured: boolean;
   /** Java offers readboard, the board synchronization tool, on Windows only. */
   windows: boolean;
   syncPhase: BoardSyncPhase;
@@ -52,6 +54,7 @@ export interface MenuActions {
   startBoardSync(): void;
   toggleSyncOption(key: "always_sync" | "always_goto_last"): void;
   openTsumego(): void;
+  openBenchmark(): void;
   openEngineSetup(): void;
   restartEngine(): void;
   openAbout(): void;
@@ -103,6 +106,8 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     stopAutoAnalyze: when(state.wholeGameActive, actions.cancelAutoAnalysis),
     playerStrengthEstimate: when(state.hasDocument, actions.openStrength),
     tsumeGoMenu: when(state.hasBoard, actions.openTsumego),
+    // 引擎一键设置 opens Java's 性能优化 page: KataGo's own benchmark, started by the user.
+    autoSetup: when(state.engineConfigured, actions.openBenchmark),
 
     backToMainBranch: when(trunk !== null, goTo(trunk)),
     jumpToFirst: step(-JUMP),

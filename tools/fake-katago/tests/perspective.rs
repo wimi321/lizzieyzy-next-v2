@@ -170,7 +170,7 @@ fn malformed_config_override_is_rejected_with_a_readable_error() {
     for value in [
         "invalid",
         "=BLACK",
-        "key=",
+        " = ",
         "reportAnalysisWinratesAs=unknown",
     ] {
         let output = std::process::Command::new(&path)
@@ -181,6 +181,23 @@ fn malformed_config_override_is_rejected_with_a_readable_error() {
         assert!(!output.stderr.is_empty());
         assert!(output.stdout.is_empty());
     }
+}
+
+#[test]
+fn deleting_perspective_override_restores_default_reported_values() {
+    let request = request();
+    let restored = results(
+        &[
+            "--default-perspective-to-play",
+            "-override-config",
+            "numSearchThreads=,numSearchThreadsPerAnalysisThread=6,reportAnalysisWinratesAs=WHITE,reportAnalysisWinratesAs=,unused=",
+        ],
+        &request,
+    );
+    assert_eq!(
+        restored,
+        results(&["--default-perspective-to-play"], &request)
+    );
 }
 
 #[test]

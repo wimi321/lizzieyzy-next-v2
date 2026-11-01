@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod benchmark;
 pub mod board_sync;
 pub mod document;
 pub mod engine;

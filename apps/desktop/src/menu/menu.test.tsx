@@ -110,6 +110,7 @@ function actions(): MenuActions {
     startBoardSync: vi.fn(),
     toggleSyncOption: vi.fn(),
     openTsumego: vi.fn(),
+    openBenchmark: vi.fn(),
     openEngineSetup: vi.fn(),
     restartEngine: vi.fn(),
     openAbout: vi.fn(),
@@ -124,6 +125,7 @@ const IDLE: MenuState = {
   wholeGameActive: false,
   hasBestMove: true,
   engineFailed: false,
+  engineConfigured: true,
   windows: false,
   syncPhase: "Stopped",
   syncOptions: { always_sync: true, always_goto_last: false },
@@ -174,6 +176,13 @@ describe("what the menu can do now", () => {
     expect(busy.restartCurrentEngine?.enabled).toBe(true);
     expect(busy.saveAs?.enabled).toBe(false);
     expect(busy.jumpToLast?.enabled).toBe(false);
+  });
+
+  test("引擎一键设置 opens KataGo tuning once an engine is saved", () => {
+    const run = actions();
+    expect(isEnabled(menuBindings({ ...IDLE, engineConfigured: false }, run).autoSetup)).toBe(false);
+    menuBindings(IDLE, run).autoSetup?.run?.();
+    expect(run.openBenchmark).toHaveBeenCalledTimes(1);
   });
 
   test("readboard starts on Windows only, once, and its options show as checks", () => {

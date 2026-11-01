@@ -1,0 +1,23 @@
+Synthetic protocol replay, not a hardware measurement.
+The single-line batch and multi-line server recommendations follow the Java parser fixtures.
+You are currently using the Metal version of KataGo.
+Testing using 30 visits.
+numSearchThreads = 4: 0 / 2 positions, visits/s = nan (0.0 secs)
+numSearchThreads = 4: 1 / 2 positions, visits/s = 9.60 (3.4 secs)
+numSearchThreads = 4: 2 / 2 positions, visits/s = 15.75 nnEvals/s = 15.99 nnBatches/s = 8.35 avgBatchSize = 1.91 (4.2 secs) (EloDiff baseline)
+Ordered summary of results:
+numSearchThreads = 4: (baseline) (recommended)
+Running additional tests of a few other settings at numSearchThreads = 4.
+Re-measuring the current recommendation as a baseline:
+numSearchThreads = 4: 2 / 2 positions, visits/s = 15.77 nnEvals/s = 15.53 nnBatches/s = 8.36 avgBatchSize = 1.86 (4.2 secs)
+Testing 2 NN server threads per GPU. This also uses more GPU memory:
+numSearchThreads = 4: 2 / 2 positions, visits/s = 20.00 nnEvals/s = 19.00 nnBatches/s = 10.00 avgBatchSize = 1.90 (3.3 secs)
+2 NN server threads per GPU was 26.8% faster, will recommend it.
+Testing a max batch size of 2, half the search threads, which can pipeline better on some GPUs:
+numSearchThreads = 4: 2 / 2 positions, visits/s = 44.95 nnEvals/s = 44.27 nnBatches/s = 23.84 avgBatchSize = 1.86 (1.5 secs)
+Half batch size was 185.0% faster, will recommend it.
+ADDITIONAL RECOMMENDATION: 2 NN server threads per GPU measured faster. To use this, set the following in your config (note that it also increases GPU memory usage):
+  numNNServerThreadsPerModel = 2
+  metalDeviceToUseThread0 = 0
+  metalDeviceToUseThread1 = 0
+ADDITIONAL RECOMMENDATION: a smaller batch size measured faster. To use this, set nnMaxBatchSize = 2 in your config. This is half of numSearchThreads rounded up, so update it if you change numSearchThreads.
