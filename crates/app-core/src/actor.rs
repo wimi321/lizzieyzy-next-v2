@@ -8,6 +8,7 @@ use engine_session::EngineHandle;
 use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
+mod analysis_limit;
 mod auto_curve;
 mod auto_setup;
 mod benchmark;
@@ -36,6 +37,7 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    AnalysisLimit(crate::analysis_limit::Request),
     Benchmark(
         crate::benchmark::Request,
         oneshot::Sender<Result<crate::BenchmarkStatus, AppError>>,
@@ -165,9 +167,22 @@ pub(crate) async fn run(
     }
     actor.start_engine().await;
     actor.publish_sync();
+    actor.publish_analysis_state();
     loop {
         tokio::select! {
             command = commands.recv() => match command {
+                Some(Command::AnalysisLimit(request)) => {
+                    use crate::analysis_limit::Request;
+                    match request {
+                        Request::Status(reply) => { let _ = reply.send(actor.analysis_state()); }
+                        Request::Set(settings, reply) => { let _ = reply.send(actor.set_analysis_limits(settings).await); }
+                        Request::Toggle(reply) => {
+                            let enabled = !actor.analysis_state().pondering;
+                            let result = actor.set_pondering(enabled).await.map(|()| actor.analysis_state());
+                            let _ = reply.send(result);
+                        }
+                    }
+                }
                 Some(Command::Benchmark(request, reply)) => { let _ = reply.send(actor.benchmark_command(request).await); }
                 Some(Command::BoardSync(request, reply)) => { let _ = reply.send(actor.board_sync_command(request).await); }
                 Some(Command::TsumegoStatus(reply)) => { let _ = reply.send(actor.tsumego_status()); }
@@ -220,6 +235,7 @@ pub(crate) async fn run(
             result = benchmark::receive(&mut actor.benchmark) => actor.benchmark_signal(result).await,
         }
         actor.maybe_start_auto_curve().await;
+        actor.publish_analysis_state();
     }
 }
 
@@ -352,10 +368,18 @@ impl Actor {
             }
             Input::Edit(command) => {
                 self.next_revision()?;
+                let before_node = self.document.current();
+                let play = matches!(command, document::Command::Play(_));
+                let navigate = matches!(
+                    command,
+                    document::Command::Step(_) | document::Command::GoTo(_)
+                );
                 let before = self.document.revision();
                 self.document.apply(command)?;
                 if self.document.revision() != before {
-                    self.document_changed().await?;
+                    let resume_limited = !self.sync_active()
+                        && (play || (navigate && self.navigation_plays_move(before_node)));
+                    self.document_changed_with_resume(resume_limited).await?;
                 }
             }
             Input::Undo | Input::Redo => {
@@ -368,40 +392,7 @@ impl Actor {
                 self.document_changed().await?;
             }
             Input::SetPondering(enabled) => {
-                self.ensure_no_benchmark()?;
-                let changed = enabled != self.settings.pondering;
-                if changed {
-                    let mut settings = self.settings.clone();
-                    settings.pondering = enabled;
-                    settings.save(&self.directory).await?;
-                    self.settings = settings;
-                }
-                let sync_changed = self.sync_active() && self.board_sync.analysis_paused == enabled;
-                if changed || sync_changed {
-                    if self.sync_active() {
-                        self.board_sync.analysis_paused = !enabled;
-                    }
-                    self.output.clear_analysis();
-                    if enabled
-                        && self.review_running()
-                        && let Err(error) = self.stop_review_query().await
-                    {
-                        self.analysis_failed(error.to_string());
-                    }
-                    if let Some(running) = &self.running {
-                        // Invalid SGF positions remain inspectable but never analyzed.
-                        if let Err(error) = running
-                            .coordinator
-                            .set_pondering(enabled && self.focus.is_some())
-                            .await
-                        {
-                            self.analysis_failed(error.to_string());
-                        }
-                    }
-                    if enabled {
-                        self.continue_review().await;
-                    }
-                }
+                self.set_pondering(enabled).await?;
             }
             Input::SetAutoQuickAnalyzeOnLoad(enabled) => {
                 self.set_auto_quick_analyze_on_load(enabled).await?;
@@ -508,14 +499,22 @@ impl Actor {
     }
 
     async fn document_changed(&mut self) -> Result<(), AppError> {
+        self.document_changed_with_resume(false).await
+    }
+
+    async fn document_changed_with_resume(&mut self, resume_limited: bool) -> Result<(), AppError> {
         self.revision = self.next_revision()?;
         self.output.clear_analysis();
         self.publish_document()?;
-        self.update_focus().await;
+        self.update_focus_with_resume(resume_limited).await;
         Ok(())
     }
 
     async fn update_focus(&mut self) {
+        self.update_focus_with_resume(false).await;
+    }
+
+    async fn update_focus_with_resume(&mut self, resume_limited: bool) {
         if self.running.is_none() {
             return;
         }
@@ -529,7 +528,8 @@ impl Actor {
         };
         let Ok(position) = self.document.position_at(node_id) else {
             self.focus = None;
-            if let Some(running) = &self.running
+            if self.limit_reason().is_none()
+                && let Some(running) = &self.running
                 && let Err(error) = running.coordinator.set_pondering(false).await
             {
                 self.analysis_failed(error.to_string());
@@ -568,7 +568,11 @@ impl Actor {
             // Cached review results establish the same depth floor as LRU hits.
             // Submit live before rebuilding the low-priority batch, reserving a
             // search slot even when background work occupied both threads.
-            match running.coordinator.focus_with_cached(focus, cached).await {
+            match running
+                .coordinator
+                .focus_with_cached_and_resume(focus, cached, resume_limited)
+                .await
+            {
                 Ok(()) => {
                     self.focus = Some(view_focus);
                     if let Err(error) = running.coordinator.set_pondering(self.pondering()).await {
@@ -591,6 +595,7 @@ impl Actor {
         let mut config = self.config.analysis.clone();
         config.engine_fingerprint = fingerprint.to_owned();
         config.pondering = self.pondering();
+        config.limits = self.settings.analysis_limits.into();
         Ok(analysis::spawn(engine.clone(), config)?)
     }
 

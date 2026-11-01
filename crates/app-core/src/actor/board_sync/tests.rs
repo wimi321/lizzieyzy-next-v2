@@ -104,6 +104,204 @@ async fn logged(directory: &Path, predicate: impl Fn(&Value) -> bool) -> Value {
     .await
 }
 
+async fn wait_for_limit(actor: &Actor) {
+    let mut status = actor.running.as_ref().unwrap().coordinator.status();
+    within(async {
+        loop {
+            if matches!(*status.borrow(), analysis::AnalysisStatus::Limited(_)) {
+                break;
+            }
+            status.changed().await.unwrap();
+        }
+    })
+    .await;
+}
+
+async fn limited_sync_actor(directory: &Path) -> Actor {
+    let (mut actor, _output) = engine_actor(directory, 100, "100000").await;
+    actor
+        .set_analysis_limits(crate::AnalysisLimitSettings {
+            limit_time: false,
+            limit_playout: true,
+            limit_playouts: 50,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    actor
+        .board_sync_event(Event::Snapshot(frame(false)))
+        .await
+        .unwrap();
+    wait_for_limit(&actor).await;
+    actor
+}
+
+#[tokio::test]
+async fn remote_new_move_resumes_limit_pause_while_repeated_frames_and_local_browsing_do_not() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut actor = limited_sync_actor(directory.path()).await;
+    let root = actor.document.root();
+    actor
+        .apply(Input::Edit(document::Command::GoTo(root)))
+        .await
+        .unwrap();
+    assert!(actor.limit_reason().is_some());
+    actor
+        .board_sync_event(Event::Snapshot(frame(false)))
+        .await
+        .unwrap();
+    assert!(actor.limit_reason().is_some());
+    // Disabling the threshold preserves the pause, allowing an unambiguous
+    // observation of the subsequent remote move's explicit resume.
+    actor
+        .set_analysis_limits(crate::AnalysisLimitSettings {
+            limit_time: false,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    actor
+        .board_sync_event(Event::Snapshot(frame(true)))
+        .await
+        .unwrap();
+    assert_eq!(actor.document.current(), root);
+    assert!(actor.analysis_state().pondering);
+    assert!(actor.limit_reason().is_none());
+    logged(directory.path(), |value| {
+        value["moves"]
+            .as_array()
+            .is_some_and(|moves| moves.len() == 2)
+    })
+    .await;
+    within(actor.stop_engine()).await.unwrap();
+}
+
+#[tokio::test]
+async fn remote_backward_history_stays_limited_and_forward_history_resumes() {
+    let directory = tempfile::tempdir().unwrap();
+    let (mut actor, _output) = engine_actor(directory.path(), 100, "100000").await;
+    actor
+        .set_analysis_limits(crate::AnalysisLimitSettings {
+            limit_time: false,
+            limit_playout: true,
+            limit_playouts: 50,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let mut first = frame(false);
+    first.context.platform = Some("fox".into());
+    first.fox_move_number = Some(1);
+    let mut second = frame(true);
+    second.context.platform = Some("fox".into());
+    second.fox_move_number = Some(2);
+    actor
+        .board_sync_event(Event::Snapshot(first.clone()))
+        .await
+        .unwrap();
+    wait_for_limit(&actor).await;
+    actor
+        .board_sync_event(Event::Snapshot(second.clone()))
+        .await
+        .unwrap();
+    wait_for_limit(&actor).await;
+    actor
+        .set_analysis_limits(crate::AnalysisLimitSettings {
+            limit_time: false,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    actor
+        .board_sync_event(Event::Snapshot(first.clone()))
+        .await
+        .unwrap();
+    assert!(actor.limit_reason().is_some());
+    actor
+        .board_sync_event(Event::Snapshot(first))
+        .await
+        .unwrap();
+    assert!(actor.limit_reason().is_some());
+    actor
+        .board_sync_event(Event::Snapshot(second))
+        .await
+        .unwrap();
+    assert!(actor.analysis_state().pondering);
+    assert!(actor.limit_reason().is_none());
+    within(actor.stop_engine()).await.unwrap();
+}
+
+fn fake_helper(directory: &Path) -> std::path::PathBuf {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let output =
+        std::process::Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
+            .args(["build", "--locked", "--manifest-path"])
+            .arg(root.join("tools/fake-readboard/Cargo.toml"))
+            .arg("--target-dir")
+            .arg(root.join("target"))
+            .arg("--message-format=json")
+            .output()
+            .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let binary = String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .find_map(|line| {
+            let value: Value = serde_json::from_str(line).ok()?;
+            (value["reason"] == "compiler-artifact" && value["target"]["name"] == "fake-readboard")
+                .then(|| value["executable"].as_str().map(std::path::PathBuf::from))
+                .flatten()
+        })
+        .unwrap();
+    let program = directory.join("readboard.exe");
+    std::fs::copy(binary, &program).unwrap();
+    std::fs::write(directory.join("replay.txt"), "").unwrap();
+    program
+}
+
+#[tokio::test]
+async fn helper_reports_limit_pause_and_explicit_resume_without_changing_saved_preference() {
+    let directory = tempfile::tempdir().unwrap();
+    let helper = fake_helper(directory.path());
+    let mut actor = limited_sync_actor(directory.path()).await;
+    let saved = tokio::fs::read(directory.path().join("settings.json"))
+        .await
+        .unwrap();
+    actor.board_sync.process = Some(
+        Process::spawn(helper, &BoardSyncOptions::default())
+            .await
+            .unwrap(),
+    );
+    actor
+        .board_sync_event(Event::Snapshot(frame(false)))
+        .await
+        .unwrap();
+    assert!(!actor.analysis_state().pondering);
+    actor.board_sync_event(Event::ResumeAnalysis).await.unwrap();
+    assert!(actor.analysis_state().pondering);
+    assert!(!actor.settings.pondering);
+    assert_eq!(
+        tokio::fs::read(directory.path().join("settings.json"))
+            .await
+            .unwrap(),
+        saved
+    );
+    within(actor.stop_board_sync()).await.unwrap();
+    let commands = std::fs::read_to_string(directory.path().join("commands.log")).unwrap();
+    assert_eq!(
+        commands,
+        "analysisState paused\nanalysisState running\nquit\n"
+    );
+    within(actor.stop_engine()).await.unwrap();
+}
+
 #[tokio::test]
 async fn synchronization_analyzes_remote_latest_without_overpainting_a_browsed_position() {
     let directory = tempfile::tempdir().unwrap();
@@ -161,6 +359,7 @@ async fn synchronization_analyzes_remote_latest_without_overpainting_a_browsed_p
                 AppEvent::BoardSyncStatusChanged(_) => break,
                 AppEvent::EngineStatusChanged(_)
                 | AppEvent::WholeGameProgress(_)
+                | AppEvent::AnalysisStateChanged(_)
                 | AppEvent::BenchmarkProgress(_) => {}
             }
         }

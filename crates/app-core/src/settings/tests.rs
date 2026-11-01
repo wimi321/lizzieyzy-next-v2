@@ -64,6 +64,36 @@ async fn legacy_settings_default_missing_fields_and_ignore_unknown_fields() {
 }
 
 #[tokio::test]
+async fn partial_analysis_limit_settings_default_each_missing_field_and_reject_invalid_files() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("settings.json");
+    fs::write(&path, br#"{"analysis_limits":{"limit_time":false}}"#).unwrap();
+    let loaded = Settings::load(directory.path()).await.unwrap();
+    assert_eq!(
+        loaded.analysis_limits,
+        crate::AnalysisLimitSettings {
+            limit_time: false,
+            max_analyze_time_seconds: 600,
+            limit_playout: false,
+            limit_playouts: 100_000,
+        }
+    );
+    for limits in [
+        serde_json::json!({"max_analyze_time_seconds": 0}),
+        serde_json::json!({"max_analyze_time_seconds": -1}),
+        serde_json::json!({"max_analyze_time_seconds": 4294967296_u64}),
+        serde_json::json!({"limit_playouts": 0}),
+        serde_json::json!({"limit_playouts": 1.5}),
+        serde_json::json!({"limit_playouts": 9007199254740992_u64}),
+    ] {
+        let bytes = serde_json::to_vec(&serde_json::json!({"analysis_limits": limits})).unwrap();
+        fs::write(&path, &bytes).unwrap();
+        assert!(Settings::load(directory.path()).await.is_err());
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+    }
+}
+
+#[tokio::test]
 async fn supported_settings_versions_default_missing_fox_history_and_move_rank() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("settings.json");
@@ -135,6 +165,7 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
         benchmarks: Default::default(),
         pondering: false,
         auto_quick_analyze_on_load: true,
+        analysis_limits: crate::AnalysisLimitSettings::default(),
         engine: Some(profile(directory.path())),
         fox_history: vec![
             latest.clone(),

@@ -4,12 +4,14 @@
 mod actor;
 mod cache;
 mod delivery;
+mod limits;
 mod request;
 pub mod review;
 mod speed;
 mod throttle;
 
 pub use delivery::AnalysisSubscription;
+pub use limits::{AnalysisLimits, LimitReason};
 
 use document::{AnalysisKey, GamePosition, NodeId, Revision};
 use engine_session::{EngineHandle, QueryError, SessionError};
@@ -68,6 +70,7 @@ pub struct AnalysisConfig {
     pub cache_capacity: usize,
     pub live: LiveSettings,
     pub pondering: bool,
+    pub limits: AnalysisLimits,
 }
 
 impl Default for AnalysisConfig {
@@ -77,6 +80,7 @@ impl Default for AnalysisConfig {
             cache_capacity: 128,
             live: LiveSettings::default(),
             pondering: true,
+            limits: AnalysisLimits::default(),
         }
     }
 }
@@ -123,6 +127,7 @@ pub enum AnalysisStatus {
     Idle,
     Analyzing,
     Restarting,
+    Limited(LimitReason),
     Failed(AnalysisError),
     Stopped,
 }
@@ -142,6 +147,7 @@ pub fn spawn(
     config: AnalysisConfig,
 ) -> Result<(AnalysisHandle, AnalysisSubscription), AnalysisError> {
     config.live.validate()?;
+    config.limits.validate()?;
     let capacity = NonZeroUsize::new(config.cache_capacity).ok_or(
         AnalysisError::InvalidSettings("cache_capacity must be positive"),
     )?;
@@ -179,15 +185,46 @@ impl AnalysisHandle {
         focus: Focus,
         cached: Option<AnalysisResponse>,
     ) -> Result<(), AnalysisError> {
+        self.focus_with_cached_and_resume(focus, cached, false)
+            .await
+    }
+
+    /// Apply a focus transition and optionally resume an existing limit pause
+    /// atomically, before the new query can produce results or hit its limit.
+    /// Same-position resumes retain the Java playout exemption; navigating to
+    /// another position always starts with that position's normal thresholds.
+    pub async fn focus_with_cached_and_resume(
+        &self,
+        focus: Focus,
+        cached: Option<AnalysisResponse>,
+        resume_limited: bool,
+    ) -> Result<(), AnalysisError> {
         if focus.key != focus.position.analysis_key() {
             return Err(AnalysisError::KeyMismatch);
         }
-        self.send(actor::Input::Focus(Box::new(focus), cached.map(Box::new)))
-            .await
+        self.send(actor::Input::Focus(
+            Box::new(focus),
+            cached.map(Box::new),
+            resume_limited,
+        ))
+        .await
     }
 
     pub async fn set_pondering(&self, enabled: bool) -> Result<(), AnalysisError> {
         self.send(actor::Input::SetPondering(enabled)).await
+    }
+
+    /// Resume a limit-paused query without changing the persisted pondering
+    /// intent. Calling this while already running is a no-op.
+    pub async fn resume(&self) -> Result<(), AnalysisError> {
+        self.send(actor::Input::Resume).await
+    }
+
+    /// Apply thresholds without restarting the current search or its clock.
+    /// Updating limits does not implicitly resume a limit-paused query.
+    pub async fn set_limits(&self, limits: AnalysisLimits) -> Result<(), AnalysisError> {
+        limits.validate()?;
+        self.send(actor::Input::SetLimits(limits)).await
     }
 
     /// Invalid settings leave the currently running query untouched.

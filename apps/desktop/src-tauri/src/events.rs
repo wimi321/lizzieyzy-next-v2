@@ -47,7 +47,8 @@ impl EventBridge {
 async fn forward(mut subscription: AppSubscription, mut requests: mpsc::Receiver<Request>) {
     let mut active: Option<(u32, Channel<AppEvent>)> = None;
     let mut next_id = Some(1_u32);
-    // At most five state events (document, engine, review, board sync, benchmark), retained
+    // At most six state events (document, engine, review, board sync, benchmark,
+    // live analysis state), retained
     // in their original publication order.
     // Analysis is deliberately never replayed: pausing can invalidate it without
     // a document change. Only AppCore decides which new analysis may be sent.

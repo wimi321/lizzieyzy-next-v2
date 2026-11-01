@@ -2,6 +2,7 @@
 //! engine session and analysis coordinator. Handles contain only channels.
 
 mod actor;
+mod analysis_limit;
 mod auto_setup;
 mod benchmark;
 mod board_sync;
@@ -20,6 +21,7 @@ mod strength_estimate;
 mod tsumego;
 mod view;
 
+pub use analysis_limit::{AnalysisLimitSettings, AnalysisPauseReason, AnalysisState};
 pub use auto_setup::{AutoSetupAttempt, AutoSetupError};
 pub use benchmark::*;
 pub use board_sync::{

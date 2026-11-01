@@ -1,4 +1,4 @@
-use app_core::AppEvent;
+use app_core::{AnalysisState, AppEvent};
 use tauri::{State, ipc::Channel};
 
 use crate::{DesktopState, bindings::SubscriptionId, error::CommandError};
@@ -9,6 +9,18 @@ pub async fn set_pondering(
     enabled: bool,
 ) -> Result<(), CommandError> {
     Ok(state.core.set_pondering(enabled).await?)
+}
+
+#[tauri::command]
+pub async fn analysis_state(state: State<'_, DesktopState>) -> Result<AnalysisState, CommandError> {
+    Ok(state.core.analysis_state().await?)
+}
+
+#[tauri::command]
+pub async fn toggle_pondering(
+    state: State<'_, DesktopState>,
+) -> Result<AnalysisState, CommandError> {
+    Ok(state.core.toggle_pondering().await?)
 }
 
 #[tauri::command]

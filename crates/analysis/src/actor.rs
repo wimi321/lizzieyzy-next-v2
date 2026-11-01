@@ -1,7 +1,7 @@
 use crate::{
-    AnalysisConfig, AnalysisError, AnalysisSnapshot, AnalysisStatus, Focus, LiveSettings,
-    SnapshotSource, cache::Cache, delivery::Delivery, request, speed::SearchSpeed,
-    throttle::Throttle,
+    AnalysisConfig, AnalysisError, AnalysisLimits, AnalysisSnapshot, AnalysisStatus, Focus,
+    LimitReason, LiveSettings, SnapshotSource, cache::Cache, delivery::Delivery, request,
+    speed::SearchSpeed, throttle::Throttle,
 };
 use document::{AnalysisKey, NodeId, Revision};
 use engine_session::{EngineHandle, QueryEvent, QuerySubscription};
@@ -12,8 +12,14 @@ use tokio::{
 };
 
 pub(crate) enum Input {
-    Focus(Box<Focus>, Option<Box<katago_protocol::AnalysisResponse>>),
+    Focus(
+        Box<Focus>,
+        Option<Box<katago_protocol::AnalysisResponse>>,
+        bool,
+    ),
     SetPondering(bool),
+    Resume,
+    SetLimits(AnalysisLimits),
     SetLiveSettings(LiveSettings),
     Shutdown,
 }
@@ -44,6 +50,8 @@ struct Active {
     identity: Identity,
     subscription: QuerySubscription,
     speed: SearchSpeed,
+    started: Option<Instant>,
+    visits: Option<u64>,
 }
 
 struct Actor {
@@ -51,6 +59,9 @@ struct Actor {
     config: AnalysisConfig,
     focus: Option<Focus>,
     active: Option<Active>,
+    limited: Option<LimitReason>,
+    limited_on_current: bool,
+    playout_exempt: bool,
     cache: Cache,
     throttle: Throttle,
     last_published: Option<AnalysisSnapshot>,
@@ -72,6 +83,9 @@ pub(crate) async fn run(
         config,
         focus: None,
         active: None,
+        limited: None,
+        limited_on_current: false,
+        playout_exempt: false,
         cache: Cache::new(capacity),
         throttle: Throttle::new(),
         last_published: None,
@@ -81,8 +95,11 @@ pub(crate) async fn run(
     };
     loop {
         let deadline = actor.throttle.deadline();
+        let limit_deadline = actor
+            .active
+            .as_ref()
+            .and_then(|active| actor.config.limits.deadline(active.started));
         tokio::select! {
-            biased;
             command = commands.recv() => {
                 let Some(command) = command else { break };
                 let stop = matches!(command.input, Input::Shutdown);
@@ -93,7 +110,12 @@ pub(crate) async fn run(
                 let _ = command.reply.send(result);
                 if stop { return; }
             }
-            event = receive(&mut actor.active) => actor.event(event),
+            () = tick(limit_deadline) => actor.stop_by_limit(LimitReason::Time).await,
+            event = receive(&mut actor.active) => {
+                if let Some(reason) = actor.event(event) {
+                    actor.stop_by_limit(reason).await;
+                }
+            }
             () = tick(deadline) => {
                 if let Some(snapshot) = actor.throttle.flush(Instant::now()) {
                     actor.publish(snapshot);
@@ -123,9 +145,21 @@ async fn tick(deadline: Option<Instant>) {
 impl Actor {
     async fn command(&mut self, input: Input) -> Result<(), AnalysisError> {
         match input {
-            Input::Focus(focus, cached) => {
+            Input::Focus(focus, cached, resume_limited) => {
                 // Validate before invalidating the currently usable focus.
                 request::build(&focus.position, &self.config.live)?;
+                let same_position = self.focus.as_ref().is_some_and(|current| {
+                    current.node_id == focus.node_id && current.key == focus.key
+                });
+                let resumed = resume_limited && self.limited.is_some();
+                if resumed {
+                    self.playout_exempt |= same_position
+                        && self.limited_on_current
+                        && self.limited == Some(LimitReason::Playouts);
+                    self.limited = None;
+                    self.limited_on_current = false;
+                    self.status.send_replace(AnalysisStatus::Idle);
+                }
                 if (self.last_published.is_none()
                     || self.focus.as_ref().is_none_or(|current| {
                         current.node_id != focus.node_id || current.key != focus.key
@@ -140,25 +174,25 @@ impl Actor {
                         self.offer_cached();
                     }
                     if self.active.is_none()
-                        && matches!(*self.status.borrow(), AnalysisStatus::Failed(_))
+                        && (resumed || matches!(*self.status.borrow(), AnalysisStatus::Failed(_)))
                     {
                         return self.start().await;
                     }
                     return Ok(());
                 }
-                if self.focus.as_ref().is_some_and(|current| {
-                    current.node_id == focus.node_id && current.key == focus.key
-                }) {
+                if same_position {
                     self.rebase_focus(*focus);
                     if self.last_published.is_none() {
                         self.offer_cached();
                     }
-                    return Ok(());
+                    return if resumed { self.start().await } else { Ok(()) };
                 }
                 self.output.clear();
                 self.throttle.reset();
                 self.last_published = None;
                 self.display_floor = None;
+                self.playout_exempt = false;
+                self.limited_on_current = false;
                 self.focus = Some(*focus);
                 // Cancel by stable subscription id, including across restarts.
                 self.cancel().await?;
@@ -170,11 +204,32 @@ impl Actor {
                     return Ok(());
                 }
                 self.config.pondering = enabled;
+                self.playout_exempt |=
+                    self.limited_on_current && self.limited == Some(LimitReason::Playouts);
+                self.limited = None;
+                self.limited_on_current = false;
                 if !enabled {
                     self.output.clear();
                 }
                 self.cancel().await?;
                 self.start().await
+            }
+            Input::Resume => {
+                self.playout_exempt |=
+                    self.limited_on_current && self.limited == Some(LimitReason::Playouts);
+                self.limited_on_current = false;
+                if self.limited.take().is_some() {
+                    self.status.send_replace(AnalysisStatus::Idle);
+                    self.start().await?;
+                }
+                Ok(())
+            }
+            Input::SetLimits(limits) => {
+                self.config.limits = limits;
+                if let Some(reason) = self.limit_reached() {
+                    self.stop_by_limit(reason).await;
+                }
+                Ok(())
             }
             Input::SetLiveSettings(settings) => {
                 if self.config.live == settings {
@@ -243,12 +298,16 @@ impl Actor {
                 .terminate(active.subscription.id().to_owned())
                 .await?;
         }
-        self.status.send_replace(AnalysisStatus::Idle);
+        self.status.send_replace(
+            self.limited
+                .map_or(AnalysisStatus::Idle, AnalysisStatus::Limited),
+        );
         Ok(())
     }
 
     async fn start(&mut self) -> Result<(), AnalysisError> {
         if self.config.pondering
+            && self.limited.is_none()
             && let Some(focus) = &self.focus
         {
             let request = request::build(&focus.position, &self.config.live)?;
@@ -257,23 +316,33 @@ impl Actor {
                 identity: Identity::from(focus),
                 subscription,
                 speed: SearchSpeed::default(),
+                started: None,
+                visits: None,
             });
             self.status.send_replace(AnalysisStatus::Analyzing);
         }
         Ok(())
     }
 
-    fn event(&mut self, event: Option<QueryEvent>) {
+    fn event(&mut self, event: Option<QueryEvent>) -> Option<LimitReason> {
         let Some(active) = &mut self.active else {
-            return;
+            return None;
         };
         let identity = active.identity;
         if self.focus.as_ref().map(Identity::from) != Some(identity) {
-            return;
+            return None;
         }
         match event {
             Some(QueryEvent::Partial(response) | QueryEvent::Final(response)) => {
                 let final_result = !response.is_during_search;
+                // Queueing and engine startup are not live search time. The
+                // first result is the protocol's first proof of actual work.
+                active.started.get_or_insert_with(Instant::now);
+                active.visits = Some(response.root_info.visits);
+                let reason = self.config.limits.reached(
+                    active.started,
+                    (!self.playout_exempt).then_some(active.visits).flatten(),
+                );
                 // Measure every received Partial, before display-depth filtering
                 // or throttling. A Final retains the last measured speed.
                 if !final_result {
@@ -299,9 +368,12 @@ impl Actor {
                 } else {
                     self.status.send_replace(AnalysisStatus::Analyzing);
                 }
+                return reason;
             }
             Some(QueryEvent::Restarted) => {
                 active.speed = SearchSpeed::default();
+                active.started = None;
+                active.visits = None;
                 self.throttle.clear_pending();
                 // Keep the old display until the new process reports progress.
                 self.display_floor = None;
@@ -320,6 +392,34 @@ impl Actor {
                 self.status.send_replace(AnalysisStatus::Idle);
             }
         }
+        None
+    }
+
+    async fn stop_by_limit(&mut self, reason: LimitReason) {
+        self.limited = Some(reason);
+        self.limited_on_current = true;
+        // Do not use cancel(): it clears pending results. The latest accepted
+        // snapshot must still be delivered through the usual trailing throttle.
+        if let Some(active) = self.active.take()
+            && let Err(error) = self
+                .engine
+                .terminate(active.subscription.id().to_owned())
+                .await
+        {
+            self.status
+                .send_replace(AnalysisStatus::Failed(error.into()));
+            return;
+        }
+        self.status.send_replace(AnalysisStatus::Limited(reason));
+    }
+
+    fn limit_reached(&self) -> Option<LimitReason> {
+        self.active.as_ref().and_then(|active| {
+            self.config.limits.reached(
+                active.started,
+                (!self.playout_exempt).then_some(active.visits).flatten(),
+            )
+        })
     }
 
     fn offer(&mut self, snapshot: AnalysisSnapshot) {
