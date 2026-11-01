@@ -689,5 +689,31 @@
     "reset": "恢复默认",
     "running": "正在优化 KataGo",
     "open": "打开性能优化"
+  },
+  "prefs": {
+    "title": "综合设置",
+    "analysis": "分析",
+    "limitTime": "限制分析时长",
+    "limitTimeHint": "同一步分析达到这个时长后自动停止，免得忘了关一直占用显卡。按空格或新下一手继续。",
+    "seconds": "秒",
+    "limitPlayout": "限制分析计算量",
+    "limitPlayoutHint": "同一步的计算量达到这个数后自动停止。",
+    "visits": "次",
+    "autoCurve": "打开棋谱后自动生成胜率曲线",
+    "autoCurveHint": "每手只算 1 次，几秒钟画出整盘曲线，不影响实时分析。",
+    "invalid": "请填写大于 0 的整数。",
+    "save": "保存",
+    "cancel": "取消",
+    "close": "关闭"
+  },
+  "limit": {
+    "title": "计算已停止",
+    "time": "这一步已分析满 {n}，按空格键继续。",
+    "playouts": "这一步的计算量已达 {n}，按空格键继续。",
+    "minutes": "{n} 分钟",
+    "seconds": "{n} 秒",
+    "resume": "继续分析",
+    "change": "修改限制",
+    "dismiss": "关闭提示"
   }
 }

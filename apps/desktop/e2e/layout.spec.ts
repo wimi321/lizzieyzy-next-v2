@@ -41,7 +41,7 @@ test("a narrow window keeps every top-bar control clickable", async ({ page }) =
   await page.setViewportSize({ width: 1000, height: 760 });
   await start(page, [documentChanged(analysedGame(), 7)], [
     { command: "step", result: 8 },
-    { command: "setPondering", result: undefined },
+    { command: "togglePondering", result: { pondering: false, pause_reason: "User" } },
   ]);
   await page.getByTestId("nav-next").click();
   await page.getByTestId("toggle-pondering").click();
@@ -50,6 +50,6 @@ test("a narrow window keeps every top-bar control clickable", async ({ page }) =
   await expect(page.getByTestId("engine-setup")).toBeVisible();
   await expect.poll(() => calls(page)).toEqual(expect.arrayContaining([
     { command: "step", args: [1] },
-    { command: "setPondering", args: [false] },
+    { command: "togglePondering", args: [] },
   ]));
 });

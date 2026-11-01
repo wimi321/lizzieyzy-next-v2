@@ -112,6 +112,7 @@ function actions(): MenuActions {
     toggleSyncOption: vi.fn(),
     openTsumego: vi.fn(),
     openBenchmark: vi.fn(),
+    openSettings: vi.fn(),
     openEngineSetup: vi.fn(),
     restartEngine: vi.fn(),
     openAbout: vi.fn(),
