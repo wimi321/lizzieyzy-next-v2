@@ -10,7 +10,7 @@ export type {
   FoxPlayer, FoxResult, FoxResultKind, FoxColor, FoxScoreUnit, FoxFailure, CommandError,
   AutoSetupError, AutoSetupAttempt,
   GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
-  WireAppEvent, WholeGameOptions, WholeGamePreset, WholeGameProgress, WholeGameStatus,
+  WireAppEvent, WholeGameOptions, WholeGamePreset, WholeGameProgress, WholeGameStatus, WholeGameSource,
   WholeGameProgressListener,
   BoardSyncCommands, BoardSyncOptions, BoardSyncStatus, BoardSyncPhase, BoardSyncError,
   BoardSyncLanguage, BoardSyncStatusListener,
@@ -27,7 +27,7 @@ type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgr
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
-  ? Omit<Settings, "fox_history" | "move_rank" | "tsumego"> & Partial<Pick<Settings, "fox_history" | "move_rank" | "tsumego">>
+  ? Omit<Settings, "fox_history" | "move_rank" | "tsumego" | "auto_quick_analyze_on_load"> & Partial<Pick<Settings, "fox_history" | "move_rank" | "tsumego" | "auto_quick_analyze_on_load">>
   : Awaited<ReturnType<Backend[K]>>;
 const defaultMoveRank: Settings["move_rank"] = {
   mode: "Auto",
@@ -64,6 +64,7 @@ let dispatching = false;
 /** The newest document delivered to the app, for answering unscripted read-only queries. */
 let lastDocument: { revision: number; view: DocumentView } | null = null;
 let lastProgress: WholeGameProgress | null = null;
+let lastAutoQuickAnalyzeOnLoad = true;
 let lastBoardSyncStatus: BoardSyncStatus = { phase: "Stopped", always_sync: true, always_goto_last: false, remote_move_number: null, error: null };
 const idleBenchmark: BenchmarkStatus = { phase: "Idle", progress: null, measurements: [], last_result: null, error: null };
 let lastBenchmarkStatus: BenchmarkStatus = structuredClone(idleBenchmark);
@@ -83,6 +84,7 @@ export function setStrengthEstimate(view: StrengthEstimateView | null): void {
 
 /** Install deterministic replies and events. No Go or analysis logic is simulated. */
 export function setScript(script: MockScript): void {
+  lastAutoQuickAnalyzeOnLoad = true;
   lastBoardSyncStatus = { phase: "Stopped", always_sync: true, always_goto_last: false, remote_move_number: null, error: null };
   lastBenchmarkStatus = structuredClone(idleBenchmark);
   pendingEvents = structuredClone(script.initialEvents ?? []);
@@ -146,8 +148,14 @@ async function command<K extends CommandName>(
       move_rank: next.result.move_rank ?? defaultMoveRank,
       tsumego: next.result.tsumego ?? defaultTsumego,
       benchmarks: next.result.benchmarks ?? {},
+      auto_quick_analyze_on_load: next.result.auto_quick_analyze_on_load ?? true,
     }
     : next.result;
+  if (next.command === "settings") {
+    lastAutoQuickAnalyzeOnLoad = next.result.auto_quick_analyze_on_load ?? true;
+  } else if (next.command === "autoQuickAnalyzeOnLoad" || next.command === "setAutoQuickAnalyzeOnLoad") {
+    lastAutoQuickAnalyzeOnLoad = next.result;
+  }
   return structuredClone(result) as Awaited<ReturnType<Backend[K]>>;
 }
 
@@ -167,7 +175,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate">(
+function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad">(
   name: K,
   args: Parameters<Backend[K]>,
   fallback: () => Awaited<ReturnType<Backend[K]>>,
@@ -244,6 +252,10 @@ export const strengthEstimate: Backend["strengthEstimate"] = (bounds) =>
     total_moves: Math.max(0, (lastDocument?.view.graph.points.length ?? 1) - 1),
   });
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
+export const autoQuickAnalyzeOnLoad: Backend["autoQuickAnalyzeOnLoad"] = () =>
+  query("autoQuickAnalyzeOnLoad", [], () => lastAutoQuickAnalyzeOnLoad);
+export const setAutoQuickAnalyzeOnLoad: Backend["setAutoQuickAnalyzeOnLoad"] = (enabled) =>
+  command("setAutoQuickAnalyzeOnLoad", [enabled]);
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);
 export const detectEngines: Backend["detectEngines"] = () => command("detectEngines", []);

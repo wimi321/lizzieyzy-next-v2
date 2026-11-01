@@ -1,9 +1,14 @@
 use super::{Harness, json, local_url, profile, request, within};
-use app_core::{AppEvent, WholeGameProgress, WholeGameStatus};
+use app_core::{AppEvent, WholeGameProgress, WholeGameSource, WholeGameStatus};
 
 #[tokio::test]
 async fn whole_game_commands_forward_controls_results_and_replay_progress() {
     let mut harness = Harness::new().await;
+    harness
+        .core
+        .set_auto_quick_analyze_on_load(false)
+        .await
+        .unwrap();
     let mut engine = profile(harness.directory.path());
     engine.extra_args = vec!["--visits-per-sec".into(), "100000".into()];
     harness.subscribe(81).await;
@@ -30,6 +35,7 @@ async fn whole_game_commands_forward_controls_results_and_replay_progress() {
     assert_eq!(started["total"], 3);
     assert_eq!(started["visits"], 1_000_000);
     assert_eq!(started["status"]["type"], "Running");
+    assert_eq!(started["source"], "Manual");
     let paused = harness.invoke("pause_whole_game_analysis", json!({})).await;
     assert_eq!(paused["status"]["type"], "Paused");
     assert_eq!(
@@ -71,7 +77,9 @@ async fn whole_game_commands_forward_controls_results_and_replay_progress() {
         .await;
     let completed = within(async {
         loop {
-            if let AppEvent::WholeGameProgress(progress) = harness.next().await.event {
+            if let AppEvent::WholeGameProgress(progress) = harness.next().await.event
+                && progress.source == WholeGameSource::Manual
+            {
                 match &progress.status {
                     WholeGameStatus::Completed => break progress,
                     WholeGameStatus::Error { reason } => panic!("review failed: {reason}"),

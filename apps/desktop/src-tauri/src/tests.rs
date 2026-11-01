@@ -13,6 +13,7 @@ use tauri::{
 use tempfile::TempDir;
 use tokio::sync::{mpsc, oneshot};
 
+mod auto_curve;
 mod benchmark;
 mod board_sync;
 mod engine_auto_setup;
@@ -211,6 +212,13 @@ fn profile(directory: &Path) -> EngineProfile {
 #[tokio::test]
 async fn open_command_streams_document_before_analysis_on_one_channel() {
     let mut harness = Harness::new().await;
+    // This test isolates live-event ordering and reconnection; automatic review
+    // has its own progress/IPC coverage and would add unrelated graph events.
+    harness
+        .core
+        .set_auto_quick_analyze_on_load(false)
+        .await
+        .unwrap();
     // Building the fake binary is not part of an IPC/engine response deadline.
     let profile = profile(harness.directory.path());
     let subscription = harness.subscribe(41).await;

@@ -9,6 +9,7 @@ use ts_rs::TS;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub enum WholeGamePreset {
+    Lightning,
     Quick,
     #[default]
     Standard,
@@ -19,6 +20,7 @@ pub enum WholeGamePreset {
 impl WholeGamePreset {
     pub const fn visits(self) -> u64 {
         match self {
+            Self::Lightning => 1,
             Self::Quick => 500,
             Self::Standard => 1000,
             Self::Deep => 3000,
@@ -50,7 +52,7 @@ impl From<WholeGamePreset> for WholeGameOptions {
 
 impl WholeGameOptions {
     pub fn validate(self) -> Result<(), WholeGameError> {
-        if !(500..=1_000_000).contains(&self.visits) {
+        if self.visits != 1 && !(500..=1_000_000).contains(&self.visits) {
             return Err(WholeGameError::InvalidVisits);
         }
         Ok(())
@@ -76,11 +78,22 @@ pub struct WholeGameProgress {
     #[ts(type = "number")]
     pub visits: u64,
     pub status: WholeGameStatus,
+    // Always serialized; optional in TS for existing pre-P1-38 consumers.
+    #[serde(default)]
+    #[ts(as = "Option<WholeGameSource>", optional)]
+    pub source: WholeGameSource,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub enum WholeGameSource {
+    #[default]
+    Manual,
+    AutomaticQuick,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum WholeGameError {
-    #[error("whole-game visits must be between 500 and 1000000")]
+    #[error("whole-game visits must be 1 or between 500 and 1000000")]
     InvalidVisits,
     #[error("whole-game analysis requires an active engine")]
     NoEngine,

@@ -119,6 +119,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [boardHover, setBoardHover] = useState<PointView | null>(null);
   const [tree, setTree] = useState<VariationTreeView | null>(null);
   const wholeGame = useWholeGame(backend);
+  // LizzieYzy Next draws the graph with a one-visit pass when a game opens; that pass stays quiet.
+  const [autoCurve, setAutoCurve] = useState(true);
+  const quickPass = wholeGame.progress?.source === "AutomaticQuick" ? wholeGame.progress : null;
+  const quickRunning = quickPass !== null && (quickPass.status.type === "Running" || quickPass.status.type === "Paused");
   const sync = useBoardSync(backend);
   const tuning = useBenchmark(backend);
   const [tuningOpen, setTuningOpen] = useState(false);
@@ -144,6 +148,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       .then(async (settings) => {
         if (!active) return;
         setPondering(settings.pondering);
+        setAutoCurve(settings.auto_quick_analyze_on_load ?? true);
         setProfile(settings.engine);
         setFoxHistory(settings.fox_history);
         setTsumegoOptions(settings.tsumego);
@@ -288,6 +293,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       setOwnership,
       togglePondering,
       openAutoAnalysis: () => autoAnalysis?.show(),
+      flashAnalyze: () => wholeGame.start(1),
       cancelAutoAnalysis: wholeGame.cancel,
       openStrength: () => setStrengthOpen(true),
       playBestMove: () => {
@@ -364,13 +370,20 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         extra={
           <AutoAnalysis
             ref={setAutoAnalysis}
-            progress={wholeGame.progress}
+            progress={quickPass ? null : wholeGame.progress}
             positions={points.length}
             labels={messages.review}
             onStart={wholeGame.start}
             onPause={wholeGame.pause}
             onResume={wholeGame.resume}
             onCancel={wholeGame.cancel}
+            autoCurve={autoCurve}
+            onAutoCurve={(enabled) => {
+              backend
+                .setAutoQuickAnalyzeOnLoad(enabled)
+                .then(setAutoCurve)
+                .catch(report);
+            }}
           />
         }
         onOpen={() => void openFile().catch(report)}
@@ -405,10 +418,22 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           <section className="section graph-section" aria-label={messages.graph.title}>
             <div className="section-header">
               <h2 className="section-title">{messages.graph.title}</h2>
-              <span className="legend" aria-hidden="true">
-                <span>{messages.graph.legendWinrate}</span>
-                <span className="score">{messages.graph.legendScore}</span>
-              </span>
+              {quickRunning && quickPass ? (
+                <span className="curve-progress" data-testid="curve-progress">
+                  <span className="curve-progress-bar" aria-hidden="true">
+                    <span style={{ width: `${(quickPass.completed / Math.max(1, quickPass.total)) * 100}%` }} />
+                  </span>
+                  {messages.graph.quick.replace("{done}", String(quickPass.completed)).replace("{total}", String(quickPass.total))}
+                  <button type="button" className="curve-progress-stop" data-testid="curve-progress-stop" title={messages.graph.quickStop} aria-label={messages.graph.quickStop} onClick={wholeGame.cancel}>
+                    ×
+                  </button>
+                </span>
+              ) : (
+                <span className="legend" aria-hidden="true">
+                  <span>{messages.graph.legendWinrate}</span>
+                  <span className="score">{messages.graph.legendScore}</span>
+                </span>
+              )}
             </div>
             <div className="graph-wrap">
               {document ? (

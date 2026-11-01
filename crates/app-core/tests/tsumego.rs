@@ -320,6 +320,10 @@ async fn generated_and_restored_analysis_use_fresh_namespaces_and_exact_setup_qu
     let (handle, mut output) = within(app_core::spawn_with_config(directory.path(), config))
         .await
         .unwrap();
+    // Count only this scenario's three live namespace transitions.
+    within(handle.set_auto_quick_analyze_on_load(false))
+        .await
+        .unwrap();
     let (revision, original) = open_source(&handle, &mut output).await;
     within(handle.configure_engine(Some(engine))).await.unwrap();
     final_analysis(&mut output, revision, original.tree.current).await;

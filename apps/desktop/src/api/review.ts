@@ -6,6 +6,7 @@ import type { WholeGameProgress } from "./generated/WholeGameProgress";
 export type { WholeGameOptions, WholeGameProgress };
 export type { WholeGamePreset } from "./generated/WholeGamePreset";
 export type { WholeGameStatus } from "./generated/WholeGameStatus";
+export type { WholeGameSource } from "./generated/WholeGameSource";
 export type WholeGameProgressListener = (progress: WholeGameProgress) => void;
 
 /** All decisions, including option validation and resuming, belong to Rust. */

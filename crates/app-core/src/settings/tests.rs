@@ -134,6 +134,7 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
         version: 0,
         benchmarks: Default::default(),
         pondering: false,
+        auto_quick_analyze_on_load: true,
         engine: Some(profile(directory.path())),
         fox_history: vec![
             latest.clone(),

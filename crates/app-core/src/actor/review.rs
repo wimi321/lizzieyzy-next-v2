@@ -1,7 +1,7 @@
 use super::Actor;
 use crate::{
     AnalysisView, AppError, AppEvent, GraphView, StoredAnalysis, WholeGameError, WholeGameProgress,
-    WholeGameStatus, review::ReviewInput,
+    WholeGameSource, WholeGameStatus, review::ReviewInput,
 };
 use analysis::{
     AnalysisSnapshot, SnapshotSource,
@@ -106,14 +106,6 @@ impl Actor {
             ReviewInput::Start(options) => {
                 self.ensure_no_benchmark()?;
                 options.validate()?;
-                let running = self.running.as_ref().ok_or(WholeGameError::NoEngine)?;
-                if matches!(
-                    *running.engine_status.borrow(),
-                    engine_session::EngineStatus::Failed { .. }
-                        | engine_session::EngineStatus::Stopped
-                ) {
-                    return Err(WholeGameError::NoEngine.into());
-                }
                 let graph = GraphView::from_document(&self.document)?;
                 let line = graph
                     .points
@@ -123,17 +115,8 @@ impl Actor {
                         Ok((id, self.document.position_at(id)?))
                     })
                     .collect::<Result<Vec<_>, AppError>>()?;
-                // Validate the entire captured line before replacing a useful task.
-                ReviewPlan::new(line.clone(), options.visits)?;
-                self.cancel_review().await;
-                self.review.line = line;
-                self.review.progress = Some(WholeGameProgress {
-                    completed: 0,
-                    total: self.review.line.len(),
-                    visits: options.visits,
-                    status: WholeGameStatus::Running,
-                });
-                self.continue_review().await;
+                self.start_review(line, options.visits, WholeGameSource::Manual)
+                    .await?;
             }
             ReviewInput::Pause => {
                 if self.review.progress.is_none() {
@@ -167,6 +150,7 @@ impl Actor {
                 if self.review.progress.is_none() {
                     return Err(WholeGameError::NotStarted.into());
                 }
+                self.cancel_auto_curve_intent();
                 self.cancel_review().await;
             }
         }
@@ -174,6 +158,37 @@ impl Actor {
             .progress
             .clone()
             .ok_or_else(|| WholeGameError::NotStarted.into())
+    }
+
+    pub(super) async fn start_review(
+        &mut self,
+        line: Vec<(NodeId, GamePosition)>,
+        visits: u64,
+        source: WholeGameSource,
+    ) -> Result<(), AppError> {
+        let running = self.running.as_ref().ok_or(WholeGameError::NoEngine)?;
+        if matches!(
+            *running.engine_status.borrow(),
+            engine_session::EngineStatus::Failed { .. } | engine_session::EngineStatus::Stopped
+        ) {
+            return Err(WholeGameError::NoEngine.into());
+        }
+        // Validate before replacing useful work or cancelling pending auto intent.
+        ReviewPlan::new(line.clone(), visits)?;
+        if source == WholeGameSource::Manual {
+            self.cancel_auto_curve_intent();
+        }
+        self.cancel_review().await;
+        self.review.line = line;
+        self.review.progress = Some(WholeGameProgress {
+            source,
+            completed: 0,
+            total: self.review.line.len(),
+            visits,
+            status: WholeGameStatus::Running,
+        });
+        self.continue_review().await;
+        Ok(())
     }
 
     pub(super) fn review_running(&self) -> bool {

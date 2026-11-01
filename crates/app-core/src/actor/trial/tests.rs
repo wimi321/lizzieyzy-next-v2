@@ -35,6 +35,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
             running: None,
             trial: None,
             auto_setup: Default::default(),
+            auto_curve: Default::default(),
             board_sync: Default::default(),
             benchmark: Default::default(),
             focus: None,

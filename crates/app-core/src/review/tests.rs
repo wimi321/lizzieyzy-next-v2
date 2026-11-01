@@ -4,6 +4,7 @@ use super::*;
 fn java_depth_presets_and_custom_limits() {
     assert_eq!(WholeGameOptions::default().visits, 1000);
     for (preset, visits) in [
+        (WholeGamePreset::Lightning, 1),
         (WholeGamePreset::Quick, 500),
         (WholeGamePreset::Standard, 1000),
         (WholeGamePreset::Deep, 3000),
@@ -12,12 +13,12 @@ fn java_depth_presets_and_custom_limits() {
         assert_eq!(WholeGameOptions::from(preset).visits, visits);
         WholeGameOptions::from(preset).validate().expect("preset");
     }
-    for visits in [500, 501, 1_000_000] {
+    for visits in [1, 500, 501, 1_000_000] {
         WholeGameOptions { visits }
             .validate()
             .expect("valid custom");
     }
-    for visits in [0, 499, 1_000_001, u64::MAX] {
+    for visits in [0, 2, 499, 1_000_001, u64::MAX] {
         assert!(WholeGameOptions { visits }.validate().is_err());
     }
     assert_eq!(

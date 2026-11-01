@@ -83,3 +83,16 @@ test("the pause button starts from the saved setting", async () => {
   await act(async () => {});
   expect(button.getAttribute("aria-pressed")).toBe("true");
 });
+
+test("a game that opens is drawn by a quiet one-visit pass: the graph says so, the toolbar stays at rest", async () => {
+  setScript({
+    initialEvents: [
+      documentChanged(midGame(), 3),
+      { type: "WholeGameProgress", data: { completed: 54, total: 211, visits: 1, status: { type: "Running" }, source: "AutomaticQuick" } },
+    ],
+  });
+  render(<App />);
+  const status = await screen.findByTestId("curve-progress");
+  expect(status.textContent).toContain("Drawing 54/211");
+  expect(screen.getByTestId("auto-analysis").textContent).not.toContain("54 / 211");
+});

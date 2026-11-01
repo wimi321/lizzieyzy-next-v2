@@ -100,6 +100,7 @@ function actions(): MenuActions {
     setOwnership: vi.fn(),
     togglePondering: vi.fn(),
     openAutoAnalysis: vi.fn(),
+    flashAnalyze: vi.fn(),
     cancelAutoAnalysis: vi.fn(),
     openStrength: vi.fn(),
     playBestMove: vi.fn(),

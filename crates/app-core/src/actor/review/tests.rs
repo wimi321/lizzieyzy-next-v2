@@ -127,6 +127,7 @@ async fn batch_boundary_completes_without_submitting_when_live_data_satisfies_ev
         .into_batches()
         .into();
     actor.review.progress = Some(WholeGameProgress {
+        source: WholeGameSource::Manual,
         completed: 1,
         total: line.len(),
         visits: 500,
@@ -177,6 +178,7 @@ async fn batch_boundary_omits_later_turns_that_live_analysis_already_completed()
         .into_batches()
         .into();
     actor.review.progress = Some(WholeGameProgress {
+        source: WholeGameSource::Manual,
         completed: 1,
         total: line.len(),
         visits: 1_000_000,
@@ -204,6 +206,7 @@ fn invalidation_clears_finished_task_line_and_prevents_stale_completed_status() 
     let saved = super::super::tests::snapshot(&actor, 1000, 0.7);
     actor.retain_analysis(&saved);
     actor.review.progress = Some(WholeGameProgress {
+        source: WholeGameSource::Manual,
         completed: 1,
         total: 1,
         visits: 1000,

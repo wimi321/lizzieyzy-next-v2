@@ -214,6 +214,17 @@ impl AppCore {
         response.await.map_err(|_| AppError::Closed)
     }
 
+    pub async fn auto_quick_analyze_on_load(&self) -> Result<bool, AppError> {
+        Ok(self.settings().await?.auto_quick_analyze_on_load)
+    }
+
+    /// Persist before applying. Enabling affects the next successful game load.
+    pub async fn set_auto_quick_analyze_on_load(&self, enabled: bool) -> Result<bool, AppError> {
+        self.send(actor::Input::SetAutoQuickAnalyzeOnLoad(enabled))
+            .await?;
+        Ok(enabled)
+    }
+
     /// Cancels analysis, reaps the engine, and then closes the event stream.
     pub async fn shutdown(self) -> Result<(), AppError> {
         self.send(actor::Input::Shutdown).await.map(|_| ())

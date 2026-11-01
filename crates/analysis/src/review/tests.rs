@@ -103,13 +103,13 @@ fn empty_nodes_alias_one_turn_and_setup_player_boundaries_get_separate_queries()
 
 #[test]
 fn invalid_target_rejects_before_submitting_anything() {
-    for target in [0, 499, 1_000_001, u64::MAX] {
+    for target in [0, 2, 499, 1_000_001, u64::MAX] {
         assert!(matches!(
             ReviewPlan::new(positions(0), target),
             Err(AnalysisError::InvalidSettings(_))
         ));
     }
-    for target in [500, 1000, 3000, 10_000, 1_000_000] {
+    for target in [1, 500, 1000, 3000, 10_000, 1_000_000] {
         assert!(ReviewPlan::new(positions(0), target).is_ok());
     }
 }
