@@ -8,6 +8,7 @@ use engine_session::EngineHandle;
 use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
+mod auto_curve;
 mod auto_setup;
 mod benchmark;
 mod board_sync;
@@ -27,6 +28,7 @@ pub(crate) enum Input {
     Undo,
     Redo,
     SetPondering(bool),
+    SetAutoQuickAnalyzeOnLoad(bool),
     ConfigureEngine(Option<EngineProfile>),
     GenerateTsumego(crate::TsumegoOptions),
     ExitTsumego,
@@ -123,6 +125,7 @@ struct Actor {
     running: Option<Running>,
     trial: Option<PendingTrial>,
     auto_setup: auto_setup::State,
+    auto_curve: auto_curve::State,
     board_sync: board_sync::State,
     benchmark: benchmark::State,
     focus: Option<ViewFocus>,
@@ -151,6 +154,7 @@ pub(crate) async fn run(
         running: None,
         trial: None,
         auto_setup: Default::default(),
+        auto_curve: Default::default(),
         board_sync: Default::default(),
         benchmark: Default::default(),
         focus: None,
@@ -215,6 +219,7 @@ pub(crate) async fn run(
             result = board_sync::receive(&mut actor.board_sync) => actor.board_sync_line(result).await,
             result = benchmark::receive(&mut actor.benchmark) => actor.benchmark_signal(result).await,
         }
+        actor.maybe_start_auto_curve().await;
     }
 }
 
@@ -398,6 +403,9 @@ impl Actor {
                     }
                 }
             }
+            Input::SetAutoQuickAnalyzeOnLoad(enabled) => {
+                self.set_auto_quick_analyze_on_load(enabled).await?;
+            }
             Input::ConfigureEngine(profile) => {
                 self.ensure_no_benchmark()?;
                 self.auto_setup.cancel();
@@ -445,7 +453,7 @@ impl Actor {
         let tree = collection.games.first().ok_or(AppError::EmptyCollection)?;
         let document = GameDocument::from_sgf(tree)?;
         self.stop_board_sync().await?;
-        self.replace_document(document).await
+        self.open_auto_curve_document(document).await
     }
 
     async fn replace_document(&mut self, document: GameDocument) -> Result<(), AppError> {
@@ -458,6 +466,14 @@ impl Actor {
     /// A new arena can reuse node IDs, so all analysis and tree namespaces
     /// must be reset even when its root happens to have the same board key.
     async fn document_replaced(&mut self) -> Result<(), AppError> {
+        self.document_replaced_with_cache(HashMap::new()).await
+    }
+
+    async fn document_replaced_with_cache(
+        &mut self,
+        cached: HashMap<AnalysisKey, crate::StoredAnalysis>,
+    ) -> Result<(), AppError> {
+        self.auto_curve.pending = false;
         self.cancel_review().await;
         self.invalidate_review();
         // Opening even an identical game starts a new node-ID namespace.
@@ -485,6 +501,9 @@ impl Actor {
                 }
             }
         }
+        // Restore before the first focus: otherwise a fast live result could
+        // establish a shallow snapshot before the deep cached payload is seeded.
+        self.restore_loaded_analysis(cached)?;
         self.document_changed().await
     }
 

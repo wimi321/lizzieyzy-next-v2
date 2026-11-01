@@ -27,7 +27,7 @@ test("mock strength snapshots follow scripts and preserve insufficient-data resu
   const mock = await vi.importActual<typeof import("../../e2e/mock-backend")>("../../e2e/mock-backend");
   const view = emptyStrengthEstimate(8);
   const next = { ...emptyStrengthEstimate(9), total_moves: 12, analyzed_moves: 4 };
-  const progress = { completed: 4, total: 13, visits: 500, status: { type: "Running" } } as const;
+  const progress = { completed: 4, total: 13, visits: 500, status: { type: "Running" }, source: "Manual" } as const;
   mock.setScript({ commands: [
     { command: "strengthEstimate", result: view, events: [{ type: "WholeGameProgress", data: progress }] },
     { command: "strengthEstimate", result: next },

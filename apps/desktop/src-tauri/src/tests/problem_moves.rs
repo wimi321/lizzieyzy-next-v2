@@ -7,6 +7,11 @@ use app_core::{
 #[tokio::test]
 async fn problem_move_ipc_forwards_views_settings_and_validation_without_navigation() {
     let mut harness = Harness::new().await;
+    harness
+        .core
+        .set_auto_quick_analyze_on_load(false)
+        .await
+        .unwrap();
     harness.subscribe(91).await;
     harness.document(91, 0).await;
     harness

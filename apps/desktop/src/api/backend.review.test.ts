@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 
 const progress: WholeGameProgress = {
-  completed: 2, total: 3, visits: 1000, status: { type: "Running" },
+  completed: 2, total: 3, visits: 1000, status: { type: "Running" }, source: "Manual",
 };
 const result: AnalysisView = {
   node_id: 2, revision: 7, winrate: 0.6, score_lead: 1.5, visits: 1000,
@@ -36,6 +36,7 @@ test("review IPC forwards default/custom options, controls, full results and err
   const cases: [() => Promise<unknown>, string, Record<string, unknown> | undefined, unknown][] = [
     [() => backend.startWholeGameAnalysis(), "start_whole_game_analysis", { options: { visits: 1000 } }, progress],
     [() => backend.startWholeGameAnalysis({ visits: 3000 }), "start_whole_game_analysis", { options: { visits: 3000 } }, progress],
+    [() => backend.startWholeGameAnalysis({ visits: 1 }), "start_whole_game_analysis", { options: { visits: 1 } }, { ...progress, visits: 1 }],
     [() => backend.pauseWholeGameAnalysis(), "pause_whole_game_analysis", undefined, progress],
     [() => backend.resumeWholeGameAnalysis(), "resume_whole_game_analysis", undefined, progress],
     [() => backend.cancelWholeGameAnalysis(), "cancel_whole_game_analysis", undefined, progress],

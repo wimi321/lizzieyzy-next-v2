@@ -49,7 +49,7 @@ test("problem move IPC forwards queries, snapshots, classification settings and 
 
 test("mock problem move snapshots remain scripted and preserve null loss and candidate rank", async () => {
   const mock = await vi.importActual<typeof import("../../e2e/mock-backend")>("../../e2e/mock-backend");
-  const progress = { completed: 3, total: 3, visits: 500, status: { type: "Completed" } } as const;
+  const progress = { completed: 3, total: 3, visits: 500, status: { type: "Completed" }, source: "Manual" } as const;
   mock.setScript({ commands: [
     { command: "problemMoves", result: view, events: [{ type: "WholeGameProgress", data: progress }] },
     { command: "setMoveRankSettings", result: settings },

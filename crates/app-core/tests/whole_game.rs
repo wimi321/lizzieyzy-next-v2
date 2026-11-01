@@ -48,9 +48,14 @@ async fn app(directory: &Path, live_visits: u64) -> (AppCore, AppSubscription) {
     config.session.response_timeout = Duration::from_secs(60);
     config.session.write_timeout = Duration::from_secs(60);
     config.session.shutdown_timeout = Duration::from_secs(60);
-    within(app_core::spawn_with_config(directory, config))
+    let (app, events) = within(app_core::spawn_with_config(directory, config))
         .await
-        .unwrap()
+        .unwrap();
+    // These tests isolate live-graph/manual-review behavior from automatic loads.
+    within(app.set_auto_quick_analyze_on_load(false))
+        .await
+        .unwrap();
+    (app, events)
 }
 
 async fn document(output: &mut AppSubscription, revision: u64) -> DocumentView {

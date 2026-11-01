@@ -89,6 +89,8 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   foxOpenGame(gameId: string): Promise<Revision>;
   foxClearHistory(): Promise<void>;
   settings(): Promise<Settings>;
+  autoQuickAnalyzeOnLoad(): Promise<boolean>;
+  setAutoQuickAnalyzeOnLoad(enabled: boolean): Promise<boolean>;
   /** Native file dialogs; null when the user cancels. */
   pickOpenPath(): Promise<string | null>;
   pickSavePath(): Promise<string | null>;
@@ -115,6 +117,10 @@ export const previewVariation: Backend["previewVariation"] = (nodeId, moves) =>
   invoke("preview_variation", { nodeId, moves });
 export const setPondering: Backend["setPondering"] = (enabled) =>
   invoke("set_pondering", { enabled });
+export const autoQuickAnalyzeOnLoad: Backend["autoQuickAnalyzeOnLoad"] =
+  () => invoke("auto_quick_analyze_on_load");
+export const setAutoQuickAnalyzeOnLoad: Backend["setAutoQuickAnalyzeOnLoad"] =
+  (enabled) => invoke("set_auto_quick_analyze_on_load", { enabled });
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   invoke("configure_engine", { profile });
 export const detectEngines: Backend["detectEngines"] = () => invoke("detect_engines");

@@ -71,6 +71,8 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::fox::fox_open_game,
             commands::fox::fox_clear_history,
             commands::settings::settings,
+            commands::settings::auto_quick_analyze_on_load,
+            commands::settings::set_auto_quick_analyze_on_load,
         ])
 }
 

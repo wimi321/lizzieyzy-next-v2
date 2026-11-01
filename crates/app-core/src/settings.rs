@@ -33,6 +33,8 @@ pub struct Settings {
     pub version: u32,
     pub engine: Option<EngineProfile>,
     pub pondering: bool,
+    #[ts(as = "Option<bool>", optional)]
+    pub auto_quick_analyze_on_load: bool,
     pub fox_history: Vec<crate::fox::FoxAccount>,
     pub move_rank: crate::MoveRankSettings,
     pub tsumego: crate::TsumegoOptions,
@@ -46,6 +48,7 @@ impl Default for Settings {
             version: SETTINGS_VERSION,
             engine: None,
             pondering: true,
+            auto_quick_analyze_on_load: true,
             fox_history: Vec::new(),
             move_rank: crate::MoveRankSettings::default(),
             tsumego: crate::TsumegoOptions::default(),
