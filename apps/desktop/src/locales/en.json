@@ -43,7 +43,9 @@
     "move": "Move {n}",
     "title": "Winrate",
     "legendWinrate": "Black",
-    "legendScore": "Score"
+    "legendScore": "Score",
+    "quick": "Drawing {done}/{total}",
+    "quickStop": "Stop drawing the graph"
   },
   "setup": {
     "open": "Engine",
@@ -115,7 +117,8 @@
     "paused": "Paused",
     "completed": "Done: {n} positions",
     "cancelled": "Cancelled",
-    "error": "Error: {reason}"
+    "error": "Error: {reason}",
+    "autoCurve": "Draw the winrate graph when a game opens"
   },
   "problems": {
     "title": "Problems",

@@ -43,7 +43,9 @@
     "move": "第 {n} 手",
     "title": "胜率走势",
     "legendWinrate": "黑胜率",
-    "legendScore": "目差"
+    "legendScore": "目差",
+    "quick": "正在生成 {done}/{total}",
+    "quickStop": "停止生成胜率曲线"
   },
   "setup": {
     "open": "引擎",
@@ -115,7 +117,8 @@
     "paused": "已暂停",
     "completed": "已完成 {n} 个局面",
     "cancelled": "已取消",
-    "error": "出错：{reason}"
+    "error": "出错：{reason}",
+    "autoCurve": "打开棋谱后自动生成胜率曲线"
   },
   "problems": {
     "title": "问题手",

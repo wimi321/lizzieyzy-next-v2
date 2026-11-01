@@ -44,6 +44,8 @@ export interface MenuActions {
   setOwnership(visible: boolean): void;
   togglePondering(): void;
   openAutoAnalysis(): void;
+  /** 整盘速览（闪电）: one visit per move over the displayed line. */
+  flashAnalyze(): void;
   cancelAutoAnalysis(): void;
   openStrength(): void;
   playBestMove(): void;
@@ -103,6 +105,7 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     togglePonder: when(true, actions.togglePondering),
     autoAnalyze: when(state.hasDocument, actions.openAutoAnalysis),
     wholeGameDeepAnalysis: when(state.hasDocument, actions.openAutoAnalysis),
+    flashAnalyzeAllGame: when(state.hasDocument, actions.flashAnalyze),
     stopAutoAnalyze: when(state.wholeGameActive, actions.cancelAutoAnalysis),
     playerStrengthEstimate: when(state.hasDocument, actions.openStrength),
     tsumeGoMenu: when(state.hasBoard, actions.openTsumego),

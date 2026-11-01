@@ -12,10 +12,20 @@ function progress(completed: number, total: number, type: "Running" | "Paused" |
 }
 
 function panel(props: Partial<Parameters<typeof AutoAnalysis>[0]> = {}) {
-  const handlers = { onStart: vi.fn(), onPause: vi.fn(), onResume: vi.fn(), onCancel: vi.fn() };
-  render(<AutoAnalysis progress={null} positions={121} labels={zh.review} {...handlers} {...props} />);
+  const handlers = { onStart: vi.fn(), onPause: vi.fn(), onResume: vi.fn(), onCancel: vi.fn(), onAutoCurve: vi.fn() };
+  render(<AutoAnalysis progress={null} positions={121} labels={zh.review} autoCurve {...handlers} {...props} />);
   return handlers;
 }
+
+test("the panel switches the graph pass that runs when a game opens", () => {
+  const { onAutoCurve } = panel({ autoCurve: true });
+  fireEvent.click(screen.getByTestId("auto-analysis"));
+  const toggle = screen.getByTestId("auto-curve") as HTMLInputElement;
+  expect(toggle.checked).toBe(true);
+  expect(screen.getByText(zh.review.autoCurve)).toBeTruthy();
+  fireEvent.click(toggle);
+  expect(onAutoCurve).toHaveBeenCalledWith(false);
+});
 
 test("at rest it offers the presets and starts with the chosen depth", () => {
   const { onStart } = panel();

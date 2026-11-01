@@ -41,6 +41,7 @@ export interface AutoAnalysisLabels {
   completed: string;
   cancelled: string;
   error: string;
+  autoCurve: string;
 }
 
 export interface AutoAnalysisProps {
@@ -52,6 +53,9 @@ export interface AutoAnalysisProps {
   onPause(): void;
   onResume(): void;
   onCancel(): void;
+  /** Whether opening a game draws its winrate graph with a one-visit pass, as LizzieYzy Next does. */
+  autoCurve: boolean;
+  onAutoCurve(enabled: boolean): void;
 }
 
 /** The top-bar entry for whole-game analysis: a button at rest, a progress chip while it runs. */
@@ -60,7 +64,8 @@ export interface AutoAnalysisHandle {
   show(): void;
 }
 
-export function AutoAnalysis({ progress, positions, labels, onStart, onPause, onResume, onCancel, ref }: AutoAnalysisProps & { ref?: Ref<AutoAnalysisHandle> }) {
+export function AutoAnalysis(props: AutoAnalysisProps & { ref?: Ref<AutoAnalysisHandle> }) {
+  const { progress, positions, labels, onStart, onPause, onResume, onCancel, autoCurve, onAutoCurve, ref } = props;
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
   const [choice, setChoice] = useState<number | "custom">(1000);
@@ -222,6 +227,15 @@ export function AutoAnalysis({ progress, positions, labels, onStart, onPause, on
                   {labels.customRange}
                 </p>
               ) : null}
+              <label className="popover-switch">
+                <input
+                  type="checkbox"
+                  data-testid="auto-curve"
+                  checked={autoCurve}
+                  onChange={(event) => onAutoCurve(event.target.checked)}
+                />
+                <span>{labels.autoCurve}</span>
+              </label>
               {outcome ? (
                 <p className="popover-text" data-outcome={status}>
                   {outcome}
