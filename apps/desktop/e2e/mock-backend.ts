@@ -1,4 +1,4 @@
-import type { Backend, BenchmarkStatus, BoardSyncStatus, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import type { AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 import { emptyStrengthEstimate } from "./fixtures";
 
 export type {
@@ -16,6 +16,7 @@ export type {
   BoardSyncLanguage, BoardSyncStatusListener,
   BenchmarkCommands, BenchmarkStatus, BenchmarkPhase, BenchmarkProgress,
   BenchmarkMeasurement, BenchmarkResult, BenchmarkProgressListener,
+  AnalysisLimitSettings, AnalysisState, AnalysisPauseReason, AnalysisLimitCommands, AnalysisStateListener,
   MoveRank, MoveRankEvaluationMode, MoveRankSettings, MoveLoss, ProblemMovesQuery,
   ProblemMovesView, ProblemMoveSort, ProblemMoveView, MistakeBarPoint,
   StrengthEstimateView, StrengthReport, SideReport, PhaseReport, Confidence, Sample, MoveCategory,
@@ -23,7 +24,7 @@ export type {
   StrengthPhasesReport, PhaseEstimate, PhaseExtremes,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "unsubscribe">;
+type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "unsubscribe">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -37,6 +38,10 @@ const defaultMoveRank: Settings["move_rank"] = {
 const defaultTsumego: Settings["tsumego"] = {
   to_play: "Inherit", attacker: "Auto", ko_threat: "Both", wall_distance: 1,
 };
+const defaultAnalysisLimits: AnalysisLimitSettings = {
+  limit_time: true, max_analyze_time_seconds: 600, limit_playout: false, limit_playouts: 100000,
+};
+const defaultAnalysisState: AnalysisState = { pondering: true, pause_reason: null };
 export type MockCall = {
   [K in CommandName]: { command: K; args: Parameters<Backend[K]> }
 }[CommandName];
@@ -65,6 +70,8 @@ let dispatching = false;
 let lastDocument: { revision: number; view: DocumentView } | null = null;
 let lastProgress: WholeGameProgress | null = null;
 let lastAutoQuickAnalyzeOnLoad = true;
+let lastAnalysisLimits = structuredClone(defaultAnalysisLimits);
+let lastAnalysisState = structuredClone(defaultAnalysisState);
 let lastBoardSyncStatus: BoardSyncStatus = { phase: "Stopped", always_sync: true, always_goto_last: false, remote_move_number: null, error: null };
 const idleBenchmark: BenchmarkStatus = { phase: "Idle", progress: null, measurements: [], last_result: null, error: null };
 let lastBenchmarkStatus: BenchmarkStatus = structuredClone(idleBenchmark);
@@ -85,6 +92,8 @@ export function setStrengthEstimate(view: StrengthEstimateView | null): void {
 /** Install deterministic replies and events. No Go or analysis logic is simulated. */
 export function setScript(script: MockScript): void {
   lastAutoQuickAnalyzeOnLoad = true;
+  lastAnalysisLimits = structuredClone(defaultAnalysisLimits);
+  lastAnalysisState = structuredClone(defaultAnalysisState);
   lastBoardSyncStatus = { phase: "Stopped", always_sync: true, always_goto_last: false, remote_move_number: null, error: null };
   lastBenchmarkStatus = structuredClone(idleBenchmark);
   pendingEvents = structuredClone(script.initialEvents ?? []);
@@ -114,6 +123,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       if (event.type === "WholeGameProgress") lastProgress = structuredClone(event.data);
       if (event.type === "BoardSyncStatusChanged") lastBoardSyncStatus = structuredClone(event.data);
       if (event.type === "BenchmarkProgress") lastBenchmarkStatus = structuredClone(event.data);
+      if (event.type === "AnalysisStateChanged") lastAnalysisState = structuredClone(event.data);
       for (const listener of [...listeners.values()]) {
         try {
           listener(structuredClone(event));
@@ -149,12 +159,18 @@ async function command<K extends CommandName>(
       tsumego: next.result.tsumego ?? defaultTsumego,
       benchmarks: next.result.benchmarks ?? {},
       auto_quick_analyze_on_load: next.result.auto_quick_analyze_on_load ?? true,
+      analysis_limits: next.result.analysis_limits ?? defaultAnalysisLimits,
     }
     : next.result;
   if (next.command === "settings") {
     lastAutoQuickAnalyzeOnLoad = next.result.auto_quick_analyze_on_load ?? true;
+    lastAnalysisLimits = structuredClone(next.result.analysis_limits ?? defaultAnalysisLimits);
   } else if (next.command === "autoQuickAnalyzeOnLoad" || next.command === "setAutoQuickAnalyzeOnLoad") {
     lastAutoQuickAnalyzeOnLoad = next.result;
+  } else if (next.command === "analysisLimits" || next.command === "setAnalysisLimits") {
+    lastAnalysisLimits = structuredClone(next.result);
+  } else if (next.command === "analysisState" || next.command === "togglePondering") {
+    lastAnalysisState = structuredClone(next.result);
   }
   return structuredClone(result) as Awaited<ReturnType<Backend[K]>>;
 }
@@ -175,7 +191,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad">(
+function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState">(
   name: K,
   args: Parameters<Backend[K]>,
   fallback: () => Awaited<ReturnType<Backend[K]>>,
@@ -252,6 +268,13 @@ export const strengthEstimate: Backend["strengthEstimate"] = (bounds) =>
     total_moves: Math.max(0, (lastDocument?.view.graph.points.length ?? 1) - 1),
   });
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
+export const analysisLimits: Backend["analysisLimits"] = () =>
+  query("analysisLimits", [], () => lastAnalysisLimits);
+export const setAnalysisLimits: Backend["setAnalysisLimits"] = (settings) =>
+  command("setAnalysisLimits", [settings]);
+export const analysisState: Backend["analysisState"] = () =>
+  query("analysisState", [], () => lastAnalysisState);
+export const togglePondering: Backend["togglePondering"] = () => command("togglePondering", []);
 export const autoQuickAnalyzeOnLoad: Backend["autoQuickAnalyzeOnLoad"] = () =>
   query("autoQuickAnalyzeOnLoad", [], () => lastAutoQuickAnalyzeOnLoad);
 export const setAutoQuickAnalyzeOnLoad: Backend["setAutoQuickAnalyzeOnLoad"] = (enabled) =>
@@ -275,7 +298,7 @@ export const quit: Backend["quit"] = () => command("quit", []);
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress") listener(event);
+    if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged") listener(event);
   });
   pushEvents([]);
   return id;
@@ -303,6 +326,15 @@ export const subscribeBenchmarkProgress: Backend["subscribeBenchmarkProgress"] =
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
     if (event.type === "BenchmarkProgress") listener(event.data);
+  });
+  pushEvents([]);
+  return id;
+};
+
+export const subscribeAnalysisState: Backend["subscribeAnalysisState"] = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => {
+    if (event.type === "AnalysisStateChanged") listener(event.data);
   });
   pushEvents([]);
   return id;

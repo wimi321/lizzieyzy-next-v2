@@ -403,6 +403,9 @@ test.each([
   expectTypeOf(result).toEqualTypeOf<Settings>();
   expect(result).toEqual({
     ...base,
+    analysis_limits: {
+      limit_time: true, max_analyze_time_seconds: 600, limit_playout: false, limit_playouts: 100000,
+    },
     auto_quick_analyze_on_load: true,
     benchmarks: {},
     fox_history: history ? customHistory : [],

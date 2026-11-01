@@ -57,6 +57,7 @@ export interface MenuActions {
   toggleSyncOption(key: "always_sync" | "always_goto_last"): void;
   openTsumego(): void;
   openBenchmark(): void;
+  openSettings(): void;
   openEngineSetup(): void;
   restartEngine(): void;
   openAbout(): void;
@@ -111,6 +112,7 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     tsumeGoMenu: when(state.hasBoard, actions.openTsumego),
     // 引擎一键设置 opens Java's 性能优化 page: KataGo's own benchmark, started by the user.
     autoSetup: when(state.engineConfigured, actions.openBenchmark),
+    comprehensiveSettings: when(true, actions.openSettings),
 
     backToMainBranch: when(trunk !== null, goTo(trunk)),
     jumpToFirst: step(-JUMP),

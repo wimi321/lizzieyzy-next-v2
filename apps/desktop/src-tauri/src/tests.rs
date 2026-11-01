@@ -13,6 +13,7 @@ use tauri::{
 use tempfile::TempDir;
 use tokio::sync::{mpsc, oneshot};
 
+mod analysis_limits;
 mod auto_curve;
 mod benchmark;
 mod board_sync;
@@ -50,13 +51,17 @@ struct Harness {
 
 impl Harness {
     async fn new() -> Self {
-        let directory = TempDir::new().unwrap();
         let mut config = AppConfig::default();
         config.analysis.live.max_visits = 1;
         config.analysis.live.report_interval = Duration::from_millis(10);
         // No timeout fault is under test. A slow CPU must not trigger recovery.
         config.session.write_timeout = Duration::from_secs(60);
         config.session.shutdown_timeout = Duration::from_secs(60);
+        Self::with_config(config).await
+    }
+
+    async fn with_config(config: AppConfig) -> Self {
+        let directory = TempDir::new().unwrap();
         let (core, subscription) = within(app_core::spawn_with_config(directory.path(), config))
             .await
             .unwrap();
@@ -147,6 +152,7 @@ impl Harness {
                     AppEvent::EngineStatusChanged(_)
                     | AppEvent::WholeGameProgress(_)
                     | AppEvent::BenchmarkProgress(_)
+                    | AppEvent::AnalysisStateChanged(_)
                     | AppEvent::BoardSyncStatusChanged(_) => {}
                 }
             }
@@ -286,6 +292,15 @@ async fn open_command_streams_document_before_analysis_on_one_channel() {
     harness
         .invoke("unsubscribe", json!({ "id": subscription }))
         .await;
+    // Unsubscribe prevents future sends, but the consumer can still have the
+    // new User-pause state queued from the previous subscription.
+    while let Ok(message) = harness.output.try_recv() {
+        assert_eq!(message.callback, 41);
+        let index = harness.indices.entry(message.callback).or_default();
+        assert_eq!(message.index, *index);
+        *index += 1;
+        assert!(!matches!(message.event, AppEvent::AnalysisUpdated(_)));
+    }
     let replacement = harness.subscribe(43).await;
     // Reconnecting must restore the document but cannot replay an analysis
     // invalidated by pausing. The unsubscribe acknowledgment is our barrier:

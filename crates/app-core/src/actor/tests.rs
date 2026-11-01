@@ -256,7 +256,8 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                 AppEvent::EngineStatusChanged(_)
                 | AppEvent::WholeGameProgress(_)
                 | AppEvent::BoardSyncStatusChanged(_)
-                | AppEvent::BenchmarkProgress(_) => {}
+                | AppEvent::BenchmarkProgress(_)
+                | AppEvent::AnalysisStateChanged(_) => {}
             }
         }
         assert_eq!(documents, 1);

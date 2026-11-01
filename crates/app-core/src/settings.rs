@@ -33,6 +33,8 @@ pub struct Settings {
     pub version: u32,
     pub engine: Option<EngineProfile>,
     pub pondering: bool,
+    #[ts(as = "Option<crate::AnalysisLimitSettings>", optional)]
+    pub analysis_limits: crate::AnalysisLimitSettings,
     #[ts(as = "Option<bool>", optional)]
     pub auto_quick_analyze_on_load: bool,
     pub fox_history: Vec<crate::fox::FoxAccount>,
@@ -48,6 +50,7 @@ impl Default for Settings {
             version: SETTINGS_VERSION,
             engine: None,
             pondering: true,
+            analysis_limits: crate::AnalysisLimitSettings::default(),
             auto_quick_analyze_on_load: true,
             fox_history: Vec::new(),
             move_rank: crate::MoveRankSettings::default(),
@@ -76,6 +79,8 @@ pub enum SettingsError {
     MoveRank(#[from] crate::MoveRankError),
     #[error(transparent)]
     Tsumego(#[from] crate::TsumegoError),
+    #[error(transparent)]
+    AnalysisLimits(#[from] analysis::AnalysisError),
 }
 
 impl Settings {
@@ -123,6 +128,7 @@ impl Settings {
         crate::fox::normalize_history(&mut self.fox_history);
         self.move_rank.validate()?;
         self.tsumego.validate()?;
+        self.analysis_limits.validate()?;
         if self
             .benchmarks
             .iter()

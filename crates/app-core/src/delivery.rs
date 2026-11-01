@@ -12,13 +12,14 @@ struct Mailbox {
     review: Option<(u64, AppEvent)>,
     board_sync: Option<(u64, AppEvent)>,
     benchmark: Option<(u64, AppEvent)>,
+    analysis_state: Option<(u64, AppEvent)>,
 }
 
 pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 6],
+    read: [Option<u64>; 7],
 }
 
 pub(crate) fn channel() -> (Delivery, AppSubscription) {
@@ -27,14 +28,22 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 6],
+            read: [None; 7],
         },
     )
 }
 
 impl Delivery {
     pub fn send(&self, event: AppEvent) {
-        self.0.send_modify(|mailbox| {
+        self.0.send_if_modified(|mailbox| {
+            if matches!(event, AppEvent::AnalysisStateChanged(_))
+                && mailbox
+                    .analysis_state
+                    .as_ref()
+                    .is_some_and(|(_, previous)| previous == &event)
+            {
+                return false;
+            }
             mailbox.serial = mailbox.serial.wrapping_add(1);
             let slot = match &event {
                 AppEvent::DocumentChanged { .. } => &mut mailbox.document,
@@ -43,8 +52,10 @@ impl Delivery {
                 AppEvent::WholeGameProgress(_) => &mut mailbox.review,
                 AppEvent::BoardSyncStatusChanged(_) => &mut mailbox.board_sync,
                 AppEvent::BenchmarkProgress(_) => &mut mailbox.benchmark,
+                AppEvent::AnalysisStateChanged(_) => &mut mailbox.analysis_state,
             };
             *slot = Some((mailbox.serial, event));
+            true
         });
     }
 
@@ -68,6 +79,7 @@ impl AppSubscription {
                     &mailbox.review,
                     &mailbox.board_sync,
                     &mailbox.benchmark,
+                    &mailbox.analysis_state,
                 ]
                 .into_iter()
                 .enumerate()

@@ -73,15 +73,35 @@ test("navigation keys call step as in Java (up and down are moves); keys typed i
   ]);
 });
 
-test("the pause button starts from the saved setting", async () => {
+test("the pause button shows the analysis state, which starts from the saved setting", async () => {
   setScript({
     initialEvents: [documentChanged(midGame(), 3)],
-    commands: [{ command: "settings", result: { version: 1, engine: { program: "/opt/katago", model: "/opt/model.bin.gz", config: "/opt/analysis.cfg", extra_args: [] }, pondering: false } }],
+    commands: [
+      { command: "settings", result: { version: 1, engine: { program: "/opt/katago", model: "/opt/model.bin.gz", config: "/opt/analysis.cfg", extra_args: [] }, pondering: false } },
+      { command: "analysisState", result: { pondering: false, pause_reason: "User" } },
+    ],
   });
   render(<App />);
   const button = await screen.findByTestId("toggle-pondering");
   await act(async () => {});
   expect(button.getAttribute("aria-pressed")).toBe("true");
+});
+
+test("a move analysed to its limit stops with a notice; Continue resumes without touching the saved setting", async () => {
+  setScript({
+    initialEvents: [documentChanged(midGame(), 3), { type: "AnalysisStateChanged", data: { pondering: false, pause_reason: "TimeLimit" } }],
+    commands: [{ command: "togglePondering", result: { pondering: true, pause_reason: null } }],
+  });
+  render(<App />);
+  const notice = await screen.findByTestId("limit-notice");
+  expect(notice.textContent).toContain("Analysis stopped");
+  expect(notice.textContent).toContain("10 min");
+  await act(async () => {
+    fireEvent.click(screen.getByTestId("limit-resume"));
+  });
+  expect(screen.queryByTestId("limit-notice")).toBeNull();
+  expect(recordedCalls().map((call) => call.command)).toContain("togglePondering");
+  expect(recordedCalls().map((call) => call.command)).not.toContain("setPondering");
 });
 
 test("a game that opens is drawn by a quiet one-visit pass: the graph says so, the toolbar stays at rest", async () => {

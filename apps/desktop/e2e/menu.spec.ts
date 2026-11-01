@@ -60,7 +60,7 @@ test("LizzieYzy Next's menus sit above the toolbar, in Java's order", async ({ p
 });
 
 test("menus and Java's keys reach the review tools", async ({ page }) => {
-  await start(page, [{ command: "setPondering", result: undefined }]);
+  await start(page, [{ command: "togglePondering", result: { pondering: false, pause_reason: "User" } }]);
   const bar = page.getByTestId("menubar");
 
   await bar.getByRole("menuitem", { name: "同步" }).click();
@@ -81,7 +81,7 @@ test("menus and Java's keys reach the review tools", async ({ page }) => {
   const calls = await page.evaluate(() => window.__mockBackend?.recordedCalls() ?? []);
   expect(calls).toEqual([
     { command: "settings", args: [] },
-    { command: "setPondering", args: [false] },
+    { command: "togglePondering", args: [] },
   ]);
 
   await bar.getByRole("menuitem", { name: "帮助" }).click();

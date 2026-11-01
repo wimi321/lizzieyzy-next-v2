@@ -689,5 +689,31 @@
     "reset": "Restore defaults",
     "running": "Tuning KataGo",
     "open": "Open performance tuning"
+  },
+  "prefs": {
+    "title": "Settings",
+    "analysis": "Analysis",
+    "limitTime": "Limit analysis time",
+    "limitTimeHint": "Stops analysing a move after this long, so a forgotten window does not keep the GPU busy. Space or a new move resumes.",
+    "seconds": "s",
+    "limitPlayout": "Limit analysis visits",
+    "limitPlayoutHint": "Stops analysing a move once it has this many visits.",
+    "visits": "visits",
+    "autoCurve": "Draw the winrate graph when a game opens",
+    "autoCurveHint": "One visit per move draws the whole graph in seconds, alongside live analysis.",
+    "invalid": "Enter a whole number above 0.",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close"
+  },
+  "limit": {
+    "title": "Analysis stopped",
+    "time": "This move has been analysed for {n}. Press Space to continue.",
+    "playouts": "This move reached {n} visits. Press Space to continue.",
+    "minutes": "{n} min",
+    "seconds": "{n} s",
+    "resume": "Continue",
+    "change": "Change limits",
+    "dismiss": "Dismiss"
   }
 }

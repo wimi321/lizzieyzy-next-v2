@@ -159,7 +159,7 @@ impl Actor {
     async fn board_sync_event(&mut self, event: readboard::Event) -> Result<(), AppError> {
         match event {
             readboard::Event::Ready => {
-                let running = self.pondering() && self.running.is_some();
+                let running = self.analysis_state().pondering && self.running.is_some();
                 if let Some(process) = &mut self.board_sync.process {
                     if process.ready {
                         return Ok(());
@@ -182,8 +182,9 @@ impl Actor {
             readboard::Event::PauseAnalysis | readboard::Event::ResumeAnalysis => {
                 self.board_sync.analysis_paused = matches!(event, readboard::Event::PauseAnalysis);
                 self.output.clear_analysis();
-                self.update_focus().await;
-                let running = self.pondering() && self.running.is_some();
+                self.update_focus_with_resume(matches!(event, readboard::Event::ResumeAnalysis))
+                    .await;
+                let running = self.analysis_state().pondering && self.running.is_some();
                 if let Some(process) = &mut self.board_sync.process {
                     process
                         .send(readboard::Command::AnalysisState { running })
@@ -201,6 +202,10 @@ impl Actor {
             }
             readboard::Event::Snapshot(snapshot) => {
                 self.next_revision()?;
+                let previous_remote = self
+                    .board_sync
+                    .resolved_node
+                    .unwrap_or(self.document.current());
                 let mut document = self.document.clone();
                 let outcome = self.board_sync.reconciler.apply(
                     &mut document,
@@ -217,14 +222,22 @@ impl Actor {
                 self.board_sync.resolved_node = Some(outcome.resolved_node);
                 if outcome.rebuilt {
                     self.replace_document(document).await?;
-                } else if outcome.changed {
-                    self.document = document;
-                    self.document_changed().await?;
                 } else {
-                    self.update_focus().await;
+                    self.document = document;
+                    // Follow the accepted remote path, independent of the locally
+                    // browsed node. Repeated frames and backward jumps stay paused.
+                    // Resume in the focus transaction so a fast new result cannot
+                    // hit its own limit and then be resumed by this old move.
+                    let resume_limited =
+                        self.navigation_between_plays_move(previous_remote, outcome.resolved_node);
+                    if outcome.changed {
+                        self.document_changed_with_resume(resume_limited).await?;
+                    } else {
+                        self.update_focus_with_resume(resume_limited).await;
+                    }
                 }
                 self.publish_sync();
-                let running = self.pondering() && self.running.is_some();
+                let running = self.analysis_state().pondering && self.running.is_some();
                 if let Some(process) = &mut self.board_sync.process {
                     process
                         .send(readboard::Command::AnalysisState { running })

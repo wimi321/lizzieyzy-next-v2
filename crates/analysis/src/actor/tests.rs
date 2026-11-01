@@ -27,7 +27,11 @@ fn actor() -> (Actor, AnalysisSubscription) {
             cwd: None,
             env: BTreeMap::new(),
         },
-        SessionConfig::default(),
+        SessionConfig {
+            startup_timeout: Duration::from_secs(86_400),
+            response_timeout: Duration::from_secs(86_400),
+            ..SessionConfig::default()
+        },
     );
     let document = GameDocument::new();
     let position = document.position_at(document.root()).unwrap();
@@ -45,6 +49,9 @@ fn actor() -> (Actor, AnalysisSubscription) {
             config: AnalysisConfig::default(),
             focus: Some(focus),
             active: None,
+            limited: None,
+            limited_on_current: false,
+            playout_exempt: false,
             cache: Cache::new(NonZeroUsize::new(8).unwrap()),
             throttle: Throttle::new(),
             last_published: None,
@@ -248,6 +255,7 @@ async fn retained_seed_respects_deeper_lru_and_does_not_replace_published_same_f
         .command(Input::Focus(
             Box::new(focus.clone()),
             Some(Box::new(seed.response)),
+            false,
         ))
         .await
         .unwrap();
@@ -258,6 +266,7 @@ async fn retained_seed_respects_deeper_lru_and_does_not_replace_published_same_f
         .command(Input::Focus(
             Box::new(focus.clone()),
             Some(Box::new(newer.response.clone())),
+            false,
         ))
         .await
         .unwrap();
@@ -269,6 +278,7 @@ async fn retained_seed_respects_deeper_lru_and_does_not_replace_published_same_f
         .command(Input::Focus(
             Box::new(revised.clone()),
             Some(Box::new(newer.response)),
+            false,
         ))
         .await
         .unwrap();
@@ -343,7 +353,7 @@ async fn speed_survives_revision_refresh_and_final_without_sampling_the_final() 
     let mut focus = actor.focus.clone().unwrap();
     focus.revision += 1;
     actor
-        .command(Input::Focus(Box::new(focus), None))
+        .command(Input::Focus(Box::new(focus), None, false))
         .await
         .unwrap();
     assert_eq!(actor.active.as_ref().unwrap().subscription.id(), query_id);
@@ -473,7 +483,7 @@ async fn speed_restarts_for_node_or_position_key_changes_and_cache_has_no_speed(
             focus.key = focus.position.analysis_key();
         }
         let query_id = actor.active.as_ref().unwrap().subscription.id().to_owned();
-        command_between_samples(&mut actor, Input::Focus(Box::new(focus), None)).await;
+        command_between_samples(&mut actor, Input::Focus(Box::new(focus), None, false)).await;
         assert_ne!(actor.active.as_ref().unwrap().subscription.id(), query_id);
         if change_node {
             let cached = immediately_available(&mut output).await;
@@ -494,6 +504,298 @@ async fn speed_restarts_for_node_or_position_key_changes_and_cache_has_no_speed(
             Some(1000.0)
         );
     }
+    resume();
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn limit_clock_starts_with_first_live_result_and_revision_does_not_reset_it() {
+    let (mut actor, _) = actor();
+    actor.config.limits.max_analyze_time_seconds = 10;
+    start_sampling(&mut actor).await;
+    advance(Duration::from_secs(100)).await;
+    assert_eq!(actor.limit_reached(), None);
+    partial(&mut actor, 1);
+    let started = actor.active.as_ref().unwrap().started;
+    advance(Duration::from_secs(9)).await;
+    assert_eq!(actor.limit_reached(), None);
+    let mut focus = actor.focus.clone().unwrap();
+    focus.revision += 1;
+    actor
+        .command(Input::Focus(Box::new(focus), None, false))
+        .await
+        .unwrap();
+    assert_eq!(actor.active.as_ref().unwrap().started, started);
+    advance(Duration::from_secs(1)).await;
+    assert_eq!(actor.limit_reached(), Some(LimitReason::Time));
+    resume();
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn playout_limit_uses_strict_root_visits_even_below_display_floor() {
+    let (mut actor, mut output) = actor();
+    actor.config.limits.limit_playout = true;
+    actor.config.limits.limit_playouts = 100;
+    start_sampling(&mut actor).await;
+    let cached = snapshot(&actor, 1000, SnapshotSource::Cache);
+    actor.offer(cached.clone());
+    immediately_available(&mut output).await;
+    let equal = snapshot(&actor, 100, SnapshotSource::Live).response;
+    assert_eq!(actor.event(Some(QueryEvent::Partial(equal))), None);
+    let over = snapshot(&actor, 101, SnapshotSource::Live).response;
+    assert_eq!(
+        actor.event(Some(QueryEvent::Partial(over))),
+        Some(LimitReason::Playouts)
+    );
+    assert_eq!(actor.last_published, Some(cached));
+    assert_no_output(&mut output).await;
+    resume();
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn disabled_limits_do_not_stop_and_changing_thresholds_keeps_clock() {
+    let (mut actor, _) = actor();
+    actor.config.limits = AnalysisLimits {
+        limit_time: false,
+        max_analyze_time_seconds: 1,
+        limit_playout: false,
+        limit_playouts: 1,
+    };
+    start_sampling(&mut actor).await;
+    partial(&mut actor, 1000);
+    let started = actor.active.as_ref().unwrap().started;
+    advance(Duration::from_secs(100)).await;
+    assert_eq!(actor.limit_reached(), None);
+    let limits = AnalysisLimits {
+        limit_time: true,
+        max_analyze_time_seconds: 101,
+        ..actor.config.limits.clone()
+    };
+    actor.command(Input::SetLimits(limits)).await.unwrap();
+    assert_eq!(actor.active.as_ref().unwrap().started, started);
+    assert_eq!(actor.limit_reached(), None);
+    advance(Duration::from_secs(1)).await;
+    assert_eq!(actor.limit_reached(), Some(LimitReason::Time));
+    resume();
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn limited_pause_preserves_latest_pending_result_and_pondering_intent() {
+    let (mut actor, mut output) = actor();
+    start_sampling(&mut actor).await;
+    partial(&mut actor, 100);
+    immediately_available(&mut output).await;
+    partial(&mut actor, 101);
+    assert!(actor.throttle.deadline().is_some());
+    resume();
+    timeout(
+        Duration::from_secs(5),
+        actor.stop_by_limit(LimitReason::Time),
+    )
+    .await
+    .unwrap();
+    pause();
+    assert!(actor.config.pondering);
+    assert!(actor.active.is_none());
+    assert_eq!(
+        *actor.status.borrow(),
+        AnalysisStatus::Limited(LimitReason::Time)
+    );
+    flush_pending(&mut actor);
+    assert_eq!(
+        immediately_available(&mut output)
+            .await
+            .response
+            .root_info
+            .visits,
+        101
+    );
+    let focus = actor.focus.clone().unwrap();
+    actor
+        .command(Input::Focus(Box::new(focus), None, false))
+        .await
+        .unwrap();
+    actor.command(Input::SetPondering(true)).await.unwrap();
+    let limits = AnalysisLimits {
+        limit_time: false,
+        ..actor.config.limits.clone()
+    };
+    actor.command(Input::SetLimits(limits)).await.unwrap();
+    assert!(actor.active.is_none());
+    assert_eq!(
+        *actor.status.borrow(),
+        AnalysisStatus::Limited(LimitReason::Time)
+    );
+    command_between_samples(&mut actor, Input::Resume).await;
+    assert!(actor.active.is_some());
+    assert_eq!(actor.active.as_ref().unwrap().started, None);
+    resume();
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn new_focus_keeps_limit_pause_until_resume_and_resets_playout_exemption() {
+    let (mut actor, _) = actor();
+    actor.config.limits.limit_playout = true;
+    actor.config.limits.limit_playouts = 10;
+    start_sampling(&mut actor).await;
+    partial(&mut actor, 11);
+    resume();
+    timeout(
+        Duration::from_secs(5),
+        actor.stop_by_limit(LimitReason::Playouts),
+    )
+    .await
+    .unwrap();
+    pause();
+    command_between_samples(&mut actor, Input::Resume).await;
+    assert!(actor.playout_exempt);
+    partial(&mut actor, 100);
+    assert_eq!(actor.limit_reached(), None);
+    // A later time stop keeps the same-position visit exemption on resume.
+    resume();
+    timeout(
+        Duration::from_secs(5),
+        actor.stop_by_limit(LimitReason::Time),
+    )
+    .await
+    .unwrap();
+    pause();
+    let mut focus = actor.focus.clone().unwrap();
+    focus.node_id = NodeId(focus.node_id.0 + 1);
+    focus.revision += 1;
+    command_between_samples(&mut actor, Input::Focus(Box::new(focus), None, false)).await;
+    assert!(!actor.playout_exempt);
+    assert!(actor.active.is_none());
+    assert_eq!(
+        *actor.status.borrow(),
+        AnalysisStatus::Limited(LimitReason::Time)
+    );
+    command_between_samples(&mut actor, Input::Resume).await;
+    partial(&mut actor, 11);
+    assert_eq!(actor.limit_reached(), Some(LimitReason::Playouts));
+    resume();
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn restart_and_explicit_pause_resume_start_fresh_limit_clocks() {
+    let (mut actor, _) = actor();
+    actor.config.limits.max_analyze_time_seconds = 10;
+    start_sampling(&mut actor).await;
+    partial(&mut actor, 1);
+    advance(Duration::from_secs(9)).await;
+    actor.event(Some(QueryEvent::Restarted));
+    assert_eq!(actor.active.as_ref().unwrap().started, None);
+    advance(Duration::from_secs(20)).await;
+    assert_eq!(actor.limit_reached(), None);
+    partial(&mut actor, 1);
+    advance(Duration::from_secs(9)).await;
+    assert_eq!(actor.limit_reached(), None);
+    command_between_samples(&mut actor, Input::SetPondering(false)).await;
+    command_between_samples(&mut actor, Input::SetPondering(true)).await;
+    assert_eq!(actor.active.as_ref().unwrap().started, None);
+    partial(&mut actor, 2);
+    advance(Duration::from_secs(9)).await;
+    assert_eq!(actor.limit_reached(), None);
+    advance(Duration::from_secs(1)).await;
+    assert_eq!(actor.limit_reached(), Some(LimitReason::Time));
+    resume();
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn navigating_after_playout_stop_does_not_exempt_the_new_position() {
+    let (mut actor, _) = actor();
+    actor.config.limits.limit_playout = true;
+    actor.config.limits.limit_playouts = 10;
+    start_sampling(&mut actor).await;
+    partial(&mut actor, 11);
+    resume();
+    timeout(
+        Duration::from_secs(5),
+        actor.stop_by_limit(LimitReason::Playouts),
+    )
+    .await
+    .unwrap();
+    pause();
+    let mut focus = actor.focus.clone().unwrap();
+    focus.node_id = NodeId(focus.node_id.0 + 1);
+    focus.revision += 1;
+    command_between_samples(&mut actor, Input::Focus(Box::new(focus), None, false)).await;
+    assert_eq!(
+        *actor.status.borrow(),
+        AnalysisStatus::Limited(LimitReason::Playouts)
+    );
+    command_between_samples(&mut actor, Input::Resume).await;
+    assert!(!actor.playout_exempt);
+    partial(&mut actor, 11);
+    assert_eq!(actor.limit_reached(), Some(LimitReason::Playouts));
+    resume();
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn atomic_focus_resume_uses_only_old_pause_and_keeps_new_position_limits() {
+    let (mut actor, _) = actor();
+    actor.config.limits.limit_playout = true;
+    actor.config.limits.limit_playouts = 10;
+    start_sampling(&mut actor).await;
+    partial(&mut actor, 11);
+    resume();
+    timeout(
+        Duration::from_secs(5),
+        actor.stop_by_limit(LimitReason::Playouts),
+    )
+    .await
+    .unwrap();
+    pause();
+    let mut focus = actor.focus.clone().unwrap();
+    focus.node_id = NodeId(focus.node_id.0 + 1);
+    focus.revision += 1;
+    command_between_samples(&mut actor, Input::Focus(Box::new(focus), None, true)).await;
+    assert!(!actor.playout_exempt);
+    assert!(actor.active.is_some());
+    assert_eq!(actor.active.as_ref().unwrap().started, None);
+    let over = snapshot(&actor, 11, SnapshotSource::Live).response;
+    let reason = actor.event(Some(QueryEvent::Partial(over))).unwrap();
+    assert_eq!(reason, LimitReason::Playouts);
+    resume();
+    timeout(Duration::from_secs(5), actor.stop_by_limit(reason))
+        .await
+        .unwrap();
+    assert_eq!(
+        *actor.status.borrow(),
+        AnalysisStatus::Limited(LimitReason::Playouts)
+    );
+    assert!(actor.active.is_none());
+    stop(actor).await;
+}
+
+#[tokio::test]
+async fn atomic_same_focus_resume_keeps_playout_exemption_and_restarts_clock() {
+    let (mut actor, _) = actor();
+    actor.config.limits.limit_playout = true;
+    actor.config.limits.limit_playouts = 10;
+    start_sampling(&mut actor).await;
+    partial(&mut actor, 11);
+    resume();
+    timeout(
+        Duration::from_secs(5),
+        actor.stop_by_limit(LimitReason::Playouts),
+    )
+    .await
+    .unwrap();
+    pause();
+    let focus = actor.focus.clone().unwrap();
+    command_between_samples(&mut actor, Input::Focus(Box::new(focus), None, true)).await;
+    assert!(actor.playout_exempt);
+    assert_eq!(actor.active.as_ref().unwrap().started, None);
+    partial(&mut actor, 100);
+    assert_eq!(actor.limit_reached(), None);
     resume();
     stop(actor).await;
 }

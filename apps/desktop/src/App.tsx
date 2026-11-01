@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
-import type { AutoSetupError, ColorView, EngineProfile, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, TsumegoOptions, TsumegoStatus, VariationTreeView } from "@/api/backend";
+import type { AnalysisLimitSettings, AnalysisState, AutoSetupError, ColorView, EngineProfile, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, TsumegoOptions, TsumegoStatus, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
 import { formatVisits } from "./board/format";
 import { useVariationPreview } from "./board/useVariationPreview";
@@ -18,6 +18,8 @@ import { MoveTree } from "./panels/MoveTree";
 import { AutoAnalysis, type AutoAnalysisHandle } from "./review/AutoAnalysis";
 import { ProblemList } from "./review/ProblemList";
 import { StrengthDialog } from "./review/StrengthDialog";
+import { LimitNotice } from "./analysis/LimitNotice";
+import { useAnalysisRun } from "./analysis/useAnalysisRun";
 import { BenchmarkChip } from "./benchmark/BenchmarkChip";
 import { BenchmarkDialog } from "./benchmark/BenchmarkDialog";
 import { useBenchmark } from "./benchmark/useBenchmark";
@@ -30,6 +32,7 @@ import { useProblemMoves } from "./review/useProblemMoves";
 import { useStrength } from "./review/useStrength";
 import { useWholeGame } from "./review/useWholeGame";
 import { EngineSetup } from "./settings/EngineSetup";
+import { SettingsDialog } from "./settings/SettingsDialog";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { JUMP, TopBar } from "./toolbar/Toolbar";
 
@@ -126,6 +129,15 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const sync = useBoardSync(backend);
   const tuning = useBenchmark(backend);
   const [tuningOpen, setTuningOpen] = useState(false);
+  // Live analysis as it runs now: paused by the user, or stopped at a time or visit limit.
+  const run = useAnalysisRun(backend);
+  const [limits, setLimits] = useState<AnalysisLimitSettings | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [dismissedStop, setDismissedStop] = useState<AnalysisState | null>(null);
+  const limitStop =
+    run.state && (run.state.pause_reason === "TimeLimit" || run.state.pause_reason === "PlayoutLimit") && run.state !== dismissedStop
+      ? run.state.pause_reason
+      : null;
   // Java's defaults: keep the board in step with the client, but leave the viewed move alone.
   const [syncOptions, setSyncOptions] = useState({ always_sync: true, always_goto_last: false });
   const [problemColor, setProblemColor] = useState<ColorView | null>(null);
@@ -241,13 +253,12 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     const path = await backend.pickSavePath();
     if (path) await backend.save(path);
   };
-  const togglePondering = () => {
-    const next = !pondering;
-    backend
-      .setPondering(next)
-      .then(() => setPondering(next))
-      .catch(report);
-  };
+  // Space and the chip resume a limit stop without changing the saved setting.
+  const togglePondering = run.toggle;
+  const livePondering = run.state?.pondering ?? pondering;
+  useEffect(() => {
+    backend.analysisLimits().then(setLimits).catch(report);
+  }, []);
   // The backend records searches in the settings; read them back rather than guess.
   const refreshFoxHistory = () => {
     backend
@@ -308,6 +319,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       toggleSyncOption: (key) => setSyncOptions((options) => ({ ...options, [key]: !options[key] })),
       openTsumego: () => setTsumegoOpen(true),
       openBenchmark: () => setTuningOpen(true),
+      openSettings: () => setSettingsOpen(true),
       openEngineSetup: () => setSetupOpen(true),
       restartEngine: () => {
         if (profile) backend.configureEngine(profile).catch(report);
@@ -315,7 +327,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       openAbout: () => setAboutOpen(true),
     },
   );
-  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen || tuningOpen));
+  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen || tuningOpen || settingsOpen));
   const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(profile ? engineName(profile) : null)], [profile]);
 
   return (
@@ -346,7 +358,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         engineLabels={messages.engine}
         moveNumber={board ? board.move_number : null}
         lastMoveNumber={points.length > 0 ? (points[points.length - 1]?.move_number ?? null) : null}
-        pondering={pondering}
+        pondering={livePondering}
         analysis={
           analysis && board
             ? {
@@ -497,6 +509,16 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             step(steps);
           }}
         >
+          {limitStop ? (
+            <LimitNotice
+              reason={limitStop}
+              limits={limits}
+              labels={messages.limit}
+              onResume={togglePondering}
+              onChange={() => setSettingsOpen(true)}
+              onDismiss={() => setDismissedStop(run.state)}
+            />
+          ) : null}
           {board ? (
             <Board
               board={board}
@@ -555,6 +577,18 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         />
       ) : null}
       {aboutOpen ? <AboutDialog name={messages.app.title} labels={messages.about} onClose={() => setAboutOpen(false)} /> : null}
+      {settingsOpen && limits ? (
+        <SettingsDialog
+          values={{ limits, autoCurve }}
+          labels={messages.prefs}
+          onSave={async (values) => {
+            setLimits(await backend.setAnalysisLimits(values.limits));
+            if (values.autoCurve !== autoCurve) setAutoCurve(await backend.setAutoQuickAnalyzeOnLoad(values.autoCurve));
+            setSettingsOpen(false);
+          }}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
       {tuningOpen ? (
         <BenchmarkDialog
           status={tuning.status}
