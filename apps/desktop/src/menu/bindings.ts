@@ -1,5 +1,5 @@
 import type { BoardSyncPhase, VariationTreeView } from "@/api/backend";
-import { JUMP } from "../toolbar/Toolbar";
+import { JUMP } from "../frame/BottomToolbar";
 import { branchTarget, mainTrunkTarget } from "./branch";
 
 /** What a menu entry or shortcut does now. Entries without a binding are shown disabled. */

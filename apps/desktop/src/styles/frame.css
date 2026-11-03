@@ -1,0 +1,630 @@
+/*
+ * LizzieYzy Next's window chrome, as the Java app draws it with its light classic surfaces
+ * (`AppleStyleSupport`, `WindowMenuStrip`, `TopHeaderPanel`, `BottomToolbar`): a #f4f5f7 strip
+ * with a hairline edge, white 6 px-round buttons, the green-tinted accent buttons with a blue
+ * border, and pink danger buttons. Sizes are Java's at its default 12 px frame font.
+ */
+:root {
+  --jf-strip: #f4f5f7;
+  --jf-hairline: #dddfe3;
+  --jf-text: #1f2926;
+  --jf-text-disabled: #a2a7ad;
+  --jf-border: rgba(0, 0, 0, 0.141);
+  --jf-hover: #f0f2f5;
+  --jf-pressed: #e4e7eb;
+  --jf-disabled-fill: rgba(238, 240, 243, 0.667);
+  --jf-accent: #60a5fa;
+  --jf-accent-border: rgba(96, 165, 250, 0.863);
+  --jf-primary: #e2f1ec;
+  --jf-primary-hover: #d4e8e1;
+  --jf-primary-pressed: #c0dcd2;
+  --jf-danger: #fce8e8;
+  --jf-danger-hover: #fadcdc;
+  --jf-danger-pressed: #f5cdcd;
+  --jf-danger-border: rgba(255, 130, 130, 0.863);
+  --jf-font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+.app {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  background: var(--jf-strip);
+}
+
+/* Menu strip (WindowMenuStrip): FlowLayout(LEFT, 8, 4) inside a 2/10 px border. */
+
+.menubar-row {
+  height: 36px;
+  padding: 0 10px;
+  background: var(--jf-strip);
+  border-bottom: 1px solid var(--jf-hairline);
+}
+
+.menubar {
+  flex: 0 1 auto;
+  gap: 8px;
+  padding: 0 0 0 8px;
+}
+
+.menubar-tray {
+  margin-left: auto;
+}
+
+.menubar-item {
+  max-width: 320px;
+  height: 26px;
+  padding: 0 10px;
+  color: var(--jf-text);
+  font: 600 12px/26px var(--jf-font);
+  border-radius: 6px;
+}
+
+.menubar-item:hover {
+  color: var(--jf-text);
+  background: transparent;
+}
+
+.menubar-item[aria-expanded="true"] {
+  color: var(--jf-text);
+  background: transparent;
+  background-image: linear-gradient(rgba(120, 190, 255, 0.863), rgba(120, 190, 255, 0.863));
+  background-repeat: no-repeat;
+  background-position: 8px calc(100% - 1px);
+  background-size: calc(100% - 16px) 2px;
+}
+
+.menubar-item:focus-visible {
+  outline: 2px solid var(--jf-accent);
+}
+
+/* The engine menu reads "[1]: name" with a chevron, as Java marks it as a choice. */
+.menubar-item.menubar-engine {
+  position: relative;
+  padding-right: 22px;
+}
+
+.menubar-engine::after {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  content: "";
+}
+
+.menubar-actions {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  margin-left: 10px;
+}
+
+.menubar-actions .jt-button {
+  height: 26px;
+  padding: 0 22px;
+  font-weight: 600;
+}
+
+.menubar-actions .jt-coach {
+  color: #fff;
+  background: #0f766e;
+  border-color: #0f766e;
+}
+
+.menubar-actions .jt-coach:disabled {
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(15, 118, 110, 0.55);
+  border-color: transparent;
+}
+
+/* Popup menus: white surface, 5/10 px rows, the green selection of the classic style. */
+
+.menu-popup {
+  padding: 4px;
+  color: var(--jf-text);
+  font: 12px/1.2 var(--jf-font);
+  background: #fff;
+  border: 1px solid var(--jf-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  backdrop-filter: none;
+}
+
+.menu-row {
+  height: 24px;
+  padding: 0 10px 0 4px;
+  border-radius: 4px;
+}
+
+.menu-hint,
+.menu-mark,
+.menu-chevron {
+  color: #6b7280;
+}
+
+.menu-row[data-active] {
+  color: var(--jf-text);
+  background: var(--jf-primary);
+}
+
+.menu-row[data-active] :is(.menu-hint, .menu-mark, .menu-chevron) {
+  color: #4b5563;
+}
+
+.menu-row[aria-disabled="true"],
+.menu-row[aria-disabled="true"] :is(.menu-hint, .menu-mark, .menu-chevron) {
+  color: var(--jf-text-disabled);
+}
+
+.menu-separator {
+  background: linear-gradient(rgba(31, 41, 38, 0.157), rgba(31, 41, 38, 0.157)) center / 100% 1px no-repeat;
+}
+
+/* Buttons (ToolbarButtonUI): 6 px corners, a border always drawn in the light style. */
+
+.jt-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 20px;
+  min-width: 20px;
+  padding: 0 7px;
+  color: var(--jf-text);
+  font: 12px/1 var(--jf-font);
+  white-space: nowrap;
+  background: #fff;
+  border: 1px solid var(--jf-border);
+  border-radius: 6px;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.jt-button:hover:enabled {
+  background: var(--jf-hover);
+}
+
+.jt-button:active:enabled {
+  background: var(--jf-pressed);
+}
+
+.jt-button[data-icon] {
+  width: 20px;
+  padding: 0;
+}
+
+/* The ▾ option buttons beside the forced-area tools are as narrow as their arrow. */
+.jt-button.jt-narrow {
+  width: 13px;
+  min-width: 13px;
+}
+
+.jt-button.jt-narrow img {
+  width: 9px;
+}
+
+.jt-button img {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.jt-button[data-role="primary"] {
+  background: var(--jf-primary);
+  border-color: var(--jf-accent-border);
+}
+
+.jt-button[data-role="primary"]:hover:enabled {
+  background: var(--jf-primary-hover);
+}
+
+.jt-button[data-role="primary"]:active:enabled {
+  background: var(--jf-primary-pressed);
+}
+
+.jt-button[data-role="danger"] {
+  background: var(--jf-danger);
+  border-color: var(--jf-danger-border);
+}
+
+.jt-button[data-role="danger"]:hover:enabled {
+  background: var(--jf-danger-hover);
+}
+
+.jt-button[data-role="danger"]:active:enabled {
+  background: var(--jf-danger-pressed);
+}
+
+.jt-button:disabled {
+  color: var(--jf-text-disabled);
+  background: var(--jf-disabled-fill);
+}
+
+.jt-button:disabled img {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+.jt-button:focus-visible {
+  outline: 2px solid #126b62;
+  outline-offset: -3px;
+}
+
+/* The five small buttons at the end of the top toolbar: 规则 死活 参数 棋盘 存档. */
+.jt-button[data-small] {
+  height: 15px;
+  padding: 0 7px;
+  font-size: 11px;
+  border-color: #d7d7d8;
+}
+
+/* Java leaves a wider gap before 规则, the first of the five. */
+.jt-button.jt-rules {
+  margin-left: 14px;
+}
+
+/* Top toolbar (TopHeaderPanel): wrapping rows on the strip surface. */
+
+.jt-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  gap: 3px 2px;
+  padding: 3px 4px 2px;
+  color: var(--jf-text);
+  font: 12px/1 var(--jf-font);
+  background: var(--jf-strip);
+  border-bottom: 1px solid var(--jf-hairline);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.jt-separator {
+  flex: none;
+  width: 4px;
+  height: 20px;
+  margin: 0 1px;
+  background: linear-gradient(#cdd1d6, #cdd1d6) center 4px / 1px 12px no-repeat;
+}
+
+.jt-field {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+  margin: 0 2px;
+  white-space: nowrap;
+}
+
+.jt-field[aria-disabled="true"] > span {
+  color: var(--jf-text-disabled);
+}
+
+.jt-input {
+  width: 47px;
+  height: 20px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  color: var(--jf-text);
+  font: 12px/1 var(--jf-font);
+  text-align: center;
+  background: #fff;
+  border: 1px solid var(--jf-border);
+  border-radius: 6px;
+}
+
+.jt-input:disabled {
+  color: #9db7d8;
+  background: #fff;
+}
+
+/* 贴目's spinner: the value with Java's up/down arrows at its right edge. */
+.jt-spinner {
+  position: relative;
+  display: inline-flex;
+}
+
+.jt-spinner .jt-input {
+  width: 50px;
+  padding-right: 16px;
+  text-align: right;
+}
+
+.jt-spinner::after {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  width: 7px;
+  height: 12px;
+  background:
+    linear-gradient(to top right, transparent 50%, var(--jf-text-disabled) 50%) left top / 3.5px 4px no-repeat,
+    linear-gradient(to top left, transparent 50%, var(--jf-text-disabled) 50%) right top / 3.5px 4px no-repeat,
+    linear-gradient(to bottom right, transparent 50%, var(--jf-text-disabled) 50%) left bottom / 3.5px 4px no-repeat,
+    linear-gradient(to bottom left, transparent 50%, var(--jf-text-disabled) 50%) right bottom / 3.5px 4px no-repeat;
+  content: "";
+}
+
+.jt-check {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  margin: 0 2px;
+  white-space: nowrap;
+}
+
+.jt-check input {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  background: #fff;
+  border: 1.2px solid rgba(0, 0, 0, 0.353);
+  border-radius: 3.5px;
+}
+
+.jt-check input:checked {
+  background: rgba(96, 165, 250, 0.843);
+  border-color: var(--jf-accent-border);
+}
+
+.jt-check input:checked::after {
+  width: 7px;
+  height: 4px;
+  margin-top: -2px;
+  border-bottom: 2px solid #fff;
+  border-left: 2px solid #fff;
+  transform: rotate(-45deg);
+  content: "";
+}
+
+.jt-check input:disabled:checked {
+  background: rgba(96, 165, 250, 0.47);
+}
+
+.jt-search svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Bottom toolbar (BottomToolbar): left group, centred navigation, right group. */
+
+.jt-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  height: 25px;
+  padding: 0 10px;
+  color: var(--jf-text);
+  font: 12px/1 var(--jf-font);
+  background: var(--jf-strip);
+  border-bottom: 1px solid var(--jf-hairline);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.jt-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.jt-group[data-align="end"] {
+  justify-content: flex-end;
+}
+
+.jt-bottom .jt-button {
+  height: 21px;
+  padding: 0 12px;
+}
+
+.jt-bottom .jt-nav {
+  min-width: 36px;
+  padding: 0 8px;
+}
+
+.jt-bottom .jt-input {
+  width: 54px;
+  height: 21px;
+  text-align: left;
+}
+
+/* Below Java's width the greyed, not-yet-built buttons give way so the rest never overlaps. */
+@media (max-width: 1299px) {
+  .jt-bottom .jt-optional {
+    display: none;
+  }
+}
+
+.jt-pause-glyph {
+  display: inline-block;
+  width: 8px;
+  height: 10px;
+  margin-right: 2px;
+  background: linear-gradient(90deg, currentColor 0 3px, transparent 3px 5px, currentColor 5px 8px);
+}
+
+.jt-play-glyph {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-right: 2px;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid currentColor;
+}
+
+/* 自动分析 keeps its panel; in the bottom bar its trigger is one of Java's buttons. */
+.jt-bottom .auto-analysis > button {
+  height: 21px;
+  padding: 0 12px;
+  gap: 4px;
+  color: var(--jf-text);
+  font: 12px/1 var(--jf-font);
+  background: var(--jf-primary);
+  border: 1px solid var(--jf-accent-border);
+  border-radius: 6px;
+}
+
+.jt-bottom .auto-analysis > button svg {
+  display: none;
+}
+
+.jt-bottom .auto-analysis > button .progress-fill {
+  background: rgba(96, 165, 250, 0.3);
+}
+
+.jt-more-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 120px;
+  padding: 4px;
+  color: var(--jf-text);
+  font: 12px/1.2 var(--jf-font);
+  background: #fff;
+  border: 1px solid var(--jf-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+.jt-more-menu button {
+  display: block;
+  width: 100%;
+  height: 24px;
+  padding: 0 10px;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+}
+
+.jt-more-menu button:disabled {
+  color: var(--jf-text-disabled);
+}
+
+/* Main panel: Java's regions over the tiled wallpaper. */
+
+.main-panel {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: #8c8c8c url("../assets/java/background.jpg") repeat 0 0;
+}
+
+.main-region {
+  position: absolute;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The board fills its square; the canvases size themselves to it. */
+.main-region[data-region="board"] {
+  display: flex;
+}
+
+.main-region[data-region="captured"] {
+  background: #303030;
+}
+
+.main-region[data-region="statistics"] {
+  background: linear-gradient(#454545, #363636);
+}
+
+.main-region[data-region="graph"] {
+  background: #2f3134;
+}
+
+.main-region[data-region="comment"] {
+  background: linear-gradient(#1e1e1e, #131313 30%, #111111);
+}
+
+.main-region[data-region="status"] {
+  overflow: visible;
+}
+
+.main-region[data-region="tree"] {
+  background: #333333;
+}
+
+.main-region[data-region="sub-board"] {
+  background: #dbb973 url("../assets/java/board.png") center / cover;
+}
+
+/* The engine status line: a translucent band no larger than its 14 px text (StatusOverlay). */
+.status-line {
+  position: absolute;
+  top: 2px;
+  margin: 0;
+  left: 0;
+  max-width: calc(100% - 4px);
+  height: 23px;
+  padding: 0 6px;
+  overflow: hidden;
+  color: #fff;
+  font: 14px/23px var(--jf-font);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: rgba(0, 0, 0, 0.549);
+  border-radius: 4px;
+}
+
+/* The limit stop's message box (Leelaz.showStopPonderTips): a small non-modal dialog. */
+.limit-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 30;
+  display: grid;
+  gap: 10px;
+  width: min(440px, calc(100vw - 32px));
+  padding: 16px 18px 14px;
+  color: var(--jf-text);
+  font: 13px/1.5 var(--jf-font);
+  background: #f6f7f9;
+  border: 1px solid var(--jf-border);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  transform: translate(-50%, -50%);
+}
+
+.limit-dialog h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.limit-dialog p {
+  margin: 0;
+}
+
+.limit-dialog label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.limit-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.limit-dialog footer .jt-button {
+  min-width: 72px;
+  height: 24px;
+}

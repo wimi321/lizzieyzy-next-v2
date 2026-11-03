@@ -24,7 +24,7 @@ export type {
   StrengthPhasesReport, PhaseEstimate, PhaseExtremes,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "unsubscribe">;
+type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "unsubscribe" | "setWindowTitle">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -294,6 +294,10 @@ export const pickOpenPath: Backend["pickOpenPath"] = () => command("pickOpenPath
 export const pickSavePath: Backend["pickSavePath"] = () => command("pickSavePath", []);
 export const pickEngineFile: Backend["pickEngineFile"] = (kind) => command("pickEngineFile", [kind]);
 export const quit: Backend["quit"] = () => command("quit", []);
+/** The title is presentation, not a command: tests read `document.title` instead. */
+export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
+  document.title = title;
+};
 
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;

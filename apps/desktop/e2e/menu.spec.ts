@@ -38,7 +38,7 @@ test("LizzieYzy Next's menus sit above the toolbar, in Java's order", async ({ p
     "同步",
     "帮助",
     "设置",
-    "kata1-b18c384nbt",
+    "[1]: kata1-b18c384nbt",
   ]);
 
   await bar.getByRole("menuitem", { name: "文件" }).click();
@@ -77,7 +77,7 @@ test("menus and Java's keys reach the review tools", async ({ page }) => {
 
   // 空格 starts and stops analysis, as Java's 开始/停止 分析(空格).
   await page.keyboard.press("Space");
-  await expect(page.getByTestId("toggle-pondering")).toHaveAttribute("data-state", "paused");
+  await expect(page.getByTestId("toggle-pondering")).toHaveAttribute("aria-pressed", "true");
   const calls = await page.evaluate(() => window.__mockBackend?.recordedCalls() ?? []);
   expect(calls).toEqual([
     { command: "settings", args: [] },

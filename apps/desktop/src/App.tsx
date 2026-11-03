@@ -1,24 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
-import type { AnalysisLimitSettings, AnalysisState, AutoSetupError, ColorView, EngineProfile, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, TsumegoOptions, TsumegoStatus, VariationTreeView } from "@/api/backend";
+import type { AnalysisLimitSettings, AutoSetupError, ColorView, EngineProfile, EngineStatus, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, TsumegoOptions, TsumegoStatus, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
-import { formatVisits } from "./board/format";
 import { useVariationPreview } from "./board/useVariationPreview";
 import { FoxDialog } from "./fox/FoxDialog";
 import { liveGraph } from "./graph/scale";
 import { WinrateGraph } from "./graph/WinrateGraph";
 import { getMessages } from "./locales";
 import { AboutDialog } from "./menu/AboutDialog";
-import { menuBindings } from "./menu/bindings";
+import { isEnabled, menuBindings } from "./menu/bindings";
 import { MenuBar } from "./menu/MenuBar";
 import { useShortcuts } from "./menu/shortcuts";
 import { engineMenu, menusFor } from "./menu/spec";
-import { InfoPanel } from "./panels/InfoPanel";
+import { EvaluationSection, PlayersSection } from "./panels/InfoPanel";
 import { MoveTree } from "./panels/MoveTree";
 import { AutoAnalysis, type AutoAnalysisHandle } from "./review/AutoAnalysis";
 import { ProblemList } from "./review/ProblemList";
 import { StrengthDialog } from "./review/StrengthDialog";
-import { LimitNotice } from "./analysis/LimitNotice";
+import { LimitDialog } from "./analysis/LimitDialog";
 import { useAnalysisRun } from "./analysis/useAnalysisRun";
 import { BenchmarkChip } from "./benchmark/BenchmarkChip";
 import { BenchmarkDialog } from "./benchmark/BenchmarkDialog";
@@ -34,7 +33,12 @@ import { useWholeGame } from "./review/useWholeGame";
 import { EngineSetup } from "./settings/EngineSetup";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { connect, createStore, type Store, useAppState } from "./state/store";
-import { JUMP, TopBar } from "./toolbar/Toolbar";
+import { BottomToolbar, JUMP } from "./frame/BottomToolbar";
+import { MainPanel } from "./frame/MainPanel";
+import { StatusLine } from "./frame/StatusLine";
+import { evaluationText, joinParts, windowTitle } from "./frame/title";
+import { ToolButton } from "./frame/ToolButton";
+import { TopToolbar } from "./frame/TopToolbar";
 
 export { JUMP };
 
@@ -133,11 +137,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const run = useAnalysisRun(backend);
   const [limits, setLimits] = useState<AnalysisLimitSettings | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [dismissedStop, setDismissedStop] = useState<AnalysisState | null>(null);
-  const limitStop =
-    run.state && (run.state.pause_reason === "TimeLimit" || run.state.pause_reason === "PlayoutLimit") && run.state !== dismissedStop
-      ? run.state.pause_reason
-      : null;
+  const limitStop = run.state?.pause_reason === "TimeLimit" || run.state?.pause_reason === "PlayoutLimit";
+  // Java tells once per engine session that a move reached its limit, in a box that stays until closed.
+  const [limitTips, setLimitTips] = useState<"unseen" | "open" | "done">("unseen");
+  if (limitStop && limitTips === "unseen") setLimitTips("open");
   // Java's defaults: keep the board in step with the client, but leave the viewed move alone.
   const [syncOptions, setSyncOptions] = useState({ always_sync: true, always_goto_last: false });
   const [problemColor, setProblemColor] = useState<ColorView | null>(null);
@@ -329,6 +332,47 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   );
   useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen || tuningOpen || settingsOpen));
   const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(profile ? engineName(profile) : null)], [profile]);
+  const frame = messages.frame;
+  const engineLabel = profile ? engineName(profile) : null;
+  const autoAnalyzing = quickRunning || wholeGameStatus === "Running";
+  // Java's title: "[Black's winrate, lead, visits] engine speed - [黑] A vs [白] B (结果:…)".
+  const title = windowTitle({
+    app: messages.app.title,
+    evaluation:
+      analysis && analysis.node_id === current && analysis.visits > 0 ? evaluationText(analysis.winrate, analysis.score_lead, analysis.visits) : null,
+    engine: engineLabel,
+    speed:
+      (livePondering && speed !== null ? `${Math.round(speed)} ${frame.title.speedUnit}` : "") +
+      (engineLabel !== null && /b11/i.test(engineLabel) ? ` · ${frame.title.b11} ` : ""),
+    players:
+      info && (info.black_name || info.white_name)
+        ? `[${frame.title.black}] ${info.black_name ?? ""} vs [${frame.title.white}] ${info.white_name ?? ""}`
+        : null,
+    result: info?.result?.trim() ? `(${frame.title.result}${info.result.trim()})` : null,
+  });
+  useEffect(() => {
+    backend.setWindowTitle(title).catch(report);
+  }, [title]);
+  // Java's status line: "engine · state · the key to press". First-run setup reads as starting.
+  const shownEngine: EngineStatus = autoSetup && engine.type === "Stopped" ? { type: "Starting" } : engine;
+  const engineDetail =
+    shownEngine.type === "Failed" || shownEngine.type === "Restarting"
+      ? shownEngine.data.reason
+      : shownEngine.type === "Ready"
+        ? shownEngine.data.version
+        : undefined;
+  const statusText = joinParts(
+    " · ",
+    engineLabel ?? frame.status.noEngine,
+    shownEngine.type !== "Ready"
+      ? messages.engine[shownEngine.type]
+      : autoAnalyzing
+        ? frame.status.autoAnalyzing
+        : livePondering
+          ? frame.status.analyzing
+          : frame.status.paused,
+    shownEngine.type === "Ready" && !autoAnalyzing ? (livePondering ? frame.status.spaceToPause : frame.status.spaceToResume) : null,
+  );
 
   return (
     <main className="app">
@@ -338,6 +382,12 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         bindings={bindings}
         labels={messages.menu}
         label={messages.menuBar.label}
+        actions={
+          <>
+            <ToolButton className="jt-coach" label={frame.menu.aiCoach} title={frame.menu.aiCoachTip} enabled={false} />
+            <ToolButton label={frame.menu.aiCommentary} enabled={false} />
+          </>
+        }
         tray={
           <>
             {tsumego ? <TsumegoChip status={tsumego} labels={messages.tsumego} onExit={exitTsumego} /> : null}
@@ -348,40 +398,174 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           </>
         }
       />
-      <TopBar
-        labels={{
-          ...messages.toolbar,
-          coordinates: messages.board.coordinates,
-          ownership: messages.board.ownership,
-          settings: messages.setup.titleCurrent,
+      <TopToolbar
+        labels={frame.top}
+        hasDocument={document !== null}
+        hasBoard={board !== null}
+        offMainLine={isEnabled(bindings.backToMainBranch)}
+        komi={info?.komi ?? null}
+        onOpen={() => void openFile().catch(report)}
+        onSave={() => void saveFile().catch(report)}
+        onFox={openFox}
+        onStrength={() => setStrengthOpen(true)}
+        onAutoSetup={() => setTuningOpen(true)}
+        onFlash={() => wholeGame.start(1)}
+        onBackMain={() => bindings.backToMainBranch?.run?.()}
+        onPass={pass}
+        onTsumego={() => setTsumegoOpen(true)}
+      />
+      <MainPanel
+        boardSize={board?.width ?? 19}
+        boardData={{ "data-revision": revision, "data-node-id": document?.tree.current }}
+        onBoardWheel={(event) => {
+          // Lines (Firefox, some mice) count as whole notches.
+          wheel.current += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * WHEEL_STEP;
+          if (Math.abs(wheel.current) < WHEEL_STEP) return;
+          const steps = Math.sign(wheel.current);
+          wheel.current = 0;
+          step(steps);
         }}
-        engineLabels={messages.engine}
-        moveNumber={board ? board.move_number : null}
-        lastMoveNumber={points.length > 0 ? (points[points.length - 1]?.move_number ?? null) : null}
+        regions={{
+          captured: (
+            <PlayersSection
+              board={board}
+              black={{
+                name: info?.black_name ?? null,
+                rank: info?.black_rank ?? null,
+                match: strengthReport && strengthReport.black.sample_count > 0 ? strengthReport.black.match_rate : null,
+              }}
+              white={{
+                name: info?.white_name ?? null,
+                rank: info?.white_rank ?? null,
+                match: strengthReport && strengthReport.white.sample_count > 0 ? strengthReport.white.match_rate : null,
+              }}
+              points={points}
+              currentIndex={currentIndex}
+              game={info}
+              labels={messages.info}
+            />
+          ),
+          statistics: (
+            <div
+              className="statistics"
+              data-testid="analysis-move"
+              data-node-id={analysis?.node_id}
+              data-revision={analysis?.revision}
+              data-visits={analysis?.visits}
+              title={analysis ? messages.board.visits.replace("{visits}", String(analysis.visits)) : undefined}
+            >
+              <EvaluationSection
+                board={board}
+                black={{ name: null, rank: null }}
+                white={{ name: null, rank: null }}
+                points={points}
+                currentIndex={currentIndex}
+                labels={messages.info}
+              />
+            </div>
+          ),
+          graph: (
+            <section className="section graph-section" aria-label={messages.graph.title}>
+              <div className="section-header">
+                <h2 className="section-title">{messages.graph.title}</h2>
+                {quickRunning && quickPass ? (
+                  <span className="curve-progress" data-testid="curve-progress">
+                    <span className="curve-progress-bar" aria-hidden="true">
+                      <span style={{ width: `${(quickPass.completed / Math.max(1, quickPass.total)) * 100}%` }} />
+                    </span>
+                    {messages.graph.quick.replace("{done}", String(quickPass.completed)).replace("{total}", String(quickPass.total))}
+                    <button type="button" className="curve-progress-stop" data-testid="curve-progress-stop" title={messages.graph.quickStop} aria-label={messages.graph.quickStop} onClick={wholeGame.cancel}>
+                      ×
+                    </button>
+                  </span>
+                ) : (
+                  <span className="legend" aria-hidden="true">
+                    <span>{messages.graph.legendWinrate}</span>
+                    <span className="score">{messages.graph.legendScore}</span>
+                  </span>
+                )}
+              </div>
+              <div className="graph-wrap">
+                {document ? <WinrateGraph graph={document.graph} analysis={analysis} mistakes={mistakes} labels={messages.graph} onJump={jump} /> : null}
+              </div>
+            </section>
+          ),
+          comment: (
+            <section className="section notes-section">
+              <div className="tabs" role="tablist">
+                <button type="button" role="tab" aria-selected={notesTab === "problems"} data-testid="tab-problems" onClick={() => setNotesTab("problems")}>
+                  {messages.problems.title}
+                  {problems && problems.entries.length > 0 ? <span className="tab-count">{problems.entries.length}</span> : null}
+                </button>
+                <button type="button" role="tab" aria-selected={notesTab === "comment"} data-testid="tab-comment" onClick={() => setNotesTab("comment")}>
+                  {messages.problems.comment}
+                  {document?.comment ? <span className="tab-dot" aria-hidden="true" /> : null}
+                </button>
+              </div>
+              {notesTab === "problems" ? (
+                <ProblemList
+                  view={problems}
+                  current={document?.tree.current ?? -1}
+                  color={problemColor}
+                  sort={problemSort}
+                  analysed={analysed}
+                  labels={messages.problems}
+                  onColor={setProblemColor}
+                  onSort={setProblemSort}
+                  onJump={jump}
+                />
+              ) : (
+                <div className="comment" data-testid="comment">
+                  {document?.comment ? <p>{document.comment}</p> : <p className="panel-empty">{messages.problems.noComment}</p>}
+                </div>
+              )}
+            </section>
+          ),
+          status: (
+            <span data-testid="engine-status" data-state={shownEngine.type} title={engineDetail ?? messages.engine[shownEngine.type]}>
+              <StatusLine text={statusText} />
+            </span>
+          ),
+          board: board ? (
+            <Board
+              board={board}
+              analysis={analysis}
+              coordinates={coordinates}
+              ownership={ownership}
+              maxCandidates={MAX_CANDIDATES}
+              label={messages.board.label}
+              variation={variation}
+              onHoverCandidate={setBoardHover}
+              onPlay={play}
+            />
+          ) : (
+            <p className="board-message" data-testid="position-error">
+              {document?.position_error ? messages.board.positionError.replace("{reason}", document.position_error) : messages.board.loading}
+            </p>
+          ),
+          tree: (
+            <MoveTree
+              tree={tree}
+              current={document?.tree.current ?? -1}
+              line={line}
+              boardSize={board?.width ?? 19}
+              variationCount={document?.tree.variation_count ?? 0}
+              labels={messages.tree}
+              onJump={jump}
+            />
+          ),
+        }}
+      />
+      <BottomToolbar
+        labels={frame.bottom}
         pondering={livePondering}
-        analysis={
-          analysis && board
-            ? {
-                nodeId: analysis.node_id,
-                revision: analysis.revision,
-                visits: analysis.visits,
-                text: `${board.move_number} · ${formatVisits(analysis.visits)}`,
-                speed: speed === null ? null : messages.board.speed.replace("{speed}", formatVisits(speed)),
-                title: [
-                  messages.board.visits.replace("{visits}", String(analysis.visits)),
-                  ...(speed === null ? [] : [messages.board.speedTitle.replace("{speed}", String(Math.round(speed)))]),
-                ].join(" · "),
-              }
-            : null
-        }
-        noAnalysis={messages.board.noAnalysis}
-        canSave={document !== null}
-        coordinates={coordinates}
+        hasBoard={board !== null}
         ownership={ownership}
-        engine={autoSetup && engine.type === "Stopped" ? { type: "Starting" } : engine}
-        extra={
+        coordinates={coordinates}
+        autoAnalysis={
           <AutoAnalysis
             ref={setAutoAnalysis}
+            placement="above"
             progress={quickPass ? null : wholeGame.progress}
             positions={points.length}
             labels={messages.review}
@@ -398,159 +582,12 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             }}
           />
         }
-        onOpen={() => void openFile().catch(report)}
-        onSave={() => void saveFile().catch(report)}
-        onOpenFox={openFox}
-        onOpenStrength={() => setStrengthOpen(true)}
-        onStep={step}
         onTogglePondering={togglePondering}
-        onToggleCoordinates={() => setCoordinates((value) => !value)}
         onToggleOwnership={() => setOwnership((value) => !value)}
-        onOpenSettings={() => setSetupOpen(true)}
+        onToggleCoordinates={() => setCoordinates((value) => !value)}
+        onStep={step}
       />
-      <div className="workspace">
-        <aside className="side side-left">
-          <InfoPanel
-            board={board}
-            black={{
-              name: info?.black_name ?? null,
-              rank: info?.black_rank ?? null,
-              match: strengthReport && strengthReport.black.sample_count > 0 ? strengthReport.black.match_rate : null,
-            }}
-            white={{
-              name: info?.white_name ?? null,
-              rank: info?.white_rank ?? null,
-              match: strengthReport && strengthReport.white.sample_count > 0 ? strengthReport.white.match_rate : null,
-            }}
-            points={points}
-            currentIndex={currentIndex}
-            game={info}
-            labels={messages.info}
-          />
-          <section className="section graph-section" aria-label={messages.graph.title}>
-            <div className="section-header">
-              <h2 className="section-title">{messages.graph.title}</h2>
-              {quickRunning && quickPass ? (
-                <span className="curve-progress" data-testid="curve-progress">
-                  <span className="curve-progress-bar" aria-hidden="true">
-                    <span style={{ width: `${(quickPass.completed / Math.max(1, quickPass.total)) * 100}%` }} />
-                  </span>
-                  {messages.graph.quick.replace("{done}", String(quickPass.completed)).replace("{total}", String(quickPass.total))}
-                  <button type="button" className="curve-progress-stop" data-testid="curve-progress-stop" title={messages.graph.quickStop} aria-label={messages.graph.quickStop} onClick={wholeGame.cancel}>
-                    ×
-                  </button>
-                </span>
-              ) : (
-                <span className="legend" aria-hidden="true">
-                  <span>{messages.graph.legendWinrate}</span>
-                  <span className="score">{messages.graph.legendScore}</span>
-                </span>
-              )}
-            </div>
-            <div className="graph-wrap">
-              {document ? (
-                <WinrateGraph graph={document.graph} analysis={analysis} mistakes={mistakes} labels={messages.graph} onJump={jump} />
-              ) : null}
-            </div>
-          </section>
-          <section className="section notes-section">
-            <div className="tabs" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={notesTab === "problems"}
-                data-testid="tab-problems"
-                onClick={() => setNotesTab("problems")}
-              >
-                {messages.problems.title}
-                {problems && problems.entries.length > 0 ? <span className="tab-count">{problems.entries.length}</span> : null}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={notesTab === "comment"}
-                data-testid="tab-comment"
-                onClick={() => setNotesTab("comment")}
-              >
-                {messages.problems.comment}
-                {document?.comment ? <span className="tab-dot" aria-hidden="true" /> : null}
-              </button>
-            </div>
-            {notesTab === "problems" ? (
-              <ProblemList
-                view={problems}
-                current={document?.tree.current ?? -1}
-                color={problemColor}
-                sort={problemSort}
-                analysed={analysed}
-                labels={messages.problems}
-                onColor={setProblemColor}
-                onSort={setProblemSort}
-                onJump={jump}
-              />
-            ) : (
-              <div className="comment" data-testid="comment">
-                {document?.comment ? <p>{document.comment}</p> : <p className="panel-empty">{messages.problems.noComment}</p>}
-              </div>
-            )}
-          </section>
-        </aside>
-        <section
-          className="board-area"
-          data-testid="board-area"
-          data-revision={revision}
-          data-node-id={document?.tree.current}
-          onWheel={(event) => {
-            // Lines (Firefox, some mice) count as whole notches.
-            wheel.current += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * WHEEL_STEP;
-            if (Math.abs(wheel.current) < WHEEL_STEP) return;
-            const steps = Math.sign(wheel.current);
-            wheel.current = 0;
-            step(steps);
-          }}
-        >
-          {limitStop ? (
-            <LimitNotice
-              reason={limitStop}
-              limits={limits}
-              labels={messages.limit}
-              onResume={togglePondering}
-              onChange={() => setSettingsOpen(true)}
-              onDismiss={() => setDismissedStop(run.state)}
-            />
-          ) : null}
-          {board ? (
-            <Board
-              board={board}
-              analysis={analysis}
-              coordinates={coordinates}
-              ownership={ownership}
-              maxCandidates={MAX_CANDIDATES}
-              label={messages.board.label}
-              variation={variation}
-              onHoverCandidate={setBoardHover}
-              onPlay={play}
-            />
-          ) : (
-            <p className="board-message" data-testid="position-error">
-              {document?.position_error
-                ? messages.board.positionError.replace("{reason}", document.position_error)
-                : messages.board.loading}
-            </p>
-          )}
-        </section>
-        <aside className="side side-right">
-          <MoveTree
-            tree={tree}
-            current={document?.tree.current ?? -1}
-            line={line}
-            boardSize={board?.width ?? 19}
-            variationCount={document?.tree.variation_count ?? 0}
-            labels={messages.tree}
-            onJump={jump}
-          />
-        </aside>
-      </div>
+      {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}
       {strengthOpen ? (
         <StrengthDialog
           view={strength}

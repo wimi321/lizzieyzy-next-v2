@@ -10,6 +10,8 @@ export interface MenuBarProps {
   /** Labels by legacy key. */
   labels: Readonly<Record<string, string>>;
   label: string;
+  /** Buttons right after the menus, as Java's AI 陪练 and AI 解说. */
+  actions?: ReactNode;
   /** Status chips at the strip's right end, such as board synchronization. */
   tray?: ReactNode;
 }
@@ -56,7 +58,7 @@ function nextSelectable(entries: readonly MenuEntry[], bindings: MenuBindings, f
  * Popups are fixed-position siblings in one layer, so long menus can scroll without
  * clipping their submenus.
  */
-export function MenuBar({ menus, bindings, labels, label, tray }: MenuBarProps) {
+export function MenuBar({ menus, bindings, labels, label, actions, tray }: MenuBarProps) {
   const uid = useId();
   const [top, setTop] = useState<number | null>(null);
   const [focusTop, setFocusTop] = useState(0);
@@ -283,7 +285,7 @@ export function MenuBar({ menus, bindings, labels, label, tray }: MenuBarProps) 
             key={menu.id}
             type="button"
             role="menuitem"
-            className="menubar-item"
+            className={menu.id === "engineMenu" ? "menubar-item menubar-engine" : "menubar-item"}
             data-menu-id={menu.id}
             aria-haspopup="menu"
             aria-expanded={top === index}
@@ -302,6 +304,7 @@ export function MenuBar({ menus, bindings, labels, label, tray }: MenuBarProps) 
           </button>
         ))}
       </div>
+      {actions ? <div className="menubar-actions">{actions}</div> : null}
       <div className="menubar-tray">{tray}</div>
       </div>
       {top !== null
