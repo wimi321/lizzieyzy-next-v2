@@ -31,7 +31,7 @@ describe("the menu matches LizzieYzy Next's", () => {
       "设置",
       "未加载引擎",
     ]);
-    expect(labelOf(ALL[ALL.length - 1]!, zhCN.menu)).toBe("kata1-b18c384nbt");
+    expect(labelOf(ALL[ALL.length - 1]!, zhCN.menu)).toBe("[1]: kata1-b18c384nbt");
   });
 
   test("every label is Java's text in both languages", () => {

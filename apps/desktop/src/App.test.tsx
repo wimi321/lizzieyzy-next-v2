@@ -1,7 +1,7 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { analysisUpdated, documentChanged, midGame, midGameAnalysis } from "../e2e/fixtures";
-import { recordedCalls, setScript } from "../e2e/mock-backend";
+import { pushEvents, recordedCalls, setScript } from "../e2e/mock-backend";
 import App, { JUMP } from "./App";
 import en from "./locales/en.json";
 import zhCN from "./locales/zh-CN.json";
@@ -26,21 +26,28 @@ test("renders the board, move number and analysis from backend events", async ()
   expect(screen.getByTestId("analysis-move").dataset.revision).toBe("3");
 });
 
-test("the analysis chip shows the search speed while the engine reports one", async () => {
+const ENGINE = { program: "/opt/katago", model: "/opt/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz", config: "", extra_args: [] };
+
+test("the window title reads as Java's: evaluation, engine and the search speed while it searches", async () => {
   setScript({
     initialEvents: [documentChanged(midGame(), 3), analysisUpdated({ ...midGameAnalysis(3, 20), visits_per_second: 1234.4 })],
+    commands: [{ command: "settings", result: { version: 1, engine: ENGINE, pondering: true } }],
   });
   render(<App />);
-  const speed = await screen.findByTestId("analysis-speed");
-  expect(speed.textContent).toBe("1.2k/s");
-  expect(screen.getByTestId("analysis-move").getAttribute("title")).toContain("1234 visits per second");
+  await screen.findByTestId("analysis-move");
+  await waitFor(() => expect(document.title).toContain("kata1-b18c384nbt 1234 visits/s"));
+  expect(document.title).toMatch(/^LizzieYzy Next 2 - \[\d+\.\d -?\d+\.\d [\d.]+k?\] kata1-b18c384nbt 1234 visits\/s/);
 });
 
 test("no speed is shown until the engine has measured one", async () => {
-  setScript({ initialEvents: [documentChanged(midGame(), 3), analysisUpdated({ ...midGameAnalysis(3, 20), visits_per_second: null })] });
+  setScript({
+    initialEvents: [documentChanged(midGame(), 3), analysisUpdated({ ...midGameAnalysis(3, 20), visits_per_second: null })],
+    commands: [{ command: "settings", result: { version: 1, engine: ENGINE, pondering: true } }],
+  });
   render(<App />);
   await screen.findByTestId("analysis-move");
-  expect(screen.queryByTestId("analysis-speed")).toBeNull();
+  await waitFor(() => expect(document.title).toContain("kata1-b18c384nbt"));
+  expect(document.title).not.toContain("visits/s");
 });
 
 test("shows why a recorded position cannot be displayed", async () => {
@@ -87,21 +94,25 @@ test("the pause button shows the analysis state, which starts from the saved set
   expect(button.getAttribute("aria-pressed")).toBe("true");
 });
 
-test("a move analysed to its limit stops with a notice; Continue resumes without touching the saved setting", async () => {
+test("a move analysed to its limit gets Java's message once; Space resumes without touching the saved setting", async () => {
   setScript({
     initialEvents: [documentChanged(midGame(), 3), { type: "AnalysisStateChanged", data: { pondering: false, pause_reason: "TimeLimit" } }],
     commands: [{ command: "togglePondering", result: { pondering: true, pause_reason: null } }],
   });
   render(<App />);
-  const notice = await screen.findByTestId("limit-notice");
-  expect(notice.textContent).toContain("Analysis stopped");
-  expect(notice.textContent).toContain("10 min");
+  const dialog = await screen.findByTestId("limit-dialog");
+  expect(dialog.textContent).toContain(en.limit.line1);
   await act(async () => {
-    fireEvent.click(screen.getByTestId("limit-resume"));
+    fireEvent.keyDown(window, { key: " ", code: "Space" });
   });
-  expect(screen.queryByTestId("limit-notice")).toBeNull();
   expect(recordedCalls().map((call) => call.command)).toContain("togglePondering");
   expect(recordedCalls().map((call) => call.command)).not.toContain("setPondering");
+  fireEvent.click(screen.getByTestId("limit-ok"));
+  expect(screen.queryByTestId("limit-dialog")).toBeNull();
+  await act(async () => {
+    pushEvents([{ type: "AnalysisStateChanged", data: { pondering: false, pause_reason: "PlayoutLimit" } }]);
+  });
+  expect(screen.queryByTestId("limit-dialog")).toBeNull();
 });
 
 test("a game that opens is drawn by a quiet one-visit pass: the graph says so, the toolbar stays at rest", async () => {

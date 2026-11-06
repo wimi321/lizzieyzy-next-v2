@@ -44,9 +44,15 @@ async function calls(page: Page) {
   return page.evaluate(() => window.__mockBackend?.recordedCalls() ?? []);
 }
 
+
+/** 设置 → 引擎设置, where Java opens the engine settings. */
+async function openSetup(page: Page) {
+  await page.getByTestId("menubar").getByRole("menuitem", { name: "Settings" }).click();
+  await page.locator('.menu-row[data-menu-id="engineConfig"]').click();
+}
 test("first run sets the engine up by itself, B11 named from the catalog, without opening setup", async ({ page }) => {
   await firstRun(page, [], { command: "autoConfigureEngine", result: B11_PROFILE });
-  await expect(page.getByTestId("menubar").getByRole("menuitem").last()).toHaveText("kata1-tf3-b11c768");
+  await expect(page.getByTestId("menubar").getByRole("menuitem").last()).toHaveText("[1]: kata1-tf3-b11c768");
   await expect(page.getByTestId("engine-setup")).toHaveCount(0);
   await expect.poll(async () => (await calls(page)).map((call) => call.command)).toEqual(["settings", "autoConfigureEngine"]);
 });
@@ -110,7 +116,7 @@ test("reopening working settings offers Apply only after a change", async ({ pag
   await expect(page.getByTestId("engine-status")).toHaveAttribute("data-state", "Ready");
   await expect(page.getByTestId("engine-setup")).toBeHidden();
 
-  await page.getByTestId("open-setup").click();
+  await openSetup(page);
   const apply = page.getByTestId("setup-start");
   await expect(page.getByTestId("engine-setup").getByRole("heading")).toHaveText("Engine settings");
   await expect(page.getByTestId("setup-config")).toHaveValue(saved.config);
@@ -120,13 +126,13 @@ test("reopening working settings offers Apply only after a change", async ({ pag
   await expect(apply).toBeEnabled();
 });
 
-test("setup can be reopened from the header and closed again", async ({ page }) => {
+test("setup can be reopened from the 设置 menu and closed again", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(
     (commands) => window.__mockBackend?.setScript({ initialEvents: [], commands }),
     [{ command: "detectEngines", result: FOUND }] satisfies MockCommand[],
   );
-  await page.getByTestId("open-setup").click();
+  await openSetup(page);
   await expect(page.getByTestId("engine-setup")).toBeVisible();
   await page.getByTestId("setup-close").click();
   await expect(page.getByTestId("engine-setup")).toBeHidden();

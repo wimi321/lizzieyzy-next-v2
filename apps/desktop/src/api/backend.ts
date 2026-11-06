@@ -99,6 +99,8 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   pickEngineFile(kind: EngineFileKind): Promise<string | null>;
   /** 文件 → 退出: closing the only window ends the app. */
   quit(): Promise<void>;
+  /** The native window's title, which LizzieYzy Next fills with the evaluation, players and file. */
+  setWindowTitle(title: string): Promise<void>;
   subscribe(listener: EventListener): Promise<number>;
   subscribeWholeGameProgress(listener: WholeGameProgressListener): Promise<number>;
   subscribeBoardSyncStatus(listener: BoardSyncStatusListener): Promise<number>;
@@ -148,6 +150,10 @@ export const pickSavePath: Backend["pickSavePath"] = async () =>
   (await saveDialog({ filters: SGF_FILTERS })) ?? null;
 
 export const quit: Backend["quit"] = () => getCurrentWindow().close();
+export const setWindowTitle: Backend["setWindowTitle"] = (title) => {
+  document.title = title;
+  return getCurrentWindow().setTitle(title);
+};
 
 const ENGINE_FILTERS: Record<EngineFileKind, { name: string; extensions: string[] }[] | undefined> = {
   program: undefined,

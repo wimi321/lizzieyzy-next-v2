@@ -5,7 +5,8 @@ import type { MockCommand } from "./mock-backend";
 
 const JUMP = 1_000_000;
 
-test.use({ viewport: { width: 1000, height: 900 }, deviceScaleFactor: 1 });
+// LizzieYzy Next's own window: a square one would leave its left column a sliver.
+test.use({ viewport: { width: 1429, height: 941 }, deviceScaleFactor: 1 });
 
 async function start(page: Page, events: AppEvent[], commands: MockCommand[] = []) {
   await page.goto("/");

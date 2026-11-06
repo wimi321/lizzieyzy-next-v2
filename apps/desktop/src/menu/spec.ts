@@ -493,7 +493,8 @@ export function engineMenu(engine: string | null): MenuSubmenu {
     kind: "submenu",
     id: "engineMenu",
     key: null,
-    text: engine,
+    // Java captions the strip's engine menu "[1]: name", the engine's place in its list.
+    text: `[1]: ${engine}`,
     items: [check("engine0", null, undefined, `[1] ${engine}`), SEP, ...actions],
   };
 }

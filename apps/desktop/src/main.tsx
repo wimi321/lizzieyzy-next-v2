@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { getMessages } from "./locales";
 import "./styles/app.css";
+import "./styles/frame.css";
 
 const root = document.getElementById("root");
 if (!root) {

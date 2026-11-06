@@ -40,12 +40,11 @@ test("设置 → 综合设置 sets the per-move analysis limits", async ({ page 
     .toContainEqual({ command: "setAnalysisLimits", args: [saved] });
 });
 
-test("a move analysed to its limit stops with a notice over the board; Space resumes it", async ({ page }) => {
+test("a move analysed to its limit gets Java's message box; Space resumes and OK closes it", async ({ page }) => {
   const script: MockScript = {
     initialEvents: [documentChanged(midGame(), 3), { type: "AnalysisStateChanged", data: { pondering: false, pause_reason: "TimeLimit" } }],
     commands: [
       { command: "settings", result: { version: 1, engine: { program: "/opt/katago", model: "/opt/model.bin.gz", config: "", extra_args: [] }, pondering: true } },
-      { command: "analysisLimits", result: LIMITS },
       { command: "togglePondering", result: { pondering: true, pause_reason: null } },
     ],
   };
@@ -53,18 +52,15 @@ test("a move analysed to its limit stops with a notice over the board; Space res
     window.__mockInitialScript = initial;
   }, script);
   await page.goto("/");
-  const notice = page.getByTestId("limit-notice");
-  await expect(notice).toContainText("10 min");
-  await expect(notice).toHaveScreenshot("limit-notice.png");
+  const dialog = page.getByTestId("limit-dialog");
+  await expect(dialog).toContainText("Ponder Stopped");
+  await expect(dialog).toHaveScreenshot("limit-dialog.png");
 
-  await page.getByTestId("limit-change").click();
-  await expect(page.getByTestId("settings-seconds")).toHaveValue("600");
-  await page.getByTestId("settings-cancel").click();
-  await expect(page.getByTestId("settings-dialog")).toBeHidden();
-
+  // The box is not modal: Space still reaches the board and resumes the analysis.
   await page.keyboard.press("Space");
-  await expect(notice).toBeHidden();
   await expect
     .poll(() => page.evaluate(() => window.__mockBackend?.recordedCalls() ?? []))
     .toContainEqual({ command: "togglePondering", args: [] });
+  await page.getByTestId("limit-ok").click();
+  await expect(dialog).toBeHidden();
 });

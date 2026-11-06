@@ -37,7 +37,9 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function dialog(overrides: Partial<Parameters<typeof FoxDialog>[0]> = {}) {
+type DialogProps = Parameters<typeof FoxDialog>[0];
+
+function dialog(overrides: Partial<DialogProps> = {}) {
   const backend = {
     foxSearch: vi.fn<(query: unknown) => Promise<FoxSearchResult>>(),
     foxNextPage: vi.fn<(uid: string, cursor: string) => Promise<FoxPage>>(),
@@ -45,11 +47,11 @@ function dialog(overrides: Partial<Parameters<typeof FoxDialog>[0]> = {}) {
     foxClearHistory: vi.fn<() => Promise<void>>(() => Promise.resolve()),
   };
   const props = { onHistoryChanged: vi.fn(), onClose: vi.fn() };
-  const view = (open: boolean) => (
-    <FoxDialog open={open} backend={backend} labels={zh.fox} history={[]} {...props} {...overrides} />
+  const view = (open: boolean, more: Partial<DialogProps> = {}) => (
+    <FoxDialog open={open} backend={backend} labels={zh.fox} history={[]} {...props} {...overrides} {...more} />
   );
   const { rerender } = render(view(true));
-  return { backend, ...props, show: (open: boolean) => rerender(view(open)) };
+  return { backend, ...props, show: (open: boolean, more?: Partial<DialogProps>) => rerender(view(open, more)) };
 }
 
 function searchFor(text: string) {
@@ -225,4 +227,18 @@ test("the close button and Escape close; a hidden window ignores Escape", () => 
   show(false);
   fireEvent.keyDown(window, { key: "Escape" });
   expect(onClose).toHaveBeenCalledTimes(2);
+});
+
+test("the search box takes focus as the window opens, and only then", () => {
+  const { show } = dialog();
+  const input = screen.getByTestId("fox-input");
+  expect(document.activeElement).toBe(input);
+  const uid = screen.getByTestId("fox-mode-uid");
+  uid.focus();
+  // The app re-renders with a new close callback on every analysis update.
+  show(true, { onClose: vi.fn() });
+  expect(document.activeElement).toBe(uid);
+  show(false);
+  show(true);
+  expect(document.activeElement).toBe(input);
 });

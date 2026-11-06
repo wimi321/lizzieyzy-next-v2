@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { type CSSProperties, useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import type { WholeGameProgress } from "@/api/backend";
 import { Icon } from "../toolbar/icons";
 
@@ -56,6 +56,8 @@ export interface AutoAnalysisProps {
   /** Whether opening a game draws its winrate graph with a one-visit pass, as LizzieYzy Next does. */
   autoCurve: boolean;
   onAutoCurve(enabled: boolean): void;
+  /** Where the panel opens: under the button, or above it in the bottom toolbar. */
+  placement?: "below" | "above";
 }
 
 /** The top-bar entry for whole-game analysis: a button at rest, a progress chip while it runs. */
@@ -65,9 +67,9 @@ export interface AutoAnalysisHandle {
 }
 
 export function AutoAnalysis(props: AutoAnalysisProps & { ref?: Ref<AutoAnalysisHandle> }) {
-  const { progress, positions, labels, onStart, onPause, onResume, onCancel, autoCurve, onAutoCurve, ref } = props;
+  const { progress, positions, labels, onStart, onPause, onResume, onCancel, autoCurve, onAutoCurve, placement = "below", ref } = props;
   const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
+  const [anchor, setAnchor] = useState<CSSProperties | null>(null);
   const [choice, setChoice] = useState<number | "custom">(1000);
   const [customText, setCustomText] = useState("");
   const visits = choice === "custom" ? parseVisits(customText) : choice;
@@ -76,16 +78,20 @@ export function AutoAnalysis(props: AutoAnalysisProps & { ref?: Ref<AutoAnalysis
   const active = status === "Running" || status === "Paused";
   const share = progress && progress.total > 0 ? progress.completed / progress.total : 0;
 
-  const place = () => {
-    // Fixed position: the top bar clips overflow so narrow windows never overlap.
+  const place = useCallback(() => {
+    // Fixed position: the toolbars clip overflow so narrow windows never overlap.
     const rect = root.current?.getBoundingClientRect();
-    if (rect) setAnchor({ top: rect.bottom + 8, right: Math.max(8, window.innerWidth - rect.right) });
-  };
+    if (!rect) return;
+    setAnchor(
+      placement === "above"
+        ? { bottom: window.innerHeight - rect.top + 8, left: Math.max(8, rect.left) }
+        : { top: rect.bottom + 8, right: Math.max(8, window.innerWidth - rect.right) },
+    );
+  }, [placement]);
   const toggle = () => {
     place();
     setOpen((value) => !value);
   };
-  // Created once: `place` reads the element when called and the setters never change.
   useImperativeHandle(
     ref,
     () => ({
@@ -94,7 +100,7 @@ export function AutoAnalysis(props: AutoAnalysisProps & { ref?: Ref<AutoAnalysis
         setOpen(true);
       },
     }),
-    [],
+    [place],
   );
 
   useEffect(() => {
@@ -159,7 +165,7 @@ export function AutoAnalysis(props: AutoAnalysisProps & { ref?: Ref<AutoAnalysis
           role="dialog"
           aria-label={labels.title}
           data-testid="auto-analysis-panel"
-          style={anchor ? { top: anchor.top, right: anchor.right } : undefined}
+          style={anchor ?? undefined}
         >
           <h3 className="popover-title">{labels.title}</h3>
           {active && progress ? (

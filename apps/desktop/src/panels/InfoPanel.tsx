@@ -40,7 +40,48 @@ export interface InfoPanelProps {
 }
 
 /** The players, then the evaluation: both winrates, the bar, the lead and the last move's change. */
-export function InfoPanel({ board, black, white, points, currentIndex, game = null, labels }: InfoPanelProps) {
+export function InfoPanel(props: InfoPanelProps) {
+  return (
+    <div className="info-panel" data-testid="info-panel">
+      <PlayersSection {...props} />
+      <EvaluationSection {...props} />
+    </div>
+  );
+}
+
+/** LizzieYzy Next's captured-stones box: the players, their captures and the game's terms. */
+export function PlayersSection({ board, black, white, game = null, labels }: InfoPanelProps) {
+  return (
+    <section className="section players">
+      <Player
+        color="black"
+        name={black.name || labels.black}
+        rank={black.rank}
+        match={matchText(black.match, labels)}
+        matchHint={labels.matchHint}
+        captures={labels.captures.replace("{n}", String(board?.captured_black ?? 0))}
+        toPlay={board?.to_play === "Black"}
+      />
+      <Player
+        color="white"
+        name={white.name || labels.white}
+        rank={white.rank}
+        match={matchText(white.match, labels)}
+        matchHint={labels.matchHint}
+        captures={labels.captures.replace("{n}", String(board?.captured_white ?? 0))}
+        toPlay={board?.to_play === "White"}
+      />
+      {game ? (
+        <p className="game-meta" data-testid="game-meta" title={game.event ?? undefined}>
+          {gameMeta(game, labels).join(" · ")}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+/** LizzieYzy Next's statistics row: both winrates with the move number between them, the bar, the lead. */
+export function EvaluationSection({ board, points, currentIndex, labels }: InfoPanelProps) {
   const summary = points[currentIndex]?.summary ?? null;
   const change = board ? lastMoveChange(points, currentIndex, board.last_move) : null;
   const lead = summary ? leadOf(summary) : null;
@@ -60,56 +101,32 @@ export function InfoPanel({ board, black, white, points, currentIndex, game = nu
   const blackShare = summary ? summary.winrate : 0.5;
 
   return (
-    <div className="info-panel" data-testid="info-panel">
-      <section className="section players">
-        <Player
-          color="black"
-          name={black.name || labels.black}
-          rank={black.rank}
-          match={matchText(black.match, labels)}
-          matchHint={labels.matchHint}
-          captures={labels.captures.replace("{n}", String(board?.captured_black ?? 0))}
-          toPlay={board?.to_play === "Black"}
-        />
-        <Player
-          color="white"
-          name={white.name || labels.white}
-          rank={white.rank}
-          match={matchText(white.match, labels)}
-          matchHint={labels.matchHint}
-          captures={labels.captures.replace("{n}", String(board?.captured_white ?? 0))}
-          toPlay={board?.to_play === "White"}
-        />
-        {game ? (
-          <p className="game-meta" data-testid="game-meta" title={game.event ?? undefined}>
-            {gameMeta(game, labels).join(" · ")}
-          </p>
+    <section className="section evaluation">
+      <div className="eval-numbers">
+        <span className="eval-number black">
+          {summary ? formatWinrate(blackShare) : "—"}
+          <small>%</small>
+        </span>
+        <strong className="eval-move" data-testid="move-number">
+          {board ? board.move_number : "—"}
+        </strong>
+        <span className="eval-number white">
+          {summary ? formatWinrate(1 - blackShare) : "—"}
+          <small>%</small>
+        </span>
+      </div>
+      <div className="winrate-bar" data-testid="winrate-bar" data-black={summary ? formatWinrate(blackShare) : ""}>
+        <div className="winrate-black" style={{ width: `${blackShare * 100}%` }} />
+      </div>
+      <p className="eval-meta" data-testid="lead-line">
+        <span className="lead">{leadText}</span>
+        {changeText ? (
+          <span className="move-change" data-trend={trend}>
+            {changeText}
+          </span>
         ) : null}
-      </section>
-      <section className="section evaluation">
-        <div className="eval-numbers">
-          <span className="eval-number black">
-            {summary ? formatWinrate(blackShare) : "—"}
-            <small>%</small>
-          </span>
-          <span className="eval-number white">
-            {summary ? formatWinrate(1 - blackShare) : "—"}
-            <small>%</small>
-          </span>
-        </div>
-        <div className="winrate-bar" data-testid="winrate-bar" data-black={summary ? formatWinrate(blackShare) : ""}>
-          <div className="winrate-black" style={{ width: `${blackShare * 100}%` }} />
-        </div>
-        <p className="eval-meta" data-testid="lead-line">
-          <span className="lead">{leadText}</span>
-          {changeText ? (
-            <span className="move-change" data-trend={trend}>
-              {changeText}
-            </span>
-          ) : null}
-        </p>
-      </section>
-    </div>
+      </p>
+    </section>
   );
 }
 
