@@ -28,7 +28,8 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 'lts/*'
+          # Not lts/*: since 2026-11 that is Node 26, on which Playwright 1.58's browser install hangs.
+          node-version: '24'
           cache: pnpm
           cache-dependency-path: apps/desktop/pnpm-lock.yaml
 
