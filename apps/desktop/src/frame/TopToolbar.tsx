@@ -137,7 +137,7 @@ export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, .
       </label>
       <input className="jt-input" value="0" disabled readOnly aria-label={labels.pda} />
       <label className="jt-check" aria-disabled="true">
-        <input type="checkbox" disabled />
+        <input type="checkbox" checked disabled readOnly />
         <span>{labels.wrn}</span>
       </label>
       <input className="jt-input" value="0.04" disabled readOnly aria-label={labels.wrn} />
