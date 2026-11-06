@@ -70,9 +70,13 @@ export function FoxDialog({ open: visible, backend, labels, history, onHistoryCh
   const input = useRef<HTMLInputElement>(null);
   const busy = status.kind === "searching" || opening !== null;
 
+  // On opening only: the app re-renders with a new onClose on every analysis update.
+  useEffect(() => {
+    if (visible) input.current?.focus();
+  }, [visible]);
+
   useEffect(() => {
     if (!visible) return;
-    input.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
