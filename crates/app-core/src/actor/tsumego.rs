@@ -6,6 +6,7 @@ use sgf::{GameTree, Node, Property};
 
 pub(super) struct Session {
     original: GameDocument,
+    original_file_name: Option<String>,
     attacker: ColorView,
     ko_warnings: Vec<ColorView>,
 }
@@ -86,12 +87,16 @@ impl Actor {
         settings.save(&self.directory).await?;
 
         let previous = std::mem::replace(&mut self.document, document);
-        let original = self
+        let previous_file_name = self.file_name.take();
+        let (original, original_file_name) = self
             .tsumego
             .take()
-            .map_or(previous, |session| session.original);
+            .map_or((previous, previous_file_name), |session| {
+                (session.original, session.original_file_name)
+            });
         self.tsumego = Some(Session {
             original,
+            original_file_name,
             attacker: generated.attacker.into(),
             ko_warnings: generated.ko_warnings.into_iter().map(Into::into).collect(),
         });
@@ -106,6 +111,7 @@ impl Actor {
         self.next_revision()?;
         if let Some(session) = self.tsumego.take() {
             self.document = session.original;
+            self.file_name = session.original_file_name;
         }
         self.document_replaced().await
     }

@@ -180,6 +180,10 @@ pub struct DocumentView {
     pub comment: Option<String>,
     pub warnings: Vec<DocumentWarningView>,
     pub position_error: Option<String>,
+    // File basename after opening or saving; non-file imports have no name.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub file_name: Option<String>,
 }
 
 impl DocumentView {
@@ -200,6 +204,7 @@ impl DocumentView {
             Err(error) => (None, Some(error.to_string())),
         };
         Ok(Self {
+            file_name: None,
             game_info: Box::new(document.game_info()?.into()),
             board,
             tree: TreeView {
@@ -367,6 +372,10 @@ impl From<engine_session::EngineStatus> for EngineStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum AppEvent {
+    OpenFailed {
+        path: String,
+        reason: String,
+    },
     AnalysisStateChanged(crate::AnalysisState),
     BenchmarkProgress(crate::BenchmarkStatus),
     BoardSyncStatusChanged(crate::BoardSyncStatus),

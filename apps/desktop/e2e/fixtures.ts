@@ -233,6 +233,7 @@ export function graphView(count: number, current: number, summaries: Record<numb
 
 export function documentView(board: BoardView, current: number, graph?: GraphView): DocumentView {
   return {
+    file_name: null,
     board,
     tree: { root: 0, current, main_line: Array.from({ length: current + 1 }, (_, i) => i), variation_count: 1, structure_revision: 0 },
     game_info: {

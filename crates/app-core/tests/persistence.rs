@@ -22,6 +22,7 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                     assert_eq!(actual, revision);
                     return view;
                 }
+                AppEvent::OpenFailed { .. } => {}
                 AppEvent::EngineStatusChanged(_) => {}
                 AppEvent::BoardSyncStatusChanged(_) => {}
                 AppEvent::AnalysisStateChanged(_) => {}
@@ -70,6 +71,9 @@ async fn saved_nested_variations_and_java_properties_reopen_with_identical_trees
         assert!(reopened.tree.structure_revision > opened.tree.structure_revision);
         assert_eq!(reopened_tree.revision, reopened.tree.structure_revision);
         reopened.tree.structure_revision = opened.tree.structure_revision;
+        assert_eq!(opened.file_name, None);
+        assert_eq!(reopened.file_name.as_deref(), Some("first.sgf"));
+        reopened.file_name = None;
         assert_eq!(reopened, opened);
         within(app.save(&second)).await.unwrap();
         assert_eq!(read_games(&second), read_games(&first));
@@ -241,4 +245,59 @@ async fn configured_profile_and_pause_setting_survive_application_restart() {
         within(Settings::load(directory.path())).await.unwrap(),
         Settings::default()
     );
+}
+
+#[tokio::test]
+async fn file_name_tracks_open_save_as_and_bytes_without_changing_saved_revision() {
+    let directory = tempfile::tempdir().unwrap();
+    let source = directory.path().join("棋谱.SGF");
+    std::fs::write(&source, b"(;SZ[9];B[aa];W[bb])").unwrap();
+    let (app, mut events) = within(app_core::spawn(directory.path())).await.unwrap();
+    assert_eq!(document_event(&mut events, 0).await.file_name, None);
+
+    let revision = within(app.open_path(&source)).await.unwrap();
+    let opened = document_event(&mut events, revision).await;
+    assert_eq!(opened.file_name.as_deref(), Some("棋谱.SGF"));
+    let revision = within(app.step(1)).await.unwrap();
+    let navigated = document_event(&mut events, revision).await;
+    assert_eq!(navigated.file_name, opened.file_name);
+
+    let saved = directory.path().join("另存为.sgf");
+    within(app.save(&saved)).await.unwrap();
+    let renamed = document_event(&mut events, revision).await;
+    assert_eq!(renamed.file_name.as_deref(), Some("另存为.sgf"));
+    let mut expected = navigated;
+    expected.file_name = Some("另存为.sgf".into());
+    assert_eq!(renamed, expected);
+
+    assert!(
+        within(app.save(directory.path().join("missing/no.sgf")))
+            .await
+            .is_err()
+    );
+    assert!(
+        within(app.open_path(directory.path().join("absent.sgf")))
+            .await
+            .is_err()
+    );
+    assert!(within(app.open_bytes(b"not SGF".to_vec())).await.is_err());
+    let revision = within(app.step(1)).await.unwrap();
+    assert_eq!(
+        document_event(&mut events, revision).await.file_name,
+        renamed.file_name
+    );
+
+    let revision = within(app.open_bytes(b"(;SZ[13])".to_vec())).await.unwrap();
+    assert_eq!(document_event(&mut events, revision).await.file_name, None);
+    within(app.save(directory.path().join("from-bytes.sgf")))
+        .await
+        .unwrap();
+    assert_eq!(
+        document_event(&mut events, revision)
+            .await
+            .file_name
+            .as_deref(),
+        Some("from-bytes.sgf")
+    );
+    within(app.shutdown()).await.unwrap();
 }

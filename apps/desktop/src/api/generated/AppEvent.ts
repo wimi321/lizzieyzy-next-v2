@@ -7,4 +7,4 @@ import type { DocumentView } from "./DocumentView";
 import type { EngineStatus } from "./EngineStatus";
 import type { WholeGameProgress } from "./WholeGameProgress";
 
-export type AppEvent = { "type": "AnalysisStateChanged", "data": AnalysisState } | { "type": "BenchmarkProgress", "data": BenchmarkStatus } | { "type": "BoardSyncStatusChanged", "data": BoardSyncStatus } | { "type": "DocumentChanged", "data": { revision: number, view: DocumentView, } } | { "type": "AnalysisUpdated", "data": AnalysisView } | { "type": "EngineStatusChanged", "data": EngineStatus } | { "type": "WholeGameProgress", "data": WholeGameProgress };
+export type AppEvent = { "type": "OpenFailed", "data": { path: string, reason: string, } } | { "type": "AnalysisStateChanged", "data": AnalysisState } | { "type": "BenchmarkProgress", "data": BenchmarkStatus } | { "type": "BoardSyncStatusChanged", "data": BoardSyncStatus } | { "type": "DocumentChanged", "data": { revision: number, view: DocumentView, } } | { "type": "AnalysisUpdated", "data": AnalysisView } | { "type": "EngineStatusChanged", "data": EngineStatus } | { "type": "WholeGameProgress", "data": WholeGameProgress };

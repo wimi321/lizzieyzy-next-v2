@@ -32,6 +32,7 @@ async fn old_program_never_trials_b11_and_catalog_name_is_persisted() {
                 size_bytes: bytes.len() as u64,
                 sha256: format!("{:x}", Sha256::digest(bytes)),
                 tier: "lightweight".into(),
+                published_at: None,
                 minimum_katago_version: "1.17.0".into(),
             },
         )]),

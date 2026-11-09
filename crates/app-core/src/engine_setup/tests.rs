@@ -265,6 +265,7 @@ fn catalog_hashes_rank_renamed_b11_before_b28_b18_and_other_tiers() {
                 size_bytes: id.len() as u64,
                 sha256: format!("{:x}", Sha256::digest(id.as_bytes())),
                 tier: tier.into(),
+                published_at: None,
                 minimum_katago_version: "1.17.0".into(),
             },
         );

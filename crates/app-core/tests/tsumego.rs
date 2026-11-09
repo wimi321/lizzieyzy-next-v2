@@ -385,3 +385,36 @@ async fn generated_and_restored_analysis_use_fresh_namespaces_and_exact_setup_qu
     assert_eq!(queries[0].komi, queries[2].komi);
     assert_eq!(queries[0].initial_player, queries[2].initial_player);
 }
+
+#[tokio::test]
+async fn generated_puzzles_clear_file_name_and_exit_restores_original_file_name() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("source.sgf");
+    std::fs::write(&path, SOURCE).unwrap();
+    let (app, mut events) = within(app_core::spawn(directory.path())).await.unwrap();
+    within(app.open_path(path)).await.unwrap();
+    let revision = within(app.step(1)).await.unwrap();
+    assert_eq!(
+        document(&mut events, revision).await.file_name.as_deref(),
+        Some("source.sgf")
+    );
+    for _ in 0..2 {
+        let revision = within(app.generate_tsumego(TsumegoOptions::default()))
+            .await
+            .unwrap();
+        assert_eq!(document(&mut events, revision).await.file_name, None);
+        within(app.save(directory.path().join("puzzle.sgf")))
+            .await
+            .unwrap();
+        assert_eq!(
+            document(&mut events, revision).await.file_name.as_deref(),
+            Some("puzzle.sgf")
+        );
+    }
+    let revision = within(app.exit_tsumego()).await.unwrap();
+    assert_eq!(
+        document(&mut events, revision).await.file_name.as_deref(),
+        Some("source.sgf")
+    );
+    within(app.shutdown()).await.unwrap();
+}

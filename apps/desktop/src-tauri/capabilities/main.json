@@ -40,6 +40,7 @@
     "allow-exit-tsumego",
     "allow-tsumego-status",
     "allow-configure-engine",
+    "allow-engine-display-name",
     "allow-detect-engines",
     "allow-auto-configure-engine",
     "allow-try-configure-engine",

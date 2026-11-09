@@ -25,6 +25,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
     (
         Actor {
             document,
+            file_name: None,
             tsumego: None,
             tree: VariationTreeView::default(),
             summaries: HashMap::new(),
@@ -254,6 +255,7 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                 }
                 AppEvent::AnalysisUpdated(_) => panic!("forwarded {rejection} snapshot"),
                 AppEvent::EngineStatusChanged(_)
+                | AppEvent::OpenFailed { .. }
                 | AppEvent::WholeGameProgress(_)
                 | AppEvent::BoardSyncStatusChanged(_)
                 | AppEvent::BenchmarkProgress(_)

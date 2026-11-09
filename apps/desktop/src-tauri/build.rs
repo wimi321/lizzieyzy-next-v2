@@ -35,6 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "exit_tsumego",
         "tsumego_status",
         "configure_engine",
+        "engine_display_name",
         "detect_engines",
         "auto_configure_engine",
         "try_configure_engine",

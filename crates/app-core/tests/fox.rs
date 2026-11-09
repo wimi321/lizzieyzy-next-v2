@@ -524,3 +524,27 @@ async fn public_fox_kisei_sample_opens_all_313_moves_and_preserves_metadata() {
     assert!(within(app.settings()).await.unwrap().fox_history.is_empty());
     within(app.shutdown()).await.unwrap();
 }
+
+#[tokio::test]
+async fn fox_import_clears_the_previous_file_name() {
+    let (client, server) =
+        replay(vec![include_str!("../../../fixtures/fox/sgf.json").into()]).await;
+    let directory = tempfile::tempdir().unwrap();
+    let source = directory.path().join("local.sgf");
+    std::fs::write(&source, b"(;SZ[9])").unwrap();
+    let (app, mut events) = spawn(directory.path(), client).await;
+    let revision = within(app.open_path(source)).await.unwrap();
+    assert_eq!(
+        document_event(&mut events, revision)
+            .await
+            .file_name
+            .as_deref(),
+        Some("local.sgf")
+    );
+    let revision = within(app.fox_open_game("1790936190030046556".into()))
+        .await
+        .unwrap();
+    assert_eq!(document_event(&mut events, revision).await.file_name, None);
+    assert_eq!(within(server).await.unwrap().len(), 1);
+    within(app.shutdown()).await.unwrap();
+}

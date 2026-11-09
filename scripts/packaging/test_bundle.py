@@ -137,6 +137,46 @@ class BundleTests(unittest.TestCase):
         (root / "katago").write_bytes(b"engine")
         self.assertEqual(bundle.engine_root(root, "katago"), root)
 
+    def test_open_sans_license_is_verified_and_packaged_for_every_platform(self):
+        license_bytes = (bundle.ROOT / "resources/licenses/OpenSans-LICENSE.txt").read_bytes()
+        model_path = self.root / "model"
+        model_path.write_bytes(b"model")
+        model = dict(pin(b"model"), downloadUrl="https://example.invalid/model")
+        readboard_zip = self.root / "readboard.zip"
+        with zipfile.ZipFile(readboard_zip, "w") as zipped:
+            zipped.writestr("readboard.exe", b"readboard")
+        pins = {"licenses": [],
+                "readboard": dict(pin(readboard_zip.read_bytes()), elevationPatch=False)}
+        damaged_license = self.root / "resources/licenses/OpenSans-LICENSE.txt"
+        damaged_license.parent.mkdir(parents=True)
+        damaged_license.write_bytes(b"X" * len(license_bytes))
+        for platform, asset_id in bundle.PLATFORMS.items():
+            with self.subTest(platform=platform):
+                executable = "katago.exe" if platform == "windows-x64" else "katago"
+                archive = self.archive([(executable, b"engine")])
+                engine = dict(pin(archive.read_bytes()), assetName="engine.zip",
+                              executableSha256=pin(b"engine")["sha256"])
+                catalog = {"assets": {asset_id: engine}, "engineReleaseRepository": "owner/repo",
+                           "engineReleaseTag": "fixed", "models": {"b11": model},
+                           "defaultModelId": "b11"}
+                downloads = [archive, model_path]
+                if platform == "windows-x64":
+                    downloads.append(readboard_zip)
+                output = self.root / platform
+                with patch("bundle.fetch", side_effect=downloads), patch("bundle.sign_macos"):
+                    receipt = bundle.prepare(platform, self.root / "cache", output, catalog, pins)
+                self.assertEqual((output / "licenses/OpenSans-LICENSE.txt").read_bytes(), license_bytes)
+                self.assertEqual(receipt["files"]["licenses/OpenSans-LICENSE.txt"], {
+                    "sha256": hashlib.sha256(license_bytes).hexdigest(),
+                    "sizeBytes": len(license_bytes), "executable": False,
+                })
+                with patch("bundle.ROOT", self.root), patch("bundle.sign_macos"), \
+                        patch("bundle.fetch", side_effect=downloads):
+                    with self.assertRaisesRegex(bundle.BundleError, "SHA-256/size mismatch"):
+                        bundle.prepare(platform, self.root / "cache", output, catalog, pins)
+                self.assertEqual((output / "licenses/OpenSans-LICENSE.txt").read_bytes(), license_bytes)
+                self.assertEqual(json.loads((output / "bundle-manifest.json").read_text()), receipt)
+
     def test_pins_can_download_the_engine_from_a_published_release(self):
         archive = self.archive([("payload/katago", b"engine")])
         engine = pin(archive.read_bytes())

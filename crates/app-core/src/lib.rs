@@ -7,6 +7,7 @@ mod auto_setup;
 mod benchmark;
 mod board_sync;
 mod delivery;
+mod engine_display_name;
 pub mod engine_setup;
 mod engine_trial;
 pub mod fox;
@@ -28,6 +29,7 @@ pub use board_sync::{
     BoardSyncError, BoardSyncLanguage, BoardSyncOptions, BoardSyncPhase, BoardSyncStatus,
 };
 pub use delivery::AppSubscription;
+pub use engine_display_name::{EngineDisplayName, engine_display_name};
 pub use engine_trial::{EngineSetupError, EngineSetupProfile};
 pub use graph::{AnalysisSummary, GraphPointView, GraphView};
 pub use inspection::{
@@ -141,6 +143,12 @@ impl AppCore {
 
     pub async fn open_path(&self, path: impl Into<PathBuf>) -> Result<u64, AppError> {
         self.send(actor::Input::OpenPath(path.into())).await
+    }
+
+    /// Open the first readable SGF in native drop order, as one actor command.
+    /// Unsupported extensions are ignored; failures are published as OpenFailed.
+    pub async fn open_dropped_paths(&self, paths: Vec<PathBuf>) -> Result<u64, AppError> {
+        self.send(actor::Input::OpenDroppedPaths(paths)).await
     }
 
     /// Writes an adjacent temporary file and replaces the target on success.
