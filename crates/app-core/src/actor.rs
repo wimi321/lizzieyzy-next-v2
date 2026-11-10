@@ -24,6 +24,7 @@ use trial::PendingTrial;
 pub(crate) enum Input {
     OpenBytes(Vec<u8>),
     OpenPath(PathBuf),
+    OpenDroppedPaths(Vec<PathBuf>),
     Save(PathBuf),
     Edit(document::Command),
     Undo,
@@ -114,6 +115,7 @@ struct ViewFocus {
 
 struct Actor {
     document: GameDocument,
+    file_name: Option<String>,
     tsumego: Option<tsumego::Session>,
     tree: VariationTreeView,
     summaries: HashMap<NodeId, AnalysisSummary>,
@@ -143,6 +145,7 @@ pub(crate) async fn run(
 ) {
     let mut actor = Actor {
         document: GameDocument::new(),
+        file_name: None,
         tsumego: None,
         tree: VariationTreeView::default(),
         summaries: HashMap::new(),
@@ -342,6 +345,7 @@ impl Actor {
     fn publish_document(&mut self) -> Result<(), AppError> {
         self.tree.refresh(&self.document, self.revision)?;
         let mut view = DocumentView::from_document(&self.document, self.tree.revision)?;
+        view.file_name = self.file_name.clone();
         for point in &mut view.graph.points {
             point.summary = self.summaries.get(&NodeId(point.node_id)).copied();
         }
@@ -356,15 +360,34 @@ impl Actor {
         match input {
             Input::GenerateTsumego(options) => self.generate_tsumego(options).await?,
             Input::ExitTsumego => self.exit_tsumego().await?,
-            Input::OpenPath(path) => self.open(tokio::fs::read(path).await?).await?,
-            Input::OpenBytes(bytes) => self.open(bytes).await?,
+            Input::OpenPath(path) => self.open_path(path).await?,
+            Input::OpenDroppedPaths(paths) => {
+                for path in paths {
+                    if path
+                        .extension()
+                        .and_then(|extension| extension.to_str())
+                        .is_some_and(|extension| extension.eq_ignore_ascii_case("sgf"))
+                        && self.open_path(path).await.is_ok()
+                    {
+                        break;
+                    }
+                }
+            }
+            Input::OpenBytes(bytes) => self.open(bytes, None).await?,
             Input::Save(path) => {
                 let collection = sgf::Collection {
                     games: vec![self.document.to_sgf()],
                     encoding: "UTF-8".into(),
                     warnings: Vec::new(),
                 };
+                let file_name = path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned());
                 storage::write(path, sgf::serialize(&collection).into_bytes()).await?;
+                if self.file_name != file_name {
+                    self.file_name = file_name;
+                    self.publish_document()?;
+                }
             }
             Input::Edit(command) => {
                 self.next_revision()?;
@@ -439,17 +462,36 @@ impl Actor {
         self.revision.checked_add(1).ok_or(AppError::RevisionLimit)
     }
 
-    async fn open(&mut self, bytes: Vec<u8>) -> Result<(), AppError> {
+    async fn open_path(&mut self, path: PathBuf) -> Result<(), AppError> {
+        let result = async {
+            let bytes = tokio::fs::read(&path).await?;
+            let file_name = path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned());
+            self.open(bytes, file_name).await
+        }
+        .await;
+        if let Err(error) = &result {
+            self.output.send(AppEvent::OpenFailed {
+                path: path.to_string_lossy().into_owned(),
+                reason: error.to_string(),
+            });
+        }
+        result
+    }
+
+    async fn open(&mut self, bytes: Vec<u8>, file_name: Option<String>) -> Result<(), AppError> {
         let collection = sgf::parse(&bytes)?;
         let tree = collection.games.first().ok_or(AppError::EmptyCollection)?;
         let document = GameDocument::from_sgf(tree)?;
         self.stop_board_sync().await?;
-        self.open_auto_curve_document(document).await
+        self.open_auto_curve_document(document, file_name).await
     }
 
     async fn replace_document(&mut self, document: GameDocument) -> Result<(), AppError> {
         self.next_revision()?;
         self.document = document;
+        self.file_name = None;
         self.tsumego = None;
         self.document_replaced().await
     }

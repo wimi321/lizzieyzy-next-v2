@@ -20,6 +20,7 @@ pub(crate) struct CatalogModel {
     pub size_bytes: u64,
     pub sha256: String,
     pub tier: String,
+    pub published_at: Option<String>,
     #[serde(rename = "minimumKataGoVersion")]
     pub minimum_katago_version: String,
 }

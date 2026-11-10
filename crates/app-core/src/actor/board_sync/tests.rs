@@ -358,6 +358,7 @@ async fn synchronization_analyzes_remote_latest_without_overpainting_a_browsed_p
                 }
                 AppEvent::BoardSyncStatusChanged(_) => break,
                 AppEvent::EngineStatusChanged(_)
+                | AppEvent::OpenFailed { .. }
                 | AppEvent::WholeGameProgress(_)
                 | AppEvent::AnalysisStateChanged(_)
                 | AppEvent::BenchmarkProgress(_) => {}
@@ -581,4 +582,47 @@ async fn repeating_saved_preference_still_updates_a_temporary_sync_pause() {
             before
         );
     }
+}
+
+#[tokio::test]
+async fn accepted_sync_frames_and_clear_board_remove_file_name() {
+    let directory = tempfile::tempdir().unwrap();
+    let source = directory.path().join("source.sgf");
+    std::fs::write(&source, b"(;SZ[9])").unwrap();
+    let (mut actor, mut events) = actor();
+    actor.directory = directory.path().to_owned();
+    actor.apply(Input::OpenPath(source)).await.unwrap();
+    assert_eq!(actor.file_name.as_deref(), Some("source.sgf"));
+    actor
+        .board_sync_event(Event::Snapshot(frame(false)))
+        .await
+        .unwrap();
+    assert_eq!(actor.file_name, None);
+    actor
+        .apply(Input::Save(directory.path().join("saved.sgf")))
+        .await
+        .unwrap();
+    assert_eq!(actor.file_name.as_deref(), Some("saved.sgf"));
+    let revision = actor.revision;
+    actor
+        .board_sync_event(Event::Snapshot(frame(false)))
+        .await
+        .unwrap();
+    assert_eq!(actor.file_name, None);
+    assert_eq!(actor.revision, revision);
+    let view = within(async {
+        loop {
+            if let Some(crate::AppEvent::DocumentChanged { view, .. }) = events.recv().await {
+                break view;
+            }
+        }
+    })
+    .await;
+    assert_eq!(view.file_name, None);
+    actor
+        .apply(Input::Save(directory.path().join("again.sgf")))
+        .await
+        .unwrap();
+    actor.board_sync_event(Event::ClearBoard).await.unwrap();
+    assert_eq!(actor.file_name, None);
 }

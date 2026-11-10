@@ -13,4 +13,4 @@ game_info: GameInfoView,
 /**
  * Invalid recorded positions remain navigable but have no invented board.
  */
-board: BoardView | null, tree: TreeView, graph: GraphView, comment: string | null, warnings: Array<DocumentWarningView>, position_error: string | null, };
+board: BoardView | null, tree: TreeView, graph: GraphView, comment: string | null, warnings: Array<DocumentWarningView>, position_error: string | null, file_name?: string | null, };

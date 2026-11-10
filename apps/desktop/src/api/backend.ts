@@ -9,6 +9,7 @@ import type { AnalysisLimitCommands, AnalysisStateListener } from "./analysis-li
 import type { ProblemMoveCommands } from "./problem-moves";
 import type { StrengthCommands } from "./strength";
 import type { TsumegoCommands } from "./tsumego";
+import type { EngineDisplayName } from "./generated/EngineDisplayName";
 import type { EngineProfile } from "./generated/EngineProfile";
 import type { EngineSetupProfile } from "./generated/EngineSetupProfile";
 import type { EngineDiscovery } from "./generated/EngineDiscovery";
@@ -24,7 +25,10 @@ import type { VariationTreeView } from "./generated/VariationTreeView";
 
 /** Domain status subscriptions share one ordered IPC channel while existing
  * document/analysis UI consumers retain their original event set. */
-export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" }>;
+export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" }>;
+export type OpenFailed = Extract<WireAppEvent, { type: "OpenFailed" }>["data"];
+export type OpenFailedListener = (failure: OpenFailed) => void;
+export type { EngineDisplayName };
 export type { WireAppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings };
 export * from "./review";
 export * from "./board-sync";
@@ -81,6 +85,7 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   /** Read-only PV replay. Compare reply revision/node_id with the requested focus. */
   previewVariation(nodeId: number, moves: MoveView[]): Promise<VariationPreviewView>;
   setPondering(enabled: boolean): Promise<void>;
+  engineDisplayName(profile: EngineProfile): Promise<EngineDisplayName>;
   configureEngine(profile: EngineProfile | null): Promise<void>;
   detectEngines(): Promise<EngineDiscovery>;
   /** Returns a saved profile unchanged, or discovers and starts the first usable pair. */
@@ -101,6 +106,7 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   quit(): Promise<void>;
   /** The native window's title, which LizzieYzy Next fills with the evaluation, players and file. */
   setWindowTitle(title: string): Promise<void>;
+  subscribeOpenFailed(listener: OpenFailedListener): Promise<number>;
   subscribe(listener: EventListener): Promise<number>;
   subscribeWholeGameProgress(listener: WholeGameProgressListener): Promise<number>;
   subscribeBoardSyncStatus(listener: BoardSyncStatusListener): Promise<number>;
@@ -126,6 +132,8 @@ export const autoQuickAnalyzeOnLoad: Backend["autoQuickAnalyzeOnLoad"] =
   () => invoke("auto_quick_analyze_on_load");
 export const setAutoQuickAnalyzeOnLoad: Backend["setAutoQuickAnalyzeOnLoad"] =
   (enabled) => invoke("set_auto_quick_analyze_on_load", { enabled });
+export const engineDisplayName: Backend["engineDisplayName"] = (profile) =>
+  invoke("engine_display_name", { profile });
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   invoke("configure_engine", { profile });
 export const detectEngines: Backend["detectEngines"] = () => invoke("detect_engines");
@@ -212,8 +220,13 @@ async function subscribeWire(listener: (event: WireAppEvent) => void): Promise<n
 }
 
 export const subscribe: Backend["subscribe"] = (listener) => subscribeWire((event) => {
-  if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged") listener(event);
+  if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed") listener(event);
 });
+
+export const subscribeOpenFailed: Backend["subscribeOpenFailed"] =
+  (listener) => subscribeWire((event) => {
+    if (event.type === "OpenFailed") listener(event.data);
+  });
 
 /** Progress shares transport/lifetime with document subscriptions. Subscribe
  * before reading wholeGameProgress() for initial state. Unsubscribe its returned

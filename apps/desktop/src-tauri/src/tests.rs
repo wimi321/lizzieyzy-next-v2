@@ -18,6 +18,7 @@ mod auto_curve;
 mod benchmark;
 mod board_sync;
 mod engine_auto_setup;
+mod frame;
 mod problem_moves;
 mod review;
 mod strength;
@@ -149,7 +150,8 @@ impl Harness {
                     AppEvent::AnalysisUpdated(view) => {
                         assert!(view.revision < revision, "analysis overtook its document");
                     }
-                    AppEvent::EngineStatusChanged(_)
+                    AppEvent::OpenFailed { .. }
+                    | AppEvent::EngineStatusChanged(_)
                     | AppEvent::WholeGameProgress(_)
                     | AppEvent::BenchmarkProgress(_)
                     | AppEvent::AnalysisStateChanged(_)

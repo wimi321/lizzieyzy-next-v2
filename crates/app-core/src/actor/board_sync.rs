@@ -216,6 +216,7 @@ impl Actor {
                 if outcome.held {
                     return Ok(());
                 }
+                let file_name_changed = self.file_name.take().is_some();
                 self.board_sync.status.phase = BoardSyncPhase::Syncing;
                 self.board_sync.status.remote_move_number = snapshot.fox_move_number;
                 self.board_sync.status.error = None;
@@ -233,6 +234,9 @@ impl Actor {
                     if outcome.changed {
                         self.document_changed_with_resume(resume_limited).await?;
                     } else {
+                        if file_name_changed {
+                            self.publish_document()?;
+                        }
                         self.update_focus_with_resume(resume_limited).await;
                     }
                 }

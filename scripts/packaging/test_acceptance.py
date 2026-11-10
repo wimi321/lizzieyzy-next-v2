@@ -21,6 +21,7 @@ class PayloadAcceptanceTests(unittest.TestCase):
             "engines/katago/linux-x64/katago": b"verified executable",
             "weights/default.bin.gz": b"verified model",
             "licenses/KataGo.txt": b"license text",
+            "licenses/OpenSans-LICENSE.txt": b"font license text",
         }
         self.receipt = {"schemaVersion": 1, "platform": "linux-x64", "files": {}}
         for name, data in self.files.items():
@@ -44,7 +45,7 @@ class PayloadAcceptanceTests(unittest.TestCase):
 
     def test_accepts_complete_payload_and_finds_actual_app(self):
         result = verify_payload(self.staged, self.resources, "linux-x64")
-        self.assertEqual(result["filesVerified"], 3)
+        self.assertEqual(result["filesVerified"], 4)
         self.assertEqual(result["resourceBytes"], sum(map(len, self.files.values())))
         self.assertEqual(locate(self.base / "payload", "linux-x64"), (self.resources, self.app))
 
@@ -62,6 +63,15 @@ class PayloadAcceptanceTests(unittest.TestCase):
     def test_rejects_missing_runtime_or_license(self):
         (self.resources / "licenses/KataGo.txt").unlink()
         with self.assertRaisesRegex(AcceptanceError, "Missing or escaping"):
+            verify_payload(self.staged, self.resources, "linux-x64")
+
+    def test_rejects_missing_open_sans_license_or_receipt_entry(self):
+        (self.resources / "licenses/OpenSans-LICENSE.txt").unlink()
+        with self.assertRaisesRegex(AcceptanceError, "Missing or escaping"):
+            verify_payload(self.staged, self.resources, "linux-x64")
+        del self.receipt["files"]["licenses/OpenSans-LICENSE.txt"]
+        self.write_receipts()
+        with self.assertRaisesRegex(AcceptanceError, "omits required payload"):
             verify_payload(self.staged, self.resources, "linux-x64")
 
     def test_rejects_receipt_substitution(self):

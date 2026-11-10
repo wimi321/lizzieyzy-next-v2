@@ -489,3 +489,12 @@ fn engine_status_views_preserve_terminal_error_details() {
         assert_eq!(serde_json::from_value::<AppEvent>(json).unwrap(), event);
     }
 }
+
+#[test]
+fn document_file_name_serializes_null_and_defaults_old_views_to_none() {
+    let view = DocumentView::from_document(&GameDocument::new(), 0).unwrap();
+    let mut json = serde_json::to_value(&view).unwrap();
+    assert_eq!(json["file_name"], serde_json::Value::Null);
+    assert!(json.as_object_mut().unwrap().remove("file_name").is_some());
+    assert_eq!(serde_json::from_value::<DocumentView>(json).unwrap(), view);
+}

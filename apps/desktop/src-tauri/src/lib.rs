@@ -2,6 +2,7 @@
 pub mod bindings;
 pub mod board_sync;
 pub mod commands;
+mod drag_drop;
 pub mod engine_setup;
 pub mod error;
 pub mod events;
@@ -29,6 +30,7 @@ impl DesktopState {
 pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
     builder
         .plugin(tauri_plugin_dialog::init())
+        .on_window_event(drag_drop::on_window_event)
         .invoke_handler(tauri::generate_handler![
             commands::document::open_bytes,
             commands::document::open_path,
@@ -67,6 +69,7 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::tsumego::exit_tsumego,
             commands::tsumego::tsumego_status,
             commands::engine::configure_engine,
+            commands::engine::engine_display_name,
             commands::engine::detect_engines,
             commands::engine::auto_configure_engine,
             commands::engine::try_configure_engine,

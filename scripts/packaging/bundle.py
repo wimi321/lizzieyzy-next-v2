@@ -15,6 +15,15 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "resources/katago/katago-assets.json"
 PINS = ROOT / "resources/katago/bundle-pins.json"
+# Application assets have their own licenses, independent of the engine catalog.
+APP_LICENSES = ({
+    "id": "open-sans",
+    "source": "resources/licenses/OpenSans-LICENSE.txt",
+    "destination": "licenses/OpenSans-LICENSE.txt",
+    "sourceUrl": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+    "sizeBytes": 11358,
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+},)
 PLATFORMS = {
     "windows-x64": "windows-cpu", "linux-x64": "linux-cpu",
     "macos-arm64": "macos-arm64", "macos-amd64": "macos-amd64",
@@ -219,7 +228,7 @@ def prepare(platform, cache, output, catalog=None, pins=None):
             if readboard.get("elevationPatch", True):
                 transformations["readboard/readboard.exe"] = patch_readboard(
                     staged / "readboard/readboard.exe", readboard)
-        for license_spec in pins["licenses"]:
+        for license_spec in [*pins["licenses"], *APP_LICENSES]:
             if platform not in license_spec.get("platforms", PLATFORMS):
                 continue
             license_path = staged / license_spec["destination"]

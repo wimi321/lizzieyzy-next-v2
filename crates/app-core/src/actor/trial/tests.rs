@@ -22,6 +22,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
     (
         Actor {
             document: GameDocument::new(),
+            file_name: None,
             tsumego: None,
             tree: crate::VariationTreeView::default(),
             summaries: HashMap::new(),

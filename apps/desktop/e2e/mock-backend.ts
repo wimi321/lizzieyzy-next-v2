@@ -8,7 +8,7 @@ export type {
   GraphPointView, GraphView,
   FoxAccount, FoxGame, FoxPage, FoxQuery, FoxSearchResult,
   FoxPlayer, FoxResult, FoxResultKind, FoxColor, FoxScoreUnit, FoxFailure, CommandError,
-  AutoSetupError, AutoSetupAttempt,
+  AutoSetupError, AutoSetupAttempt, EngineDisplayName, OpenFailed, OpenFailedListener,
   GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
   WireAppEvent, WholeGameOptions, WholeGamePreset, WholeGameProgress, WholeGameStatus, WholeGameSource,
   WholeGameProgressListener,
@@ -24,7 +24,7 @@ export type {
   StrengthPhasesReport, PhaseEstimate, PhaseExtremes,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "unsubscribe" | "setWindowTitle">;
+type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "unsubscribe" | "setWindowTitle">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -119,7 +119,10 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       if (event.type === "AnalysisUpdated" && event.data.visits_per_second === undefined) {
         event.data.visits_per_second = event.data.source === "Live" ? 1200 : null;
       }
-      if (event.type === "DocumentChanged") lastDocument = structuredClone(event.data);
+      if (event.type === "DocumentChanged") {
+        event.data.view.file_name ??= null;
+        lastDocument = structuredClone(event.data);
+      }
       if (event.type === "WholeGameProgress") lastProgress = structuredClone(event.data);
       if (event.type === "BoardSyncStatusChanged") lastBoardSyncStatus = structuredClone(event.data);
       if (event.type === "BenchmarkProgress") lastBenchmarkStatus = structuredClone(event.data);
@@ -279,6 +282,8 @@ export const autoQuickAnalyzeOnLoad: Backend["autoQuickAnalyzeOnLoad"] = () =>
   query("autoQuickAnalyzeOnLoad", [], () => lastAutoQuickAnalyzeOnLoad);
 export const setAutoQuickAnalyzeOnLoad: Backend["setAutoQuickAnalyzeOnLoad"] = (enabled) =>
   command("setAutoQuickAnalyzeOnLoad", [enabled]);
+export const engineDisplayName: Backend["engineDisplayName"] = (profile) =>
+  command("engineDisplayName", [profile]);
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);
 export const detectEngines: Backend["detectEngines"] = () => command("detectEngines", []);
@@ -302,7 +307,16 @@ export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged") listener(event);
+    if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed") listener(event);
+  });
+  pushEvents([]);
+  return id;
+};
+
+export const subscribeOpenFailed: Backend["subscribeOpenFailed"] = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => {
+    if (event.type === "OpenFailed") listener(event.data);
   });
   pushEvents([]);
   return id;

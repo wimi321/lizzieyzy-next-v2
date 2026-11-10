@@ -27,6 +27,7 @@ const events: AppEvent[] = [
     data: {
       revision: 1,
       view: {
+        file_name: null,
         board: null,
         tree: { root: 0, current: 0, main_line: [0], variation_count: 0, structure_revision: 1 },
         game_info: {

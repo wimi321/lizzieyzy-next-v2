@@ -49,7 +49,7 @@ def verify_payload(staged: Path, resource_root: Path, platform: str) -> dict:
         raise AcceptanceError("Installer contains a different bundle receipt")
     files = receipt["files"]
     executable = f"engines/katago/{platform}/katago" + (".exe" if platform == "windows-x64" else "")
-    required = {executable, "weights/default.bin.gz"}
+    required = {executable, "weights/default.bin.gz", "licenses/OpenSans-LICENSE.txt"}
     if platform == "windows-x64":
         required.add("readboard/readboard.exe")
     if not required <= files.keys():
