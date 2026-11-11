@@ -46,7 +46,7 @@ Java 参考在 `../lizzieyzy-next`，只学行为。每一项你参考了哪个�
    - 菜单打开、拖入、保存都更新它；野狐下载的棋谱不进列表；
    - `recent_files()` 读列表，`clear_recent_files()` 清空；
    - 打开列表里的文件失败时，把它从列表里去掉，照常发 `OpenFailed`。
-6. **变化树的评论标记：** `VariationNodeView` 增加 `has_comment`。改评论会让 `structure_revision` 变吗？不变。所以另给一个办法让界面知道哪些节点有评论变了，办法你定，写进 `docs/ARCHITECTURE.md`。
+6. **变化树的评论标记：** `VariationNodeView` 增加 `has_comment`。改评论不改变 `structure_revision`，所以界面还需要一个信号，知道该重新取树，或者知道哪个节点的标记变了。办法由你定，写进 `docs/ARCHITECTURE.md`。
 7. TS 类型照常由 Rust 生成；`e2e/mock-backend.ts` 补上新命令（都是脚本化的 `command`，`recent_files` 是带默认值的 `query`）。
 
 ## 不做
