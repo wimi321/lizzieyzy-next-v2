@@ -2,20 +2,13 @@
 
 mod common;
 
-use common::{Engine, query};
+use common::{Engine, TempDirectory, query};
 use serde_json::{Value, json};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn request_log_records_received_queries_actions_and_appends_across_processes() {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let directory =
-        std::env::temp_dir().join(format!("fake-request-log-{}-{unique}", std::process::id()));
-    std::fs::create_dir(&directory).unwrap();
-    let path = directory.join("requests.jsonl");
+    let directory = TempDirectory::new("request-log");
+    let path = directory.path().join("requests.jsonl");
     let args = ["--request-log", path.to_str().unwrap()];
     let mut engine = Engine::spawn(&args);
     engine.ready();
@@ -40,5 +33,5 @@ fn request_log_records_received_queries_actions_and_appends_across_processes() {
     assert_eq!(lines[1], request);
     assert_eq!(lines[2], terminate);
     assert_eq!(lines[3], lines[0]);
-    std::fs::remove_dir_all(directory).unwrap();
+    directory.remove();
 }

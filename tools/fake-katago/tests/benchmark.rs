@@ -5,13 +5,12 @@ mod common;
 use std::{
     fs,
     io::{BufRead, BufReader},
-    path::PathBuf,
     process::{Child, Command, Stdio},
     sync::mpsc,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
-use common::Engine;
+use common::{Engine, TempDirectory};
 use katago_protocol::benchmark::BenchmarkParser;
 
 fn command() -> Command {
@@ -31,27 +30,6 @@ fn command() -> Command {
         "-s",
     ]);
     command
-}
-
-struct TempDirectory(PathBuf);
-
-impl TempDirectory {
-    fn new() -> Self {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("fake-benchmark-{}-{unique}", std::process::id()));
-        fs::create_dir(&path).unwrap();
-        Self(path)
-    }
-}
-
-impl Drop for TempDirectory {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
 }
 
 struct Process(Child);
@@ -85,8 +63,8 @@ fn benchmark_replays_real_recording_without_changing_cr_bytes() {
 
 #[test]
 fn benchmark_honors_replay_duration_and_failure_controls() {
-    let temp = TempDirectory::new();
-    let replay = temp.0.join("replay.txt");
+    let temp = TempDirectory::new("benchmark");
+    let replay = temp.path().join("replay.txt");
     fs::write(&replay, "numSearchThreads = 2: 1 / 1 positions, visits/s = 120 nnEvals/s = 110\r\nnumSearchThreads = 2: (recommended)\n").unwrap();
     let started = Instant::now();
     let output = command()
@@ -112,16 +90,16 @@ fn benchmark_honors_replay_duration_and_failure_controls() {
 
 #[test]
 fn benchmark_gate_emits_progress_then_can_be_killed_and_reaped() {
-    let temp = TempDirectory::new();
-    let replay = temp.0.join("replay.txt");
-    let pid = temp.0.join("pid");
+    let temp = TempDirectory::new("benchmark");
+    let replay = temp.path().join("replay.txt");
+    let pid = temp.path().join("pid");
     fs::write(&replay, "numSearchThreads = 2: 0 / 1 positions, visits/s = nan\nnumSearchThreads = 2: 1 / 1 positions, visits/s = 120 nnEvals/s = 110\nnumSearchThreads = 2: (recommended)\n").unwrap();
     let mut process = Process(
         command()
             .arg("--benchmark-replay")
             .arg(replay)
             .arg("--benchmark-gate-file")
-            .arg(temp.0.join("gate"))
+            .arg(temp.path().join("gate"))
             .arg("--benchmark-pid-file")
             .arg(&pid)
             .stdout(Stdio::piped())
@@ -168,8 +146,8 @@ fn analysis_ignores_benchmark_controls_in_shared_profile_args() {
 
 #[test]
 fn launch_log_records_actual_arguments_for_both_subcommands() {
-    let temp = TempDirectory::new();
-    let log = temp.0.join("launch.jsonl");
+    let temp = TempDirectory::new("benchmark");
+    let log = temp.path().join("launch.jsonl");
     let path = log.to_str().unwrap();
     let mut engine = Engine::spawn(&[
         "--launch-log",

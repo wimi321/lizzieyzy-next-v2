@@ -2,42 +2,10 @@
 
 mod common;
 
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::path::Path;
+use std::time::{Duration, Instant};
 
-use common::{Engine, SAFETY_TIMEOUT, query};
-
-struct MarkerDirectory(PathBuf);
-
-impl MarkerDirectory {
-    fn new(label: &str) -> Self {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "fake-katago-fault-{label}-{}-{unique}",
-            std::process::id()
-        ));
-        std::fs::create_dir(&path).unwrap();
-        Self(path)
-    }
-
-    fn marker(&self) -> PathBuf {
-        self.0.join("claimed")
-    }
-
-    fn remove(self) {
-        std::fs::remove_dir_all(&self.0).unwrap();
-        assert!(!self.0.exists(), "marker directory must not leak");
-    }
-}
-
-impl Drop for MarkerDirectory {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
+use common::{Engine, SAFETY_TIMEOUT, TempDirectory, query};
 
 fn wait_for_marker(path: &Path) {
     let deadline = Instant::now() + SAFETY_TIMEOUT;
@@ -52,8 +20,8 @@ fn wait_for_marker(path: &Path) {
 
 #[test]
 fn first_query_hangs_once_and_same_marker_allows_restarted_queries() {
-    let directory = MarkerDirectory::new("hang");
-    let marker = directory.marker();
+    let directory = TempDirectory::new("fault-hang");
+    let marker = directory.path().join("claimed");
     let args = [
         "--hang-after-queries",
         "1",
@@ -86,8 +54,8 @@ fn first_query_hangs_once_and_same_marker_allows_restarted_queries() {
 
 #[test]
 fn crash_marker_is_not_consumed_by_startup_or_queries_below_threshold() {
-    let directory = MarkerDirectory::new("crash");
-    let marker = directory.marker();
+    let directory = TempDirectory::new("fault-crash");
+    let marker = directory.path().join("claimed");
     let args = [
         "--crash-after-queries",
         "2",
@@ -123,8 +91,8 @@ fn crash_marker_is_not_consumed_by_startup_or_queries_below_threshold() {
 #[test]
 fn zero_query_threshold_claims_once_and_restart_reaches_readiness() {
     for option in ["--hang-after-queries", "--crash-after-queries"] {
-        let directory = MarkerDirectory::new(option);
-        let marker = directory.marker();
+        let directory = TempDirectory::new(option);
+        let marker = directory.path().join("claimed");
         let args = [option, "0", "--fault-once-file", marker.to_str().unwrap()];
         let mut first = Engine::spawn(&args);
         wait_for_marker(&marker);
@@ -145,10 +113,10 @@ fn zero_query_threshold_claims_once_and_restart_reaches_readiness() {
 
 #[test]
 fn fault_marker_write_errors_are_reported_instead_of_disabling_the_fault() {
-    let directory = MarkerDirectory::new("error");
+    let directory = TempDirectory::new("fault-error");
     for marker in [
-        directory.0.join("missing-parent/claimed"),
-        directory.0.clone(),
+        directory.path().join("missing-parent/claimed"),
+        directory.path().to_path_buf(),
     ] {
         let mut engine = Engine::spawn(&[
             "--hang-after-queries",
@@ -171,8 +139,8 @@ fn fault_marker_write_errors_are_reported_instead_of_disabling_the_fault() {
 
 #[test]
 fn timed_crash_claims_once_and_restarted_search_finishes_after_the_deadline() {
-    let directory = MarkerDirectory::new("timed-crash");
-    let marker = directory.marker();
+    let directory = TempDirectory::new("fault-timed-crash");
+    let marker = directory.path().join("claimed");
     let args = [
         "--crash-after-ms",
         "120",
@@ -207,8 +175,8 @@ fn timed_crash_claims_once_and_restarted_search_finishes_after_the_deadline() {
 
 #[test]
 fn timed_crash_during_startup_claims_once_and_restart_becomes_ready() {
-    let directory = MarkerDirectory::new("startup-timer");
-    let marker = directory.marker();
+    let directory = TempDirectory::new("fault-startup-timer");
+    let marker = directory.path().join("claimed");
     let args = [
         "--startup-delay-ms",
         "240",
@@ -234,8 +202,8 @@ fn timed_crash_during_startup_claims_once_and_restart_becomes_ready() {
 
 #[test]
 fn normal_exit_before_timed_crash_does_not_consume_marker() {
-    let directory = MarkerDirectory::new("untriggered-timer");
-    let marker = directory.marker();
+    let directory = TempDirectory::new("fault-untriggered-timer");
+    let marker = directory.path().join("claimed");
     let mut engine = Engine::spawn(&[
         "--crash-after-ms",
         "60000",
@@ -253,8 +221,8 @@ fn normal_exit_before_timed_crash_does_not_consume_marker() {
 
 #[test]
 fn fail_startup_claims_once_and_restarted_process_serves_queries() {
-    let directory = MarkerDirectory::new("fail-startup");
-    let marker = directory.marker();
+    let directory = TempDirectory::new("fault-fail-startup");
+    let marker = directory.path().join("claimed");
     let args = [
         "--fail-startup",
         "--fault-once-file",
@@ -278,11 +246,11 @@ fn fail_startup_claims_once_and_restarted_process_serves_queries() {
 
 #[test]
 fn startup_and_timer_marker_errors_are_not_silently_ignored() {
-    let directory = MarkerDirectory::new("startup-marker-error");
+    let directory = TempDirectory::new("fault-startup-marker-error");
     for fault in [vec!["--fail-startup"], vec!["--crash-after-ms", "0"]] {
         for marker in [
-            directory.0.join("missing-parent/claimed"),
-            directory.0.clone(),
+            directory.path().join("missing-parent/claimed"),
+            directory.path().to_path_buf(),
         ] {
             let mut args = fault.clone();
             args.extend(["--fault-once-file", marker.to_str().unwrap()]);
