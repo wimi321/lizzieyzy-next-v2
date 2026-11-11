@@ -48,7 +48,19 @@ test("the side columns show what Java's show: the game's terms, the evaluation, 
       { command: "variationTree", args: [] },
       { command: "previewVariation", args: [20, moves] },
     ]);
-  await expect(page.getByTestId("main-panel")).toHaveScreenshot("side-columns.png");
+  // The columns only: the board between them has its own baselines.
+  const box = async (region: string) => {
+    const rect = await page.locator(`[data-region="${region}"]`).boundingBox();
+    if (!rect) throw new Error(`no ${region} region`);
+    return rect;
+  };
+  const [captured, status, moves, sub] = await Promise.all([box("captured"), box("status"), box("tree"), box("sub-board")]);
+  await expect(page).toHaveScreenshot("left-column.png", {
+    clip: { x: captured.x, y: captured.y, width: captured.width, height: status.y + status.height - captured.y },
+  });
+  await expect(page).toHaveScreenshot("right-column.png", {
+    clip: { x: moves.x, y: moves.y, width: moves.width, height: sub.y + sub.height - moves.y },
+  });
 });
 
 test("Rust names the engine, a catalog model in the interface language; the title ends with the file's name", async ({ page }) => {
