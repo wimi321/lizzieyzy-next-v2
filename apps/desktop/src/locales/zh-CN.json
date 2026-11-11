@@ -44,7 +44,7 @@
     "empty": "暂无分析数据",
     "move": "第 {n} 手",
     "title": "胜率走势",
-    "legendWinrate": "黑胜率",
+    "legendWinrate": "黑方胜率",
     "legendScore": "目差",
     "quick": "正在生成 {done}/{total}",
     "quickStop": "停止生成胜率曲线"
@@ -80,12 +80,12 @@
     "blackLeads": "黑领先 {score} 目",
     "whiteLeads": "白领先 {score} 目",
     "even": "双方均势",
-    "lastMove": "最后一手 (#{n})：{winrate}% {score} 目",
+    "lastMove": "上一手 {winrate}% {score}目",
     "noAnalysis": "暂无分析",
     "comment": "注释",
-    "match": "吻合 {n}%",
+    "match": "吻合度 {n}",
     "matchHint": "吻合度：综合 AI 一选率、好手率和失误率，越高越接近 AI",
-    "komi": "贴 {n}",
+    "komi": "贴目 {n}",
     "handicap": "让 {n} 子",
     "rules": {
       "chinese": "中国规则",
@@ -94,11 +94,16 @@
       "aga": "AGA 规则",
       "new-zealand": "新西兰规则",
       "tromp-taylor": "Tromp-Taylor 规则"
-    }
+    },
+    "blackShort": "黑",
+    "whiteShort": "白",
+    "blackToPlay": "黑走",
+    "whiteToPlay": "白走"
   },
   "tree": {
     "label": "棋谱",
-    "variations": "{n} 个变化"
+    "variations": "{n} 个变化",
+    "subBoard": "小棋盘：变化图"
   },
   "review": {
     "title": "自动分析",
@@ -805,6 +810,30 @@
       "result": "结果:",
       "speedUnit": "搜索/秒",
       "b11": "B11：速度较低，棋力更强"
+    },
+    "engineNames": {
+      "b10-lightweight": "Transformer 10B 轻量版",
+      "b10-balanced": "Transformer 10B 均衡版",
+      "b11-flagship": "Transformer 11B 旗舰版"
+    },
+    "openFailed": {
+      "title": "无法打开棋谱",
+      "ok": "确定"
     }
+  },
+  "notes": {
+    "comment": "评论",
+    "problems": "问题手",
+    "noComment": "这一手没有评论",
+    "statusDone": "评估完成",
+    "statusRunning": "评估中 {done}/{total}",
+    "statusPartial": "已评估 {done}/{total}",
+    "blackSide": "黑棋",
+    "whiteSide": "白棋",
+    "winrate": "{side} 胜率: {winrate}%",
+    "lead": "领先: {lead}",
+    "engine": "({engine} / {visits} 计算量)",
+    "visits": "({visits} 计算量)",
+    "komi": "贴目: {komi}"
   }
 }

@@ -126,3 +126,12 @@ export function isolatedIndices(points: readonly GraphPointView[]): number[] {
 function round(value: number): number {
   return Math.round(value * 10) / 10;
 }
+
+/** Move numbers to label along the bottom: a round step that leaves at most six of them. */
+export function moveTicks(count: number): number[] {
+  const last = count - 1;
+  const step = [5, 10, 20, 30, 50, 100, 200, 500].find((candidate) => last / candidate <= 6) ?? 1000;
+  const ticks: number[] = [];
+  for (let move = step; move <= last; move += step) ticks.push(move);
+  return ticks;
+}

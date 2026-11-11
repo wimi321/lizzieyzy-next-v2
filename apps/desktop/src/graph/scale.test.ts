@@ -2,14 +2,15 @@ import { describe, expect, test } from "vitest";
 import type { GraphPointView } from "@/api/backend";
 import { graphView, midGameAnalysis } from "../../e2e/fixtures";
 import {
-  type GraphLayout,
   analysedRanges,
   areaPaths,
   indexAtX,
   isolatedIndices,
   linePaths,
   liveGraph,
+  moveTicks,
   scoreRange,
+  type GraphLayout,
   xForIndex,
   yForScore,
   yForWinrate,
@@ -114,4 +115,11 @@ describe("paths", () => {
     expect(live[19]?.summary).toBeNull();
     expect(liveGraph(graph, null)).toBe(graph.points);
   });
+});
+
+test("the bottom axis labels at most six moves, at a round step", () => {
+  expect(moveTicks(181)).toEqual([30, 60, 90, 120, 150, 180]);
+  expect(moveTicks(61)).toEqual([10, 20, 30, 40, 50, 60]);
+  expect(moveTicks(22)).toEqual([5, 10, 15, 20]);
+  expect(moveTicks(1)).toEqual([]);
 });

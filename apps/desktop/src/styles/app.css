@@ -47,7 +47,6 @@
   --status-failed: var(--bad);
   --status-idle: var(--text-3);
 
-
   --graph-plot: transparent;
   --graph-grid: rgba(255, 255, 255, 0.055);
   --graph-black-area: url(#graph-area-fill);
@@ -616,72 +615,7 @@ button.chip:hover {
   border-left: 1px solid var(--line);
 }
 
-.section {
-  padding: 14px 14px 12px;
-}
-
-.section + .section {
-  border-top: 1px solid var(--line);
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.section-title {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--text-3);
-}
-
-.section-meta {
-  font-size: 11px;
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-}
-
 /* Players and evaluation */
-
-.players {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.player {
-  position: relative;
-  display: grid;
-  /* Stone and name, then whatever follows (match rate, captures) in auto columns. */
-  grid-template-columns: 22px minmax(0, 1fr);
-  grid-auto-flow: column;
-  grid-auto-columns: auto;
-  align-items: center;
-  gap: 10px;
-  height: 36px;
-  padding: 0 10px;
-  border-radius: var(--radius);
-}
-
-.player[data-to-play="true"] {
-  background: var(--bg-raised);
-}
-
-.player[data-to-play="true"]::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 9px;
-  bottom: 9px;
-  width: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-}
 
 .stone-icon {
   width: 20px;
@@ -693,96 +627,10 @@ button.chip:hover {
 .stone-icon.black { background: radial-gradient(circle at 34% 30%, #6d6d6d, #222 45%, #030303); }
 .stone-icon.white { background: radial-gradient(circle at 34% 30%, #ffffff, #efebe3 50%, #bdb6a7); }
 
-.player-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-}
-
 .player-rank {
   margin-left: 6px;
   font-weight: 500;
   color: var(--text-3);
-}
-
-.game-meta {
-  margin: 2px 10px 0 42px;
-  overflow: hidden;
-  font-size: 11px;
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.player-captures {
-  font-size: 12px;
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-}
-
-.evaluation {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.eval-numbers {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  font-variant-numeric: tabular-nums;
-}
-
-.eval-number {
-  font-size: 22px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-}
-
-.eval-number.white {
-  color: var(--text-2);
-}
-
-.eval-number small {
-  margin-left: 3px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-3);
-}
-
-.winrate-bar {
-  display: flex;
-  height: 8px;
-  overflow: hidden;
-  border-radius: 4px;
-  background: #ebe8e1;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
-}
-
-.winrate-black {
-  background: linear-gradient(#3a3a3a, #0a0a0a);
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.35);
-  transition: width 0.35s ease;
-}
-
-.eval-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.lead {
-  padding: 2px 8px;
-  color: var(--text-1);
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-weight: 600;
 }
 
 .move-change {
@@ -799,55 +647,12 @@ button.chip:hover {
 
 /* Graph */
 
-.graph-section {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 190px;
-  padding-bottom: 10px;
-}
-
-.legend {
-  display: inline-flex;
-  gap: 10px;
-  font-size: 11px;
-  color: var(--text-3);
-}
-
-.legend span::before {
-  content: "";
-  display: inline-block;
-  width: 10px;
-  height: 2px;
-  margin-right: 5px;
-  vertical-align: middle;
-  border-radius: 1px;
-  background: var(--graph-winrate);
-}
-
-.legend span.score::before {
-  background: var(--graph-score);
-}
-
-.graph-wrap {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  margin: 0 -6px;
-}
-
 .graph {
   height: 132px;
   overflow: hidden;
   cursor: pointer;
   touch-action: none;
   user-select: none;
-}
-
-.graph-wrap .graph {
-  flex: 1;
-  height: auto;
-  min-width: 0;
 }
 
 .graph svg {
@@ -857,31 +662,18 @@ button.chip:hover {
 .graph-plot { fill: var(--graph-plot); }
 .graph-grid { stroke: var(--graph-grid); stroke-width: 1; }
 .graph-grid.middle { stroke: rgba(255, 255, 255, 0.11); stroke-dasharray: 3 4; }
-.graph-area { fill: var(--graph-black-area); }
+
 .graph-winrate { fill: none; stroke: var(--graph-winrate); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
 .graph-score { fill: none; stroke: var(--graph-score); stroke-width: 1.25; stroke-linejoin: round; stroke-linecap: round; opacity: 0.9; }
 .graph-dot-winrate { fill: var(--graph-winrate); }
 .graph-dot-score { fill: var(--graph-score); }
-.graph-coverage { fill: var(--graph-coverage); }
+
 .graph-current line { stroke: var(--graph-current); stroke-width: 1; }
 .graph-current circle { fill: var(--graph-current); stroke: var(--bg-panel); stroke-width: 2; }
 .graph-axis { fill: var(--text-3); font-size: 10px; font-variant-numeric: tabular-nums; }
 .graph-axis.score { fill: var(--graph-score); opacity: 0.85; }
-.graph-caption { fill: var(--text-2); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
 .graph-empty { fill: var(--text-3); font-size: 12px; }
-
-.comment {
-  max-height: 28%;
-  overflow: auto;
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--text-2);
-}
-
-.comment p {
-  margin: 0;
-  white-space: pre-wrap;
-}
 
 /* Board */
 
@@ -890,13 +682,6 @@ button.chip:hover {
   font-family: "Lizzie Open Sans";
   src: url("../assets/fonts/OpenSans-Semibold.ttf") format("truetype");
   font-display: block;
-}
-
-.board-area {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  min-height: 0;
 }
 
 .board {
@@ -924,20 +709,6 @@ button.chip:hover {
 }
 
 /* Move tree */
-
-.tree-section {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 140px;
-}
-
-.tree-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  margin: 0 -6px;
-}
 
 .tree-node {
   cursor: pointer;
@@ -1119,17 +890,8 @@ button.chip:hover {
   stroke: rgba(255, 255, 255, 0.3);
 }
 
-.tree-stone.black { fill: #050505; stroke: #8d8a84; stroke-width: 1.2; }
-.tree-stone.white { fill: #ecebe6; stroke: rgba(0, 0, 0, 0.45); stroke-width: 0.6; }
-.tree-stone.empty { fill: none; stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 2 2; }
-.tree-stone.off-line { opacity: 0.5; }
 .tree-current { fill: none; stroke: var(--accent); stroke-width: 2; }
 .tree-number { fill: var(--text-3); font-size: 10px; font-variant-numeric: tabular-nums; }
-.tree-node:hover .tree-stone { stroke: var(--accent-strong); stroke-width: 1.6; }
-
-.info-panel + .section {
-  border-top: 1px solid var(--line);
-}
 
 /* Whole-game analysis */
 
@@ -1299,13 +1061,6 @@ button.chip:hover {
 
 /* Problem moves and comment tabs */
 
-.notes-section {
-  display: flex;
-  flex-direction: column;
-  height: 34%;
-  min-height: 170px;
-}
-
 .tabs {
   display: flex;
   gap: 4px;
@@ -1346,13 +1101,6 @@ button.chip:hover {
   color: #1a1306;
   background: var(--accent);
   border-radius: 999px;
-}
-
-.tab-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
 }
 
 .problem-list,
@@ -1753,17 +1501,6 @@ button.fox-row[aria-busy="true"] {
 }
 
 /* Strength estimate */
-
-.player-match {
-  flex: none;
-  padding: 1px 7px;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-radius: 999px;
-}
 
 .strength-dialog {
   width: min(56rem, 100%);

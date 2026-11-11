@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
-import type { AnalysisLimitSettings, AutoSetupError, ColorView, EngineProfile, EngineStatus, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, TsumegoOptions, TsumegoStatus, VariationTreeView } from "@/api/backend";
+import type { AnalysisLimitSettings, AutoSetupError, ColorView, EngineProfile, EngineStatus, FoxAccount, MoveRank, OpenFailed, PointView, ProblemMoveSort, ProblemMovesQuery, TsumegoOptions, TsumegoStatus, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
 import type { NextMove } from "./board/draw";
+import { SubBoard } from "./board/SubBoard";
 import { useVariationPreview } from "./board/useVariationPreview";
 import { FoxDialog } from "./fox/FoxDialog";
+import { CurveProgress } from "./graph/CurveProgress";
 import { liveGraph } from "./graph/scale";
 import { WinrateGraph } from "./graph/WinrateGraph";
 import { getMessages } from "./locales";
@@ -13,8 +15,10 @@ import { isEnabled, menuBindings } from "./menu/bindings";
 import { MenuBar } from "./menu/MenuBar";
 import { useShortcuts } from "./menu/shortcuts";
 import { engineMenu, menusFor } from "./menu/spec";
-import { EvaluationSection, PlayersSection } from "./panels/InfoPanel";
+import { analysisSummary } from "./panels/info";
+import { CapturedBox, StatisticsBox } from "./panels/InfoPanel";
 import { MoveTree } from "./panels/MoveTree";
+import { NotesPanel, type ReviewStatus } from "./panels/NotesPanel";
 import { AutoAnalysis, type AutoAnalysisHandle } from "./review/AutoAnalysis";
 import { ProblemList } from "./review/ProblemList";
 import { StrengthDialog } from "./review/StrengthDialog";
@@ -36,10 +40,12 @@ import { SettingsDialog } from "./settings/SettingsDialog";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { BottomToolbar, JUMP } from "./frame/BottomToolbar";
 import { MainPanel } from "./frame/MainPanel";
+import { MessageBox } from "./frame/MessageBox";
 import { StatusLine } from "./frame/StatusLine";
 import { evaluationText, joinParts, windowTitle } from "./frame/title";
 import { ToolButton } from "./frame/ToolButton";
 import { TopToolbar } from "./frame/TopToolbar";
+import { useEngineName } from "./frame/useEngineName";
 
 export { JUMP };
 
@@ -54,18 +60,6 @@ const TSUMEGO_DEFAULTS: TsumegoOptions = { to_play: "Inherit", attacker: "Auto",
 
 /** A wheel notch (or this much trackpad travel) moves one move, as on Java's board. */
 const WHEEL_STEP = 40;
-
-/**
- * "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz" reads as "kata1-b18c384nbt", and
- * "kata1-tf3-b11c768-s12002M-d6304M.bin.gz" as "kata1-tf3-b11c768". A model the engine
- * catalog recognised is named by its catalog file, so "default.bin.gz" reads as B11.
- */
-function engineName(profile: EngineProfile): string {
-  const model = profile.canonical_model_name ?? profile.model;
-  const file = model.split(/[\\/]/).pop() ?? model;
-  const base = file.replace(/\.(bin|txt)(\.gz)?$/i, "");
-  return base.replace(/-s\d+[KMG]?-d\d+[KMG]?$/i, "") || file;
-}
 
 function report(error: unknown) {
   console.error("Backend command failed", error);
@@ -146,7 +140,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [syncOptions, setSyncOptions] = useState({ always_sync: true, always_goto_last: false });
   const [problemColor, setProblemColor] = useState<ColorView | null>(null);
   const [problemSort, setProblemSort] = useState<ProblemMoveSort>("LossDesc");
-  const [notesTab, setNotesTab] = useState<"problems" | "comment">("problems");
+  const [notesTab, setNotesTab] = useState<"comment" | "problems">("comment");
+  const [openFailure, setOpenFailure] = useState<OpenFailed | null>(null);
   const problemQuery = useMemo<ProblemMovesQuery>(
     () => ({ minimum_rank: "Inaccuracy", color: problemColor, sort: problemSort }),
     [problemColor, problemSort],
@@ -240,12 +235,29 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const points = useMemo(() => (document ? liveGraph(document.graph, analysis) : []), [document, analysis]);
   const line = useMemo(() => points.map((point) => point.node_id), [points]);
   const currentIndex = document?.graph.current_index ?? 0;
-  const variation = useVariationPreview(backend, document?.tree.current ?? null, revision, analysis, boardHover);
+  const currentNode = document?.tree.current ?? null;
+  // The sub-board plays out the best move's line, or the hovered candidate's; the main board
+  // shows the same replay only while a candidate is hovered.
+  const bestPoint = useMemo(() => {
+    if (!analysis || analysis.node_id !== currentNode) return null;
+    const best = analysis.candidates.reduce<(typeof analysis.candidates)[number] | null>(
+      (first, candidate) => (candidate.point && candidate.pv.length > 0 && (!first || candidate.order < first.order) ? candidate : first),
+      null,
+    );
+    return best?.point ?? null;
+  }, [analysis, currentNode]);
+  const replay = useVariationPreview(backend, currentNode, revision, analysis, boardHover ?? bestPoint);
+  const variation = boardHover ? replay : null;
   const info = document?.game_info ?? null;
   // The mistake bars share the graph's line and indexing; anything else is stale.
   const mistakes = problems && problems.error_bar.length === points.length ? problems.error_bar : undefined;
-  const analysed = points.some((point) => point.summary !== null);
-  const currentNode = document?.tree.current ?? null;
+  const analysedCount = useMemo(() => points.filter((point) => point.summary !== null).length, [points]);
+  const analysed = analysedCount > 0;
+  const ranks = useMemo(() => {
+    const byNode = new Map<number, MoveRank>();
+    for (const point of mistakes ?? []) if (point.loss) byNode.set(point.node_id, point.loss.rank);
+    return byNode;
+  }, [mistakes]);
   // The mark on the last move: its rank, known once it and the move before it are analysed.
   const lastRank = useMemo(
     () => mistakes?.find((point) => point.node_id === currentNode)?.loss?.rank ?? null,
@@ -361,9 +373,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     },
   );
   useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen || tuningOpen || settingsOpen));
-  const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(profile ? engineName(profile) : null)], [profile]);
   const frame = messages.frame;
-  const engineLabel = profile ? engineName(profile) : null;
+  const engineLabel = useEngineName(backend, profile, frame.engineNames);
+  const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(engineLabel)], [engineLabel]);
   const autoAnalyzing = quickRunning || wholeGameStatus === "Running";
   // Java's title: "[Black's winrate, lead, visits] engine speed - [黑] A vs [白] B (结果:…)".
   const title = windowTitle({
@@ -373,16 +385,43 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     engine: engineLabel,
     speed:
       (livePondering && speed !== null ? `${Math.round(speed)} ${frame.title.speedUnit}` : "") +
-      (engineLabel !== null && /b11/i.test(engineLabel) ? ` · ${frame.title.b11} ` : ""),
+      (engineLabel !== null && /b11|11b/i.test(engineLabel) ? ` · ${frame.title.b11} ` : ""),
     players:
       info && (info.black_name || info.white_name)
         ? `[${frame.title.black}] ${info.black_name ?? ""} vs [${frame.title.white}] ${info.white_name ?? ""}`
         : null,
     result: info?.result?.trim() ? `(${frame.title.result}${info.result.trim()})` : null,
+    file: document?.file_name ?? null,
   });
   useEffect(() => {
     backend.setWindowTitle(title).catch(report);
   }, [title]);
+  // A game that cannot be opened, picked or dropped, is reported by Rust; say so as Java does.
+  useEffect(() => {
+    let active = true;
+    let id: number | undefined;
+    backend
+      .subscribeOpenFailed(setOpenFailure)
+      .then((subscription) => {
+        if (active) id = subscription;
+        else backend.unsubscribe(subscription).catch(report);
+      })
+      .catch(report);
+    return () => {
+      active = false;
+      if (id !== undefined) backend.unsubscribe(id).catch(report);
+    };
+  }, []);
+  const reviewing = wholeGameStatus === "Running" || wholeGameStatus === "Paused";
+  const reviewStatus: ReviewStatus | null =
+    reviewing && wholeGame.progress
+      ? { state: "running", text: messages.notes.statusRunning.replace("{done}", String(wholeGame.progress.completed)).replace("{total}", String(wholeGame.progress.total)) }
+      : points.length > 1 && analysedCount === points.length
+        ? { state: "done", text: messages.notes.statusDone }
+        : analysedCount > 1
+          ? { state: "partial", text: messages.notes.statusPartial.replace("{done}", String(analysedCount)).replace("{total}", String(points.length)) }
+          : null;
+  const summaryLines = board ? analysisSummary(points, currentIndex, board.last_move, engineLabel, info?.komi ?? 0, messages.notes) : [];
   // Java's status line: "engine · state · the key to press". First-run setup reads as starting.
   const shownEngine: EngineStatus = autoSetup && engine.type === "Stopped" ? { type: "Starting" } : engine;
   const engineDetail =
@@ -457,21 +496,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         }}
         regions={{
           captured: (
-            <PlayersSection
+            <CapturedBox
               board={board}
-              black={{
-                name: info?.black_name ?? null,
-                rank: info?.black_rank ?? null,
-                match: strengthReport && strengthReport.black.sample_count > 0 ? strengthReport.black.match_rate : null,
-              }}
-              white={{
-                name: info?.white_name ?? null,
-                rank: info?.white_rank ?? null,
-                match: strengthReport && strengthReport.white.sample_count > 0 ? strengthReport.white.match_rate : null,
-              }}
-              points={points}
-              currentIndex={currentIndex}
               game={info}
+              blackMatch={strengthReport && strengthReport.black.sample_count > 0 ? strengthReport.black.match_rate : null}
+              whiteMatch={strengthReport && strengthReport.white.sample_count > 0 ? strengthReport.white.match_rate : null}
               labels={messages.info}
             />
           ),
@@ -484,72 +513,37 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               data-visits={analysis?.visits}
               title={analysis ? messages.board.visits.replace("{visits}", String(analysis.visits)) : undefined}
             >
-              <EvaluationSection
-                board={board}
-                black={{ name: null, rank: null }}
-                white={{ name: null, rank: null }}
-                points={points}
-                currentIndex={currentIndex}
-                labels={messages.info}
-              />
+              <StatisticsBox board={board} points={points} currentIndex={currentIndex} labels={messages.info} />
             </div>
           ),
           graph: (
-            <section className="section graph-section" aria-label={messages.graph.title}>
-              <div className="section-header">
-                <h2 className="section-title">{messages.graph.title}</h2>
-                {quickRunning && quickPass ? (
-                  <span className="curve-progress" data-testid="curve-progress">
-                    <span className="curve-progress-bar" aria-hidden="true">
-                      <span style={{ width: `${(quickPass.completed / Math.max(1, quickPass.total)) * 100}%` }} />
-                    </span>
-                    {messages.graph.quick.replace("{done}", String(quickPass.completed)).replace("{total}", String(quickPass.total))}
-                    <button type="button" className="curve-progress-stop" data-testid="curve-progress-stop" title={messages.graph.quickStop} aria-label={messages.graph.quickStop} onClick={wholeGame.cancel}>
-                      ×
-                    </button>
-                  </span>
-                ) : (
-                  <span className="legend" aria-hidden="true">
-                    <span>{messages.graph.legendWinrate}</span>
-                    <span className="score">{messages.graph.legendScore}</span>
-                  </span>
-                )}
-              </div>
-              <div className="graph-wrap">
-                {document ? <WinrateGraph graph={document.graph} analysis={analysis} mistakes={mistakes} labels={messages.graph} onJump={jump} /> : null}
-              </div>
-            </section>
+            <div className="graph-region">
+              {quickRunning && quickPass ? <CurveProgress done={quickPass.completed} total={quickPass.total} labels={messages.graph} onStop={wholeGame.cancel} /> : null}
+              {document ? <WinrateGraph graph={document.graph} analysis={analysis} mistakes={mistakes} labels={messages.graph} onJump={jump} /> : null}
+            </div>
           ),
           comment: (
-            <section className="section notes-section">
-              <div className="tabs" role="tablist">
-                <button type="button" role="tab" aria-selected={notesTab === "problems"} data-testid="tab-problems" onClick={() => setNotesTab("problems")}>
-                  {messages.problems.title}
-                  {problems && problems.entries.length > 0 ? <span className="tab-count">{problems.entries.length}</span> : null}
-                </button>
-                <button type="button" role="tab" aria-selected={notesTab === "comment"} data-testid="tab-comment" onClick={() => setNotesTab("comment")}>
-                  {messages.problems.comment}
-                  {document?.comment ? <span className="tab-dot" aria-hidden="true" /> : null}
-                </button>
-              </div>
-              {notesTab === "problems" ? (
-                <ProblemList
-                  view={problems}
-                  current={document?.tree.current ?? -1}
-                  color={problemColor}
-                  sort={problemSort}
-                  analysed={analysed}
-                  labels={messages.problems}
-                  onColor={setProblemColor}
-                  onSort={setProblemSort}
-                  onJump={jump}
-                />
-              ) : (
-                <div className="comment" data-testid="comment">
-                  {document?.comment ? <p>{document.comment}</p> : <p className="panel-empty">{messages.problems.noComment}</p>}
-                </div>
-              )}
-            </section>
+            <NotesPanel
+              tab={notesTab}
+              onTab={setNotesTab}
+              problemCount={problems?.entries.length ?? 0}
+              status={reviewStatus}
+              summary={summaryLines}
+              comment={document?.comment ?? null}
+              labels={messages.notes}
+            >
+              <ProblemList
+                view={problems}
+                current={document?.tree.current ?? -1}
+                color={problemColor}
+                sort={problemSort}
+                analysed={analysed}
+                labels={messages.problems}
+                onColor={setProblemColor}
+                onSort={setProblemSort}
+                onJump={jump}
+              />
+            </NotesPanel>
           ),
           status: (
             <span data-testid="engine-status" data-state={shownEngine.type} title={engineDetail ?? messages.engine[shownEngine.type]}>
@@ -579,16 +573,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             </p>
           ),
           tree: (
-            <MoveTree
-              tree={tree}
-              current={document?.tree.current ?? -1}
-              line={line}
-              boardSize={board?.width ?? 19}
-              variationCount={document?.tree.variation_count ?? 0}
-              labels={messages.tree}
-              onJump={jump}
-            />
+            <MoveTree tree={tree} current={document?.tree.current ?? -1} line={line} boardSize={board?.width ?? 19} ranks={ranks} label={messages.tree.label} onJump={jump} />
           ),
+          subBoard: board ? <SubBoard board={board} variation={replay} label={messages.tree.subBoard} /> : null,
         }}
       />
       <BottomToolbar
@@ -623,6 +610,15 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         onStep={step}
       />
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}
+      {openFailure ? (
+        <MessageBox
+          title={frame.openFailed.title}
+          lines={[fileName(openFailure.path), openFailure.reason]}
+          ok={frame.openFailed.ok}
+          testId="open-failed"
+          onClose={() => setOpenFailure(null)}
+        />
+      ) : null}
       {strengthOpen ? (
         <StrengthDialog
           view={strength}
@@ -664,7 +660,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {tuningOpen ? (
         <BenchmarkDialog
           status={tuning.status}
-          model={profile ? engineName(profile) : null}
+          model={engineLabel}
           labels={messages.benchmark}
           onStart={tuning.start}
           onStop={tuning.cancel}

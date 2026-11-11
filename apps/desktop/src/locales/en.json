@@ -44,8 +44,8 @@
     "empty": "No analysis yet",
     "move": "Move {n}",
     "title": "Winrate",
-    "legendWinrate": "Black",
-    "legendScore": "Score",
+    "legendWinrate": "Black winrate",
+    "legendScore": "Score lead",
     "quick": "Drawing {done}/{total}",
     "quickStop": "Stop drawing the graph"
   },
@@ -80,10 +80,10 @@
     "blackLeads": "B+{score}",
     "whiteLeads": "W+{score}",
     "even": "Even",
-    "lastMove": "Last move (#{n}): {winrate}% {score}",
+    "lastMove": "Last {winrate}% {score}",
     "noAnalysis": "No analysis",
     "comment": "Comment",
-    "match": "Match {n}%",
+    "match": "Match {n}",
     "matchHint": "Match: AI first choices, good moves and mistakes combined; higher is closer to the AI",
     "komi": "Komi {n}",
     "handicap": "{n} handicap",
@@ -94,11 +94,16 @@
       "aga": "AGA rules",
       "new-zealand": "New Zealand rules",
       "tromp-taylor": "Tromp-Taylor rules"
-    }
+    },
+    "blackShort": "B",
+    "whiteShort": "W",
+    "blackToPlay": "Black to play",
+    "whiteToPlay": "White to play"
   },
   "tree": {
     "label": "Moves",
-    "variations": "{n} variations"
+    "variations": "{n} variations",
+    "subBoard": "Sub-board: the expected line"
   },
   "review": {
     "title": "Auto analysis",
@@ -805,6 +810,30 @@
       "result": "Result:",
       "speedUnit": "visits/s",
       "b11": "B11: lower speed, stronger play"
+    },
+    "engineNames": {
+      "b10-lightweight": "Transformer 10B Lightweight",
+      "b10-balanced": "Transformer 10B Balanced",
+      "b11-flagship": "Transformer 11B Flagship"
+    },
+    "openFailed": {
+      "title": "Cannot open the game",
+      "ok": "OK"
     }
+  },
+  "notes": {
+    "comment": "Comment",
+    "problems": "Problems",
+    "noComment": "No comment on this move",
+    "statusDone": "Evaluated",
+    "statusRunning": "Evaluating {done}/{total}",
+    "statusPartial": "Evaluated {done}/{total}",
+    "blackSide": "Black",
+    "whiteSide": "White",
+    "winrate": "{side} winrate: {winrate}%",
+    "lead": "Lead: {lead}",
+    "engine": "({engine} / {visits} visits)",
+    "visits": "({visits} visits)",
+    "komi": "Komi: {komi}"
   }
 }

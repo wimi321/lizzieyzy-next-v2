@@ -1,9 +1,7 @@
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { AnalysisView, BoardView, MoveRank, PointView, VariationPreviewView } from "@/api/backend";
-import blackUrl from "../assets/java/black0.png?no-inline";
-import boardUrl from "../assets/java/board.png?no-inline";
-import whiteUrl from "../assets/java/white0.png?no-inline";
-import { type BoardImages, drawGoban, drawOverlay, drawStones, type Names, type NextMove, NUMBER_FONT, prepare, settleFonts, UI_FONT } from "./draw";
+import { useBoardAssets, useElementSize } from "./assets";
+import { drawGoban, drawOverlay, drawStones, type Names, type NextMove, prepare } from "./draw";
 import { computeGeometry, pixelToPoint, pointIndex } from "./geometry";
 
 export interface BoardProps {
@@ -29,27 +27,6 @@ export interface BoardProps {
   /** The candidate under the pointer, so the app can ask Rust for its variation. */
   onHoverCandidate?(point: PointView | null): void;
   onPlay(point: PointView): void;
-}
-
-interface Size {
-  width: number;
-  height: number;
-  dpr: number;
-}
-
-function load(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = reject;
-    image.src = url;
-  });
-}
-
-let imagesPromise: Promise<BoardImages> | null = null;
-function loadImages(): Promise<BoardImages> {
-  imagesPromise ??= Promise.all([load(boardUrl), load(blackUrl), load(whiteUrl)]).then(([board, black, white]) => ({ board, black, white }));
-  return imagesPromise;
 }
 
 const NO_NEXT: NextMove[] = [];
@@ -80,44 +57,9 @@ export function Board({
   const gobanCanvas = useRef<HTMLCanvasElement>(null);
   const stoneCanvas = useRef<HTMLCanvasElement>(null);
   const overlayCanvas = useRef<HTMLCanvasElement>(null);
-  const [size, setSize] = useState<Size>({ width: 0, height: 0, dpr: 1 });
-  const [images, setImages] = useState<BoardImages | null>(null);
-  const [fonts, setFonts] = useState(0);
+  const size = useElementSize(container);
+  const { images, fonts } = useBoardAssets();
   const [hover, setHover] = useState<PointView | null>(null);
-
-  useEffect(() => {
-    const element = container.current;
-    if (!element || typeof ResizeObserver === "undefined") return;
-    // ResizeObserver reports the initial size too, so no synchronous measuring here.
-    const observer = new ResizeObserver(() => {
-      const rect = element.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      setSize((previous) =>
-        previous.width === rect.width && previous.height === rect.height && previous.dpr === dpr
-          ? previous
-          : { width: rect.width, height: rect.height, dpr },
-      );
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    loadImages()
-      .then((loaded) => active && setImages(loaded))
-      .catch((error: unknown) => console.error("Board images failed to load", error));
-    const fontSet = typeof document !== "undefined" ? document.fonts : undefined;
-    if (!fontSet?.load) return;
-    // Canvas text does not trigger a font download by itself.
-    Promise.allSettled([fontSet.load(`16px ${NUMBER_FONT}`), fontSet.load(`16px ${UI_FONT}`)]).then(() => {
-      settleFonts();
-      if (active) setFonts((count) => count + 1);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const big = coordinates || names !== null;
   const geometry = useMemo(

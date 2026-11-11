@@ -590,8 +590,19 @@ function drawNextMoveBlunder(
   text(context, scoreText(score), x, y + Math.round(down), NUMBER_FONT, cell * 0.3, cell * 0.65, "above");
 }
 
+/** The sub-board's picture: a line's stones, numbered, over the position it leads to. */
+export function drawLine(context: Context, geometry: Geometry, images: BoardImages, board: BoardView, variation: VariationPreviewView) {
+  if (geometry.cell > 0) drawVariation(context, geometry, images, { board, analysis: null, hover: null }, variation);
+}
+
 /** `VariationPreviewGenerator`: the hovered line as numbered stones over Rust's replayed board. */
-function drawVariation(context: Context, geometry: Geometry, images: BoardImages, layer: OverlayLayer, variation: VariationPreviewView) {
+function drawVariation(
+  context: Context,
+  geometry: Geometry,
+  images: BoardImages,
+  layer: Pick<OverlayLayer, "board" | "analysis" | "hover">,
+  variation: VariationPreviewView,
+) {
   const { stoneRadius: r } = geometry;
   const { board } = layer;
   // Stones the line captures stay visible as ghosts.
