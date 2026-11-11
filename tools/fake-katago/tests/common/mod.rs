@@ -1,14 +1,56 @@
 #![allow(dead_code)]
 
 use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 
 pub const SAFETY_TIMEOUT: Duration = Duration::from_secs(5);
+
+static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+
+pub struct TempDirectory(PathBuf);
+
+impl TempDirectory {
+    pub fn new(label: &str) -> Self {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        Self::new_at(label, timestamp)
+    }
+
+    fn new_at(label: &str, timestamp: u128) -> Self {
+        // The clock can repeat across parallel tests; the sequence cannot.
+        let sequence = NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "fake-katago-{label}-{}-{timestamp}-{sequence}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&path).unwrap();
+        Self(path)
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
+
+    pub fn remove(self) {
+        std::fs::remove_dir_all(&self.0).unwrap();
+        assert!(!self.0.exists(), "temporary directory must not leak");
+    }
+}
+
+impl Drop for TempDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 pub struct Engine {
     child: Child,
@@ -146,3 +188,6 @@ pub fn stream(id: &str) -> Value {
     request["firstReportDuringSearchAfter"] = json!(0.001);
     request
 }
+
+#[cfg(test)]
+mod tests;
