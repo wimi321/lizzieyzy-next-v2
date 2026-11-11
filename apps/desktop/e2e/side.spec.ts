@@ -54,12 +54,12 @@ test("the side columns show what Java's show: the game's terms, the evaluation, 
     if (!rect) throw new Error(`no ${region} region`);
     return rect;
   };
-  const [captured, status, moves, sub] = await Promise.all([box("captured"), box("status"), box("tree"), box("sub-board")]);
+  const [captured, status, treeBox, sub] = await Promise.all([box("captured"), box("status"), box("tree"), box("sub-board")]);
   await expect(page).toHaveScreenshot("left-column.png", {
     clip: { x: captured.x, y: captured.y, width: captured.width, height: status.y + status.height - captured.y },
   });
   await expect(page).toHaveScreenshot("right-column.png", {
-    clip: { x: moves.x, y: moves.y, width: moves.width, height: sub.y + sub.height - moves.y },
+    clip: { x: treeBox.x, y: treeBox.y, width: treeBox.width, height: sub.y + sub.height - treeBox.y },
   });
 });
 
