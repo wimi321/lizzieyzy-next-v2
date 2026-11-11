@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { backingSize, computeGeometry, pixelToPoint, pointIndex, pointToPixel, starPoints } from "./geometry";
+import { computeGeometry, pixelToPoint, pointIndex, pointToPixel, starPoints } from "./geometry";
 
 describe("pixel and point conversion", () => {
   test.each([
@@ -8,7 +8,7 @@ describe("pixel and point conversion", () => {
     [13, 13, 500, 420, 1.5, true],
     [9, 9, 300, 300, 3, false],
     [9, 13, 600, 400, 2, true],
-  ])("%ix%i in %ix%i CSS px at DPR %f: every point round-trips", (columns, rows, width, height, dpr, coordinates) => {
+  ])("%ix%i on a %ix%i canvas at scale %f: every point round-trips", (columns, rows, width, height, dpr, coordinates) => {
     const geometry = computeGeometry(columns, rows, width, height, dpr, coordinates);
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < columns; x++) {
@@ -19,9 +19,7 @@ describe("pixel and point conversion", () => {
         expect(pixelToPoint(geometry, pixel.x + nudge, pixel.y - nudge)).toEqual({ x, y });
       }
     }
-    const { width: deviceWidth, height: deviceHeight } = backingSize(geometry);
-    expect(deviceWidth).toBe(Math.round(width * dpr));
-    expect(deviceHeight).toBe(Math.round(height * dpr));
+    expect([geometry.width, geometry.height]).toEqual([width, height]);
   });
 
   test("a 833 px square is laid out as LizzieYzy Next lays it out", () => {

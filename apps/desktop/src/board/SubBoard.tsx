@@ -29,7 +29,7 @@ export function SubBoard({ board, node, revision, variation: latest, label }: Su
   const size = useElementSize(container);
   const { images, fonts } = useBoardAssets();
   const geometry = useMemo(
-    () => computeGeometry(board.width, board.height, Math.round(size.width * size.dpr), Math.round(size.height * size.dpr), size.dpr, false),
+    () => computeGeometry(board.width, board.height, size.deviceWidth, size.deviceHeight, size.dpr, false),
     [board.width, board.height, size],
   );
 

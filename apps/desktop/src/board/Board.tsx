@@ -63,9 +63,11 @@ export function Board({
 
   const big = coordinates || names !== null;
   const geometry = useMemo(
-    () => computeGeometry(board.width, board.height, Math.round(size.width * size.dpr), Math.round(size.height * size.dpr), size.dpr, big),
+    () => computeGeometry(board.width, board.height, size.deviceWidth, size.deviceHeight, size.dpr, big),
     [board.width, board.height, size, big],
   );
+  // Canvas pixels per CSS pixel, as laid out: the pointer and E2E speak CSS pixels.
+  const scale = size.width > 0 ? size.deviceWidth / size.width : 1;
 
   const target = hover ?? preview;
   // The replay replaces the stones while a candidate is previewed.
@@ -109,7 +111,7 @@ export function Board({
 
   const pointAt = (event: MouseEvent<HTMLElement>): PointView | null => {
     const rect = event.currentTarget.getBoundingClientRect();
-    return pixelToPoint(geometry, (event.clientX - rect.left) * geometry.dpr, (event.clientY - rect.top) * geometry.dpr);
+    return pixelToPoint(geometry, (event.clientX - rect.left) * scale, (event.clientY - rect.top) * scale);
   };
 
   const onMouseMove = (event: MouseEvent<HTMLElement>) => {
@@ -146,9 +148,9 @@ export function Board({
       data-last-rank={lastRank ?? ""}
       data-next-moves={next.length}
       // Layout for E2E pointer tests: CSS pixels of point (0, 0) and the line spacing.
-      data-cell={(geometry.cell / geometry.dpr).toFixed(3)}
-      data-origin-x={(geometry.originX / geometry.dpr).toFixed(3)}
-      data-origin-y={(geometry.originY / geometry.dpr).toFixed(3)}
+      data-cell={(geometry.cell / scale).toFixed(3)}
+      data-origin-x={(geometry.originX / scale).toFixed(3)}
+      data-origin-y={(geometry.originY / scale).toFixed(3)}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       onClick={onClick}

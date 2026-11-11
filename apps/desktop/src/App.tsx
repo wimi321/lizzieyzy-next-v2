@@ -375,7 +375,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen || tuningOpen || settingsOpen));
   const frame = messages.frame;
   const engineLabel = useEngineName(backend, profile, frame.engineNames);
-  const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(engineLabel)], [engineLabel]);
+  // "No engine" is for no engine: one that Rust has not named yet shows without a name.
+  const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(engineLabel ?? (profile ? "" : null))], [engineLabel, profile]);
   const autoAnalyzing = quickRunning || wholeGameStatus === "Running";
   // Java's title: "[Black's winrate, lead, visits] engine speed - [黑] A vs [白] B (结果:…)".
   const title = windowTitle({
@@ -432,7 +433,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         : undefined;
   const statusText = joinParts(
     " · ",
-    engineLabel ?? frame.status.noEngine,
+    profile ? engineLabel : frame.status.noEngine,
     shownEngine.type !== "Ready"
       ? messages.engine[shownEngine.type]
       : autoAnalyzing

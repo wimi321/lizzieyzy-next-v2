@@ -40,8 +40,8 @@ const TAU = Math.PI * 2;
 export function prepare(canvas: HTMLCanvasElement, geometry: Geometry): Context | null {
   // Nothing to draw before the first layout (and never in jsdom, which has no canvas).
   if (geometry.cell <= 0) return null;
-  if (canvas.width !== geometry.cssWidth) canvas.width = geometry.cssWidth;
-  if (canvas.height !== geometry.cssHeight) canvas.height = geometry.cssHeight;
+  if (canvas.width !== geometry.width) canvas.width = geometry.width;
+  if (canvas.height !== geometry.height) canvas.height = geometry.height;
   const context = canvas.getContext("2d");
   if (!context) return null;
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -250,10 +250,13 @@ function drawNames(context: Context, geometry: Geometry, images: BoardImages, na
   context.fillStyle = "#000";
   context.fillText(black, center - gap, baseline);
 
+  // Java's 2 px black edge. On a 1x screen the name is only 14 px tall and the edge would eat
+  // its white; semibold keeps it.
+  if (dpr < 1.5) context.font = `600 ${size}px ${UI_FONT}`;
   const white = truncate(context, names.white, maximumWidth);
   context.textAlign = "left";
   context.lineJoin = "round";
-  context.lineWidth = Math.max(1.5, dpr);
+  context.lineWidth = Math.max(2, dpr);
   context.strokeStyle = "#000";
   context.strokeText(white, center + gap + 1, baseline);
   context.fillStyle = "#fff";

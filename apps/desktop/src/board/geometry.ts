@@ -1,13 +1,17 @@
 import type { PointView } from "@/api/backend";
 
-/** Layout in CSS pixels. Canvas backing stores multiply by `dpr`. */
+/**
+ * Layout in canvas pixels. The board's canvases have one pixel per device pixel, which is how
+ * Java lays the board out and what keeps lines and stones on whole pixels at any display scale.
+ */
 export interface Geometry {
   /** Board intersections. */
   columns: number;
   rows: number;
-  /** CSS size of the canvas. */
-  cssWidth: number;
-  cssHeight: number;
+  /** Size of the canvas. */
+  width: number;
+  height: number;
+  /** Canvas pixels per CSS pixel, for the few things that keep one size to the eye on every screen. */
   dpr: number;
   /** Distance between adjacent lines, a whole number of pixels as in Java. */
   cell: number;
@@ -50,15 +54,15 @@ function axis(length: number, lines: number, ratio: number): { board: number; ma
 export function computeGeometry(
   columns: number,
   rows: number,
-  cssWidth: number,
-  cssHeight: number,
+  canvasWidth: number,
+  canvasHeight: number,
   dpr: number,
   bigMargin: boolean,
 ): Geometry {
   const ratio = bigMargin ? BIG_MARGIN : SMALL_MARGIN;
   const square = columns === rows;
-  const horizontal = axis(square ? Math.min(cssWidth, cssHeight) : cssWidth, columns, ratio);
-  const vertical = square ? { ...horizontal } : axis(cssHeight, rows, ratio);
+  const horizontal = axis(square ? Math.min(canvasWidth, canvasHeight) : canvasWidth, columns, ratio);
+  const vertical = square ? { ...horizontal } : axis(canvasHeight, rows, ratio);
   let cellX = Math.trunc(horizontal.available / Math.max(1, columns - 1));
   let cellY = Math.trunc(vertical.available / Math.max(1, rows - 1));
   if (cellX > cellY) {
@@ -75,13 +79,13 @@ export function computeGeometry(
     vertical.margin = horizontal.margin;
   }
   const cell = Math.max(0, cellX);
-  const boardX = Math.trunc((cssWidth - horizontal.board) / 2);
-  const boardY = Math.trunc((cssHeight - vertical.board) / 2);
+  const boardX = Math.trunc((canvasWidth - horizontal.board) / 2);
+  const boardY = Math.trunc((canvasHeight - vertical.board) / 2);
   return {
     columns,
     rows,
-    cssWidth,
-    cssHeight,
+    width: canvasWidth,
+    height: canvasHeight,
     dpr,
     cell,
     // Java's integer coordinate k is the pixel [k, k + 1); its center is k + 0.5.
@@ -97,14 +101,6 @@ export function computeGeometry(
   };
 }
 
-/** Backing-store size for crisp lines on high-DPI screens. */
-export function backingSize(geometry: Geometry): { width: number; height: number } {
-  return {
-    width: Math.max(1, Math.round(geometry.cssWidth * geometry.dpr)),
-    height: Math.max(1, Math.round(geometry.cssHeight * geometry.dpr)),
-  };
-}
-
 export function pointToPixel(geometry: Geometry, point: PointView): { x: number; y: number } {
   return {
     x: geometry.originX + point.x * geometry.cell,
@@ -112,7 +108,7 @@ export function pointToPixel(geometry: Geometry, point: PointView): { x: number;
   };
 }
 
-/** The intersection under a CSS-pixel position, or null outside half a cell. */
+/** The intersection under a canvas-pixel position, or null outside half a cell. */
 export function pixelToPoint(geometry: Geometry, x: number, y: number): PointView | null {
   if (geometry.cell <= 0) return null;
   // `|| 0` turns the -0 that rounding a tiny negative offset yields into 0.
