@@ -575,7 +575,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           tree: (
             <MoveTree tree={tree} current={document?.tree.current ?? -1} line={line} boardSize={board?.width ?? 19} ranks={ranks} label={messages.tree.label} onJump={jump} />
           ),
-          subBoard: board ? <SubBoard board={board} variation={replay} label={messages.tree.subBoard} /> : null,
+          subBoard: board ? <SubBoard board={board} node={currentNode} revision={revision} variation={replay} label={messages.tree.subBoard} /> : null,
         }}
       />
       <BottomToolbar
