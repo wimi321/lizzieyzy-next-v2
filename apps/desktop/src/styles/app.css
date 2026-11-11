@@ -47,35 +47,6 @@
   --status-failed: var(--bad);
   --status-idle: var(--text-3);
 
-  --board-wood: #e8c88c;
-  --board-wood-edge: #d6ad68;
-  --board-wood-grain: #7a4c1e;
-  --board-wood-vignette: rgba(92, 54, 14, 0.18);
-  --board-shadow: rgba(0, 0, 0, 0.6);
-  --board-line: rgba(38, 24, 8, 0.86);
-  --board-coordinate: rgba(70, 46, 16, 0.78);
-  --stone-black-light: #6d6d6d;
-  --stone-black-mid: #252525;
-  --stone-black-dark: #040404;
-  --stone-white-light: #ffffff;
-  --stone-white-mid: #f2efe8;
-  --stone-white-dark: #c8c1b2;
-  --stone-white-edge: rgba(70, 52, 24, 0.26);
-  --stone-shadow: rgba(26, 14, 0, 0.5);
-  --last-move-on-black: #f0c879;
-  --last-move-on-white: #a06d1e;
-  --candidate-tier-0: #42c480;
-  --candidate-tier-1: #9ecd5b;
-  --candidate-tier-2: #ddc653;
-  --candidate-tier-3: #e9a751;
-  --candidate-tier-4: #e5844f;
-  --candidate-tier-5: #d55f57;
-  --candidate-best-ring: rgba(255, 255, 255, 0.92);
-  --candidate-text: #111111;
-  --candidate-order: rgba(36, 22, 6, 0.82);
-  --candidate-shadow: rgba(40, 22, 4, 0.32);
-  --ownership-black: rgb(14, 14, 14);
-  --ownership-white: rgb(252, 252, 252);
 
   --graph-plot: transparent;
   --graph-grid: rgba(255, 255, 255, 0.055);
@@ -914,13 +885,18 @@ button.chip:hover {
 
 /* Board */
 
+/* Open Sans Semibold, which LizzieYzy Next ships for the winrates and scores on the board. */
+@font-face {
+  font-family: "Lizzie Open Sans";
+  src: url("../assets/fonts/OpenSans-Semibold.ttf") format("truetype");
+  font-display: block;
+}
+
 .board-area {
   position: relative;
   display: flex;
   min-width: 0;
   min-height: 0;
-  padding: 18px;
-  background: radial-gradient(ellipse at 50% 45%, #1c1d21 0%, var(--bg-window) 72%);
 }
 
 .board {

@@ -13,7 +13,9 @@
     "coordinates": "坐标",
     "ownership": "领地",
     "positionError": "这一手的局面无法计算：{reason}",
-    "loading": "正在载入…"
+    "loading": "正在载入…",
+    "pass": "停一手",
+    "emptyHint": "打开棋谱、把 SGF 拖进来，或新建对局"
   },
   "engine": {
     "Starting": "引擎启动中",

@@ -24,12 +24,25 @@ describe("pixel and point conversion", () => {
     expect(deviceHeight).toBe(Math.round(height * dpr));
   });
 
+  test("a 833 px square is laid out as LizzieYzy Next lays it out", () => {
+    // Java shrinks the board to 829 px so the 18 cells are 41 px each: (739 - 1) / 18.
+    const geometry = computeGeometry(19, 19, 833, 833, 2, true);
+    expect(geometry.boardWidth).toBe(829);
+    expect(geometry.margin).toBe(45);
+    expect(geometry.available).toBe(739);
+    expect(geometry.cell).toBe(41);
+    expect(geometry.stoneRadius).toBe(19);
+    expect(geometry.boardX).toBe(2);
+    expect(geometry.originX).toBe(2 + 45 + 0.5);
+  });
+
   test("the board is centered and fits the shorter side, margins included", () => {
     const geometry = computeGeometry(19, 19, 1000, 700, 2, true);
-    const span = geometry.cell * 18 + geometry.margin * 2;
-    expect(span).toBeCloseTo(700);
-    expect(geometry.originX - geometry.margin).toBeCloseTo((1000 - span) / 2);
-    expect(geometry.originY - geometry.margin).toBeCloseTo(0);
+    expect(geometry.boardWidth).toBeLessThanOrEqual(700);
+    expect(geometry.boardWidth).toBeGreaterThan(680);
+    expect(geometry.cell * 18 + 1).toBe(geometry.available);
+    expect(geometry.boardX).toBe(Math.trunc((1000 - geometry.boardWidth) / 2));
+    expect(geometry.originX - 0.5 - geometry.margin).toBe(geometry.boardX);
   });
 
   test("a rectangular board keeps width and height apart", () => {

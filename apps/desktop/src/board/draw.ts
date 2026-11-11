@@ -1,361 +1,675 @@
-import type { AnalysisView, BoardView, CandidateView, ColorView, PointView, PreviewStoneView } from "@/api/backend";
-import { candidateTier, columnLabel, formatScore, formatVisits, formatWinrate, forMover, rowLabel, winrateLoss } from "./format";
+import type { AnalysisView, BoardView, CandidateView, ColorView, MoveRank, PointView, VariationPreviewView } from "@/api/backend";
+import { columnLabel, forMover, rowLabel } from "./format";
 import { type Geometry, pointIndex, pointToPixel, starPoints } from "./geometry";
-import type { Palette } from "./palette";
+import {
+  blunderLevel,
+  css,
+  fitFontSize,
+  lineSpan,
+  lineWidths,
+  playoutsText,
+  RANK_COLORS,
+  scoreText,
+  shownSuggestions,
+  starRadius,
+  suggestionAlphaRatio,
+  suggestionColor,
+  winrateText,
+} from "./suggestion";
 
-const FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-const STONE_RADIUS = 0.48;
-const CANDIDATE_RADIUS = 0.46;
+/**
+ * LizzieYzy Next's `BoardRenderer`, japanese style and default theme, drawn in device pixels:
+ * Java lays the board out in device pixels on high-DPI screens, so the canvas does too.
+ */
 
-/** Sizes the backing store for the device pixel ratio and maps drawing to CSS pixels. */
-export function prepare(canvas: HTMLCanvasElement, geometry: Geometry, width: number, height: number) {
+/** Java's logical `Dialog` font: Lucida Grande on macOS, Arial on Windows, DejaVu on Linux. */
+export const UI_FONT = '"Lucida Grande", Arial, "DejaVu Sans", "PingFang SC", "Microsoft YaHei", sans-serif';
+/** Open Sans Semibold, which Java ships for winrates and scores. */
+export const NUMBER_FONT = `"Lizzie Open Sans", ${UI_FONT}`;
+
+export interface BoardImages {
+  board: CanvasImageSource;
+  black: CanvasImageSource;
+  white: CanvasImageSource;
+}
+
+type Context = CanvasRenderingContext2D;
+const TAU = Math.PI * 2;
+
+/** Sizes the backing store to the geometry and clears it. */
+export function prepare(canvas: HTMLCanvasElement, geometry: Geometry): Context | null {
   // Nothing to draw before the first layout (and never in jsdom, which has no canvas).
   if (geometry.cell <= 0) return null;
-  if (canvas.width !== width) canvas.width = width;
-  if (canvas.height !== height) canvas.height = height;
+  if (canvas.width !== geometry.cssWidth) canvas.width = geometry.cssWidth;
+  if (canvas.height !== geometry.cssHeight) canvas.height = geometry.cssHeight;
   const context = canvas.getContext("2d");
   if (!context) return null;
-  context.setTransform(geometry.dpr, 0, 0, geometry.dpr, 0, 0);
-  context.clearRect(0, 0, geometry.cssWidth, geometry.cssHeight);
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, canvas.width, canvas.height);
   return context;
 }
 
-export function drawBackground(context: CanvasRenderingContext2D, geometry: Geometry, palette: Palette, coordinates: boolean) {
-  const { cell, originX, originY, margin, columns, rows } = geometry;
-  if (cell <= 0) return;
-  const left = originX - margin;
-  const top = originY - margin;
-  const width = cell * (columns - 1) + margin * 2;
-  const height = cell * (rows - 1) + margin * 2;
-  const radius = Math.min(6, cell * 0.16);
-  const wood = context.createLinearGradient(left, top, left + width, top + height);
-  wood.addColorStop(0, palette.wood);
-  wood.addColorStop(1, palette.woodEdge);
-  context.save();
-  context.shadowColor = palette.boardShadow;
-  context.shadowBlur = Math.max(12, cell * 0.9);
-  context.shadowOffsetY = Math.max(4, cell * 0.3);
-  context.fillStyle = wood;
+/** Java's `fillOval(x - r, y - r, 2r + 1, 2r + 1)`: a disc of radius r + ½ about the pixel centre. */
+function disc(context: Context, x: number, y: number, radius: number) {
   context.beginPath();
-  context.roundRect(left, top, width, height, radius);
-  context.fill();
-  context.restore();
-  drawGrain(context, left, top, width, height, radius, palette);
+  context.arc(x, y, radius + 0.5, 0, TAU);
+}
 
-  context.strokeStyle = palette.line;
-  context.lineCap = "square";
-  const thin = Math.min(1.6, Math.max(1, cell * 0.03));
-  context.lineWidth = thin;
-  context.beginPath();
-  for (let x = 0; x < columns; x++) {
-    const px = originX + x * cell;
-    context.moveTo(px, originY);
-    context.lineTo(px, originY + cell * (rows - 1));
-  }
-  for (let y = 0; y < rows; y++) {
-    const py = originY + y * cell;
-    context.moveTo(originX, py);
-    context.lineTo(originX + cell * (columns - 1), py);
-  }
-  context.stroke();
-  context.lineWidth = thin * 1.8;
-  context.strokeRect(originX, originY, cell * (columns - 1), cell * (rows - 1));
+function wood(context: Context, geometry: Geometry, images: BoardImages): CanvasPattern | string {
+  const pattern = context.createPattern(images.board, "repeat");
+  if (!pattern) return "#dbb973";
+  pattern.setTransform(new DOMMatrix().translate(geometry.boardX, geometry.boardY));
+  return pattern;
+}
 
-  context.fillStyle = palette.line;
-  for (const point of starPoints(columns, rows)) {
-    const { x, y } = pointToPixel(geometry, point);
-    context.beginPath();
-    context.arc(x, y, Math.max(1.5, cell * 0.1), 0, Math.PI * 2);
-    context.fill();
-  }
+// ---------------------------------------------------------------- text
 
-  if (!coordinates) return;
-  context.fillStyle = palette.coordinate;
-  context.font = `500 ${Math.min(16, Math.max(8, cell * 0.34))}px ${FONT}`;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  const offset = margin * 0.55;
-  for (let x = 0; x < columns; x++) {
-    const label = columnLabel(x, columns);
-    const px = originX + x * cell;
-    context.fillText(label, px, originY - offset);
-    context.fillText(label, px, originY + cell * (rows - 1) + offset);
+const widths = new Map<string, number>();
+
+function widthAt100(context: Context, family: string, text: string): number {
+  const key = `${family}\n${text}`;
+  let width = widths.get(key);
+  if (width === undefined) {
+    context.font = `100px ${family}`;
+    width = context.measureText(text).width;
+    // A font that is still loading measures with its fallback; do not remember that.
+    if (widths.size > 4000) widths.clear();
+    if (fontsSettled) widths.set(key, width);
   }
-  for (let y = 0; y < rows; y++) {
-    const label = rowLabel(y, rows);
-    const py = originY + y * cell;
-    context.fillText(label, originX - offset, py);
-    context.fillText(label, originX + cell * (columns - 1) + offset, py);
-  }
+  return width;
+}
+
+let fontsSettled = false;
+/** Called once the web fonts are in, so cached measurements are the real ones. */
+export function settleFonts() {
+  widths.clear();
+  fontsSettled = true;
+}
+
+interface TextBox {
+  left: number;
+  baseline: number;
+  width: number;
+  /** Java's `ascent - descent`, the height it centres text by. */
+  height: number;
 }
 
 /**
- * Straight-grained kaya: long, faint, slightly wavy fibres plus a soft edge
- * vignette. Seeded, so every redraw paints the same board.
+ * `BoardRenderer.drawString`: the largest font within the limits, centred on x.
+ * `anchor` says where y is: the text's middle, its baseline ("above", Java's aboveOrBelow 1)
+ * or its top ("below").
  */
-function drawGrain(
-  context: CanvasRenderingContext2D,
-  left: number,
-  top: number,
-  width: number,
-  height: number,
-  radius: number,
-  palette: Palette,
-) {
-  context.save();
-  context.beginPath();
-  context.roundRect(left, top, width, height, radius);
-  context.clip();
-  let seed = 20_261_030;
-  const random = () => {
-    seed = (seed * 16_807) % 2_147_483_647;
-    return seed / 2_147_483_647;
-  };
-  context.strokeStyle = palette.woodGrain;
-  const fibres = Math.max(18, Math.round(height / 4.5));
-  for (let index = 0; index < fibres; index++) {
-    const baseline = top + (index / fibres) * height + random() * 4;
-    const amplitude = 0.8 + random() * 3.2;
-    const wavelength = width * (0.5 + random() * 1.1);
-    const phase = random() * Math.PI * 2;
-    // Mostly hairlines; an occasional wider, still faint band reads as a growth ring.
-    const ring = random() < 0.12;
-    context.globalAlpha = ring ? 0.035 + random() * 0.03 : 0.012 + random() * 0.03;
-    context.lineWidth = ring ? 2.5 + random() * 3 : 0.5 + random() * 0.9;
-    context.beginPath();
-    for (let x = 0; x <= width + 6; x += 6) {
-      const y = baseline + Math.sin((x / wavelength) * Math.PI * 2 + phase) * amplitude;
-      if (x === 0) context.moveTo(left + x, y);
-      else context.lineTo(left + x, y);
-    }
-    context.stroke();
-  }
-  context.globalAlpha = 1;
-  const vignette = context.createRadialGradient(
-    left + width / 2,
-    top + height / 2,
-    Math.min(width, height) * 0.35,
-    left + width / 2,
-    top + height / 2,
-    Math.max(width, height) * 0.75,
-  );
-  vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
-  vignette.addColorStop(1, palette.woodVignette);
-  context.fillStyle = vignette;
-  context.fillRect(left, top, width, height);
-  context.restore();
+function text(
+  context: Context,
+  string: string,
+  x: number,
+  y: number,
+  family: string,
+  maximumHeight: number,
+  maximumWidth: number,
+  anchor: "middle" | "above" | "below" = "middle",
+  paint = true,
+): TextBox {
+  const size = fitFontSize(widthAt100(context, family, string), maximumHeight, maximumWidth);
+  context.font = `${size}px ${family}`;
+  context.textAlign = "left";
+  context.textBaseline = "alphabetic";
+  const metrics = context.measureText(string);
+  const height = roundUp(metrics.fontBoundingBoxAscent) - roundUp(metrics.fontBoundingBoxDescent);
+  const half = Math.trunc(height / 2);
+  const width = Math.round(metrics.width);
+  // Java places text on whole pixels; x and y arrive as pixel centres or as whole pixels.
+  const baseline = Math.floor(y) + half + (anchor === "below" ? half : anchor === "above" ? -half : 0);
+  const left = Math.floor(x) - Math.trunc(width / 2);
+  if (paint) context.fillText(string, left, baseline);
+  return { left, baseline, width, height };
 }
 
-export function drawStones(context: CanvasRenderingContext2D, geometry: Geometry, palette: Palette, board: BoardView) {
-  const { cell } = geometry;
+/** `FontMetrics` rounds an ascent or descent up unless it is within 0.05 of the pixel below. */
+const roundUp = (value: number) => Math.floor(value + 0.95);
+
+// ---------------------------------------------------------------- board
+
+export interface Names {
+  black: string;
+  white: string;
+}
+
+export interface GobanLayer {
+  coordinates: boolean;
+  /** Player names under the bottom line; they replace the bottom coordinates. */
+  names: Names | null;
+  toPlay: ColorView;
+  dpr: number;
+}
+
+export function drawGoban(context: Context, geometry: Geometry, images: BoardImages, layer: GobanLayer) {
+  const { boardX: left, boardY: top, boardWidth: width, boardHeight: height, cell, originX, originY, columns, rows } = geometry;
   if (cell <= 0) return;
+  context.fillStyle = wood(context, geometry, images);
+  context.fillRect(left, top, width, height);
+
+  // GlassEffectRenderer.drawBoardLightGradient: warm light from the top left.
+  const light = context.createLinearGradient(left, top, left + width, top + height);
+  light.addColorStop(0, "rgba(255, 255, 230, 0.098)");
+  light.addColorStop(1, "rgba(0, 0, 20, 0.098)");
+  context.fillStyle = light;
+  context.fillRect(left, top, width, height);
+
+  // drawBoardInnerShadow: the board sits slightly below its frame.
+  const depth = Math.max(Math.trunc(width / 80), 4);
+  const edge = (x0: number, y0: number, x1: number, y1: number, alpha: number, x: number, y: number, w: number, h: number) => {
+    const shade = context.createLinearGradient(x0, y0, x1, y1);
+    shade.addColorStop(0, `rgba(0, 0, 0, ${alpha / 255})`);
+    shade.addColorStop(1, "rgba(0, 0, 0, 0)");
+    context.fillStyle = shade;
+    context.fillRect(x, y, w, h);
+  };
+  edge(0, top, 0, top + depth, 30, left, top, width, depth);
+  edge(left, 0, left + depth, 0, 20, left, top, depth, height);
+  edge(0, top + height, 0, top + height - depth, 20, left, top + height - depth, width, depth);
+  edge(left + width, 0, left + width - depth, 0, 15, left + width - depth, top, depth, height);
+
+  // Whole pixels, no antialiasing: a soft grid is the first thing that looks wrong on a board.
+  const stroke = lineWidths(width, geometry.available);
+  const firstX = Math.floor(originX);
+  const firstY = Math.floor(originY);
+  const spanX = cell * (columns - 1);
+  const spanY = cell * (rows - 1);
+  const [borderOffset, borderSize] = lineSpan(stroke.border);
+  context.fillStyle = "#000";
+  for (let x = 0; x < columns; x++) {
+    const [offset, size] = lineSpan(x === 0 || x === columns - 1 ? stroke.border : stroke.inner);
+    context.fillRect(firstX + x * cell + offset, firstY + borderOffset, size, spanY + borderSize);
+  }
+  for (let y = 0; y < rows; y++) {
+    const [offset, size] = lineSpan(y === 0 || y === rows - 1 ? stroke.border : stroke.inner);
+    context.fillRect(firstX + borderOffset, firstY + y * cell + offset, spanX + borderSize, size);
+  }
+
+  context.fillStyle = "#000";
+  const star = starRadius(width, height);
+  for (const point of starPoints(columns, rows)) {
+    const { x, y } = pointToPixel(geometry, point);
+    disc(context, x, y, star);
+    context.fill();
+  }
+
+  if (layer.coordinates) drawCoordinates(context, geometry, layer.names === null);
+  if (layer.names) drawNames(context, geometry, images, layer.names, layer.toPlay, layer.dpr);
+}
+
+function drawCoordinates(context: Context, geometry: Geometry, bottom: boolean) {
+  const { boardX, boardY, boardWidth, boardHeight, margin, stoneRadius, columns, rows } = geometry;
+  const inset = Math.trunc((margin * 4) / 10);
+  const maximumHeight = Math.trunc((stoneRadius * 4) / 5);
+  context.fillStyle = "#000";
+  for (let x = 0; x < columns; x++) {
+    const label = columnLabel(x, columns);
+    const px = pointToPixel(geometry, { x, y: 0 }).x;
+    text(context, label, px, boardY + inset, UI_FONT, maximumHeight, stoneRadius);
+    if (bottom) text(context, label, px, boardY + boardHeight - inset, UI_FONT, maximumHeight, stoneRadius);
+  }
+  for (let y = 0; y < rows; y++) {
+    const label = rowLabel(y, rows);
+    const py = pointToPixel(geometry, { x: 0, y }).y;
+    text(context, label, boardX + inset, py, UI_FONT, maximumHeight, stoneRadius);
+    text(context, label, boardX + boardWidth - inset, py, UI_FONT, maximumHeight, stoneRadius);
+  }
+}
+
+function truncate(context: Context, name: string, maximumWidth: number): string {
+  if (context.measureText(name).width <= maximumWidth) return name;
+  const letters = Array.from(name);
+  let end = letters.length;
+  while (end > 1 && context.measureText(`${letters.slice(0, end).join("")}…`).width > maximumWidth) end--;
+  return `${letters.slice(0, end).join("").trimEnd()}…`;
+}
+
+/**
+ * `BoardNamePlate` without its plate: two small stones in the middle, a name on either side.
+ * Java's 28 px cap is in device pixels on the maintainer's Retina screen, 14 px to the eye; the
+ * same 14 px is kept on every screen.
+ */
+function drawNames(context: Context, geometry: Geometry, images: BoardImages, names: Names, toPlay: ColorView, dpr: number) {
+  const { boardX, boardY, boardWidth, boardHeight, margin, stoneRadius: r, cell, columns } = geometry;
+  const size = Math.min(Math.round(14 * dpr), Math.trunc((margin * 53) / 100));
+  if (size < 4) return;
+  const center = boardX + Math.trunc(boardWidth / 2);
+  const top = boardY + boardHeight - margin;
+  context.font = `${size}px ${UI_FONT}`;
+  context.textBaseline = "alphabetic";
+  const metrics = context.measureText("Ag");
+  const fontHeight = Math.round(metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent);
+  const baseline = top + Math.trunc((r * 13) / 8) + Math.trunc((fontHeight + 2) / 4);
+  const maximumWidth = Math.trunc(cell * columns * 0.43);
+  const gap = Math.trunc((margin * 4) / 5);
+
+  const black = truncate(context, names.black, maximumWidth);
+  context.textAlign = "right";
+  context.fillStyle = "#000";
+  context.fillText(black, center - gap, baseline);
+
+  const white = truncate(context, names.white, maximumWidth);
+  context.textAlign = "left";
+  context.lineJoin = "round";
+  context.lineWidth = Math.max(1.5, dpr);
+  context.strokeStyle = "#000";
+  context.strokeText(white, center + gap + 1, baseline);
+  context.fillStyle = "#fff";
+  context.fillText(white, center + gap + 1, baseline);
+  context.textAlign = "left";
+
+  const stone = Math.trunc((r * 5) / 4);
+  const blackStone = () => context.drawImage(images.black, center - Math.trunc((r * 9) / 10), top + r, stone, stone);
+  const whiteStone = () => context.drawImage(images.white, center - Math.trunc((r * 3) / 10), top + r, stone, stone);
+  context.imageSmoothingQuality = "high";
+  // The side to move lies on top.
+  if (toPlay === "Black") {
+    whiteStone();
+    blackStone();
+  } else {
+    blackStone();
+    whiteStone();
+  }
+}
+
+// ---------------------------------------------------------------- stones
+
+const sprites = new Map<string, HTMLCanvasElement>();
+
+function sprite(key: string, size: number, paint: (context: Context) => void): HTMLCanvasElement {
+  let canvas = sprites.get(key);
+  if (!canvas) {
+    if (sprites.size > 24) sprites.clear();
+    canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+    if (context) paint(context);
+    sprites.set(key, canvas);
+  }
+  return canvas;
+}
+
+/** The stone image scaled once per size, with `GlassEffectRenderer.drawStoneHighlight` on top. */
+function stoneSprite(images: BoardImages, color: ColorView, r: number): HTMLCanvasElement {
+  const size = 2 * r + 1;
+  return sprite(`stone:${color}:${r}`, size, (context) => {
+    const black = color === "Black";
+    context.imageSmoothingQuality = "high";
+    context.drawImage(black ? images.black : images.white, 0, 0, size, size);
+    const c = r;
+    const highlight = context.createRadialGradient(c - r * 0.3, c - r * 0.3, 0, c - r * 0.3, c - r * 0.3, r * 0.6);
+    highlight.addColorStop(0, `rgba(255, 255, 255, ${(black ? 70 : 180) / 255})`);
+    highlight.addColorStop(0.6, `rgba(255, 255, 255, ${(black ? 20 : 60) / 255})`);
+    highlight.addColorStop(1, "rgba(255, 255, 255, 0)");
+    const rim = context.createRadialGradient(c, c, 0, c, c, r);
+    rim.addColorStop(0.85, "rgba(255, 255, 255, 0)");
+    rim.addColorStop(0.95, `rgba(255, 255, 255, ${(black ? 25 : 50) / 255})`);
+    rim.addColorStop(1, "rgba(255, 255, 255, 0)");
+    for (const paint of [highlight, rim]) {
+      context.fillStyle = paint;
+      context.beginPath();
+      context.arc(c, c, r, 0, TAU);
+      context.fill();
+    }
+  });
+}
+
+/** `drawShadowCache` at the default shadow size of 85: contact shade, soft halo, a cast to the lower right. */
+function shadowSprite(r: number): { canvas: HTMLCanvasElement; half: number } {
+  const scaled = r * 0.85;
+  const near = Math.trunc(scaled * 0.2) || 1;
+  const far = Math.trunc(scaled * 0.17) || 1;
+  const ambient = Math.trunc(scaled * 0.25) || 1;
+  const half = r + near + ambient * 2 + 2;
+  const canvas = sprite(`shadow:${r}`, half * 2 + 1, (context) => {
+    const c = half + 0.5;
+    const fill = (x: number, y: number, radius: number, stops: Array<[number, string]>) => {
+      const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
+      for (const [offset, color] of stops) gradient.addColorStop(offset, color);
+      context.fillStyle = gradient;
+      context.beginPath();
+      context.arc(x, y, radius, 0, TAU);
+      context.fill();
+    };
+    fill(c + ambient / 2, c + ambient / 2, r + near + ambient, [
+      [0.5, "rgba(0, 0, 0, 0)"],
+      [0.8, "rgba(0, 0, 0, 0.118)"],
+      [1, "rgba(0, 0, 0, 0)"],
+    ]);
+    fill(c, c, r + near, [
+      [0.3, "rgba(50, 50, 50, 0.627)"],
+      [1, "rgba(50, 50, 50, 0)"],
+    ]);
+    fill(c + near, c + near, r + far, [
+      [0.5, "rgba(0, 0, 0, 0.588)"],
+      [1, "rgba(0, 0, 0, 0)"],
+    ]);
+  });
+  return { canvas, half };
+}
+
+export function drawStones(context: Context, geometry: Geometry, images: BoardImages, board: BoardView) {
+  const r = geometry.stoneRadius;
+  if (geometry.cell <= 0) return;
+  const placed: Array<{ x: number; y: number; color: ColorView }> = [];
   board.stones.forEach((color, index) => {
     if (!color) return;
-    const point = { x: index % board.width, y: Math.floor(index / board.width) };
-    drawStone(context, geometry, palette, point, color, 1);
+    const { x, y } = pointToPixel(geometry, { x: index % board.width, y: Math.floor(index / board.width) });
+    placed.push({ x, y, color });
   });
-  const last = board.last_move;
-  if (last?.type === "Play") {
-    const { x, y } = pointToPixel(geometry, last.data.point);
-    context.strokeStyle = last.data.color === "Black" ? palette.lastMoveOnBlack : palette.lastMoveOnWhite;
-    context.lineWidth = Math.max(1.6, cell * 0.075);
-    context.beginPath();
-    context.arc(x, y, cell * 0.19, 0, Math.PI * 2);
-    context.stroke();
-  }
+  const shadow = shadowSprite(r);
+  for (const { x, y } of placed) context.drawImage(shadow.canvas, x - 0.5 - shadow.half, y - 0.5 - shadow.half);
+  for (const { x, y, color } of placed) context.drawImage(stoneSprite(images, color, r), x - 0.5 - r, y - 0.5 - r);
 }
 
-function drawStone(
-  context: CanvasRenderingContext2D,
-  geometry: Geometry,
-  palette: Palette,
-  point: PointView,
-  color: ColorView,
-  alpha: number,
-) {
-  const { cell } = geometry;
-  const { x, y } = pointToPixel(geometry, point);
-  const radius = cell * STONE_RADIUS;
-  const [light, middle, dark] = color === "Black" ? palette.blackStone : palette.whiteStone;
-  const gradient = context.createRadialGradient(x - radius * 0.36, y - radius * 0.42, radius * 0.05, x, y, radius * 1.02);
-  gradient.addColorStop(0, light);
-  gradient.addColorStop(0.42, middle);
-  gradient.addColorStop(1, dark);
-  context.save();
-  context.globalAlpha = alpha;
-  if (alpha === 1) {
-    context.shadowColor = palette.stoneShadow;
-    context.shadowBlur = cell * 0.13;
-    context.shadowOffsetX = cell * 0.035;
-    context.shadowOffsetY = cell * 0.065;
-  }
-  context.fillStyle = gradient;
-  context.beginPath();
-  context.arc(x, y, radius, 0, Math.PI * 2);
-  context.fill();
-  context.shadowColor = "transparent";
-  if (color === "White") {
-    // A hairline keeps white stones crisp against the light wood.
-    context.strokeStyle = palette.whiteStoneEdge;
-    context.lineWidth = Math.max(0.6, cell * 0.018);
-    context.stroke();
-  }
-  context.restore();
+// ---------------------------------------------------------------- analysis
+
+/** The game's next move and, once analysed, the position after it (Black's perspective). */
+export interface NextMove {
+  point: PointView;
+  after: { winrate: number; score_lead: number } | null;
 }
 
-export interface AnalysisLayer {
+export interface OverlayLayer {
   board: BoardView;
   analysis: AnalysisView | null;
   ownership: boolean;
   maxCandidates: number;
-  /** Candidate whose principal variation is previewed instead of the suggestions. */
   hover: PointView | null;
+  /** Rust's replay of the hovered candidate's line; null while not hovering or not yet answered. */
+  variation: VariationPreviewView | null;
+  /** How good the last move was; null when it or the move before it has no analysis. */
+  lastRank: MoveRank | null;
+  /** The recorded continuations of this position, main line first. */
+  next: NextMove[];
+  passLabel: string;
+  /** Shown on an empty game that has nothing else to show. */
+  emptyHint: string | null;
+  dpr: number;
 }
 
-export function drawAnalysis(context: CanvasRenderingContext2D, geometry: Geometry, palette: Palette, layer: AnalysisLayer) {
-  const { analysis, board } = layer;
-  if (!analysis || geometry.cell <= 0) return;
-  if (layer.ownership && analysis.ownership) drawOwnership(context, geometry, palette, board, analysis.ownership);
-  const candidates = visibleCandidates(analysis, layer.maxCandidates);
-  const hovered = layer.hover && candidates.find((candidate) => samePoint(candidate.point, layer.hover));
-  if (hovered && hovered.pv.length > 0) {
-    drawVariation(context, geometry, palette, hovered);
+const same = (a: PointView | null | undefined, b: PointView | null | undefined) => !!a && !!b && a.x === b.x && a.y === b.y;
+
+export function drawOverlay(context: Context, geometry: Geometry, images: BoardImages, layer: OverlayLayer) {
+  if (geometry.cell <= 0) return;
+  const { board, analysis } = layer;
+  if (layer.variation && layer.hover) {
+    drawVariation(context, geometry, images, layer, layer.variation);
     return;
   }
+  if (layer.ownership && analysis?.ownership) drawEstimate(context, geometry, board, analysis.ownership);
+  drawLastMove(context, geometry, layer);
+  const candidates = analysis ? shownSuggestions(analysis, layer.maxCandidates) : [];
+  const main = layer.next[0];
+  if (main && analysis && candidates.length > 0) drawNextMoveBlunder(context, geometry, images, layer, candidates, main);
+  drawSuggestions(context, geometry, images, layer, candidates);
+  drawNextMoves(context, geometry, layer);
+  if (layer.emptyHint && candidates.length === 0) drawEmptyHint(context, geometry, layer.emptyHint, layer.dpr);
+}
+
+/** `drawKataEstimateByTransparent`: small squares, darker or lighter with the owner's certainty. */
+function drawEstimate(context: Context, geometry: Geometry, board: BoardView, ownership: number[]) {
+  const { cell } = geometry;
+  const blackHalf = Math.round(cell / 8);
+  const whiteHalf = Math.round(cell / 6);
+  ownership.forEach((value, index) => {
+    const alpha = Math.min(255, Math.trunc(Math.abs(value) * 255));
+    if (alpha <= 0) return;
+    const center = pointToPixel(geometry, { x: index % board.width, y: Math.floor(index / board.width) });
+    const x = center.x - 0.5;
+    const y = center.y - 0.5;
+    if (value > 0) {
+      const onBlack = board.stones[index] === "Black";
+      const gray = 127 - Math.trunc((alpha - 1) / 2);
+      context.fillStyle = onBlack ? `rgb(${gray}, ${gray}, ${gray})` : `rgba(0, 0, 0, ${alpha / 255})`;
+      context.fillRect(x - blackHalf, y - blackHalf, blackHalf * 2, blackHalf * 2);
+    } else {
+      context.fillStyle = `rgba(255, 255, 255, ${alpha / 255})`;
+      context.fillRect(x - whiteHalf, y - whiteHalf, whiteHalf * 2, whiteHalf * 2);
+    }
+  });
+}
+
+/** The move-rank mark: a disc in the rank's colour inside a ring of the opposite stone colour. */
+function drawLastMove(context: Context, geometry: Geometry, layer: OverlayLayer) {
+  const last = layer.board.last_move;
+  if (!last) return;
+  const { cell, stoneRadius: r } = geometry;
+  if (last.type === "Pass") {
+    const x = geometry.boardX + Math.trunc(geometry.boardWidth / 2) + 0.5;
+    const y = geometry.boardY + Math.trunc(geometry.boardHeight / 2) + 0.5;
+    const blackToPlay = layer.board.to_play === "Black";
+    context.fillStyle = blackToPlay ? "rgba(255, 255, 255, 0.314)" : "rgba(0, 0, 0, 0.314)";
+    disc(context, x, y, Math.trunc((r * 5) / 2));
+    context.fill();
+    context.fillStyle = blackToPlay ? "rgba(0, 0, 0, 0.784)" : "rgba(255, 255, 255, 0.784)";
+    text(context, layer.passLabel, x, y, UI_FONT, r * 3, (r * 9) / 2);
+    return;
+  }
+  const { x, y } = pointToPixel(geometry, last.data.point);
+  const radius = Math.round(cell * 0.22);
+  if (layer.lastRank) {
+    context.fillStyle = RANK_COLORS[layer.lastRank];
+    disc(context, x, y, radius);
+    context.fill();
+  }
+  context.strokeStyle = last.data.color === "Black" ? "#fff" : "#000";
+  context.lineWidth = Math.max(1, radius / 5);
+  disc(context, x, y, radius);
+  context.stroke();
+}
+
+function suggestionRows(context: Context, geometry: Geometry, x: number, y: number, candidate: CandidateView, toPlay: ColorView) {
+  const { cell, stoneRadius: r } = geometry;
+  const winrate = forMover(candidate.winrate, toPlay, "winrate");
+  const narrow = winrate * 100 < 10;
+  text(context, winrateText(winrate), x, y - Math.round(cell * (narrow ? 0.127 : 0.125)), NUMBER_FONT, cell * (narrow ? 0.36 : 0.35), cell * 0.67, "above");
+  text(context, playoutsText(candidate.visits), x, y + Math.round(cell * 0.18), UI_FONT, cell * 0.34, candidate.visits < 1000 ? r * 1.3 : r * 1.8, "above");
+  const score = scoreText(forMover(candidate.score_lead, toPlay, "score"));
+  text(context, score, x, y + Math.round(cell * 0.435), NUMBER_FONT, (geometry.available * 0.273) / (geometry.columns - 1), r * 1.6, "above");
+}
+
+/** `drawLeelazSuggestions`, weakest first so that stronger moves' rings and badges stay whole. */
+function drawSuggestions(context: Context, geometry: Geometry, images: BoardImages, layer: OverlayLayer, candidates: CandidateView[]) {
   const best = candidates[0];
   if (!best) return;
-  for (const candidate of candidates) {
+  const { cell, stoneRadius: r } = geometry;
+  const maxVisits = Math.max(...candidates.map((candidate) => candidate.visits));
+  const texture = wood(context, geometry, images);
+  for (let index = candidates.length - 1; index >= 0; index--) {
+    const candidate = candidates[index]!;
     if (!candidate.point) continue;
-    const tier = candidateTier(winrateLoss(candidate, best, board.to_play), candidate === best);
-    drawCandidate(context, geometry, palette, candidate, tier, board.to_play);
-  }
-}
+    const { x, y } = pointToPixel(geometry, candidate.point);
+    const isBest = candidate === best;
+    const isNext = layer.next.some((next) => same(next.point, candidate.point));
+    const ratio = maxVisits > 0 ? candidate.visits / maxVisits : 0;
+    const faint = ratio < 0.05 && !isNext && !same(layer.hover, candidate.point);
 
-/** Top suggestions in engine order. Pass is listed by the engine but has no circle. */
-export function visibleCandidates(analysis: AnalysisView, maxCandidates: number): CandidateView[] {
-  return [...analysis.candidates].sort((a, b) => a.order - b.order).slice(0, Math.max(0, maxCandidates));
-}
+    // Wood first, so the grid does not show through the translucent fill.
+    context.globalAlpha = faint ? 0.8 : 1;
+    context.fillStyle = texture;
+    disc(context, x, y, r + 1);
+    context.fill();
+    context.globalAlpha = 1;
+    context.fillStyle = css(suggestionColor(candidate.visits, maxVisits, isBest));
+    disc(context, x, y, r + 1);
+    context.fill();
 
-function drawOwnership(
-  context: CanvasRenderingContext2D,
-  geometry: Geometry,
-  palette: Palette,
-  board: BoardView,
-  ownership: number[],
-) {
-  const { cell } = geometry;
-  context.save();
-  ownership.forEach((value, index) => {
-    const strength = Math.min(1, Math.abs(value));
-    if (strength < 0.08) return;
-    const point = { x: index % board.width, y: Math.floor(index / board.width) };
-    const stone = board.stones[pointIndex(board.width, point)];
-    const owner: ColorView = value > 0 ? "Black" : "White";
-    // On stones, only mark the ones the engine expects to be captured.
-    if (stone && (stone === owner || strength < 0.4)) return;
-    const side = stone ? cell * 0.32 : cell * (0.2 + 0.36 * strength);
-    const { x, y } = pointToPixel(geometry, point);
-    context.globalAlpha = stone ? 0.85 : 0.15 + 0.5 * strength;
-    context.fillStyle = owner === "Black" ? palette.ownershipBlack : palette.ownershipWhite;
-    context.fillRect(x - side / 2, y - side / 2, side, side);
-  });
-  context.restore();
-}
+    if (isBest) {
+      context.strokeStyle = `rgba(0, 0, 255, ${isNext ? 170 / 255 : 1})`;
+      context.lineWidth = (r + 2) / 15;
+      disc(context, x, y, r + 2);
+      context.stroke();
+    } else if (!isNext) {
+      context.strokeStyle = `rgba(0, 0, 0, ${(48 + 48 * suggestionAlphaRatio(ratio)) / 255})`;
+      context.lineWidth = (r + 1) / 26.5;
+      disc(context, x, y, r + 1);
+      context.stroke();
+    }
 
-function drawCandidate(
-  context: CanvasRenderingContext2D,
-  geometry: Geometry,
-  palette: Palette,
-  candidate: CandidateView,
-  tier: number,
-  toPlay: ColorView,
-) {
-  if (!candidate.point) return;
-  const { cell } = geometry;
-  const { x, y } = pointToPixel(geometry, candidate.point);
-  const radius = cell * CANDIDATE_RADIUS;
-  context.save();
-  context.shadowColor = palette.candidateShadow;
-  context.shadowBlur = cell * 0.12;
-  context.shadowOffsetY = cell * 0.03;
-  context.globalAlpha = 0.94;
-  context.fillStyle = palette.tiers[Math.min(tier, palette.tiers.length - 1)] ?? palette.tiers[0] ?? "#888";
-  context.beginPath();
-  context.arc(x, y, radius, 0, Math.PI * 2);
-  context.fill();
-  context.shadowColor = "transparent";
-  context.globalAlpha = 1;
-  if (tier === 0) {
-    context.strokeStyle = palette.bestRing;
-    context.lineWidth = Math.max(1.5, cell * 0.06);
-    context.beginPath();
-    context.arc(x, y, radius - context.lineWidth / 2, 0, Math.PI * 2);
-    context.stroke();
-  }
-  if (cell >= 14) {
-    context.fillStyle = palette.candidateText;
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    const winrate = formatWinrate(forMover(candidate.winrate, toPlay, "winrate"));
-    if (cell < 26) {
-      context.font = `700 ${cell * 0.31}px ${FONT}`;
-      context.fillText(winrate, x, y + cell * 0.01);
-    } else {
-      context.font = `700 ${cell * 0.27}px ${FONT}`;
-      context.fillText(winrate, x, y - cell * 0.19);
-      context.globalAlpha = 0.78;
-      context.font = `600 ${cell * 0.185}px ${FONT}`;
-      context.fillText(formatVisits(candidate.visits), x, y + cell * 0.045);
-      context.fillText(formatScore(forMover(candidate.score_lead, toPlay, "score")), x, y + cell * 0.25);
-      context.globalAlpha = 1;
+    context.fillStyle = "#000";
+    suggestionRows(context, geometry, x, y, candidate, layer.board.to_play);
+
+    // The engine's order in an orange tag at the top right, for the first nine moves.
+    if (candidate.order <= 8) {
+      const shift = isBest ? 1 : 0;
+      const tagX = x + Math.round(cell * 0.43) + shift;
+      const tagY = y - Math.round(cell * 0.358) - shift;
+      const label = String(candidate.order + 1);
+      const box = text(context, label, tagX, tagY, NUMBER_FONT, cell * 0.36, cell * 0.39, "above", false);
+      context.fillStyle = "rgb(255, 200, 0)";
+      context.fillRect(box.left, box.baseline - box.height, box.width, box.height + Math.max(1, Math.trunc(box.height / 12)));
+      context.fillStyle = "#000";
+      context.fillText(label, box.left, box.baseline);
     }
   }
-  if (cell >= 22) {
-    // The engine's ranking, top right of the circle, as LizzieYzy Next shows it.
-    context.fillStyle = palette.candidateOrder;
-    context.font = `700 ${cell * 0.2}px ${FONT}`;
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillText(String(candidate.order + 1), x + radius * 0.9, y - radius * 0.9);
-  }
-  context.restore();
 }
 
-function drawVariation(context: CanvasRenderingContext2D, geometry: Geometry, palette: Palette, candidate: CandidateView) {
-  const { cell } = geometry;
-  candidate.pv.forEach((move, index) => {
-    if (move.type !== "Play") return;
-    drawStone(context, geometry, palette, move.data.point, move.data.color, 0.78);
-    const { x, y } = pointToPixel(geometry, move.data.point);
-    context.fillStyle = move.data.color === "Black" ? palette.lastMoveOnBlack : palette.lastMoveOnWhite;
-    context.font = `600 ${cell * (index < 9 ? 0.42 : 0.34)}px ${FONT}`;
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillText(String(index + 1), x, y + cell * 0.02);
-  });
-}
-
-/** Move numbers on the stones of a replayed variation; captured stones are already gone. */
-export function drawPreviewLabels(
-  context: CanvasRenderingContext2D,
-  geometry: Geometry,
-  palette: Palette,
-  stones: readonly PreviewStoneView[],
-) {
-  const { cell } = geometry;
-  if (cell <= 0) return;
+/** A dashed ring in the mover's colour on every recorded continuation. */
+function drawNextMoves(context: Context, geometry: Geometry, layer: OverlayLayer) {
+  const r = geometry.stoneRadius;
+  const width = Math.max(r / 5.5, 3);
   context.save();
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  for (const stone of stones) {
-    const { x, y } = pointToPixel(geometry, stone.point);
-    context.fillStyle = stone.color === "Black" ? palette.lastMoveOnBlack : palette.lastMoveOnWhite;
-    context.font = `600 ${cell * (stone.move_number < 10 ? 0.42 : 0.34)}px ${FONT}`;
-    context.fillText(String(stone.move_number), x, y + cell * 0.02);
+  context.strokeStyle = layer.board.to_play === "Black" ? "#000" : "#fff";
+  context.lineWidth = width;
+  context.lineCap = "round";
+  context.setLineDash([width * 2.2, width * 1.7]);
+  for (const next of layer.next) {
+    if (layer.board.stones[pointIndex(layer.board.width, next.point)]) continue;
+    const { x, y } = pointToPixel(geometry, next.point);
+    disc(context, x, y, r + 2);
+    context.stroke();
   }
   context.restore();
 }
 
-function samePoint(a: PointView | null, b: PointView | null): boolean {
-  return a !== null && b !== null && a.x === b.x && a.y === b.y;
+/**
+ * `drawNextMoveBlunder`: when the game's next move is not one the engine is seriously reading,
+ * show what it leads to, coloured by how much it gives up against the best move.
+ */
+function drawNextMoveBlunder(
+  context: Context,
+  geometry: Geometry,
+  images: BoardImages,
+  layer: OverlayLayer,
+  candidates: CandidateView[],
+  next: NextMove,
+) {
+  if (!next.after || layer.board.stones[pointIndex(layer.board.width, next.point)]) return;
+  const listed = candidates.find((candidate) => same(candidate.point, next.point));
+  if (listed && listed.visits >= 30) return;
+  const best = candidates[0]!;
+  const toPlay = layer.board.to_play;
+  const winrate = forMover(next.after.winrate, toPlay, "winrate");
+  const score = forMover(next.after.score_lead, toPlay, "score");
+  const level = blunderLevel(
+    (forMover(best.winrate, toPlay, "winrate") - winrate) * 100,
+    forMover(best.score_lead, toPlay, "score") - score,
+  );
+  const { cell, stoneRadius: r } = geometry;
+  const { x, y } = pointToPixel(geometry, next.point);
+  context.globalAlpha = 0.8;
+  context.fillStyle = wood(context, geometry, images);
+  disc(context, x, y, r + 1);
+  context.fill();
+  context.globalAlpha = 1;
+  context.fillStyle = level === "bad" ? "rgba(220, 80, 30, 0.333)" : level === "doubtful" ? "rgba(220, 150, 30, 0.333)" : "rgba(0, 220, 0, 0.333)";
+  disc(context, x, y, r + 1);
+  context.fill();
+  context.strokeStyle = toPlay === "Black" ? "#000" : "#fff";
+  context.lineWidth = Math.max(r / 7, 2);
+  disc(context, x, y, r + 2);
+  context.stroke();
+  context.fillStyle = level === "good" ? "#000" : "#fff";
+  text(context, winrateText(winrate), x, y, NUMBER_FONT, cell * 0.39, cell * 0.815, "above");
+  const rounded = Math.round(score * 10) / 10;
+  const down = rounded <= -10 ? cell * 0.34 : (cell * 11) / 30;
+  text(context, scoreText(score), x, y + Math.round(down), NUMBER_FONT, cell * 0.3, cell * 0.65, "above");
+}
+
+/** `VariationPreviewGenerator`: the hovered line as numbered stones over Rust's replayed board. */
+function drawVariation(context: Context, geometry: Geometry, images: BoardImages, layer: OverlayLayer, variation: VariationPreviewView) {
+  const { stoneRadius: r } = geometry;
+  const { board } = layer;
+  // Stones the line captures stay visible as ghosts.
+  const texture = wood(context, geometry, images);
+  board.stones.forEach((color, index) => {
+    if (!color || variation.board.stones[index]) return;
+    const { x, y } = pointToPixel(geometry, { x: index % board.width, y: Math.floor(index / board.width) });
+    context.fillStyle = texture;
+    disc(context, x, y, r);
+    context.fill();
+    context.fillStyle = color === "Black" ? "rgba(0, 0, 0, 0.314)" : "rgba(255, 255, 255, 0.431)";
+    disc(context, x, y, r);
+    context.fill();
+  });
+
+  if (layer.hover) {
+    const { x, y } = pointToPixel(geometry, layer.hover);
+    const glow = context.createRadialGradient(x, y, 0, x, y, r * 2);
+    glow.addColorStop(0, "rgba(255, 255, 255, 0.118)");
+    glow.addColorStop(0.5, "rgba(255, 255, 255, 0.039)");
+    glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+    context.fillStyle = glow;
+    context.beginPath();
+    context.arc(x, y, r * 2, 0, TAU);
+    context.fill();
+  }
+
+  const last = variation.stones.reduce((most, stone) => Math.max(most, stone.move_number), 0);
+  const hovered = layer.analysis?.candidates.find((candidate) => same(candidate.point, layer.hover));
+  for (const stone of variation.stones) {
+    const { x, y } = pointToPixel(geometry, stone.point);
+    const ink = stone.color === "Black" ? "#fff" : "#000";
+    if (stone.move_number === 1 && hovered && same(stone.point, layer.hover)) {
+      // The hovered move keeps its numbers inside a red ring instead of a "1".
+      context.strokeStyle = "rgb(255, 0, 0)";
+      context.lineWidth = (r + 1) / 11;
+      disc(context, x, y, r + 1);
+      context.stroke();
+      context.fillStyle = ink;
+      suggestionRows(context, geometry, x, y, hovered, board.to_play);
+      continue;
+    }
+    if (stone.move_number === last) {
+      const far = (r * 16) / 15;
+      const near = (r * 4) / 11;
+      context.fillStyle = "rgb(255, 0, 0)";
+      context.beginPath();
+      context.moveTo(x - far, y - far);
+      context.lineTo(x - far, y - near);
+      context.lineTo(x - near, y - far);
+      context.closePath();
+      context.fill();
+    }
+    context.fillStyle = ink;
+    text(context, String(stone.move_number), x, y, UI_FONT, r * 1.4, stone.move_number >= 100 ? r * 1.85 : r * 1.4);
+  }
+}
+
+/** `EmptyBoardHint`: a dark pill in the middle of an empty board. */
+function drawEmptyHint(context: Context, geometry: Geometry, hint: string, dpr: number) {
+  const { boardX, boardY, boardWidth, boardHeight } = geometry;
+  const size = Math.max(13 * dpr, boardWidth / 48);
+  context.font = `${size}px ${UI_FONT}`;
+  context.textBaseline = "alphabetic";
+  context.textAlign = "center";
+  const metrics = context.measureText(hint);
+  const ascent = Math.round(metrics.fontBoundingBoxAscent);
+  const lineHeight = ascent + Math.round(metrics.fontBoundingBoxDescent);
+  const height = Math.trunc(lineHeight * 1.5);
+  const padding = Math.trunc((lineHeight * 3) / 4);
+  const width = Math.min(boardWidth - 20 * dpr, Math.ceil(metrics.width) + padding * 2);
+  const left = boardX + Math.trunc((boardWidth - width) / 2);
+  const top = boardY + Math.trunc((boardHeight - height) / 2);
+  context.fillStyle = "rgba(20, 22, 26, 0.667)";
+  context.beginPath();
+  context.roundRect(left, top, width, height, height / 2);
+  context.fill();
+  context.fillStyle = "#f1f2f4";
+  context.fillText(hint, left + width / 2, top + Math.trunc((height - lineHeight) / 2) + ascent, width - padding);
+  context.textAlign = "left";
 }

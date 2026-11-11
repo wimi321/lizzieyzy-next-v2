@@ -9,30 +9,74 @@ export interface Geometry {
   cssWidth: number;
   cssHeight: number;
   dpr: number;
-  /** Distance between adjacent lines. */
+  /** Distance between adjacent lines, a whole number of pixels as in Java. */
   cell: number;
   /** Center of point (0, 0), the top-left intersection. */
   originX: number;
   originY: number;
   /** Wood margin around the outer lines; wider when coordinates are shown. */
   margin: number;
+  /** The wooden board: its top-left corner and size, as Java's `boardWidth`. */
+  boardX: number;
+  boardY: number;
+  boardWidth: number;
+  boardHeight: number;
+  /** Java's `stoneRadius`: half a cell less one pixel. */
+  stoneRadius: number;
+  /** Java's `availableWidth`: from the first line to the last, inclusive. */
+  available: number;
 }
 
-const MARGIN_CELLS = 0.7;
-const MARGIN_CELLS_WITH_COORDINATES = 1.35;
+const BIG_MARGIN = 0.055;
+const SMALL_MARGIN = 0.03;
 
+/**
+ * Java's `calculatePixelMargins` for one axis: shrink the board until the lines land on whole
+ * pixels, `(available - 1)` a multiple of the line count less one.
+ */
+function axis(length: number, lines: number, ratio: number): { board: number; margin: number; available: number } {
+  const marginRatio = (ratio / lines) * 19;
+  for (let board = Math.floor(length); ; board--) {
+    const margin = Math.trunc(marginRatio * board);
+    const available = board - 2 * margin;
+    if (board <= 0 || (available - 1) % (lines - 1) === 0) return { board, margin, available };
+  }
+}
+
+/**
+ * LizzieYzy Next's board metrics (`BoardRenderer.setupSizeParameters`): margins of 5.5% with
+ * coordinates (3% without), whole-pixel line spacing, the board centred in the canvas.
+ */
 export function computeGeometry(
   columns: number,
   rows: number,
   cssWidth: number,
   cssHeight: number,
   dpr: number,
-  coordinates: boolean,
+  bigMargin: boolean,
 ): Geometry {
-  const marginCells = coordinates ? MARGIN_CELLS_WITH_COORDINATES : MARGIN_CELLS;
-  const spanX = columns - 1 + 2 * marginCells;
-  const spanY = rows - 1 + 2 * marginCells;
-  const cell = Math.max(0, Math.min(cssWidth / spanX, cssHeight / spanY));
+  const ratio = bigMargin ? BIG_MARGIN : SMALL_MARGIN;
+  const square = columns === rows;
+  const horizontal = axis(square ? Math.min(cssWidth, cssHeight) : cssWidth, columns, ratio);
+  const vertical = square ? { ...horizontal } : axis(cssHeight, rows, ratio);
+  let cellX = Math.trunc(horizontal.available / Math.max(1, columns - 1));
+  let cellY = Math.trunc(vertical.available / Math.max(1, rows - 1));
+  if (cellX > cellY) {
+    cellX = cellY;
+    const width = cellX * (columns - 1) + 1;
+    horizontal.board -= horizontal.available - width + (horizontal.margin - vertical.margin) * 2;
+    horizontal.available = width;
+    horizontal.margin = vertical.margin;
+  } else if (cellX < cellY) {
+    cellY = cellX;
+    const height = cellY * (rows - 1) + 1;
+    vertical.board -= vertical.available - height + (vertical.margin - horizontal.margin) * 2;
+    vertical.available = height;
+    vertical.margin = horizontal.margin;
+  }
+  const cell = Math.max(0, cellX);
+  const boardX = Math.trunc((cssWidth - horizontal.board) / 2);
+  const boardY = Math.trunc((cssHeight - vertical.board) / 2);
   return {
     columns,
     rows,
@@ -40,9 +84,16 @@ export function computeGeometry(
     cssHeight,
     dpr,
     cell,
-    originX: (cssWidth - cell * (columns - 1)) / 2,
-    originY: (cssHeight - cell * (rows - 1)) / 2,
-    margin: cell * marginCells,
+    // Java's integer coordinate k is the pixel [k, k + 1); its center is k + 0.5.
+    originX: boardX + horizontal.margin + 0.5,
+    originY: boardY + vertical.margin + 0.5,
+    margin: horizontal.margin,
+    boardX,
+    boardY,
+    boardWidth: horizontal.board,
+    boardHeight: vertical.board,
+    stoneRadius: cell < 4 ? 1 : Math.trunc(cell / 2) - 1,
+    available: horizontal.available,
   };
 }
 

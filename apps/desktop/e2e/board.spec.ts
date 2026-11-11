@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { AppEvent, PointView } from "../src/api/backend";
+import type { AppEvent, PointView, ProblemMovesView } from "../src/api/backend";
 import {
   analysisUpdated,
   captureVariation,
@@ -8,6 +8,7 @@ import {
   midGame,
   midGameAnalysis,
   nineByNine,
+  recordedGame,
 } from "./fixtures";
 import type { MockCommand } from "./mock-backend";
 
@@ -15,17 +16,22 @@ const JUMP = 1_000_000;
 
 test.use({ viewport: { width: 900, height: 860 }, deviceScaleFactor: 1 });
 
-async function start(page: Page, events: AppEvent[], commands: MockCommand[] = []) {
+async function start(page: Page, events: AppEvent[], commands: MockCommand[] = [], problems: ProblemMovesView | null = null) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await page.evaluate(
-    ([initialEvents, scripted]) => window.__mockBackend?.setScript({ initialEvents, commands: scripted }),
-    [events, commands] as const,
+    ([initialEvents, scripted, problemMoves]) => {
+      window.__mockBackend?.setProblemMoves(problemMoves);
+      window.__mockBackend?.setScript({ initialEvents, commands: scripted });
+    },
+    [events, commands, problems] as const,
   );
   const board = page.getByTestId("board");
   await expect(board).toBeVisible();
   await expect(board).not.toHaveAttribute("data-cell", "0.000");
+  // The wood, the stones and Open Sans are loaded before anything is compared.
+  await expect(board).toHaveAttribute("data-ready", "true");
   return { board, errors };
 }
 
@@ -68,6 +74,19 @@ test.describe("screenshots", () => {
     await board.hover({ position: await pixelOf(page, { x: 4, y: 3 }) });
     await expect.poll(() => calls(page)).toEqual([{ command: "previewVariation", args: [20, moves] }]);
     await expect(board).toHaveScreenshot("variation.png");
+  });
+
+  test("a recorded game: names under the board, the last move ranked, the next moves marked", async ({ page }) => {
+    const { view, tree, problems, analysis } = recordedGame(7);
+    const { board } = await start(
+      page,
+      [documentChanged(view, 7), analysisUpdated(analysis)],
+      [{ command: "variationTree", result: tree }],
+      problems,
+    );
+    await expect(board).toHaveAttribute("data-last-rank", "Inaccuracy");
+    await expect(board).toHaveAttribute("data-next-moves", "2");
+    await expect(board).toHaveScreenshot("recorded.png");
   });
 
   test("9x9 board", async ({ page }) => {

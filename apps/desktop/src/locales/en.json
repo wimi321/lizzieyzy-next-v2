@@ -13,7 +13,9 @@
     "coordinates": "Coordinates",
     "ownership": "Territory",
     "positionError": "This position cannot be computed: {reason}",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "pass": "Pass",
+    "emptyHint": "Open a game, drop an SGF here, or start a new game"
   },
   "engine": {
     "Starting": "Engine starting",

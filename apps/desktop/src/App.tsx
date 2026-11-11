@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
 import type { AnalysisLimitSettings, AutoSetupError, ColorView, EngineProfile, EngineStatus, FoxAccount, PointView, ProblemMoveSort, ProblemMovesQuery, TsumegoOptions, TsumegoStatus, VariationTreeView } from "@/api/backend";
 import { Board } from "./board/Board";
+import type { NextMove } from "./board/draw";
 import { useVariationPreview } from "./board/useVariationPreview";
 import { FoxDialog } from "./fox/FoxDialog";
 import { liveGraph } from "./graph/scale";
@@ -244,6 +245,35 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   // The mistake bars share the graph's line and indexing; anything else is stale.
   const mistakes = problems && problems.error_bar.length === points.length ? problems.error_bar : undefined;
   const analysed = points.some((point) => point.summary !== null);
+  const currentNode = document?.tree.current ?? null;
+  // The mark on the last move: its rank, known once it and the move before it are analysed.
+  const lastRank = useMemo(
+    () => mistakes?.find((point) => point.node_id === currentNode)?.loss?.rank ?? null,
+    [mistakes, currentNode],
+  );
+  const liveTree = tree && document && tree.revision === document.tree.structure_revision ? tree : null;
+  const currentTreeNode = useMemo(() => liveTree?.nodes.find((node) => node.id === currentNode) ?? null, [liveTree, currentNode]);
+  // The recorded continuations, each with the position it leads to when that is analysed.
+  const nextMoves = useMemo<NextMove[]>(() => {
+    if (!liveTree || !currentTreeNode) return [];
+    const moves: NextMove[] = [];
+    for (const id of currentTreeNode.children) {
+      const mv = liveTree.nodes.find((node) => node.id === id)?.mv;
+      if (mv?.type !== "Play") continue;
+      moves.push({ point: mv.data.point, after: points.find((point) => point.node_id === id)?.summary ?? null });
+    }
+    return moves;
+  }, [liveTree, currentTreeNode, points]);
+  const boardNames = useMemo(
+    () => (info && (info.black_name || info.white_name) ? { black: info.black_name ?? "", white: info.white_name ?? "" } : null),
+    [info],
+  );
+  const emptyGame =
+    board !== null &&
+    document?.tree.current === document?.tree.root &&
+    currentTreeNode !== null &&
+    currentTreeNode.children.length === 0 &&
+    board.stones.every((stone) => stone === null);
   const play = (point: PointView) => {
     if (!board) return;
     backend.play({ type: "Play", data: { color: board.to_play, point } }).catch(report);
@@ -535,6 +565,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               maxCandidates={MAX_CANDIDATES}
               label={messages.board.label}
               variation={variation}
+              names={boardNames}
+              lastRank={lastRank}
+              next={nextMoves}
+              passLabel={messages.board.pass}
+              emptyHint={emptyGame ? messages.board.emptyHint : null}
               onHoverCandidate={setBoardHover}
               onPlay={play}
             />
