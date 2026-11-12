@@ -2867,6 +2867,11 @@ button.fox-row[aria-busy="true"] {
   box-sizing: border-box;
 }
 
+.edit-form .dialog-footer {
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .edit-invalid {
   margin: 0;
   font-size: 12px;

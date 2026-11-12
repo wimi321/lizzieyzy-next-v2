@@ -4,10 +4,10 @@ import { editedText, RULE_PRESETS } from "./info";
 
 export interface GameInfoLabels {
   infoTitle: string;
-  black: string;
-  white: string;
-  name: string;
-  rank: string;
+  blackName: string;
+  blackRank: string;
+  whiteName: string;
+  whiteRank: string;
   komi: string;
   rules: string;
   result: string;
@@ -102,10 +102,10 @@ export function GameInfoDialog({ info, labels, ruleNames, onSave, onClose }: Gam
         </header>
         <form className="edit-form" noValidate onSubmit={submit}>
           <div className="edit-grid">
-            {field("black_name", `${labels.black} ${labels.name}`)}
-            {field("black_rank", `${labels.black} ${labels.rank}`)}
-            {field("white_name", `${labels.white} ${labels.name}`)}
-            {field("white_rank", `${labels.white} ${labels.rank}`)}
+            {field("black_name", labels.blackName)}
+            {field("black_rank", labels.blackRank)}
+            {field("white_name", labels.whiteName)}
+            {field("white_rank", labels.whiteRank)}
             <label className="edit-field">
               <span>{labels.komi}</span>
               <input
