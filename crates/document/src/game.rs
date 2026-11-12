@@ -117,9 +117,6 @@ impl GameDocument {
             .map_err(|_| DocError::UnknownRules(info.rules.clone()))?;
         let current = self.game_info()?;
         let komi_changed = !preserve_unchanged || info.komi != current.komi;
-        if komi_changed {
-            validate_komi(self.root, size, info.komi)?;
-        }
         let mut properties = root.properties().to_vec();
         for (name, value, previous) in [
             ("PB", info.black_name, current.black_name),
@@ -146,10 +143,11 @@ impl GameDocument {
                 replace(&mut properties, name, value);
             }
         }
-        if komi_changed {
-            // Only an explicit komi edit may change its encoding marker. In
-            // particular, changing RU alone preserves KM/KO/LZKOMI verbatim;
-            // imported source values are then interpreted under the new RU.
+        if komi_changed || metadata::root_metadata(self.root, &properties).komi != info.komi {
+            // A rule edit can change how an unchanged source KM/KO is read.
+            // Rewrite only when necessary to retain the submitted point value.
+            validate_komi(self.root, size, info.komi)?;
+            replace(&mut properties, "KM", Some(info.komi.to_string()));
             let unmarked: Vec<_> = properties
                 .iter()
                 .filter(|property| property.identifier != "LZKOMI")
