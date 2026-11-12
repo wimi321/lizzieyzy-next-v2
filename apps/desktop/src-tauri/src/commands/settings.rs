@@ -1,4 +1,4 @@
-use app_core::{AnalysisLimitSettings, Settings};
+use app_core::{AnalysisLimitSettings, DisplaySettings, Settings};
 use tauri::State;
 
 use crate::{DesktopState, error::CommandError};
@@ -6,6 +6,14 @@ use crate::{DesktopState, error::CommandError};
 #[tauri::command]
 pub async fn settings(state: State<'_, DesktopState>) -> Result<Settings, CommandError> {
     Ok(state.core.settings().await?)
+}
+
+#[tauri::command]
+pub async fn set_display_settings(
+    state: State<'_, DesktopState>,
+    display: DisplaySettings,
+) -> Result<DisplaySettings, CommandError> {
+    Ok(state.core.set_display_settings(display).await?)
 }
 
 #[tauri::command]

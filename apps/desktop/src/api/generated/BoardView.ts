@@ -9,4 +9,13 @@ export type BoardView = { width: number, height: number,
  * SGF row `a`, GTP row 19 on a 19x19 board, or row `height` on a rectangle.
  * AnalysisView::ownership uses the same order.
  */
-stones: Array<ColorView | null>, last_move: MoveView | null, to_play: ColorView, move_number: number, captured_black: number, captured_white: number, };
+stones: Array<ColorView | null>, 
+/**
+ * Surviving stone's root-relative move number, including passes. Setup
+ * stones and empty points are null; preview stones use one-based PV indices.
+ */
+stone_move_numbers?: Array<number | null>, 
+/**
+ * Source node of each surviving recorded move; preview stones have no node.
+ */
+stone_node_ids?: Array<number | null>, last_move: MoveView | null, to_play: ColorView, move_number: number, captured_black: number, captured_white: number, };

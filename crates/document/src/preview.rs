@@ -2,7 +2,7 @@
 
 use go_core::{Color, Move, Point};
 
-use crate::{DocError, GameDocument, GamePosition, NodeId};
+use crate::{DocError, GameDocument, GamePosition, NodeId, semantics};
 
 /// A preview stone still present in the final board, ready for a numbered label.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +78,13 @@ impl GameDocument {
             position.moves.push(mv);
             position.analysis_moves.push(mv);
             preview.applied_moves.push(mv);
+            semantics::record_move_origin(
+                position,
+                mv,
+                &outcome,
+                preview.applied_moves.len(),
+                None,
+            );
             if let Move::Play(color, point) = mv
                 && position.board.stone_at(point) == Some(color)
             {

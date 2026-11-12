@@ -30,6 +30,12 @@ pub struct GraphView {
 
 impl GraphView {
     pub(crate) fn from_document(document: &GameDocument) -> Result<Self, DocError> {
+        Self::from_document_with_branch(document).map(|(graph, _)| graph)
+    }
+
+    pub(crate) fn from_document_with_branch(
+        document: &GameDocument,
+    ) -> Result<(Self, Option<usize>), DocError> {
         let mut line = Vec::new();
         let mut next = Some(document.current());
         while let Some(id) = next {
@@ -50,13 +56,22 @@ impl GraphView {
 
         let mut points = Vec::with_capacity(line.len());
         let mut move_number = 0;
-        for id in line {
+        let mut branch_start_move_number = None;
+        let mut main_child = Some(document.root());
+        for (index, id) in line.into_iter().enumerate() {
+            let node = document.node(id)?;
+            if index <= current_index
+                && branch_start_move_number.is_none()
+                && main_child != Some(id)
+            {
+                branch_start_move_number = Some(move_number + 1);
+            }
+            main_child = node.children().first().copied();
             // On valid positions this is exactly GamePosition::moves.len(),
             // as used by BoardView. Empty/setup/PL nodes do not add or reset a
             // move. Invalid records remain navigable: count a B/W node once
             // without claiming that its recorded move is legal.
-            if document
-                .node(id)?
+            if node
                 .properties()
                 .iter()
                 .any(|property| matches!(property.identifier.as_str(), "B" | "W"))
@@ -69,9 +84,12 @@ impl GraphView {
                 summary: None,
             });
         }
-        Ok(Self {
-            points,
-            current_index,
-        })
+        Ok((
+            Self {
+                points,
+                current_index,
+            },
+            branch_start_move_number,
+        ))
     }
 }

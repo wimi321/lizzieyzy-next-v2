@@ -273,3 +273,83 @@ fn malformed_semantics_report_node_and_property_without_panicking() {
     ));
     assert!(replay([]).is_err());
 }
+
+fn assert_stone_origins(position: &GamePosition, expected: &[(u8, u8, usize, NodeId)]) {
+    let mut numbers = vec![None; position.board.stones().len()];
+    let mut nodes = vec![None; position.board.stones().len()];
+    for &(x, y, number, node) in expected {
+        let index = usize::from(y) * usize::from(position.board.size().width) + usize::from(x);
+        assert!(position.board.stone_at(Point { x, y }).is_some());
+        numbers[index] = Some(number);
+        nodes[index] = Some(node);
+    }
+    assert_eq!(position.stone_move_numbers, numbers);
+    assert_eq!(position.stone_node_ids, nodes);
+}
+
+#[test]
+fn stone_origins_clear_captured_moves_and_keep_rectangular_row_order() {
+    let result = position("(;SZ[5:4];B[aa];W[ba];W[ab])").unwrap();
+    assert_eq!(result.captured_by.white, 1);
+    assert_eq!(result.board.stone_at(Point { x: 0, y: 0 }), None);
+    assert_stone_origins(&result, &[(1, 0, 2, NodeId(2)), (0, 1, 3, NodeId(3))]);
+}
+
+#[test]
+fn stone_origins_follow_recorded_ko_recaptures_instead_of_reusing_old_sources() {
+    let result = position("(;SZ[5]AB[ab][ba][bc]AW[ca][cc][db];W[bb];B[cb];W[bb])").unwrap();
+    assert_eq!(result.captured_by, Captures { black: 1, white: 1 });
+    assert_stone_origins(&result, &[(1, 1, 3, NodeId(3))]);
+}
+
+#[test]
+fn stone_origins_clear_only_explicit_setup_points_and_survive_player_resets() {
+    let result =
+        position("(;SZ[5:4]AB[dd]AW[ed];B[aa];W[ba];B[cc];B[ad];AB[aa]AE[ba]AW[cc];PL[B];B[bd])")
+            .unwrap();
+    assert_eq!(result.moves.len(), 5);
+    assert_stone_origins(&result, &[(0, 3, 4, NodeId(4)), (1, 3, 5, NodeId(7))]);
+    for (point, color) in [
+        (Point { x: 0, y: 0 }, Color::Black),
+        (Point { x: 2, y: 2 }, Color::White),
+        (Point { x: 3, y: 3 }, Color::Black),
+        (Point { x: 4, y: 3 }, Color::White),
+    ] {
+        assert_eq!(result.board.stone_at(point), Some(color));
+    }
+}
+
+#[test]
+fn stone_origins_count_root_moves_and_passes_without_counting_empty_nodes() {
+    let result = position("(;SZ[4:3]B[aa];C[note];W[];AB[dc];B[bc];PL[W];W[])").unwrap();
+    assert_eq!(result.moves.len(), 4);
+    assert_stone_origins(&result, &[(0, 0, 1, NodeId(0)), (1, 2, 3, NodeId(4))]);
+}
+
+#[test]
+fn stone_origins_on_a_branch_use_its_own_nodes_and_match_the_origin_query() {
+    let collection = sgf::parse(b"(;SZ[5];B[aa](;W[bb];B[cc])(;W[];B[dd]))").unwrap();
+    let mut document = crate::GameDocument::from_sgf(&collection.games[0]).unwrap();
+    let first = document.node(document.root()).unwrap().children()[0];
+    let branch = document.node(first).unwrap().children()[1];
+    let last = document.node(branch).unwrap().children()[0];
+    document.apply(crate::Command::GoTo(last)).unwrap();
+    let result = document.position_at(last).unwrap();
+    assert_stone_origins(&result, &[(0, 0, 1, first), (3, 3, 3, last)]);
+    assert_eq!(
+        document.stone_origin(Point { x: 3, y: 3 }).unwrap(),
+        Some(crate::StoneOrigin {
+            node: last,
+            move_number: 3,
+            review_parent: Some(branch),
+        })
+    );
+    assert_eq!(document.stone_origin(Point { x: 1, y: 1 }).unwrap(), None);
+}
+
+#[test]
+fn stone_origins_clear_the_entire_self_captured_group() {
+    let result = position("(;SZ[3]RU[tromp-taylor]AW[ba][bb][ac];B[aa];B[ab])").unwrap();
+    assert_eq!(result.captured_by.white, 2);
+    assert_stone_origins(&result, &[]);
+}

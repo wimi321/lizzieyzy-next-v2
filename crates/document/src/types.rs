@@ -175,6 +175,13 @@ pub struct Captures {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GamePosition {
     pub board: Position,
+    /// Row-major, matching board.stones(). Empty and explicitly set up points
+    /// have no number. Ordinary moves count from the root, including passes;
+    /// newly played preview stones instead use their one-based PV index.
+    pub stone_move_numbers: Vec<Option<usize>>,
+    /// Source node for each surviving ordinary stone. Preview stones have no
+    /// document node, even when their point matches a recorded continuation.
+    pub stone_node_ids: Vec<Option<NodeId>>,
     /// All moves from the root, including passes, across setup boundaries.
     pub moves: Vec<Move>,
     /// Effective starting stones after the most recent setup or turn reset.
