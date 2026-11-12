@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { JAVA_ICONS } from "./icons";
 import { ToolButton, ToolSeparator } from "./ToolButton";
 
@@ -53,6 +54,10 @@ export interface TopToolbarProps {
   /** Whether 返回主分支 has somewhere to go. */
   offMainLine: boolean;
   komi: number | null;
+  onNew(): void;
+  onSetMain(): void;
+  onKomi(komi: number): void;
+  onBoardSize(): void;
   onOpen(): void;
   onSave(): void;
   onFox(): void;
@@ -73,6 +78,41 @@ function SearchGlyph() {
   );
 }
 
+/** 贴目: the game's komi, changed by typing a number and leaving the field or pressing Enter. */
+function KomiField({ label, komi, onChange }: { label: string; komi: number | null; onChange(komi: number): void }) {
+  // null while the field shows the game's own komi.
+  const [text, setText] = useState<string | null>(null);
+  const abandoned = useRef(false);
+  const commit = () => {
+    const typed = abandoned.current ? null : text;
+    abandoned.current = false;
+    setText(null);
+    if (typed === null || typed.trim() === "") return;
+    const value = Number(typed.trim());
+    if (Number.isFinite(value) && value !== komi) onChange(value);
+  };
+  return (
+    <label className="jt-field" aria-disabled={komi === null ? "true" : undefined}>
+      <span>{label}</span>
+      <span className="jt-spinner">
+        <input
+          className="jt-input"
+          data-testid="tool-komi"
+          inputMode="decimal"
+          disabled={komi === null}
+          value={text ?? (komi === null ? "" : String(komi))}
+          onChange={(event) => setText(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") abandoned.current = true;
+            if (event.key === "Enter" || event.key === "Escape") event.currentTarget.blur();
+          }}
+        />
+      </span>
+    </label>
+  );
+}
+
 /**
  * LizzieYzy Next's top toolbar in Java's order (`Menu` → `TopHeaderPanel`), wrapping onto a
  * second row when the window is narrower than its controls, as Java's does at 1429 px.
@@ -81,7 +121,7 @@ export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, .
   const icon = JAVA_ICONS;
   return (
     <div className="jt-top" role="toolbar" aria-label="LizzieYzy Next" data-testid="top-toolbar">
-      <ToolButton icon={icon.newFile} title={labels.newFile} enabled={false} testId="tool-new" />
+      <ToolButton icon={icon.newFile} title={labels.newFile} testId="tool-new" onClick={on.onNew} />
       <ToolButton icon={icon.open} title={labels.open} testId="open-file" onClick={on.onOpen} />
       <ToolButton icon={icon.save} title={labels.save} enabled={hasDocument} testId="save-file" onClick={on.onSave} />
       <ToolButton role="primary" label={labels.fox} title={labels.foxTip} testId="open-fox" onClick={on.onFox} />
@@ -105,7 +145,7 @@ export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, .
       <ToolButton icon={icon.hawkeye} title={labels.hawkeye} enabled={false} />
       <ToolButton icon={icon.rankMark} title={labels.rankMark} enabled={false} />
       <ToolButton icon={icon.changeTurn} title={labels.changeTurn} enabled={false} />
-      <ToolButton icon={icon.setMain} title={labels.setMain} enabled={false} />
+      <ToolButton icon={icon.setMain} title={labels.setMain} enabled={offMainLine} testId="tool-set-main" onClick={on.onSetMain} />
       <ToolButton icon={icon.backMain} title={labels.backMain} enabled={offMainLine} testId="tool-back-main" onClick={on.onBackMain} />
       <ToolButton icon={icon.controlPanel} title={labels.controlPanel} enabled={false} />
       <ToolButton icon={icon.markup} title={labels.markup} enabled={false} />
@@ -124,12 +164,7 @@ export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, .
       <ToolButton role="primary" label={labels.newGame} title={labels.newGame} enabled={false} />
       <ToolButton label={labels.pauseGame} title={labels.pauseGame} enabled={false} />
       <ToolSeparator />
-      <label className="jt-field" aria-disabled="true">
-        <span>{labels.komi}</span>
-        <span className="jt-spinner">
-          <input className="jt-input" data-testid="tool-komi" value={komi === null ? "" : String(komi)} disabled readOnly />
-        </span>
-      </label>
+      <KomiField label={labels.komi} komi={komi} onChange={on.onKomi} />
       <ToolSeparator />
       <label className="jt-check" aria-disabled="true">
         <input type="checkbox" disabled />
@@ -157,7 +192,7 @@ export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, .
       <ToolButton small className="jt-rules" label={labels.rules} enabled={false} />
       <ToolButton small label={labels.tsumego} testId="tool-tsumego" onClick={on.onTsumego} />
       <ToolButton small label={labels.params} enabled={false} />
-      <ToolButton small label={labels.goban} enabled={false} />
+      <ToolButton small label={labels.goban} testId="tool-goban" onClick={on.onBoardSize} />
       <ToolButton small label={labels.saveLoad} enabled={false} />
     </div>
   );
