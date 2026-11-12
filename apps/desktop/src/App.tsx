@@ -715,7 +715,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onSave={async (values) => {
             setLimits(await backend.setAnalysisLimits(values.limits));
             if (values.autoCurve !== autoCurve) setAutoCurve(await backend.setAutoQuickAnalyzeOnLoad(values.autoCurve));
-            if (values.cache !== cacheOn) setCacheOn((await backend.setCacheEnabled?.(values.cache)) ?? values.cache);
+            if (values.cache !== cacheOn) setCacheOn(await backend.setCacheEnabled(values.cache));
             setSettingsOpen(false);
           }}
           onClose={() => setSettingsOpen(false)}

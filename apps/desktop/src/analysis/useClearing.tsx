@@ -26,8 +26,8 @@ function report(error: unknown) {
 export function useClearing(backend: Pick<Backend, "clearAnalysis" | "clearCache">, hasBoard: boolean, labels: ClearingLabels) {
   const [asking, setAsking] = useState<Whole | null>(null);
   const clear = (what: Whole, all: boolean) => {
-    const run = what === "analysis" ? backend.clearAnalysis?.(all) : backend.clearCache?.(all);
-    run?.catch(report);
+    const run = what === "analysis" ? backend.clearAnalysis(all) : backend.clearCache(all);
+    run.catch(report);
   };
   const bindings: Record<string, MenuBinding> = {
     clearThisLizzieBestmoves: { run: () => clear("analysis", false), enabled: hasBoard },

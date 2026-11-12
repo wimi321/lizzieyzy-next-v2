@@ -1,5 +1,4 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import type { AnalysisCacheCommands } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, Channel: class {} }));
@@ -11,8 +10,6 @@ beforeEach(() => {
 
 test("cache API forwards all scopes, persisted state and errors without frontend decisions", async () => {
   const backend = await import("./backend");
-  const legacy: AnalysisCacheCommands = {};
-  expect(legacy.clearAnalysis).toBeUndefined();
   ipc.invoke.mockResolvedValueOnce(true);
   expect(await backend.cacheEnabled()).toBe(true);
   expect(ipc.invoke).toHaveBeenLastCalledWith("cache_enabled");

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { AppEvent, ProblemMovesView } from "../src/api/backend";
-import { analysisUpdated, defaultDisplaySettings, documentChanged, recordedGame } from "./fixtures";
-import type { MockCommand } from "./mock-backend";
+import { analysisUpdated, defaultDisplaySettings, documentChanged, midGame, recordedGame } from "./fixtures";
+import type { MockCommand, MockScript } from "./mock-backend";
 
 test.use({ viewport: { width: 1280, height: 820 }, deviceScaleFactor: 1, locale: "zh-CN" });
 
@@ -31,8 +31,7 @@ test("选点列表面板 lists the candidates under the tree; a row previews its
     [
       { command: "variationTree", result: tree },
       { command: "play", result: 8 },
-      // The interface keeps the switch until the backend's settings carry it (P2-09).
-      { command: "setDisplaySettings", result: defaultDisplaySettings },
+      { command: "setDisplaySettings", result: { ...defaultDisplaySettings, show_list_pane: false } },
     ],
     problems,
   );
@@ -62,6 +61,7 @@ test("选点列表面板 lists the candidates under the tree; a row previews its
   await expect(row(page, "listPane")).toHaveAttribute("aria-checked", "true");
   await row(page, "listPane").click();
   await expect(page.locator('[data-region="list"]')).toHaveCount(0);
+  expect((await calls(page)).find((call) => call.command === "setDisplaySettings")?.args).toEqual([{ ...defaultDisplaySettings, show_list_pane: false }]);
   await expect.poll(async () => (await page.locator('[data-region="tree"]').boundingBox())!.height).toBeGreaterThan(treeBox.height);
 });
 
@@ -79,4 +79,49 @@ test("超级鹰眼 opens the 问题手 page, from the toolbar or Y", async ({ pa
   await expect(page.getByTestId("tab-comment")).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("y");
   await expect(page.getByTestId("tab-problems")).toHaveAttribute("aria-selected", "true");
+});
+
+test("综合设置 → 启用缓存 is saved; 分析 clears this move's analysis at once and the whole cache after asking", async ({ page }) => {
+  const limits = { limit_time: false, max_analyze_time_seconds: 600, limit_playout: false, limit_playouts: 100000 };
+  const script: MockScript = {
+    initialEvents: [documentChanged(midGame(), 3)],
+    commands: [
+      {
+        command: "settings",
+        result: { version: 1, engine: { program: "/opt/katago", model: "/opt/model.bin.gz", config: "", extra_args: [] }, pondering: true, cache_enabled: true },
+      },
+      { command: "analysisLimits", result: limits },
+      { command: "setAnalysisLimits", result: limits },
+      { command: "setCacheEnabled", result: false },
+      { command: "clearAnalysis", result: 4 },
+      { command: "clearCache", result: undefined },
+    ],
+  };
+  await page.addInitScript((initial) => {
+    window.__mockInitialScript = initial;
+  }, script);
+  await page.goto("/");
+  await page.getByTestId("menubar").locator('[data-menu-id="settings"]').click();
+  await row(page, "comprehensiveSettings").click();
+  await expect(page.getByTestId("settings-cache")).toBeChecked();
+  await page.getByTestId("settings-cache").uncheck();
+  await page.getByTestId("settings-save").click();
+  await expect(page.getByTestId("settings-dialog")).toBeHidden();
+
+  await page.getByTestId("menubar").locator('[data-menu-id="analyzeMenu"]').click();
+  await row(page, "clearThisLizzieBestmoves").click();
+  await page.getByTestId("menubar").locator('[data-menu-id="analyzeMenu"]').click();
+  await row(page, "clearAllLizzieCache").click();
+  await expect(page.getByTestId("confirm-clear-cache")).toContainText("清除本机保存的所有分析缓存");
+  await page.getByTestId("confirm-clear-cache-ok").click();
+  await expect
+    .poll(async () => (await calls(page)).map((call) => [call.command, call.args]))
+    .toEqual([
+      ["settings", []],
+      ["analysisLimits", []],
+      ["setAnalysisLimits", [limits]],
+      ["setCacheEnabled", [false]],
+      ["clearAnalysis", [false]],
+      ["clearCache", [true]],
+    ]);
 });

@@ -3,8 +3,7 @@ import type { MoveWindow } from "../board/moveMarks";
 import type { SuggestionStyle } from "../board/suggestionText";
 import type { RegionName } from "../frame/MainPanel";
 
-/** `show_list_pane` arrives with P2-09; until then the interface keeps it itself. */
-export type Display = Required<DisplaySettings> & { show_list_pane: boolean };
+export type Display = Required<DisplaySettings>;
 
 /**
  * What the 显示 menu starts with. Rust owns the settings and always sends every field; these
