@@ -95,6 +95,14 @@ impl Actor {
         let mut saved = BTreeMap::new();
         for node in self.document.variation_tree()? {
             if let Some(stored) = self.stored_analysis(node.id.0) {
+                // LZ carries no rules/komi identity. Never label overridden
+                // engine evaluations with the unchanged document's RU/KM.
+                // Keep original file results that have not been replaced. By
+                // omitting replaced nodes, the domain writer also removes their
+                // parseable original primary slots instead of reviving them.
+                if stored.saved.is_none() && !self.can_reuse_saved_analysis() {
+                    continue;
+                }
                 saved.insert(
                     node.id,
                     stored

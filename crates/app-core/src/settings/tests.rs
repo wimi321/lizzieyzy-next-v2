@@ -31,7 +31,10 @@ async fn settings_round_trip_and_missing_file_defaults() {
     };
     let nested = directory.path().join("portable/settings");
     settings.save(&nested).await.unwrap();
-    assert_eq!(Settings::load(&nested).await.unwrap(), settings);
+    assert_eq!(
+        Settings::load(&nested).await.unwrap(),
+        settings.normalized().unwrap()
+    );
     Settings::default().save(&nested).await.unwrap();
     assert_eq!(Settings::load(&nested).await.unwrap(), Settings::default());
 }
@@ -187,6 +190,9 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
             score_thresholds: [1.0, 2.0, 4.0, 8.0, 16.0],
         },
         tsumego: crate::TsumegoOptions::default(),
+        engines: Vec::new(),
+        main_engine_id: None,
+        engine_settings: crate::EngineSettings::default(),
     };
     settings.save(directory.path()).await.unwrap();
     // Saving normalizes the stored copy without mutating the caller's settings.
@@ -196,7 +202,9 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
         version: 1,
         fox_history: vec![latest],
         ..settings
-    };
+    }
+    .normalized()
+    .unwrap();
     assert_eq!(Settings::load(directory.path()).await.unwrap(), expected);
     let stored: serde_json::Value =
         serde_json::from_slice(&fs::read(directory.path().join("settings.json")).unwrap()).unwrap();
@@ -563,4 +571,46 @@ fn transport_reserves_two_search_slots_even_with_single_thread_override() {
         args[6],
         "numAnalysisThreads=2,reportAnalysisWinratesAs=BLACK"
     );
+}
+
+#[tokio::test]
+async fn engine_only_settings_migrate_once_and_closed_selection_survives_restart() {
+    let directory = tempfile::tempdir().unwrap();
+    let profile = profile(directory.path());
+    let path = directory.path().join("settings.json");
+    for version in [0, 1] {
+        let legacy = serde_json::json!({"version": version, "engine": profile});
+        fs::write(&path, serde_json::to_vec(&legacy).unwrap()).unwrap();
+        let mut settings = Settings::load(directory.path()).await.unwrap();
+        assert_eq!(settings.version, 1);
+        assert_eq!(settings.engines.len(), 1);
+        assert_eq!(settings.main_engine_id.as_deref(), Some("legacy-engine"));
+        assert_eq!(settings.engines[0].name, "KataGo");
+        assert_eq!(settings.engines[0].profile, profile);
+        assert_eq!(settings.engine.as_ref(), Some(&profile));
+        settings.save(directory.path()).await.unwrap();
+        assert_eq!(Settings::load(directory.path()).await.unwrap(), settings);
+        settings.engine = None;
+        settings.save(directory.path()).await.unwrap();
+        assert_eq!(Settings::load(directory.path()).await.unwrap(), settings);
+    }
+}
+
+#[tokio::test]
+async fn invalid_engine_lists_are_rejected_without_changing_saved_bytes() {
+    let directory = tempfile::tempdir().unwrap();
+    let profile = profile(directory.path());
+    let entry = serde_json::json!({"id": "one", "name": "One", "profile": profile});
+    let path = directory.path().join("settings.json");
+    for data in [
+        serde_json::json!({"engines": [entry.clone(), entry.clone()]}),
+        serde_json::json!({"engines": [entry.clone()], "main_engine_id": "absent"}),
+        serde_json::json!({"engines": [entry], "engine": profile}),
+        serde_json::json!({"engines": [{"id":"", "name":"", "profile":profile}]}),
+    ] {
+        let bytes = serde_json::to_vec(&data).unwrap();
+        fs::write(&path, &bytes).unwrap();
+        assert!(Settings::load(directory.path()).await.is_err());
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+    }
 }

@@ -13,6 +13,7 @@ import type { EditCommands } from "./edit";
 import type { SetupMarkupCommands } from "./setup-markup";
 import type { MoveEditingCommands } from "./move-editing";
 import type { DisplaySettingsCommands } from "./display-settings";
+import type { EngineCommands } from "./engines";
 import type { AnalysisCacheCommands } from "./analysis-cache";
 import type { EngineDisplayName } from "./generated/EngineDisplayName";
 import type { EngineProfile } from "./generated/EngineProfile";
@@ -47,6 +48,7 @@ export * from "./setup-markup";
 export * from "./move-editing";
 export * from "./display-settings";
 export * from "./analysis-cache";
+export * from "./engines";
 export type { AnalysisSource } from "./generated/AnalysisSource";
 export type { AnalysisSummary } from "./generated/AnalysisSummary";
 export type { AnalysisView } from "./generated/AnalysisView";
@@ -81,7 +83,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands {
+export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands {
   openBytes(bytes: number[]): Promise<Revision>;
   openPath(path: string): Promise<Revision>;
   save(path: string): Promise<void>;

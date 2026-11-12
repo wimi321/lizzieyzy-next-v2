@@ -26,6 +26,7 @@ tempfile = "3"
 
 [dev-dependencies]
 fake-katago = { path = "../../tools/fake-katago" }
+proptest = { version = "1", default-features = false, features = ["std"] }
 tokio = { version = "1", features = ["test-util", "net", "io-util"] }
 
 [lints]

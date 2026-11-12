@@ -11,6 +11,7 @@ const MAX_PENDING: usize = 128;
 const MAX_OUTGOING: usize = 256;
 
 pub(crate) enum Command {
+    SetAutoCheckAlive(bool, oneshot::Sender<()>),
     Submit(
         Box<AnalysisRequest>,
         oneshot::Sender<Result<QuerySubscription, SessionError>>,
@@ -222,7 +223,7 @@ impl Actor {
                         }
                     }
                 }
-                _ = sleep_until(deadline), if !self.ready || !self.pending.is_empty() => {
+                _ = sleep_until(deadline), if !self.ready || (self.cfg.auto_check_alive && !self.pending.is_empty()) => {
                     return Outcome::Fault {
                         reason: if self.ready { "response watchdog timed out" } else { "startup query_version timed out" }.into(),
                         fatal: false,
@@ -234,6 +235,11 @@ impl Actor {
 
     fn command(&mut self, command: Option<Command>) {
         match command {
+            Some(Command::SetAutoCheckAlive(enabled, reply)) => {
+                self.cfg.auto_check_alive = enabled;
+                self.last_output = Instant::now();
+                let _ = reply.send(());
+            }
             Some(Command::Submit(request, reply)) => {
                 if reply.is_closed() {
                     return;

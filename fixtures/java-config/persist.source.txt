@@ -1,0 +1,1 @@
+Handwritten non-user sample from ../lizzieyzy-next Config.java persistedUi main-window-other[0], the saved bottom toolbar height; zero means hidden.

@@ -21,6 +21,7 @@ mod cache;
 mod display_settings;
 mod edit;
 mod engine_auto_setup;
+mod engines;
 mod frame;
 mod move_editing;
 mod problem_moves;

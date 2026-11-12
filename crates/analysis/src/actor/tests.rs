@@ -844,3 +844,26 @@ async fn within_discard_test<T>(future: impl std::future::Future<Output = T>) ->
         .await
         .expect("discard test safety deadline")
 }
+
+#[tokio::test]
+async fn query_overrides_cannot_reuse_an_existing_coordinator_cache_namespace() {
+    let (mut actor, _) = actor();
+    let original = actor.config.live.clone();
+    for settings in [
+        LiveSettings {
+            query_rules: Some(katago_protocol::Rules::Named("aga".into())),
+            ..original.clone()
+        },
+        LiveSettings {
+            query_komi: Some(6.5),
+            ..original.clone()
+        },
+    ] {
+        assert!(matches!(
+            actor.command(Input::SetLiveSettings(settings)).await,
+            Err(AnalysisError::InvalidSettings(_))
+        ));
+        assert_eq!(actor.config.live, original);
+    }
+    stop(actor).await;
+}

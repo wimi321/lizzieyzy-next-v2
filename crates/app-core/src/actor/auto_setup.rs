@@ -22,6 +22,17 @@ impl Actor {
         if let Some(profile) = &self.settings.engine {
             return Ok(Start::Existing(profile.clone()));
         }
+        // The existing UI invokes automatic setup whenever the compatibility
+        // projection is None. A deliberately closed, saved selection is already
+        // configured: report it without rediscovery or starting a process.
+        if let Some(entry) = self
+            .settings
+            .engines
+            .iter()
+            .find(|entry| Some(&entry.id) == self.settings.main_engine_id.as_ref())
+        {
+            return Ok(Start::Existing(entry.profile.clone()));
+        }
         self.auto_setup.cancel();
         self.cancel_trial().await;
         self.auto_setup.generation = self

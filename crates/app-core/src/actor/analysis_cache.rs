@@ -13,7 +13,7 @@ impl Actor {
         let fingerprint = &self.running.as_ref()?.fingerprint;
         let mut hash = blake3::Hasher::new();
         hash.update(b"lizzieyzy-next2:persistent-analysis:v1\0");
-        hash.update(fingerprint.as_bytes());
+        hash.update(self.evaluation_fingerprint(fingerprint).ok()?.as_bytes());
         let benchmark = self.settings.benchmarks.get(fingerprint);
         let encoded = serde_json::to_vec(&benchmark).ok()?;
         hash.update(&encoded);

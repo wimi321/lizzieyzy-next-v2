@@ -27,6 +27,8 @@ pub enum TransportSpec {
 
 #[derive(Clone, Debug)]
 pub struct SessionConfig {
+    /// Disable only the no-output watchdog; startup/process faults stay visible.
+    pub auto_check_alive: bool,
     pub startup_timeout: Duration,
     pub response_timeout: Duration,
     pub restart_backoff: Duration,
@@ -42,6 +44,7 @@ pub struct SessionConfig {
 impl Default for SessionConfig {
     fn default() -> Self {
         Self {
+            auto_check_alive: true,
             startup_timeout: Duration::from_secs(120),
             response_timeout: Duration::from_secs(30),
             restart_backoff: Duration::from_millis(250),
@@ -167,6 +170,15 @@ impl EngineHandle {
             .await
             .map_err(|_| SessionError::Closed)?;
         received.await.map_err(|_| SessionError::Closed)?
+    }
+
+    pub async fn set_auto_check_alive(&self, enabled: bool) -> Result<(), SessionError> {
+        let (reply, received) = oneshot::channel();
+        self.commands
+            .send(actor::Command::SetAutoCheckAlive(enabled, reply))
+            .await
+            .map_err(|_| SessionError::Closed)?;
+        received.await.map_err(|_| SessionError::Closed)
     }
 
     pub fn status(&self) -> watch::Receiver<EngineStatus> {

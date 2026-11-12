@@ -1,4 +1,4 @@
-import type { AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import type { AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 import { defaultCacheEnabled, defaultDisplaySettings, emptyStrengthEstimate } from "./fixtures";
 
 export type {
@@ -26,6 +26,7 @@ export type {
   SetupMarkupCommands, MarkupKindView, MarkupView,
   MoveEditingCommands, StoneOriginView,
   DisplaySettings, DisplaySettingsPayload, DisplaySettingsCommands, AnalysisCacheCommands,
+  EngineCommands, EngineEntry, EngineSettings, EngineRules, EngineCustomRules, JavaImportPreview, JavaImportedEngine,
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
@@ -45,6 +46,10 @@ const defaultTsumego: Settings["tsumego"] = {
 };
 const defaultAnalysisLimits: AnalysisLimitSettings = {
   limit_time: true, max_analyze_time_seconds: 600, limit_playout: false, limit_playouts: 100000,
+};
+const defaultEngineSettings: EngineSettings = {
+  rules: { type: "FollowSgf" }, read_komi: true, default_komi: 7.5,
+  auto_check_alive: true, report_interval_ms: 100,
 };
 const defaultAnalysisState: AnalysisState = { pondering: true, pause_reason: null };
 export type MockCall = {
@@ -195,7 +200,19 @@ async function command<K extends CommandName>(
   if (next.command === "wholeGameResult" && cloned) fillAnalysisDefaults(cloned as AnalysisView);
   if (next.command === "problemMoves" && cloned) fillLossDefaults(cloned as ProblemMovesView);
   if (next.command === "variationTree") fillTreeDefaults(cloned as VariationTreeView);
-  if (next.command === "settings") defaultField(cloned as Settings, "recent_files", []);
+  if (next.command === "settings") {
+    const settings = cloned as Settings;
+    defaultField(settings, "recent_files", []);
+    defaultField(settings, "engines", []);
+    defaultField(settings, "main_engine_id", null);
+    defaultField(settings, "engine_settings", structuredClone(defaultEngineSettings));
+    const engine = settings.engine_settings!;
+    defaultField(engine, "rules", { type: "FollowSgf" });
+    defaultField(engine, "read_komi", true);
+    defaultField(engine, "default_komi", 7.5);
+    defaultField(engine, "auto_check_alive", true);
+    defaultField(engine, "report_interval_ms", 100);
+  }
   return cloned as Awaited<ReturnType<NonNullable<Backend[K]>>>;
 }
 
@@ -312,6 +329,17 @@ function mainLineTree(): VariationTreeView {
   }));
   return { revision: tree.structure_revision, comment_revision: tree.comment_revision ?? 0, root: tree.root, nodes };
 }
+
+export const addEngine: NonNullable<Backend["addEngine"]> = (name, profile) => command("addEngine", [name, profile]);
+export const updateEngine: NonNullable<Backend["updateEngine"]> = (id, name, profile) => command("updateEngine", [id, name, profile]);
+export const removeEngine: NonNullable<Backend["removeEngine"]> = (id) => command("removeEngine", [id]);
+export const reorderEngines: NonNullable<Backend["reorderEngines"]> = (ids) => command("reorderEngines", [ids]);
+export const selectMainEngine: NonNullable<Backend["selectMainEngine"]> = (id) => command("selectMainEngine", [id]);
+export const restartEngine: NonNullable<Backend["restartEngine"]> = () => command("restartEngine", []);
+export const closeEngine: NonNullable<Backend["closeEngine"]> = () => command("closeEngine", []);
+export const setEngineSettings: NonNullable<Backend["setEngineSettings"]> = (settings) => command("setEngineSettings", [settings]);
+export const previewJavaImport: NonNullable<Backend["previewJavaImport"]> = (directory) => command("previewJavaImport", [directory]);
+export const confirmJavaImport: NonNullable<Backend["confirmJavaImport"]> = (previewId) => command("confirmJavaImport", [previewId]);
 
 export const recentFiles: Backend["recentFiles"] = () => query("recentFiles", [], () => []);
 export const variationTree: Backend["variationTree"] = () => query("variationTree", [], mainLineTree);
