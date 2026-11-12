@@ -9,6 +9,8 @@ use std::path::PathBuf;
 pub(super) struct FileState {
     pub path: Option<PathBuf>,
     saved: sgf::GameTree,
+    checked_revision: u64,
+    modified: bool,
 }
 
 impl FileState {
@@ -16,24 +18,32 @@ impl FileState {
         Self {
             path,
             saved: document.to_sgf(),
+            checked_revision: document.content_revision(),
+            modified: false,
         }
     }
 
-    pub fn modified(&self, document: &GameDocument) -> bool {
+    pub fn modified(&mut self, document: &GameDocument) -> bool {
         // Stable node IDs and cursor position are not file contents. Exact SGF
         // properties/child order also recognize undo back to a saved document.
-        self.saved != document.to_sgf()
+        if self.checked_revision != document.content_revision() {
+            self.modified = self.saved != document.to_sgf();
+            self.checked_revision = document.content_revision();
+        }
+        self.modified
     }
 }
 
 impl Actor {
     pub(super) async fn convert_to_start_position(&mut self) -> Result<(), AppError> {
+        self.ensure_no_move_trial()?;
         let document = self.document.to_start_position()?;
         self.stop_board_sync().await?;
         self.open_auto_curve_document(document, None).await
     }
 
     pub(super) async fn new_game(&mut self, options: NewGameOptions) -> Result<(), AppError> {
+        self.ensure_no_move_trial()?;
         let document = GameDocument::new_game(options.into())?;
         self.stop_board_sync().await?;
         self.open_auto_curve_document(document, None).await
@@ -46,6 +56,12 @@ impl Actor {
             encoding: "UTF-8".into(),
             warnings: Vec::new(),
         };
+        if self.move_trial.is_some() {
+            // Export a trial without claiming file ownership or marking the
+            // original saved. No-clobber also rejects aliases of existing files.
+            storage::write_new(path, sgf::serialize(&collection).into_bytes()).await?;
+            return Ok(());
+        }
         storage::write(path.clone(), sgf::serialize(&collection).into_bytes()).await?;
         self.file_name = path
             .file_name()
@@ -58,6 +74,7 @@ impl Actor {
     }
 
     pub(super) async fn open_path(&mut self, path: PathBuf) -> Result<(), AppError> {
+        self.ensure_no_move_trial()?;
         let result = async {
             let absolute = std::path::absolute(&path)?;
             let bytes = tokio::fs::read(&absolute).await?;
@@ -99,6 +116,7 @@ impl Actor {
         bytes: Vec<u8>,
         file_path: Option<PathBuf>,
     ) -> Result<(), AppError> {
+        self.ensure_no_move_trial()?;
         let document = parse_document(&bytes)?;
         self.stop_board_sync().await?;
         self.open_auto_curve_document(document, file_path).await

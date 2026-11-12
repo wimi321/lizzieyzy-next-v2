@@ -62,10 +62,21 @@ pub(crate) fn warnings<'a>(
     warnings
 }
 
-fn apply_node(
+pub(crate) fn apply_node(
     position: &mut GamePosition,
     node: NodeId,
     properties: &[Property],
+) -> Result<(), DocError> {
+    apply_node_with_rules(position, node, properties, false)
+}
+
+/// Editing replays retained continuations with full ko rules, just like Java
+/// Board.place. Import and ordinary read-only replay continue to skip ko.
+pub(crate) fn apply_node_with_rules(
+    position: &mut GamePosition,
+    node: NodeId,
+    properties: &[Property],
+    check_ko: bool,
 ) -> Result<(), DocError> {
     let size = position.board.size();
     let player =
@@ -115,10 +126,12 @@ fn apply_node(
     let Some(mv) = recorded_move(node, properties, size)? else {
         return Ok(());
     };
-    let outcome = position
-        .board
-        .play_unchecked_ko(mv)
-        .map_err(|reason| DocError::IllegalMove { node, reason })?;
+    let outcome = if check_ko {
+        position.board.play(mv)
+    } else {
+        position.board.play_unchecked_ko(mv)
+    }
+    .map_err(|reason| DocError::IllegalMove { node, reason })?;
     match mv.color() {
         Color::Black => {
             position.captured_by.black += outcome.captured.len();

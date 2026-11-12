@@ -5,6 +5,7 @@ pub mod document;
 pub mod edit;
 pub mod engine;
 pub mod fox;
+pub mod move_editing;
 pub mod problem_moves;
 pub mod review;
 pub mod settings;

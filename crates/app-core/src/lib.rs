@@ -14,6 +14,7 @@ mod engine_trial;
 pub mod fox;
 mod graph;
 mod inspection;
+mod move_editing;
 mod move_rank;
 mod problem_moves;
 mod review;
@@ -38,6 +39,7 @@ pub use graph::{AnalysisSummary, GraphPointView, GraphView};
 pub use inspection::{
     GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
 };
+pub use move_editing::{StoneOriginView, TrialError};
 pub use move_rank::*;
 pub use problem_moves::*;
 pub use review::*;
@@ -52,6 +54,8 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    Trial(#[from] TrialError),
     #[error(transparent)]
     Benchmark(#[from] BenchmarkError),
     #[error("application core is closed")]
