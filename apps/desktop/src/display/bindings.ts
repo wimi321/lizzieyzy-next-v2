@@ -1,5 +1,5 @@
 import type { MenuBinding } from "../menu/bindings";
-import type { Display } from "./settings";
+import { type Display, nextMoveNumbers, nextRankMarks } from "./settings";
 
 /** The 显示 entries that ask for a number. */
 export type DisplayPrompt = "numbers" | "ranks" | "minVisits";
@@ -71,5 +71,9 @@ export function displayBindings(display: Display, set: (patch: Partial<Display>)
 
     leadWithKomi: choose("score_lead_includes_komi", true),
     leadWithoutKomi: choose("score_lead_includes_komi", false),
+
+    // Java's keys without a menu entry of their own: M, Alt+M.
+    toggleMoveNumbers: { run: () => set(nextMoveNumbers(display)) },
+    toggleMoveRankMarks: { run: () => set(nextRankMarks(display)) },
   };
 }

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
 import type { AnalysisLimitSettings, AutoSetupError, ColorView, EngineProfile, EngineStatus, FoxAccount, MoveRank, PointView, ProblemMoveSort, ProblemMovesQuery } from "@/api/backend";
-import { Board } from "./board/Board";
+import { Board, type StoneMarks } from "./board/Board";
 import type { NextMove } from "./board/draw";
 import { SubBoard } from "./board/SubBoard";
 import { useVariationPreview } from "./board/useVariationPreview";
+import { hiddenRegions, nextMoveNumbers, nextRankMarks, numberWindow, rankWindow, shiftScores, suggestionStyle } from "./display/settings";
+import { useDisplay } from "./display/useDisplay";
 import { useCommentEdit } from "./edit/useCommentEdit";
 import { useBoardMenu } from "./edit/BoardMenu";
 import { useBoardModes } from "./edit/useBoardModes";
@@ -57,9 +59,6 @@ import { useWindowTitle } from "./frame/useWindowTitle";
 
 export { JUMP };
 
-/** Candidates drawn on the board. */
-const MAX_CANDIDATES = 10;
-
 /** Java shows the board synchronization tool on Windows only. */
 const WINDOWS = navigator.userAgent.includes("Windows");
 
@@ -101,7 +100,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const revision = useAppState(store, (state) => state.revision);
   const messages = getMessages(navigator.language);
   const chinese = navigator.language.toLowerCase().startsWith("zh");
-  const [coordinates, setCoordinates] = useState(true);
   const [ownership, setOwnership] = useState(false);
   const [pondering, setPondering] = useState(true);
   const [profile, setProfile] = useState<EngineProfile | null>(null);
@@ -119,6 +117,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [autoAnalysis, setAutoAnalysis] = useState<AutoAnalysisHandle | null>(null);
   const tsumego = useTsumego(backend, revision);
   const setTsumegoOptions = tsumego.setOptions;
+  // 显示: saved in the settings, read with them at start.
+  const display = useDisplay(backend, messages.display);
+  const loadDisplay = display.load;
+  const shown = display.display;
   const wheel = useRef(0);
   const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
   const [boardHover, setBoardHover] = useState<PointView | null>(null);
@@ -167,6 +169,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         setProfile(settings.engine);
         setFoxHistory(settings.fox_history);
         setTsumegoOptions(settings.tsumego);
+        loadDisplay(settings.display);
         if (settings.engine) return;
         setAutoSetup(true);
         try {
@@ -185,7 +188,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       active = false;
     };
     // A state setter: the settings are read once.
-  }, [setTsumegoOptions]);
+  }, [setTsumegoOptions, loadDisplay]);
 
   // A comment being edited is saved before the app moves to another move by itself.
   const comment = useCommentEdit(backend, document);
@@ -209,7 +212,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     return best?.point ?? null;
   }, [analysis, currentNode]);
   const replay = useVariationPreview(backend, currentNode, revision, analysis, boardHover ?? bestPoint);
-  const variation = boardHover ? replay : null;
+  const variation = boardHover && shown.show_hover_variation ? replay : null;
   const info = document?.game_info ?? null;
   // The mistake bars share the graph's line and indexing; anything else is stale.
   const mistakes = problems && problems.error_bar.length === points.length ? problems.error_bar : undefined;
@@ -237,9 +240,31 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     }
     return moves;
   }, [liveTree, currentTreeNode, points]);
+  // 显示: the board's marks and candidate text, the panels shown, the score with or without komi.
+  const branchStart = document?.tree.branch_start_move_number ?? null;
+  const marks = useMemo<StoneMarks>(
+    () => ({
+      numbers: {
+        window: numberWindow(shown),
+        fromOne: shown.move_numbers_from_one,
+        branchPoint: branchStart === null ? null : branchStart - 1,
+        branchFromOne: shown.branch_move_numbers_from_one,
+        allInBranch: shown.show_all_branch_move_numbers,
+      },
+      rankWindow: rankWindow(shown),
+      ranks,
+    }),
+    [shown, branchStart, ranks],
+  );
+  const komi = info?.komi ?? 0;
+  const style = useMemo(() => suggestionStyle(shown, komi), [shown, komi]);
+  const nextHint = useMemo(() => ({ mode: shown.next_moves, minVisits: shown.next_move_min_visits }), [shown.next_moves, shown.next_move_min_visits]);
+  const hidden = useMemo(() => hiddenRegions(shown), [shown]);
+  const scoreOffset = shown.score_lead_includes_komi ? 0 : komi;
+  const scorePoints = useMemo(() => shiftScores(points, scoreOffset), [points, scoreOffset]);
   const boardNames = useMemo(
-    () => (info && (info.black_name || info.white_name) ? { black: info.black_name ?? "", white: info.white_name ?? "" } : null),
-    [info],
+    () => (shown.show_names_below_board && info && (info.black_name || info.white_name) ? { black: info.black_name ?? "", white: info.white_name ?? "" } : null),
+    [info, shown.show_names_below_board],
   );
   const emptyGame =
     board !== null &&
@@ -256,7 +281,16 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     if (path) await backend.openPath(path);
   };
   const modes = useBoardModes(backend, document, messages.modes);
-  const editing = useEditing(backend, document, emptyGame, messages.edit, messages.info.rules, openFailure);
+  const editing = useEditing(
+    backend,
+    document,
+    emptyGame,
+    messages.edit,
+    messages.info.rules,
+    openFailure,
+    { newBoard: shown.confirm_new_board, replace: shown.confirm_overwrite },
+    (kind) => display.set(kind === "newBoard" ? { confirm_new_board: false } : { confirm_overwrite: false }),
+  );
   const boardMenu = useBoardMenu(backend, document, analysis, revision, messages.boardMenu, modes.startMove);
   // Space and the chip resume a limit stop without changing the saved setting.
   const togglePondering = run.toggle;
@@ -285,88 +319,89 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const current = document?.tree.current ?? null;
   const best = analysis && analysis.node_id === current ? analysis.candidates[0] : undefined;
   const wholeGameStatus = wholeGame.progress?.status.type;
-  const bindings = menuBindings(
-    {
-      hasDocument: document !== null,
-      hasBoard: board !== null,
-      coordinates,
-      ownership,
-      wholeGameActive: wholeGameStatus === "Running" || wholeGameStatus === "Paused",
-      hasBestMove: board !== null && best !== undefined,
-      engineFailed: engine.type === "Failed" && profile !== null,
-      engineConfigured: profile !== null,
-      windows: WINDOWS,
-      syncPhase: sync.status?.phase ?? "Stopped",
-      syncOptions,
-      tree: liveTree,
-      current,
-      canUndo: document?.can_undo ?? false,
-      canRedo: document?.can_redo ?? false,
-      recent: editing.recent,
-      confirmNewBoard: editing.confirms.newBoard,
-      confirmReplace: editing.confirms.replace,
-      setupTool: modes.mode.kind === "setup" ? modes.mode.tool : null,
-      setupEditable: modes.setupEditable,
-      trial: editing.trial,
-      playColor: modes.mode.kind === "color" ? modes.mode.color : null,
-      insertColor: modes.mode.kind === "insert" ? modes.mode.color : null,
-    },
-    {
-      open: () => void openFile().catch(report),
-      openRecent: editing.openRecent,
-      clearRecent: editing.clearRecent,
-      newBoard: editing.newBoard,
-      setBoardSize: editing.openBoardSize,
-      editGameInfo: editing.openGameInfo,
-      save: editing.save,
-      saveAs: editing.saveAs,
-      deleteMove: editing.deleteMove,
-      deleteBranch: editing.deleteBranch,
-      setAsMain: editing.setAsMain,
-      undo: editing.undo,
-      redo: editing.redo,
-      toggleConfirm: editing.toggleConfirm,
-      toggleSetup: modes.toggleSetup,
-      setupTool: modes.setupTool,
-      clearSetup: modes.clearSetup,
-      setFirstPlayer: modes.setFirstPlayer,
-      convertToStart: modes.convertToStart,
-      colorMode: modes.colorMode,
-      alternate: modes.exit,
-      insertMode: modes.insertMode,
-      quit: () => void backend.quit().catch(report),
-      toggleCoordinates: () => setCoordinates((value) => !value),
-      setOwnership,
-      togglePondering,
-      openAutoAnalysis: () => autoAnalysis?.show(),
-      flashAnalyze: () => wholeGame.start(1),
-      cancelAutoAnalysis: wholeGame.cancel,
-      openStrength: () => setStrengthOpen(true),
-      playBestMove: () => {
-        if (best?.point) play(best.point);
-        else if (best) pass();
+  const bindings = {
+    ...menuBindings(
+      {
+        hasDocument: document !== null,
+        hasBoard: board !== null,
+        ownership,
+        wholeGameActive: wholeGameStatus === "Running" || wholeGameStatus === "Paused",
+        hasBestMove: board !== null && best !== undefined,
+        engineFailed: engine.type === "Failed" && profile !== null,
+        engineConfigured: profile !== null,
+        windows: WINDOWS,
+        syncPhase: sync.status?.phase ?? "Stopped",
+        syncOptions,
+        tree: liveTree,
+        current,
+        canUndo: document?.can_undo ?? false,
+        canRedo: document?.can_redo ?? false,
+        recent: editing.recent,
+        setupTool: modes.mode.kind === "setup" ? modes.mode.tool : null,
+        setupEditable: modes.setupEditable,
+        trial: editing.trial,
+        playColor: modes.mode.kind === "color" ? modes.mode.color : null,
+        insertColor: modes.mode.kind === "insert" ? modes.mode.color : null,
       },
-      pass,
-      step,
-      goTo: jump,
-      openFox,
-      startBoardSync: () => sync.start({ ...syncOptions, language: chinese ? "Cn" : "En" }),
-      toggleSyncOption: (key) => setSyncOptions((options) => ({ ...options, [key]: !options[key] })),
-      openTsumego: () => tsumego.setOpen(true),
-      openBenchmark: () => setTuningOpen(true),
-      openSettings: () => setSettingsOpen(true),
-      openEngineSetup: () => setSetupOpen(true),
-      restartEngine: () => {
-        if (profile) backend.configureEngine(profile).catch(report);
+      {
+        open: () => void openFile().catch(report),
+        openRecent: editing.openRecent,
+        clearRecent: editing.clearRecent,
+        newBoard: editing.newBoard,
+        setBoardSize: editing.openBoardSize,
+        editGameInfo: editing.openGameInfo,
+        save: editing.save,
+        saveAs: editing.saveAs,
+        deleteMove: editing.deleteMove,
+        deleteBranch: editing.deleteBranch,
+        setAsMain: editing.setAsMain,
+        undo: editing.undo,
+        redo: editing.redo,
+        toggleSetup: modes.toggleSetup,
+        setupTool: modes.setupTool,
+        clearSetup: modes.clearSetup,
+        setFirstPlayer: modes.setFirstPlayer,
+        convertToStart: modes.convertToStart,
+        colorMode: modes.colorMode,
+        alternate: modes.exit,
+        insertMode: modes.insertMode,
+        quit: () => void backend.quit().catch(report),
+        setOwnership,
+        togglePondering,
+        openAutoAnalysis: () => autoAnalysis?.show(),
+        flashAnalyze: () => wholeGame.start(1),
+        cancelAutoAnalysis: wholeGame.cancel,
+        openStrength: () => setStrengthOpen(true),
+        playBestMove: () => {
+          if (best?.point) play(best.point);
+          else if (best) pass();
+        },
+        pass,
+        step,
+        goTo: jump,
+        openFox,
+        startBoardSync: () => sync.start({ ...syncOptions, language: chinese ? "Cn" : "En" }),
+        toggleSyncOption: (key) => setSyncOptions((options) => ({ ...options, [key]: !options[key] })),
+        openTsumego: () => tsumego.setOpen(true),
+        openBenchmark: () => setTuningOpen(true),
+        openSettings: () => setSettingsOpen(true),
+        openEngineSetup: () => setSetupOpen(true),
+        restartEngine: () => {
+          if (profile) backend.configureEngine(profile).catch(report);
+        },
+        openAbout: () => setAboutOpen(true),
       },
-      openAbout: () => setAboutOpen(true),
-    },
+    ),
+    ...display.bindings,
+  };
+  useShortcuts(
+    bindings,
+    !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen),
   );
-  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen));
   const frame = messages.frame;
   const engineLabel = useEngineName(backend, profile, frame.engineNames);
   // "No engine" is for no engine: one that Rust has not named yet shows without a name.
-  const menus = useMenus(WINDOWS, editing.recent, messages.edit, engineLabel ?? (profile ? "" : null));
+  const menus = useMenus(WINDOWS, editing.recent, messages.edit, engineLabel ?? (profile ? "" : null), shown.last_move_rank_marks, shown.next_move_min_visits);
   const autoAnalyzing = quickRunning || wholeGameStatus === "Running";
   useWindowTitle(backend, {
     app: messages.app.title,
@@ -420,34 +455,39 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           </>
         }
       />
-      <TopToolbar
-        labels={frame.top}
-        hasDocument={document !== null}
-        hasBoard={board !== null}
-        offMainLine={isEnabled(bindings.backToMainBranch)}
-        komi={info?.komi ?? null}
-        onNew={editing.newBoard}
-        onSetMain={editing.setAsMain}
-        onKomi={editing.setKomi}
-        onBoardSize={editing.openBoardSize}
-        markupOpen={modes.mode.kind === "markup"}
-        onMarkup={modes.toggleMarkup}
-        onChangeTurn={modes.toggleToPlay}
-        trial={editing.trial}
-        playColor={modes.mode.kind === "color" ? modes.mode.color : null}
-        onColor={modes.colorMode}
-        onAlternate={modes.exit}
-        onOpen={() => void openFile().catch(report)}
-        onSave={editing.save}
-        onFox={openFox}
-        onStrength={() => setStrengthOpen(true)}
-        onAutoSetup={() => setTuningOpen(true)}
-        onFlash={() => wholeGame.start(1)}
-        onBackMain={() => bindings.backToMainBranch?.run?.()}
-        onPass={pass}
-        onTsumego={() => tsumego.setOpen(true)}
-      />
+      {shown.show_top_toolbar ? (
+        <TopToolbar
+          labels={frame.top}
+          hasDocument={document !== null}
+          hasBoard={board !== null}
+          offMainLine={isEnabled(bindings.backToMainBranch)}
+          komi={info?.komi ?? null}
+          onNew={editing.newBoard}
+          onSetMain={editing.setAsMain}
+          onKomi={editing.setKomi}
+          onBoardSize={editing.openBoardSize}
+          markupOpen={modes.mode.kind === "markup"}
+          onMarkup={modes.toggleMarkup}
+          rankMarks={shown.move_rank_marks !== "None"}
+          onRankMarks={() => display.set(nextRankMarks(shown))}
+          onChangeTurn={modes.toggleToPlay}
+          trial={editing.trial}
+          playColor={modes.mode.kind === "color" ? modes.mode.color : null}
+          onColor={modes.colorMode}
+          onAlternate={modes.exit}
+          onOpen={() => void openFile().catch(report)}
+          onSave={editing.save}
+          onFox={openFox}
+          onStrength={() => setStrengthOpen(true)}
+          onAutoSetup={() => setTuningOpen(true)}
+          onFlash={() => wholeGame.start(1)}
+          onBackMain={() => bindings.backToMainBranch?.run?.()}
+          onPass={pass}
+          onTsumego={() => tsumego.setOpen(true)}
+        />
+      ) : null}
       <MainPanel
+        hidden={hidden}
         boardSize={board?.width ?? 19}
         boardData={{ "data-revision": revision, "data-node-id": document?.tree.current }}
         onBoardWheel={(event) => {
@@ -477,13 +517,25 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               data-visits={analysis?.visits}
               title={analysis ? messages.board.visits.replace("{visits}", String(analysis.visits)) : undefined}
             >
-              <StatisticsBox board={board} points={points} currentIndex={currentIndex} labels={messages.info} />
+              <StatisticsBox board={board} points={scorePoints} currentIndex={currentIndex} labels={messages.info} />
             </div>
           ),
           graph: (
             <div className="graph-region">
               {quickRunning && quickPass ? <CurveProgress done={quickPass.completed} total={quickPass.total} labels={messages.graph} onStop={wholeGame.cancel} /> : null}
-              {document ? <WinrateGraph graph={document.graph} analysis={analysis} mistakes={mistakes} labels={messages.graph} onJump={jump} /> : null}
+              {document ? (
+                <WinrateGraph
+                  graph={document.graph}
+                  analysis={analysis}
+                  mistakes={mistakes}
+                  mode={shown.winrate_graph_mode}
+                  fill={shown.fill_winrate_graph}
+                  bars={shown.show_blunder_bar}
+                  scoreOffset={scoreOffset}
+                  labels={messages.graph}
+                  onJump={jump}
+                />
+              ) : null}
             </div>
           ),
           comment: (
@@ -520,14 +572,17 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             <Board
               board={board}
               analysis={analysis}
-              coordinates={coordinates}
+              coordinates={shown.show_coordinates}
               ownership={ownership}
-              maxCandidates={MAX_CANDIDATES}
+              maxCandidates={shown.max_suggestions > 0 ? shown.max_suggestions : board.width * board.height}
               label={messages.board.label}
               variation={variation}
               names={boardNames}
               lastRank={lastRank}
               next={nextMoves}
+              nextHint={nextHint}
+              marks={marks}
+              style={style}
               passLabel={messages.board.pass}
               emptyHint={emptyGame ? messages.board.emptyHint : null}
               markup={document?.markup ?? undefined}
@@ -550,45 +605,50 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           subBoard: board ? <SubBoard board={board} node={currentNode} revision={revision} variation={replay} label={messages.tree.subBoard} /> : null,
         }}
       />
-      <BottomToolbar
-        labels={frame.bottom}
-        pondering={livePondering}
-        hasBoard={board !== null}
-        ownership={ownership}
-        coordinates={coordinates}
-        canSetMain={isEnabled(bindings.setAsMain)}
-        canDelete={isEnabled(bindings.delete)}
-        autoAnalysis={
-          <AutoAnalysis
-            ref={setAutoAnalysis}
-            placement="above"
-            progress={quickPass ? null : wholeGame.progress}
-            positions={points.length}
-            labels={messages.review}
-            onStart={wholeGame.start}
-            onPause={wholeGame.pause}
-            onResume={wholeGame.resume}
-            onCancel={wholeGame.cancel}
-            autoCurve={autoCurve}
-            onAutoCurve={(enabled) => {
-              backend
-                .setAutoQuickAnalyzeOnLoad(enabled)
-                .then(setAutoCurve)
-                .catch(report);
-            }}
-          />
-        }
-        onTogglePondering={togglePondering}
-        onToggleOwnership={() => setOwnership((value) => !value)}
-        onToggleCoordinates={() => setCoordinates((value) => !value)}
-        onStep={step}
-        onSetMain={editing.setAsMain}
-        onClear={editing.newBoard}
-        onDelete={editing.deleteMove}
-        trial={editing.trial}
-        onTrial={editing.toggleTrial}
-      />
+      {shown.show_bottom_toolbar ? (
+        <BottomToolbar
+          labels={frame.bottom}
+          pondering={livePondering}
+          hasBoard={board !== null}
+          ownership={ownership}
+          coordinates={shown.show_coordinates}
+          moveNumbers={shown.move_numbers !== "None"}
+          canSetMain={isEnabled(bindings.setAsMain)}
+          canDelete={isEnabled(bindings.delete)}
+          autoAnalysis={
+            <AutoAnalysis
+              ref={setAutoAnalysis}
+              placement="above"
+              progress={quickPass ? null : wholeGame.progress}
+              positions={points.length}
+              labels={messages.review}
+              onStart={wholeGame.start}
+              onPause={wholeGame.pause}
+              onResume={wholeGame.resume}
+              onCancel={wholeGame.cancel}
+              autoCurve={autoCurve}
+              onAutoCurve={(enabled) => {
+                backend
+                  .setAutoQuickAnalyzeOnLoad(enabled)
+                  .then(setAutoCurve)
+                  .catch(report);
+              }}
+            />
+          }
+          onTogglePondering={togglePondering}
+          onToggleOwnership={() => setOwnership((value) => !value)}
+          onToggleCoordinates={() => display.set({ show_coordinates: !shown.show_coordinates })}
+          onToggleMoveNumbers={() => display.set(nextMoveNumbers(shown))}
+          onStep={step}
+          onSetMain={editing.setAsMain}
+          onClear={editing.newBoard}
+          onDelete={editing.deleteMove}
+          trial={editing.trial}
+          onTrial={editing.toggleTrial}
+        />
+      ) : null}
       {editing.dialogs}
+      {display.dialog}
       {modes.dialog}
       {boardMenu.menu}
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { Backend, DisplaySettings } from "@/api/backend";
 import { type DisplayPrompt, displayBindings } from "./bindings";
 import { NumberDialog, type NumberDialogLabels } from "./NumberDialog";
@@ -20,35 +20,29 @@ const LIMITS: Record<DisplayPrompt, { min: number; max: number }> = {
   minVisits: { min: 0, max: 1_000_000 },
 };
 
+function report(error: unknown) {
+  console.error("Display settings failed", error);
+}
+
 /**
  * The saved 显示 settings, the menu entries that change them, and the number prompts. A change
- * shows at once and is saved; if Rust refuses it, the last saved settings come back.
+ * shows at once and is saved; if Rust refuses it, the saved settings are read back.
  */
-export function useDisplay(backend: Pick<Backend, "setDisplaySettings">, labels: DisplayLabels) {
+export function useDisplay(backend: Pick<Backend, "setDisplaySettings" | "settings">, labels: DisplayLabels) {
   const [display, setDisplay] = useState<Display>(DISPLAY_DEFAULTS);
   const [prompt, setPrompt] = useState<DisplayPrompt | null>(null);
-  // Only the newest save's answer counts; an older one would undo a later click.
-  const latest = useRef(0);
-  const saved = useRef<Display>(DISPLAY_DEFAULTS);
 
-  const load = (settings: DisplaySettings | null | undefined) => {
-    saved.current = filled(settings);
-    setDisplay(saved.current);
-  };
+  const load = useCallback((settings: DisplaySettings | null | undefined) => setDisplay(filled(settings)), []);
   const set = (patch: Partial<Display>) => {
     const next = { ...display, ...patch };
     setDisplay(next);
-    const request = ++latest.current;
-    backend
-      .setDisplaySettings(next)
-      .then((answer) => {
-        saved.current = filled(answer);
-        if (request === latest.current) setDisplay(saved.current);
-      })
-      .catch((error: unknown) => {
-        console.error("Saving the display settings failed", error);
-        if (request === latest.current) setDisplay(saved.current);
-      });
+    backend.setDisplaySettings(next).catch((error: unknown) => {
+      report(error);
+      backend
+        .settings()
+        .then((settings) => load(settings.display))
+        .catch(report);
+    });
   };
 
   const values: Record<DisplayPrompt, number> = {

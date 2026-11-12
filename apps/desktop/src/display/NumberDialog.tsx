@@ -49,7 +49,7 @@ export function NumberDialog({ title, prompt, value, min, max, labels, testId, o
           </button>
         </header>
         <form className="edit-form" noValidate onSubmit={submit}>
-          <label className="number-field">
+          <label className="edit-field">
             <span>{prompt}</span>
             <input
               className="text-input"
