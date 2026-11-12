@@ -931,9 +931,9 @@
     "label": "选点列表",
     "order": "序号",
     "move": "坐标",
-    "winrate": "胜率(%)",
+    "winrate": "胜率",
     "visits": "计算量",
-    "share": "占比(%)",
+    "share": "占比",
     "score": "目差",
     "empty": "引擎还没有给出选点"
   },

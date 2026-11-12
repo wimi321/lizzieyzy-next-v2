@@ -20,7 +20,7 @@ function rows() {
 
 test("the candidates in the engine's order, from the mover's side, with each one's share of the visits", () => {
   render(<CandidateList analysis={analysis} toPlay="White" blackWinrate={false} scoreOffset={0} labels={zh.candidates} onHover={vi.fn()} onPlay={vi.fn()} />);
-  expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["序号", "坐标", "胜率(%)", "计算量", "占比(%)", "目差"]);
+  expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["序号", "坐标", "胜率", "计算量", "占比", "目差"]);
   expect(rows()).toEqual([
     ["1", "D16", "70.0", "900", "75.0", "3.3"],
     ["2", "L13", "60.0", "300", "25.0", "1.5"],

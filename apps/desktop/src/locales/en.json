@@ -933,7 +933,7 @@
     "move": "Move",
     "winrate": "Win%",
     "visits": "Visits",
-    "share": "Share%",
+    "share": "Share",
     "score": "Score",
     "empty": "No candidates from the engine yet"
   },
