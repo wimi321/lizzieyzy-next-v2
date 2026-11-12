@@ -50,12 +50,12 @@ export function prepare(canvas: HTMLCanvasElement, geometry: Geometry): Context 
 }
 
 /** Java's `fillOval(x - r, y - r, 2r + 1, 2r + 1)`: a disc of radius r + ½ about the pixel centre. */
-function disc(context: Context, x: number, y: number, radius: number) {
+export function disc(context: Context, x: number, y: number, radius: number) {
   context.beginPath();
   context.arc(x, y, radius + 0.5, 0, TAU);
 }
 
-function wood(context: Context, geometry: Geometry, images: BoardImages): CanvasPattern | string {
+export function wood(context: Context, geometry: Geometry, images: BoardImages): CanvasPattern | string {
   const pattern = context.createPattern(images.board, "repeat");
   if (!pattern) return "#dbb973";
   pattern.setTransform(new DOMMatrix().translate(geometry.boardX, geometry.boardY));
@@ -99,7 +99,7 @@ interface TextBox {
  * `anchor` says where y is: the text's middle, its baseline ("above", Java's aboveOrBelow 1)
  * or its top ("below").
  */
-function text(
+export function text(
   context: Context,
   string: string,
   x: number,

@@ -56,6 +56,10 @@ export interface TopToolbarProps {
   komi: number | null;
   onNew(): void;
   onSetMain(): void;
+  /** The markup tools are out. */
+  markupOpen: boolean;
+  onMarkup(): void;
+  onChangeTurn(): void;
   onKomi(komi: number): void;
   onBoardSize(): void;
   onOpen(): void;
@@ -117,7 +121,7 @@ function KomiField({ label, komi, onChange }: { label: string; komi: number | nu
  * LizzieYzy Next's top toolbar in Java's order (`Menu` → `TopHeaderPanel`), wrapping onto a
  * second row when the window is narrower than its controls, as Java's does at 1429 px.
  */
-export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, ...on }: TopToolbarProps) {
+export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, markupOpen, ...on }: TopToolbarProps) {
   const icon = JAVA_ICONS;
   return (
     <div className="jt-top" role="toolbar" aria-label="LizzieYzy Next" data-testid="top-toolbar">
@@ -144,11 +148,11 @@ export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, .
       <ToolSeparator />
       <ToolButton icon={icon.hawkeye} title={labels.hawkeye} enabled={false} />
       <ToolButton icon={icon.rankMark} title={labels.rankMark} enabled={false} />
-      <ToolButton icon={icon.changeTurn} title={labels.changeTurn} enabled={false} />
+      <ToolButton icon={icon.changeTurn} title={labels.changeTurn} enabled={hasBoard} testId="tool-change-turn" onClick={on.onChangeTurn} />
       <ToolButton icon={icon.setMain} title={labels.setMain} enabled={offMainLine} testId="tool-set-main" onClick={on.onSetMain} />
       <ToolButton icon={icon.backMain} title={labels.backMain} enabled={offMainLine} testId="tool-back-main" onClick={on.onBackMain} />
       <ToolButton icon={icon.controlPanel} title={labels.controlPanel} enabled={false} />
-      <ToolButton icon={icon.markup} title={labels.markup} enabled={false} />
+      <ToolButton icon={icon.markup} title={labels.markup} enabled={hasBoard} pressed={markupOpen} testId="tool-markup" onClick={on.onMarkup} />
       <ToolSeparator />
       <ToolButton icon={icon.black} title={labels.playBlack} enabled={false} />
       <ToolButton icon={icon.white} title={labels.playWhite} enabled={false} />

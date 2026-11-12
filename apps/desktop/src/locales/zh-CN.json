@@ -865,5 +865,29 @@
     "redo": "恢复编辑",
     "recentEmpty": "(还没有打开过棋谱)",
     "clearRecent": "清空列表"
+  },
+  "modes": {
+    "setupTitle": "起始局面设置",
+    "setupBlack": "放置黑子",
+    "setupWhite": "放置白子",
+    "setupErase": "擦除棋子",
+    "blackFirst": "黑先",
+    "whiteFirst": "白先",
+    "clearSetup": "清空",
+    "convertTitle": "将当前盘面设为起始局面",
+    "convertMessage": "此操作将清除所有落子、停着和变着，是否继续？",
+    "markupTitle": "标记",
+    "markupLetter": "字母标记",
+    "markupNumber": "数字标记",
+    "markupCross": "叉号标记",
+    "markupSquare": "方形标记",
+    "markupTriangle": "三角标记",
+    "markupCircle": "圆形标记",
+    "markupEraser": "橡皮擦",
+    "clearMarkup": "清除标记",
+    "done": "完成",
+    "doneHint": "完成（Esc）",
+    "confirm": "确定",
+    "cancel": "取消"
   }
 }

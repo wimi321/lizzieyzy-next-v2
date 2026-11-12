@@ -6,6 +6,7 @@ import type { NextMove } from "./board/draw";
 import { SubBoard } from "./board/SubBoard";
 import { useVariationPreview } from "./board/useVariationPreview";
 import { useCommentEdit } from "./edit/useCommentEdit";
+import { useBoardModes } from "./edit/useBoardModes";
 import { useEditing } from "./edit/useEditing";
 import { FoxDialog } from "./fox/FoxDialog";
 import { CurveProgress } from "./graph/CurveProgress";
@@ -300,6 +301,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     const path = await backend.pickOpenPath();
     if (path) await backend.openPath(path);
   };
+  const modes = useBoardModes(backend, document, messages.modes);
   const editing = useEditing(backend, document, emptyGame, messages.edit, messages.info.rules, openFailure);
   // Space and the chip resume a limit stop without changing the saved setting.
   const togglePondering = run.toggle;
@@ -349,6 +351,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       recent: editing.recent,
       confirmNewBoard: editing.confirms.newBoard,
       confirmReplace: editing.confirms.replace,
+      setupTool: modes.mode.kind === "setup" ? modes.mode.tool : null,
+      setupEditable: modes.setupEditable,
     },
     {
       open: () => void openFile().catch(report),
@@ -365,6 +369,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       undo: editing.undo,
       redo: editing.redo,
       toggleConfirm: editing.toggleConfirm,
+      toggleSetup: modes.toggleSetup,
+      setupTool: modes.setupTool,
+      clearSetup: modes.clearSetup,
+      setFirstPlayer: modes.setFirstPlayer,
+      convertToStart: modes.convertToStart,
       quit: () => void backend.quit().catch(report),
       toggleCoordinates: () => setCoordinates((value) => !value),
       setOwnership,
@@ -393,7 +402,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       openAbout: () => setAboutOpen(true),
     },
   );
-  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen || tuningOpen || settingsOpen || editing.dialogOpen));
+  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen));
   const frame = messages.frame;
   const engineLabel = useEngineName(backend, profile, frame.engineNames);
   // "No engine" is for no engine: one that Rust has not named yet shows without a name.
@@ -481,6 +490,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         }
         tray={
           <>
+            {modes.chip}
             {tsumego ? <TsumegoChip status={tsumego} labels={messages.tsumego} onExit={exitTsumego} /> : null}
             {sync.status && sync.status.phase !== "Stopped" ? <BoardSyncChip status={sync.status} labels={messages.sync} onStop={sync.stop} /> : null}
             {tuning.status && !tuningOpen ? (
@@ -499,6 +509,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         onSetMain={editing.setAsMain}
         onKomi={editing.setKomi}
         onBoardSize={editing.openBoardSize}
+        markupOpen={modes.mode.kind === "markup"}
+        onMarkup={modes.toggleMarkup}
+        onChangeTurn={modes.toggleToPlay}
         onOpen={() => void openFile().catch(report)}
         onSave={editing.save}
         onFox={openFox}
@@ -592,6 +605,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               next={nextMoves}
               passLabel={messages.board.pass}
               emptyHint={emptyGame ? messages.board.emptyHint : null}
+              markup={document?.markup ?? undefined}
+              editing={modes.editing}
+              onPoint={modes.onPoint}
               onHoverCandidate={setBoardHover}
               onPlay={play}
             />
@@ -643,6 +659,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         onDelete={editing.deleteMove}
       />
       {editing.dialogs}
+      {modes.dialog}
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}
       {openFailure ? (
         <MessageBox

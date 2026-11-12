@@ -865,5 +865,29 @@
     "redo": "Redo edit",
     "recentEmpty": "(No games opened yet)",
     "clearRecent": "Clear list"
+  },
+  "modes": {
+    "setupTitle": "Starting position",
+    "setupBlack": "Place black stone",
+    "setupWhite": "Place white stone",
+    "setupErase": "Erase stone",
+    "blackFirst": "Black first",
+    "whiteFirst": "White first",
+    "clearSetup": "Clear",
+    "convertTitle": "Set current board as starting position",
+    "convertMessage": "This will clear all moves, passes, and variations. Continue?",
+    "markupTitle": "Markup",
+    "markupLetter": "Letter markup",
+    "markupNumber": "Number markup",
+    "markupCross": "Cross markup",
+    "markupSquare": "Square markup",
+    "markupTriangle": "Triangle markup",
+    "markupCircle": "Circle markup",
+    "markupEraser": "Eraser",
+    "clearMarkup": "Clear markup",
+    "done": "Done",
+    "doneHint": "Done (Esc)",
+    "confirm": "OK",
+    "cancel": "Cancel"
   }
 }

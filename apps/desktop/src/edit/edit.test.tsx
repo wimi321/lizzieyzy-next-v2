@@ -285,7 +285,7 @@ describe("the menu's editing entries", () => {
   const state = (change: Partial<MenuState>): MenuState => ({
     hasDocument: true, hasBoard: true, coordinates: true, ownership: false, wholeGameActive: false, hasBestMove: false, engineFailed: false,
     engineConfigured: true, windows: false, syncPhase: "Stopped", syncOptions: { always_sync: true, always_goto_last: false },
-    tree, current: 0, canUndo: false, canRedo: false, recent: [], confirmNewBoard: true, confirmReplace: true, ...change,
+    tree, current: 0, canUndo: false, canRedo: false, recent: [], confirmNewBoard: true, confirmReplace: true, setupTool: null, setupEditable: false, ...change,
   });
   const actions = () => new Proxy({}, { get: (target: Record<string, unknown>, key: string) => (target[key] ??= vi.fn()) }) as unknown as MenuActions;
 

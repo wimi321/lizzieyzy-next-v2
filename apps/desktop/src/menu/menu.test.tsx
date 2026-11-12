@@ -107,6 +107,11 @@ function actions(): MenuActions {
     undo: vi.fn(),
     redo: vi.fn(),
     toggleConfirm: vi.fn(),
+    toggleSetup: vi.fn(),
+    setupTool: vi.fn(),
+    clearSetup: vi.fn(),
+    setFirstPlayer: vi.fn(),
+    convertToStart: vi.fn(),
     quit: vi.fn(),
     toggleCoordinates: vi.fn(),
     setOwnership: vi.fn(),
@@ -150,6 +155,8 @@ const IDLE: MenuState = {
   recent: [],
   confirmNewBoard: true,
   confirmReplace: true,
+  setupTool: null,
+  setupEditable: false,
 };
 
 function line(...ids: number[]): VariationTreeView {

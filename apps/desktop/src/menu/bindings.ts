@@ -41,6 +41,10 @@ export interface MenuState {
   /** Whether a new board and writing over the game's file are confirmed first. */
   confirmNewBoard: boolean;
   confirmReplace: boolean;
+  /** The setup tool in hand, or null outside 起始局面设置模式. */
+  setupTool: "Black" | "White" | "Erase" | null;
+  /** The game has no move yet, so its setup stones and first player can be edited. */
+  setupEditable: boolean;
 }
 
 export interface MenuActions {
@@ -58,6 +62,11 @@ export interface MenuActions {
   undo(): void;
   redo(): void;
   toggleConfirm(kind: "newBoard" | "replace"): void;
+  toggleSetup(): void;
+  setupTool(tool: "Black" | "White" | "Erase"): void;
+  clearSetup(): void;
+  setFirstPlayer(color: "Black" | "White"): void;
+  convertToStart(): void;
   quit(): void;
   toggleCoordinates(): void;
   setOwnership(visible: boolean): void;
@@ -130,6 +139,14 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     kataEstimateOnMainBoard: { run: () => actions.setOwnership(true), checked: state.ownership },
 
     playBestMove: when(state.hasBestMove, actions.playBestMove),
+    setupModeToggle: { run: actions.toggleSetup, enabled: state.hasBoard, checked: state.setupTool !== null },
+    setupToolBlack: { run: () => actions.setupTool("Black"), enabled: state.hasBoard, checked: state.setupTool === "Black" },
+    setupToolWhite: { run: () => actions.setupTool("White"), enabled: state.hasBoard, checked: state.setupTool === "White" },
+    setupToolErase: { run: () => actions.setupTool("Erase"), enabled: state.hasBoard, checked: state.setupTool === "Erase" },
+    setupClearAll: when(state.setupEditable, actions.clearSetup),
+    setupBlackToPlay: when(state.setupEditable, () => actions.setFirstPlayer("Black")),
+    setupWhiteToPlay: when(state.setupEditable, () => actions.setFirstPlayer("White")),
+    convertCurrentPosition: when(state.hasBoard, actions.convertToStart),
     playPassMove: when(state.hasBoard, actions.pass),
 
     togglePonder: when(true, actions.togglePondering),
