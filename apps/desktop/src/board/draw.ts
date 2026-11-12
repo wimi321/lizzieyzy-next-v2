@@ -1,15 +1,14 @@
 import type { AnalysisView, BoardView, CandidateView, ColorView, MoveRank, PointView, VariationPreviewView } from "@/api/backend";
+import { type BoardImages, type Context, disc, NUMBER_FONT, text, UI_FONT, wood } from "./canvas";
 import { columnLabel, forMover, rowLabel } from "./format";
+import { DEFAULT_SUGGESTION_STYLE, drawSuggestionText, scoreLabel, type SuggestionStyle } from "./suggestionText";
 import { type Geometry, pointIndex, pointToPixel, starPoints } from "./geometry";
 import {
   blunderLevel,
   css,
-  fitFontSize,
   lineSpan,
   lineWidths,
-  playoutsText,
   RANK_COLORS,
-  scoreText,
   shownSuggestions,
   starRadius,
   suggestionAlphaRatio,
@@ -22,111 +21,10 @@ import {
  * Java lays the board out in device pixels on high-DPI screens, so the canvas does too.
  */
 
-/** Java's logical `Dialog` font: Lucida Grande on macOS, Arial on Windows, DejaVu on Linux. */
-export const UI_FONT = '"Lucida Grande", Arial, "DejaVu Sans", "PingFang SC", "Microsoft YaHei", sans-serif';
-/** Open Sans Semibold, which Java ships for winrates and scores. */
-export const NUMBER_FONT = `"Lizzie Open Sans", ${UI_FONT}`;
+export { type BoardImages, disc, NUMBER_FONT, prepare, settleFonts, text, UI_FONT, wood } from "./canvas";
 
-export interface BoardImages {
-  board: CanvasImageSource;
-  black: CanvasImageSource;
-  white: CanvasImageSource;
-}
-
-type Context = CanvasRenderingContext2D;
 const TAU = Math.PI * 2;
 
-/** Sizes the backing store to the geometry and clears it. */
-export function prepare(canvas: HTMLCanvasElement, geometry: Geometry): Context | null {
-  // Nothing to draw before the first layout (and never in jsdom, which has no canvas).
-  if (geometry.cell <= 0) return null;
-  if (canvas.width !== geometry.width) canvas.width = geometry.width;
-  if (canvas.height !== geometry.height) canvas.height = geometry.height;
-  const context = canvas.getContext("2d");
-  if (!context) return null;
-  context.setTransform(1, 0, 0, 1, 0, 0);
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  return context;
-}
-
-/** Java's `fillOval(x - r, y - r, 2r + 1, 2r + 1)`: a disc of radius r + ½ about the pixel centre. */
-export function disc(context: Context, x: number, y: number, radius: number) {
-  context.beginPath();
-  context.arc(x, y, radius + 0.5, 0, TAU);
-}
-
-export function wood(context: Context, geometry: Geometry, images: BoardImages): CanvasPattern | string {
-  const pattern = context.createPattern(images.board, "repeat");
-  if (!pattern) return "#dbb973";
-  pattern.setTransform(new DOMMatrix().translate(geometry.boardX, geometry.boardY));
-  return pattern;
-}
-
-// ---------------------------------------------------------------- text
-
-const widths = new Map<string, number>();
-
-function widthAt100(context: Context, family: string, text: string): number {
-  const key = `${family}\n${text}`;
-  let width = widths.get(key);
-  if (width === undefined) {
-    context.font = `100px ${family}`;
-    width = context.measureText(text).width;
-    // A font that is still loading measures with its fallback; do not remember that.
-    if (widths.size > 4000) widths.clear();
-    if (fontsSettled) widths.set(key, width);
-  }
-  return width;
-}
-
-let fontsSettled = false;
-/** Called once the web fonts are in, so cached measurements are the real ones. */
-export function settleFonts() {
-  widths.clear();
-  fontsSettled = true;
-}
-
-interface TextBox {
-  left: number;
-  baseline: number;
-  width: number;
-  /** Java's `ascent - descent`, the height it centres text by. */
-  height: number;
-}
-
-/**
- * `BoardRenderer.drawString`: the largest font within the limits, centred on x.
- * `anchor` says where y is: the text's middle, its baseline ("above", Java's aboveOrBelow 1)
- * or its top ("below").
- */
-export function text(
-  context: Context,
-  string: string,
-  x: number,
-  y: number,
-  family: string,
-  maximumHeight: number,
-  maximumWidth: number,
-  anchor: "middle" | "above" | "below" = "middle",
-  paint = true,
-): TextBox {
-  const size = fitFontSize(widthAt100(context, family, string), maximumHeight, maximumWidth);
-  context.font = `${size}px ${family}`;
-  context.textAlign = "left";
-  context.textBaseline = "alphabetic";
-  const metrics = context.measureText(string);
-  const height = roundUp(metrics.fontBoundingBoxAscent) - roundUp(metrics.fontBoundingBoxDescent);
-  const half = Math.trunc(height / 2);
-  const width = Math.round(metrics.width);
-  // Java places text on whole pixels; x and y arrive as pixel centres or as whole pixels.
-  const baseline = Math.floor(y) + half + (anchor === "below" ? half : anchor === "above" ? -half : 0);
-  const left = Math.floor(x) - Math.trunc(width / 2);
-  if (paint) context.fillText(string, left, baseline);
-  return { left, baseline, width, height };
-}
-
-/** `FontMetrics` rounds an ascent or descent up unless it is within 0.05 of the pixel below. */
-const roundUp = (value: number) => Math.floor(value + 0.95);
 
 // ---------------------------------------------------------------- board
 
@@ -388,6 +286,12 @@ export interface OverlayLayer {
   lastRank: MoveRank | null;
   /** The recorded continuations of this position, main line first. */
   next: NextMove[];
+  /** 下一手提示: none, the dashed ring, or the ring with what the move leads to. */
+  nextHint?: { mode: "None" | "Simple" | "Evaluation"; minVisits: number };
+  /** What the candidates say, and how. */
+  style?: SuggestionStyle;
+  /** False while the move numbers mark the last move instead of its ring. */
+  lastMark?: boolean;
   passLabel: string;
   /** Shown on an empty game that has nothing else to show. */
   emptyHint: string | null;
@@ -406,10 +310,11 @@ export function drawOverlay(context: Context, geometry: Geometry, images: BoardI
   if (layer.ownership && analysis?.ownership) drawEstimate(context, geometry, board, analysis.ownership);
   drawLastMove(context, geometry, layer);
   const candidates = analysis ? shownSuggestions(analysis, layer.maxCandidates) : [];
+  const hint = layer.nextHint ?? { mode: "Evaluation", minVisits: 30 };
   const main = layer.next[0];
-  if (main && analysis && candidates.length > 0) drawNextMoveBlunder(context, geometry, images, layer, candidates, main);
+  if (hint.mode === "Evaluation" && main && analysis && candidates.length > 0) drawNextMoveBlunder(context, geometry, images, layer, candidates, main, hint.minVisits);
   drawSuggestions(context, geometry, images, layer, candidates);
-  drawNextMoves(context, geometry, layer);
+  if (hint.mode !== "None") drawNextMoves(context, geometry, layer);
   if (layer.emptyHint && candidates.length === 0) drawEmptyHint(context, geometry, layer.emptyHint, layer.dpr);
 }
 
@@ -452,6 +357,7 @@ function drawLastMove(context: Context, geometry: Geometry, layer: OverlayLayer)
     text(context, layer.passLabel, x, y, UI_FONT, r * 3, (r * 9) / 2);
     return;
   }
+  if (layer.lastMark === false) return;
   const { x, y } = pointToPixel(geometry, last.data.point);
   const radius = Math.round(cell * 0.22);
   if (layer.lastRank) {
@@ -465,21 +371,14 @@ function drawLastMove(context: Context, geometry: Geometry, layer: OverlayLayer)
   context.stroke();
 }
 
-function suggestionRows(context: Context, geometry: Geometry, x: number, y: number, candidate: CandidateView, toPlay: ColorView) {
-  const { cell, stoneRadius: r } = geometry;
-  const winrate = forMover(candidate.winrate, toPlay, "winrate");
-  const narrow = winrate * 100 < 10;
-  text(context, winrateText(winrate), x, y - Math.round(cell * (narrow ? 0.127 : 0.125)), NUMBER_FONT, cell * (narrow ? 0.36 : 0.35), cell * 0.67, "above");
-  text(context, playoutsText(candidate.visits), x, y + Math.round(cell * 0.18), UI_FONT, cell * 0.34, candidate.visits < 1000 ? r * 1.3 : r * 1.8, "above");
-  const score = scoreText(forMover(candidate.score_lead, toPlay, "score"));
-  text(context, score, x, y + Math.round(cell * 0.435), NUMBER_FONT, (geometry.available * 0.273) / (geometry.columns - 1), r * 1.6, "above");
-}
-
 /** `drawLeelazSuggestions`, weakest first so that stronger moves' rings and badges stay whole. */
 function drawSuggestions(context: Context, geometry: Geometry, images: BoardImages, layer: OverlayLayer, candidates: CandidateView[]) {
   const best = candidates[0];
   if (!best) return;
   const { cell, stoneRadius: r } = geometry;
+  const style = layer.style ?? DEFAULT_SUGGESTION_STYLE;
+  const toPlay = layer.board.to_play;
+  const bestLead = forMover(best.score_lead, toPlay, "score");
   const maxVisits = Math.max(...candidates.map((candidate) => candidate.visits));
   const texture = wood(context, geometry, images);
   for (let index = candidates.length - 1; index >= 0; index--) {
@@ -514,10 +413,16 @@ function drawSuggestions(context: Context, geometry: Geometry, images: BoardImag
     }
 
     context.fillStyle = "#000";
-    suggestionRows(context, geometry, x, y, candidate, layer.board.to_play);
+    const values = {
+      winrate: forMover(candidate.winrate, toPlay, "winrate"),
+      blackWinrate: candidate.winrate,
+      visits: candidate.visits,
+      score: scoreLabel(forMover(candidate.score_lead, toPlay, "score"), bestLead, toPlay, style),
+    };
+    drawSuggestionText(context, geometry, x, y, values, style);
 
     // The engine's order in an orange tag at the top right, for the first nine moves.
-    if (candidate.order <= 8) {
+    if (style.order && candidate.order <= 8) {
       const shift = isBest ? 1 : 0;
       const tagX = x + Math.round(cell * 0.43) + shift;
       const tagY = y - Math.round(cell * 0.358) - shift;
@@ -560,10 +465,11 @@ function drawNextMoveBlunder(
   layer: OverlayLayer,
   candidates: CandidateView[],
   next: NextMove,
+  minVisits: number,
 ) {
   if (!next.after || layer.board.stones[pointIndex(layer.board.width, next.point)]) return;
   const listed = candidates.find((candidate) => same(candidate.point, next.point));
-  if (listed && listed.visits >= 30) return;
+  if (listed && listed.visits >= minVisits) return;
   const best = candidates[0]!;
   const toPlay = layer.board.to_play;
   const winrate = forMover(next.after.winrate, toPlay, "winrate");
@@ -590,7 +496,9 @@ function drawNextMoveBlunder(
   text(context, winrateText(winrate), x, y, NUMBER_FONT, cell * 0.39, cell * 0.815, "above");
   const rounded = Math.round(score * 10) / 10;
   const down = rounded <= -10 ? cell * 0.34 : (cell * 11) / 30;
-  text(context, scoreText(score), x, y + Math.round(down), NUMBER_FONT, cell * 0.3, cell * 0.65, "above");
+  const style = layer.style ?? DEFAULT_SUGGESTION_STYLE;
+  const label = scoreLabel(score, forMover(best.score_lead, toPlay, "score"), toPlay, style);
+  text(context, label, x, y + Math.round(down), NUMBER_FONT, cell * 0.3, cell * 0.65, "above");
 }
 
 /** The sub-board's picture: a line's stones, numbered, over the position it leads to. */
@@ -603,7 +511,7 @@ function drawVariation(
   context: Context,
   geometry: Geometry,
   images: BoardImages,
-  layer: Pick<OverlayLayer, "board" | "analysis" | "hover">,
+  layer: Pick<OverlayLayer, "board" | "analysis" | "hover" | "style">,
   variation: VariationPreviewView,
 ) {
   const { stoneRadius: r } = geometry;
@@ -645,7 +553,22 @@ function drawVariation(
       disc(context, x, y, r + 1);
       context.stroke();
       context.fillStyle = ink;
-      suggestionRows(context, geometry, x, y, hovered, board.to_play);
+      const toPlay = board.to_play;
+      const style = layer.style ?? DEFAULT_SUGGESTION_STYLE;
+      const best = layer.analysis?.candidates[0] ?? hovered;
+      drawSuggestionText(
+        context,
+        geometry,
+        x,
+        y,
+        {
+          winrate: forMover(hovered.winrate, toPlay, "winrate"),
+          blackWinrate: hovered.winrate,
+          visits: hovered.visits,
+          score: scoreLabel(forMover(hovered.score_lead, toPlay, "score"), forMover(best.score_lead, toPlay, "score"), toPlay, style),
+        },
+        style,
+      );
       continue;
     }
     if (stone.move_number === last) {
