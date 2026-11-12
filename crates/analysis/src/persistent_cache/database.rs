@@ -28,6 +28,11 @@ impl Database {
                 | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         connection.busy_timeout(Duration::ZERO)?;
+        // Unit tests exercise SQLite data and eviction semantics, not power-loss
+        // durability. Avoid timing fsync on slow CI disks; production keeps
+        // SQLite's default synchronization mode.
+        #[cfg(test)]
+        connection.pragma_update(None, "synchronous", "OFF")?;
         let version: u32 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
         if version > 1 {
             return Err(CacheError::Invalid("unsupported schema version"));

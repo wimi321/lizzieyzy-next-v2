@@ -41,6 +41,10 @@ async fn audit_writes(path: &Path, install: bool) -> usize {
     let path = path.to_owned();
     within(tokio::task::spawn_blocking(move || {
         let connection = rusqlite::Connection::open(path).unwrap();
+        // These counters measure SQL writes, not disk synchronization latency.
+        connection
+            .pragma_update(None, "synchronous", "OFF")
+            .unwrap();
         if install {
             connection
                 .execute_batch(
@@ -301,21 +305,44 @@ async fn clear_discards_pending_writes_without_resurrecting_them_at_shutdown() {
     within(reopened.shutdown()).await;
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn pending_keys_are_bounded_and_oldest_is_flushed_on_overflow() {
+    // No timer may drain the queue while the overflow write is in progress.
+    let clock_guard = tokio::spawn(async {
+        loop {
+            tokio::task::yield_now().await;
+        }
+    });
     let directory = TempDir::new().unwrap();
     let store = cache(&directory);
     for index in 0..=actor::MAX_PENDING {
         let key = AnalysisKey([u8::try_from(index).unwrap(); 32]);
         assert!(store.put(key, "model", response(100)));
-        assert!(pending_count(&store).await <= actor::MAX_PENDING);
+        assert_eq!(
+            pending_count(&store).await,
+            (index + 1).min(actor::MAX_PENDING)
+        );
     }
-    // The first item is persisted by overflow, before shutdown flushes the rest.
-    let reopened = cache(&directory);
-    assert_eq!(
-        within(reopened.get(AnalysisKey([0; 32]), "model")).await,
-        Some(response(100))
-    );
-    within(reopened.shutdown()).await;
+    // Inspect SQLite directly so pending reads cannot hide which key was written.
+    // Exactly the oldest item must be persisted; all others remain pending.
+    let path = directory.path().join("cache.sqlite3");
+    let persisted = within(tokio::task::spawn_blocking(move || {
+        let connection = rusqlite::Connection::open(path).unwrap();
+        connection
+            .prepare("SELECT position FROM entries ORDER BY position")
+            .unwrap()
+            .query_map([], |row| row.get::<_, Vec<u8>>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+    }))
+    .await
+    .unwrap();
+    assert_eq!(persisted, vec![vec![0; 32]]);
+    // Shutdown flushing has dedicated tests. Do not turn this queue-bound test
+    // into a benchmark of 128 unrelated disk writes during cleanup.
+    within(store.clear_all()).await;
+    assert_eq!(pending_count(&store).await, 0);
     within(store.shutdown()).await;
+    clock_guard.abort();
 }

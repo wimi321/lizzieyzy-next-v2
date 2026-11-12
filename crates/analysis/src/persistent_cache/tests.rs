@@ -147,20 +147,38 @@ async fn lru_eviction_respects_database_file_size_and_reads_refresh_recency() {
     let snapshot = analysis(&engine, focus(0), 100).await;
     let limit = 64 * 1024;
     let store = PersistentCache::spawn(path.clone(), limit, true);
-    assert!(store.put(snapshot.key, "model", snapshot.response.clone()));
-    within(store.flush()).await;
-    for index in 1..32 {
-        let key = focus(index).key;
-        assert!(store.put(key, "model", snapshot.response.clone()));
+
+    // Two 20 KiB payloads fit, but a third forces eviction. Padding only the
+    // request ID preserves the fake engine's analysis while avoiding dozens of
+    // disk writes merely to fill the database on slow Windows CI machines.
+    let mut response = snapshot.response;
+    response.id.clear();
+    let padding = 20 * 1024 - serde_json::to_vec(&response).unwrap().len();
+    response.id = "x".repeat(padding);
+    assert_eq!(serde_json::to_vec(&response).unwrap().len(), 20 * 1024);
+    let oldest = snapshot.key;
+    let untouched = focus(1).key;
+    let newest = focus(2).key;
+    for key in [oldest, untouched] {
+        assert!(store.put(key, "model", response.clone()));
         within(store.flush()).await;
-        assert!(within(store.get(snapshot.key, "model")).await.is_some());
         assert!(std::fs::metadata(&path).unwrap().len() <= limit);
         assert_eq!(*store.status().borrow(), CacheStatus::Enabled);
     }
-    assert!(within(store.get(focus(1).key, "model")).await.is_none());
-    assert!(within(store.get(focus(31).key, "model")).await.is_some());
+    assert!(within(store.get(untouched, "model")).await.is_some());
+    // Refresh the oldest insertion last: insertion order alone must not decide
+    // which entry is evicted when the third payload exceeds the physical cap.
+    assert!(within(store.get(oldest, "model")).await.is_some());
+    assert!(store.put(newest, "model", response));
+    within(store.flush()).await;
+    let occupied_bytes = std::fs::metadata(&path).unwrap().len();
+    assert!(occupied_bytes <= limit);
+    assert_eq!(*store.status().borrow(), CacheStatus::Enabled);
+    assert!(within(store.get(untouched, "model")).await.is_none());
+    assert!(within(store.get(oldest, "model")).await.is_some());
+    assert!(within(store.get(newest, "model")).await.is_some());
     within(store.clear_all()).await;
-    assert!(std::fs::metadata(&path).unwrap().len() < limit);
+    assert!(std::fs::metadata(&path).unwrap().len() < occupied_bytes);
     within(store.shutdown()).await;
     within(engine.shutdown()).await.unwrap();
 }
