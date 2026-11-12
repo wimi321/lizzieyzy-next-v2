@@ -100,14 +100,15 @@ test("a game with moves becomes a starting position first, after Java's question
 
 test("the markup tools mark the current move; the board draws its marks; 交换落子顺序 swaps who plays", async ({ page }) => {
   const view = midGame();
+  // Every kind of mark, on black, white and empty points, all in the top-left quarter.
   view.markup = [
     { point: { x: 3, y: 3 }, kind: "Triangle", text: null },
-    { point: { x: 15, y: 3 }, kind: "Square", text: null },
-    { point: { x: 9, y: 9 }, kind: "Circle", text: null },
+    { point: { x: 4, y: 2 }, kind: "Square", text: null },
+    { point: { x: 5, y: 3 }, kind: "Circle", text: null },
     { point: { x: 6, y: 6 }, kind: "Cross", text: null },
-    { point: { x: 12, y: 12 }, kind: "Letter", text: "A" },
-    { point: { x: 13, y: 12 }, kind: "Number", text: "12" },
-    { point: { x: 3, y: 15 }, kind: "Letter", text: "B" },
+    { point: { x: 7, y: 8 }, kind: "Letter", text: "A" },
+    { point: { x: 8, y: 8 }, kind: "Number", text: "12" },
+    { point: { x: 2, y: 5 }, kind: "Letter", text: "B" },
   ];
   await start(page, view, [
     { command: "setMarkup", result: 8 },
@@ -116,7 +117,10 @@ test("the markup tools mark the current move; the board draws its marks; 交换�
     { command: "toggleToPlay", result: 11 },
   ]);
   const board = page.getByTestId("board");
-  await expect(board).toHaveScreenshot("markup.png");
+  // A quarter of the board keeps the baseline under the 1 MB file budget.
+  const area = await board.boundingBox();
+  if (!area) throw new Error("the board has no box");
+  await expect(page).toHaveScreenshot("markup.png", { clip: { x: area.x, y: area.y, width: area.width / 2, height: area.height / 2 } });
 
   await page.getByTestId("tool-markup").click();
   await expect(page.getByTestId("tool-markup")).toHaveAttribute("aria-pressed", "true");
