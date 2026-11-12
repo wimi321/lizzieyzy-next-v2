@@ -243,6 +243,24 @@ fn warn(warnings: &mut Vec<DocumentWarning>, node: NodeId, property: &str, kind:
 
 /// Match Java SGFParser's source detection and nested normalization conditions.
 pub(crate) fn normalize_komi(mut komi: f64, properties: &[Property]) -> f64 {
+    // A matching editor marker distinguishes canonical point values from a
+    // source site's historical encodings while leaving AP and other data intact.
+    // Matching the value prevents a stale marker from blessing an external KM edit.
+    if properties
+        .iter()
+        .find(|p| p.identifier == "LZKOMI")
+        .and_then(|p| p.values.first())
+        .and_then(|value| value.parse::<f64>().ok())
+        .is_some_and(|value| value.is_finite() && value == komi)
+        && properties
+            .iter()
+            .find(|p| p.identifier == "KM")
+            .and_then(|p| p.values.first())
+            .and_then(|value| value.trim().parse::<f64>().ok())
+            .is_some_and(|value| value == komi)
+    {
+        return komi;
+    }
     let contains = |name: &str, needle: &str| {
         properties
             .iter()

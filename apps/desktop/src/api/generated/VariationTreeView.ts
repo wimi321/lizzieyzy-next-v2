@@ -2,12 +2,13 @@
 import type { VariationNodeView } from "./VariationNodeView";
 
 /**
- * Fetch when DocumentView.tree.structure_revision changes. Navigation and
- * comments do not change this version. Opening a game always changes it, even
- * if node IDs and structure match the previous game. Discard an asynchronous
- * reply whose revision differs from the latest structure_revision.
+ * Fetch when DocumentView.tree.structure_revision or comment_revision changes.
+ * Navigation changes neither. Structure changes update revision; comment marker
+ * changes without a structural edit update comment_revision. Accept a reply
+ * only when both versions match the latest document view. Opening a game always
+ * updates the structure revision, even for identical node IDs and structure.
  */
-export type VariationTreeView = { revision: number, root: number, 
+export type VariationTreeView = { revision: number, comment_revision?: number, root: number, 
 /**
  * Depth-first, parent before children, in SGF child order. No tombstones.
  */

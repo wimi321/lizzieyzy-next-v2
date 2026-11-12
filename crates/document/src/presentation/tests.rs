@@ -133,3 +133,27 @@ fn promote_delete_and_undo_change_order_without_reusing_ids() {
     doc.undo().unwrap();
     assert_eq!(doc.variation_tree().unwrap(), original);
 }
+
+#[test]
+fn canonical_rules_preset_matches_replay_without_replacing_original_text() {
+    for (raw, expected) in [
+        (None, "chinese"),
+        (Some("Unknown"), "chinese"),
+        (Some("Chinese"), "chinese"),
+        (Some(" Japanese "), "japanese"),
+        (Some("KOREAN"), "korean"),
+        (Some("aga"), "aga"),
+        (Some("Tromp-Taylor"), "tromp-taylor"),
+        (Some("New-Zealand"), "new-zealand"),
+    ] {
+        let source = raw.map_or_else(|| "(;SZ[9])".into(), |value| format!("(;SZ[9]RU[{value}])"));
+        let doc = document(&source);
+        let info = doc.game_info().unwrap();
+        assert_eq!(info.rules.as_deref(), raw);
+        assert_eq!(info.rules_preset, expected);
+        assert_eq!(
+            info.rules_preset,
+            doc.position_at(doc.root()).unwrap().rules.as_katago_str()
+        );
+    }
+}

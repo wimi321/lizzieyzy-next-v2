@@ -7,6 +7,7 @@ mod auto_setup;
 mod benchmark;
 mod board_sync;
 mod delivery;
+mod edit;
 mod engine_display_name;
 pub mod engine_setup;
 mod engine_trial;
@@ -29,6 +30,7 @@ pub use board_sync::{
     BoardSyncError, BoardSyncLanguage, BoardSyncOptions, BoardSyncPhase, BoardSyncStatus,
 };
 pub use delivery::AppSubscription;
+pub use edit::{GameInfoEdit, NewGameOptions};
 pub use engine_display_name::{EngineDisplayName, engine_display_name};
 pub use engine_trial::{EngineSetupError, EngineSetupProfile};
 pub use graph::{AnalysisSummary, GraphPointView, GraphView};
@@ -64,6 +66,12 @@ pub enum AppError {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Settings(#[from] SettingsError),
+    #[error("file saved to {path}, but recent files could not be saved: {source}")]
+    RecentFilesAfterSave {
+        path: PathBuf,
+        #[source]
+        source: SettingsError,
+    },
     #[error(transparent)]
     Analysis(#[from] analysis::AnalysisError),
     #[error(transparent)]

@@ -9,6 +9,7 @@ import type { AnalysisLimitCommands, AnalysisStateListener } from "./analysis-li
 import type { ProblemMoveCommands } from "./problem-moves";
 import type { StrengthCommands } from "./strength";
 import type { TsumegoCommands } from "./tsumego";
+import type { EditCommands } from "./edit";
 import type { EngineDisplayName } from "./generated/EngineDisplayName";
 import type { EngineProfile } from "./generated/EngineProfile";
 import type { EngineSetupProfile } from "./generated/EngineSetupProfile";
@@ -37,6 +38,7 @@ export * from "./analysis-limits";
 export * from "./problem-moves";
 export * from "./strength";
 export * from "./tsumego";
+export * from "./edit";
 export type { AnalysisSource } from "./generated/AnalysisSource";
 export type { AnalysisSummary } from "./generated/AnalysisSummary";
 export type { AnalysisView } from "./generated/AnalysisView";
@@ -71,7 +73,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands {
+export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands {
   openBytes(bytes: number[]): Promise<Revision>;
   openPath(path: string): Promise<Revision>;
   save(path: string): Promise<void>;
@@ -80,7 +82,7 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   goTo(nodeId: number): Promise<Revision>;
   undo(): Promise<Revision>;
   redo(): Promise<Revision>;
-  /** Fetch when tree.structure_revision changes; keep only a matching reply. */
+  /** Fetch when structure_revision or comment_revision changes; match both in the reply. */
   variationTree(): Promise<VariationTreeView>;
   /** Read-only PV replay. Compare reply revision/node_id with the requested focus. */
   previewVariation(nodeId: number, moves: MoveView[]): Promise<VariationPreviewView>;

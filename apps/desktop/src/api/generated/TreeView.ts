@@ -2,9 +2,13 @@
 
 export type TreeView = { 
 /**
- * Fetch variation_tree only when this changes; independent of navigation.
+ * Fetch variation_tree when either tree revision changes; navigation is independent.
  */
-structure_revision: number, root: number, current: number, 
+structure_revision: number, 
+/**
+ * Fetch the tree when comment markers change, independently of structure.
+ */
+comment_revision?: number, root: number, current: number, 
 /**
  * Root followed by each first child, including empty SGF nodes.
  */

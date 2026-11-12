@@ -2,6 +2,7 @@ pub mod analysis;
 pub mod benchmark;
 pub mod board_sync;
 pub mod document;
+pub mod edit;
 pub mod engine;
 pub mod fox;
 pub mod problem_moves;

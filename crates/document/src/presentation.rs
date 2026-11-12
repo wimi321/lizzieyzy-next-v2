@@ -16,6 +16,8 @@ pub struct GameInfo {
     pub komi: f64,
     /// Original RU text, rather than the effective fallback rule preset.
     pub rules: Option<String>,
+    /// Canonical name of the effective preset used by replay.
+    pub rules_preset: String,
     /// None if HA is absent; present malformed HA uses replay's fallback of 0.
     pub handicap: Option<u32>,
     pub result: Option<String>,
@@ -39,6 +41,8 @@ pub struct VariationNode {
     /// Only SGF move decoding errors, not a replay/legality verdict. For example,
     /// an occupied recorded point still has a move here; position_at checks it.
     pub move_error: Option<DocError>,
+    /// True when the effective first comment is nonempty.
+    pub has_comment: bool,
 }
 
 impl GameDocument {
@@ -60,6 +64,7 @@ impl GameDocument {
             white_rank: text("WR"),
             komi: metadata.komi,
             rules: metadata.rules_raw,
+            rules_preset: metadata.rules.as_katago_str().to_owned(),
             handicap: text("HA").map(|_| metadata.handicap),
             result: text("RE"),
             date: text("DT"),
@@ -94,6 +99,7 @@ impl GameDocument {
                 move_number,
                 mv,
                 move_error,
+                has_comment: node.comment().is_some_and(|comment| !comment.is_empty()),
             });
         }
         Ok(nodes)

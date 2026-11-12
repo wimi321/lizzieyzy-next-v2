@@ -198,7 +198,7 @@ fn comments_preserve_unknowns_and_restore_duplicate_comments_exactly() {
     doc.redo().unwrap();
     assert_eq!(doc.snapshot(), modified);
     doc.apply(Command::SetComment(String::new())).unwrap();
-    assert_eq!(doc.node(doc.root()).unwrap().comment(), Some(""));
+    assert_eq!(doc.node(doc.root()).unwrap().comment(), None);
 }
 
 #[test]
@@ -387,4 +387,34 @@ proptest! {
         prop_assert_eq!(redone_positions, final_positions);
         prop_assert!(!doc.can_redo());
     }
+}
+
+#[test]
+fn content_revision_changes_only_on_real_edits_and_undo_redo() {
+    let mut doc = document(b"(;SZ[9];B[aa];W[bb])");
+    assert_eq!(doc.content_revision(), 0);
+    for command in [
+        Command::Step(2),
+        Command::GoTo(NodeId(0)),
+        play(Color::Black, 0, 0),
+    ] {
+        doc.apply(command).unwrap();
+        assert_eq!(doc.content_revision(), 0);
+    }
+    let edited = doc.apply(Command::SetComment("edited".into())).unwrap();
+    assert_eq!(doc.content_revision(), edited);
+    doc.apply(Command::SetComment("edited".into())).unwrap();
+    doc.apply(Command::PromoteToMain(NodeId(1))).unwrap();
+    assert!(doc.apply(Command::DeleteNode(NodeId(999))).is_err());
+    doc.apply(Command::Step(1)).unwrap();
+    assert_eq!(doc.content_revision(), edited);
+    let undone = doc.undo().unwrap();
+    assert_eq!(doc.content_revision(), undone);
+    doc.apply(Command::GoTo(NodeId(2))).unwrap();
+    assert_eq!(doc.content_revision(), undone);
+    let redone = doc.redo().unwrap();
+    assert_eq!(doc.content_revision(), redone);
+    doc.apply(Command::GoTo(NodeId(2))).unwrap();
+    let new_move = doc.apply(play(Color::Black, 2, 2)).unwrap();
+    assert_eq!(doc.content_revision(), new_move);
 }

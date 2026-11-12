@@ -14,6 +14,7 @@ pub struct GameDocument {
     pub(crate) root: NodeId,
     pub(crate) current: NodeId,
     pub(crate) revision: Revision,
+    pub(crate) content_revision: Revision,
     pub(crate) undo: Vec<Edit>,
     pub(crate) redo: Vec<Edit>,
 }
@@ -39,6 +40,7 @@ impl GameDocument {
             root,
             current: root,
             revision: 0,
+            content_revision: 0,
             undo: Vec::new(),
             redo: Vec::new(),
         }
@@ -116,6 +118,12 @@ impl GameDocument {
 
     pub fn revision(&self) -> Revision {
         self.revision
+    }
+
+    /// Revision of the latest content edit, including undo/redo. Navigation and
+    /// no-op commands leave it unchanged; each document starts at zero.
+    pub fn content_revision(&self) -> Revision {
+        self.content_revision
     }
 
     pub fn node(&self, id: NodeId) -> Result<&DocumentNode, DocError> {
