@@ -39,7 +39,7 @@ jobs:
             python: python3
             bundles: dmg
             artifacts: target/release/bundle/dmg/*.dmg
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             platform: linux
             python: python3
             bundles: appimage,deb
