@@ -238,21 +238,18 @@ export function WinrateGraph({ graph, analysis, mistakes, mode = "Both", fill = 
               <line x1={currentX} x2={currentX} y1={plotTop} y2={plotBottom} />
               {current.summary ? (
                 <>
+                  {/* Both dots first, then both values, so no dot covers a value. */}
+                  {showScore ? <circle cx={currentX} cy={scoreY} r={2.5} className="score" /> : null}
+                  {showWinrate ? <circle cx={currentX} cy={winrateY} r={3.5} /> : null}
                   {showScore ? (
-                    <>
-                      <circle cx={currentX} cy={scoreY} r={2.5} className="score" />
-                      <text className="graph-value score" x={labelX} y={showWinrate ? scoreLabelY : beside(scoreY)} textAnchor="middle">
-                        {leadText(current.summary.score_lead)}
-                      </text>
-                    </>
+                    <text className="graph-value score" x={labelX} y={showWinrate ? scoreLabelY : beside(scoreY)} textAnchor="middle">
+                      {leadText(current.summary.score_lead)}
+                    </text>
                   ) : null}
                   {showWinrate ? (
-                    <>
-                      <circle cx={currentX} cy={winrateY} r={3.5} />
-                      <text className="graph-value" x={labelX} y={winrateLabelY} textAnchor="middle">
-                        {formatWinrate(current.summary.winrate)}
-                      </text>
-                    </>
+                    <text className="graph-value" x={labelX} y={winrateLabelY} textAnchor="middle">
+                      {formatWinrate(current.summary.winrate)}
+                    </text>
                   ) : null}
                 </>
               ) : null}
