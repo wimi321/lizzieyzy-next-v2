@@ -29,6 +29,41 @@
   },
   "bundle": {
     "active": true,
+    "fileAssociations": [
+      {
+        "ext": ["sgf"],
+        "name": "SGF",
+        "description": "Smart Game Format",
+        "role": "Editor",
+        "rank": "Alternate",
+        "mimeType": "application/x-go-sgf"
+      },
+      {
+        "ext": ["gib"],
+        "name": "GIB",
+        "description": "Tygem Go game record",
+        "role": "Viewer",
+        "rank": "Alternate",
+        "mimeType": "application/x-go-gib"
+      }
+    ],
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/mime/packages/io.github.wimi321.lizzieyzy.next2.xml": "game-records.xml"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/share/mime/packages/io.github.wimi321.lizzieyzy.next2.xml": "game-records.xml"
+        }
+      },
+      "appimage": {
+        "files": {
+          "/usr/share/mime/packages/io.github.wimi321.lizzieyzy.next2.xml": "game-records.xml"
+        }
+      }
+    },
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico", "icons/icon.png"],
     "resources": {
       "../../../resources/katago/analysis.cfg": "katago/analysis.cfg"

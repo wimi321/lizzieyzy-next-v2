@@ -208,6 +208,7 @@ async fn every_analysis_is_forwarded_with_best_summary_and_fresh_values_on_ties(
         assert_eq!(view.candidates[0].visits, visits);
         let expected = if improves {
             AnalysisSummary {
+                score_lead_available: true,
                 visits: view.visits,
                 winrate: view.winrate,
                 score_lead: view.score_lead,

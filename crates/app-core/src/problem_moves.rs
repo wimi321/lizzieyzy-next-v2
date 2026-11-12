@@ -42,6 +42,9 @@ pub struct MoveLoss {
     /// Percentage points (0..100), not a probability in 0..1.
     pub winrate_loss: f64,
     pub score_loss: f64,
+    #[serde(default = "crate::view::score_available")]
+    #[ts(as = "Option<bool>", optional)]
+    pub score_loss_available: bool,
     pub rank: MoveRank,
     pub is_best: bool,
     /// One-based engine order; None means absent from the candidates.
@@ -107,6 +110,7 @@ impl MoveLoss {
         Some(Self {
             winrate_loss,
             score_loss,
+            score_loss_available: true,
             rank: settings.classify_losses(winrate_loss, Some(score_loss)),
             is_best,
             candidate_rank,

@@ -9,7 +9,7 @@ export type MoveLoss = {
 /**
  * Percentage points (0..100), not a probability in 0..1.
  */
-winrate_loss: number, score_loss: number, rank: MoveRank, is_best: boolean, 
+winrate_loss: number, score_loss: number, score_loss_available?: boolean, rank: MoveRank, is_best: boolean, 
 /**
  * One-based engine order; None means absent from the candidates.
  */

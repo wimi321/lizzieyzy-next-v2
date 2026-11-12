@@ -26,6 +26,7 @@ mod problem_moves;
 mod review;
 mod setup_markup;
 mod strength;
+mod system_open;
 mod tsumego;
 mod variation;
 
@@ -71,11 +72,14 @@ impl Harness {
             .await
             .unwrap();
         let (send, output) = mpsc::unbounded_channel();
+        let (opener, incoming) = crate::system_open::SystemOpener::channel();
+        tokio::spawn(crate::system_open::serve(core.clone(), incoming));
         let resources = directory.path().join("resources/katago");
         std::fs::create_dir_all(&resources).unwrap();
         let default_config_source = resources.join("analysis.cfg");
         std::fs::write(&default_config_source, "reportAnalysisWinratesAs = BLACK\n").unwrap();
         let app = crate::commands(mock_builder())
+            .manage(opener)
             .manage(crate::DesktopState::new(core.clone(), subscription))
             .manage(crate::board_sync::BoardSyncEnvironment::from_resource_dir(
                 &directory.path().join("resources"),

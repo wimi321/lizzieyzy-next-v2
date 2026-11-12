@@ -212,6 +212,42 @@ fn java_lz_payload_is_exact_before_and_after_round_trip() {
 }
 
 #[test]
+fn java_secondary_slots_are_properties_not_literal_comment_brackets() {
+    let parsed = parse(b"(;C[before]LZ2[Second 45 100]LZOP2[Other 55 200]N[after];B[dd])").unwrap();
+    assert_eq!(values(&parsed.games[0], "C"), ["before"]);
+    assert_eq!(values(&parsed.games[0], "N"), ["after"]);
+    assert_eq!(values(&parsed.games[0], "LZ2"), ["Second 45 100"]);
+    assert_eq!(values(&parsed.games[0], "LZOP2"), ["Other 55 200"]);
+    assert!(parsed.warnings.is_empty());
+    assert_eq!(
+        parse(serialize(&parsed).as_bytes()).unwrap().games,
+        utf8_roots(parsed.games)
+    );
+    let lower = parse(b"(;lz2[secondary]lzop2[other])").unwrap();
+    assert_eq!(values(&lower.games[0], "LZ2"), ["secondary"]);
+    assert_eq!(values(&lower.games[0], "LZOP2"), ["other"]);
+    assert_eq!(lower.warnings.len(), 2);
+    for invalid in [
+        b"(;XX2[value])".as_slice(),
+        b"(;LZ3[value])",
+        b"(;LZ22[value])",
+    ] {
+        assert!(parse(invalid).is_err());
+    }
+}
+
+#[test]
+fn encoding_declaration_after_java_secondary_slot_remains_visible() {
+    let input = "(;LZ2[Second 45 100]CA[EUC-KR]C[바둑])";
+    let (encoded, _, malformed) = encoding_rs::EUC_KR.encode(input);
+    assert!(!malformed);
+    let parsed = parse(&encoded).unwrap();
+    assert_eq!(parsed.encoding, "EUC-KR");
+    assert_eq!(values(&parsed.games[0], "C"), ["바둑"]);
+    assert_eq!(values(&parsed.games[0], "LZ2"), ["Second 45 100"]);
+}
+
+#[test]
 fn ff3_mixed_case_names_use_uppercase_letters_only() {
     let parsed = fixture("ff3-mixed-case-properties.sgf");
     let game = &parsed.games[0];
@@ -468,7 +504,14 @@ fn arbitrary_property() -> impl Strategy<Value = Property> {
         0..32,
     )
     .prop_map(|chars| chars.into_iter().collect::<String>());
-    ("[A-Z]{1,4}", prop::collection::vec(text, 1..4))
+    (
+        prop_oneof![
+            "[A-Z]{1,4}",
+            Just("LZ2".to_owned()),
+            Just("LZOP2".to_owned())
+        ],
+        prop::collection::vec(text, 1..4),
+    )
         .prop_map(|(identifier, values)| Property { identifier, values })
 }
 
