@@ -22,6 +22,7 @@ export type {
   StrengthEstimateView, StrengthReport, SideReport, PhaseReport, Confidence, Sample, MoveCategory,
   TsumegoOptions, TsumegoStatus, TsumegoToPlay, TsumegoAttacker, TsumegoKoThreat,
   StrengthPhasesReport, PhaseEstimate, PhaseExtremes,
+  EditCommands, GameInfoEdit, NewGameOptions,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "unsubscribe" | "setWindowTitle">;
@@ -122,6 +123,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       if (event.type === "DocumentChanged") {
         event.data.view.file_name ??= null;
         lastDocument = structuredClone(event.data);
+        fillDocumentDefaults(lastDocument.view);
       }
       if (event.type === "WholeGameProgress") lastProgress = structuredClone(event.data);
       if (event.type === "BoardSyncStatusChanged") lastBoardSyncStatus = structuredClone(event.data);
@@ -129,7 +131,9 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       if (event.type === "AnalysisStateChanged") lastAnalysisState = structuredClone(event.data);
       for (const listener of [...listeners.values()]) {
         try {
-          listener(structuredClone(event));
+          const cloned = structuredClone(event);
+          if (cloned.type === "DocumentChanged") fillDocumentDefaults(cloned.data.view);
+          listener(cloned);
         } catch (error) {
           console.error("Backend event listener failed", error);
         }
@@ -175,7 +179,34 @@ async function command<K extends CommandName>(
   } else if (next.command === "analysisState" || next.command === "togglePondering") {
     lastAnalysisState = structuredClone(next.result);
   }
-  return structuredClone(result) as Awaited<ReturnType<Backend[K]>>;
+  const cloned = structuredClone(result);
+  if (next.command === "variationTree") fillTreeDefaults(cloned as VariationTreeView);
+  if (next.command === "settings") defaultField(cloned as Settings, "recent_files", []);
+  return cloned as Awaited<ReturnType<Backend[K]>>;
+}
+
+/** Older scripts are also compared verbatim by existing API consumers.
+ * Missing fields remain non-enumerable fixture defaults so those scripts keep
+ * their original data shape, while UI property reads see the new Rust defaults.
+ * Apply after cloning; explicit scripted values retain their normal shape. */
+function defaultField<T extends object, K extends keyof T>(target: T, key: K, value: T[K]): void {
+  if (target[key] === undefined) {
+    Object.defineProperty(target, key, { value, writable: true, configurable: true });
+  }
+}
+
+function fillDocumentDefaults(view: DocumentView): void {
+  defaultField(view, "file_path", null);
+  defaultField(view, "modified", false);
+  defaultField(view, "can_undo", false);
+  defaultField(view, "can_redo", false);
+  defaultField(view.game_info, "rules_preset", "chinese");
+  defaultField(view.tree, "comment_revision", 0);
+}
+
+function fillTreeDefaults(tree: VariationTreeView): void {
+  defaultField(tree, "comment_revision", 0);
+  for (const node of tree.nodes) defaultField(node, "has_comment", false);
 }
 
 export const openBytes: Backend["openBytes"] = (bytes) => command("openBytes", [bytes]);
@@ -186,6 +217,13 @@ export const step: Backend["step"] = (count) => command("step", [count]);
 export const goTo: Backend["goTo"] = (nodeId) => command("goTo", [nodeId]);
 export const undo: Backend["undo"] = () => command("undo", []);
 export const redo: Backend["redo"] = () => command("redo", []);
+export const setComment: Backend["setComment"] = (text) => command("setComment", [text]);
+export const deleteNode: Backend["deleteNode"] = (nodeId) => command("deleteNode", [nodeId]);
+export const deleteBranch: Backend["deleteBranch"] = (nodeId) => command("deleteBranch", [nodeId]);
+export const promoteToMain: Backend["promoteToMain"] = (nodeId) => command("promoteToMain", [nodeId]);
+export const newGame: Backend["newGame"] = (options) => command("newGame", [options]);
+export const setGameInfo: Backend["setGameInfo"] = (info) => command("setGameInfo", [info]);
+export const clearRecentFiles: Backend["clearRecentFiles"] = () => command("clearRecentFiles", []);
 export const generateTsumego: Backend["generateTsumego"] = (options) => command("generateTsumego", [options]);
 export const exitTsumego: Backend["exitTsumego"] = () => command("exitTsumego", []);
 export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoStatus", []);
@@ -194,7 +232,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState">(
+function query<K extends "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles">(
   name: K,
   args: Parameters<Backend[K]>,
   fallback: () => Awaited<ReturnType<Backend[K]>>,
@@ -206,7 +244,7 @@ function query<K extends "variationTree" | "previewVariation" | "engineDisplayNa
 /** The main line of the last document as a branchless tree; moves are unknown to the mock. */
 function mainLineTree(): VariationTreeView {
   const tree = lastDocument?.view.tree;
-  if (!tree) return { revision: 0, root: 0, nodes: [] };
+  if (!tree) return { revision: 0, comment_revision: 0, root: 0, nodes: [] };
   const nodes: VariationNodeView[] = tree.main_line.map((id, index) => ({
     id,
     parent: index === 0 ? null : (tree.main_line[index - 1] ?? null),
@@ -214,10 +252,12 @@ function mainLineTree(): VariationTreeView {
     move_number: index,
     mv: null,
     move_error: null,
+    has_comment: false,
   }));
-  return { revision: tree.structure_revision, root: tree.root, nodes };
+  return { revision: tree.structure_revision, comment_revision: tree.comment_revision ?? 0, root: tree.root, nodes };
 }
 
+export const recentFiles: Backend["recentFiles"] = () => query("recentFiles", [], () => []);
 export const variationTree: Backend["variationTree"] = () => query("variationTree", [], mainLineTree);
 export const previewVariation: Backend["previewVariation"] = (nodeId, moves) =>
   query("previewVariation", [nodeId, moves], () => {

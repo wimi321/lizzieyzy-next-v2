@@ -26,9 +26,11 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
         Actor {
             document,
             file_name: None,
+            file_state: super::editing::FileState::new(&GameDocument::new(), None),
             tsumego: None,
             tree: VariationTreeView::default(),
             summaries: HashMap::new(),
+            graph_analysis: Default::default(),
             review: Default::default(),
             strength: None,
             summary_fingerprint: None,

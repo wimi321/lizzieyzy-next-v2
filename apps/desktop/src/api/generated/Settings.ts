@@ -6,4 +6,4 @@ import type { FoxAccount } from "./FoxAccount";
 import type { MoveRankSettings } from "./MoveRankSettings";
 import type { TsumegoOptions } from "./TsumegoOptions";
 
-export type Settings = { version: number, engine: EngineProfile | null, pondering: boolean, analysis_limits?: AnalysisLimitSettings, auto_quick_analyze_on_load?: boolean, fox_history: Array<FoxAccount>, move_rank: MoveRankSettings, tsumego: TsumegoOptions, benchmarks?: { [key in string]?: BenchmarkResult }, };
+export type Settings = { version: number, engine: EngineProfile | null, pondering: boolean, analysis_limits?: AnalysisLimitSettings, auto_quick_analyze_on_load?: boolean, fox_history: Array<FoxAccount>, recent_files?: Array<string>, move_rank: MoveRankSettings, tsumego: TsumegoOptions, benchmarks?: { [key in string]?: BenchmarkResult }, };

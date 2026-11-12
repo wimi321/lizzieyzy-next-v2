@@ -40,7 +40,7 @@ impl Actor {
     pub(super) async fn open_auto_curve_document(
         &mut self,
         document: GameDocument,
-        file_name: Option<String>,
+        file_path: Option<std::path::PathBuf>,
     ) -> Result<(), AppError> {
         // Canonical first-game SGF makes byte encoding, collection neighbours and
         // the load route irrelevant, without guessing identity from an empty root.
@@ -62,7 +62,11 @@ impl Actor {
         };
         self.next_revision()?;
         self.document = document;
-        self.file_name = file_name;
+        self.file_name = file_path
+            .as_ref()
+            .and_then(|path| path.file_name())
+            .map(|name| name.to_string_lossy().into_owned());
+        self.file_state = super::editing::FileState::new(&self.document, file_path);
         self.tsumego = None;
         self.document_replaced_with_cache(cached).await?;
         if self.auto_curve.loaded != Some(identity) {

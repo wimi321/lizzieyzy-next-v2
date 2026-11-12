@@ -17,7 +17,7 @@ enum Change {
         id: NodeId,
         parent: NodeId,
     },
-    Comment {
+    Properties {
         id: NodeId,
         before: Vec<Property>,
         after: Vec<Property>,
@@ -31,6 +31,7 @@ enum Change {
         parent: NodeId,
         index: usize,
     },
+    MainPath(Vec<(NodeId, usize)>),
 }
 
 enum PreparedPlay {
@@ -74,7 +75,7 @@ impl GameDocument {
                 let mut inserted = false;
                 for property in properties {
                     if property.identifier == "C" {
-                        if !inserted {
+                        if !inserted && !comment.is_empty() {
                             updated.push(comment_property(&comment));
                             inserted = true;
                         }
@@ -82,36 +83,54 @@ impl GameDocument {
                         updated.push(property.clone());
                     }
                 }
-                if !inserted {
+                if !inserted && !comment.is_empty() {
                     updated.push(comment_property(&comment));
                 }
                 (updated != *properties).then(|| Edit {
                     before,
                     after: before,
-                    change: Change::Comment {
+                    change: Change::Properties {
                         id: before,
                         before: properties.clone(),
                         after: updated,
                     },
                 })
             }
-            Command::DeleteNode(id) => {
-                let (parent, index) = self.sibling_index(id)?;
-                let mut after = before;
-                let mut ancestor = Some(before);
-                while let Some(current) = ancestor {
-                    if current == id {
-                        after = parent;
-                        break;
+            Command::DeleteBranch(id) => {
+                let start = self.branch_start(id)?;
+                Some(self.prepare_delete(start)?)
+            }
+            Command::PromoteToMain(id) => {
+                self.sibling_index(id)?;
+                let mut swaps = Vec::new();
+                let mut node = id;
+                while node != self.root {
+                    let (parent, index) = self.sibling_index(node)?;
+                    if index != 0 {
+                        swaps.push((parent, index));
                     }
-                    ancestor = self.node(current)?.parent;
+                    node = parent;
                 }
-                Some(Edit {
+                (!swaps.is_empty()).then_some(Edit {
                     before,
-                    after,
-                    change: Change::Delete { id, parent, index },
+                    after: before,
+                    change: Change::MainPath(swaps),
                 })
             }
+            Command::SetGameInfo(info) => {
+                let properties = &self.node(self.root)?.properties;
+                let updated = self.updated_game_info(info)?;
+                (updated != *properties).then(|| Edit {
+                    before,
+                    after: before,
+                    change: Change::Properties {
+                        id: self.root,
+                        before: properties.clone(),
+                        after: updated,
+                    },
+                })
+            }
+            Command::DeleteNode(id) => Some(self.prepare_delete(id)?),
             Command::PromoteVariation(id) => {
                 let (parent, index) = self.sibling_index(id)?;
                 (index != 0).then_some(Edit {
@@ -126,8 +145,40 @@ impl GameDocument {
             self.undo.push(edit);
             self.redo.clear();
             self.revision = next_revision;
+            self.content_revision = next_revision;
         }
         Ok(self.revision)
+    }
+
+    fn prepare_delete(&self, id: NodeId) -> Result<Edit, DocError> {
+        let before = self.current;
+        let (parent, index) = self.sibling_index(id)?;
+        let mut after = before;
+        let mut ancestor = Some(before);
+        while let Some(current) = ancestor {
+            if current == id {
+                after = parent;
+                break;
+            }
+            ancestor = self.node(current)?.parent;
+        }
+        Ok(Edit {
+            before,
+            after,
+            change: Change::Delete { id, parent, index },
+        })
+    }
+
+    fn branch_start(&self, id: NodeId) -> Result<NodeId, DocError> {
+        self.sibling_index(id)?;
+        let mut node = id;
+        while let Some(parent) = self.node(node)?.parent {
+            if self.node(parent)?.children.len() > 1 {
+                return Ok(node);
+            }
+            node = parent;
+        }
+        Ok(id)
     }
 
     pub fn undo(&mut self) -> Result<Revision, DocError> {
@@ -136,6 +187,7 @@ impl GameDocument {
         self.execute(&edit, false);
         self.redo.push(edit);
         self.revision = revision;
+        self.content_revision = revision;
         Ok(revision)
     }
 
@@ -145,6 +197,7 @@ impl GameDocument {
         self.execute(&edit, true);
         self.undo.push(edit);
         self.revision = revision;
+        self.content_revision = revision;
         Ok(revision)
     }
 
@@ -258,7 +311,7 @@ impl GameDocument {
                 }
                 self.set_live(*id, forward);
             }
-            Change::Comment { id, before, after } => {
+            Change::Properties { id, before, after } => {
                 self.arena[id.0 as usize].properties = if forward { after } else { before }.clone();
             }
             Change::Delete { id, parent, index } => {
@@ -268,6 +321,11 @@ impl GameDocument {
                     self.arena[parent.0 as usize].children.insert(*index, *id);
                 }
                 self.set_live(*id, !forward);
+            }
+            Change::MainPath(swaps) => {
+                for (parent, index) in swaps {
+                    self.arena[parent.0 as usize].children.swap(0, *index);
+                }
             }
             Change::Promote { parent, index } => {
                 let siblings = &mut self.arena[parent.0 as usize].children;

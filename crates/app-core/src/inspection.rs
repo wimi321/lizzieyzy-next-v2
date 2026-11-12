@@ -7,7 +7,7 @@ use ts_rs::TS;
 use crate::{AppCore, AppError, BoardView, ColorView, MoveView, PointView, actor};
 
 /// Root SGF information. Missing fields are null, explicit empty text stays "".
-/// Rules are the original RU text; this is not the effective engine preset.
+/// Rules preserve the original RU text; rules_preset is the effective preset.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct GameInfoView {
     /// PB / BR, without rank or name guessing.
@@ -19,6 +19,10 @@ pub struct GameInfoView {
     /// Effective komi, using the document's existing tolerant KM/KO rules.
     pub komi: f64,
     pub rules: Option<String>,
+    /// Canonical preset used by replay, including the Chinese fallback.
+    #[serde(default = "default_rules_preset")]
+    #[ts(as = "Option<String>", optional)]
+    pub rules_preset: String,
     /// Null when HA is absent; a present but invalid HA uses document fallback 0.
     pub handicap: Option<u32>,
     /// RE, DT and EV are preserved text, not parsed dates or results.
@@ -36,12 +40,17 @@ impl From<document::GameInfo> for GameInfoView {
             white_rank: info.white_rank,
             komi: info.komi,
             rules: info.rules,
+            rules_preset: info.rules_preset,
             handicap: info.handicap,
             result: info.result,
             date: info.date,
             event: info.event,
         }
     }
+}
+
+fn default_rules_preset() -> String {
+    "chinese".into()
 }
 
 /// One live node, including the root and non-move SGF nodes.
@@ -59,16 +68,23 @@ pub struct VariationNodeView {
     pub mv: Option<MoveView>,
     /// Local move syntax/coordinate error only; not a full legality assessment.
     pub move_error: Option<String>,
+    #[serde(default)]
+    #[ts(as = "Option<bool>", optional)]
+    pub has_comment: bool,
 }
 
-/// Fetch when DocumentView.tree.structure_revision changes. Navigation and
-/// comments do not change this version. Opening a game always changes it, even
-/// if node IDs and structure match the previous game. Discard an asynchronous
-/// reply whose revision differs from the latest structure_revision.
+/// Fetch when DocumentView.tree.structure_revision or comment_revision changes.
+/// Navigation changes neither. Structure changes update revision; comment marker
+/// changes without a structural edit update comment_revision. Accept a reply
+/// only when both versions match the latest document view. Opening a game always
+/// updates the structure revision, even for identical node IDs and structure.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct VariationTreeView {
     #[ts(type = "number")]
     pub revision: u64,
+    #[serde(default)]
+    #[ts(as = "Option<f64>", optional)]
+    pub comment_revision: u64,
     pub root: u32,
     /// Depth-first, parent before children, in SGF child order. No tombstones.
     pub nodes: Vec<VariationNodeView>,
@@ -90,13 +106,33 @@ impl VariationTreeView {
                 move_number: node.move_number,
                 mv: node.mv.map(Into::into),
                 move_error: node.move_error.map(|error| error.to_string()),
+                has_comment: node.has_comment,
             })
             .collect::<Vec<_>>();
-        if self.root != document.root().0 || self.nodes != nodes {
+        let structure_changed = self.root != document.root().0
+            || self.nodes.len() != nodes.len()
+            || self.nodes.iter().zip(&nodes).any(|(before, after)| {
+                before.id != after.id
+                    || before.parent != after.parent
+                    || before.children != after.children
+                    || before.move_number != after.move_number
+                    || before.mv != after.mv
+                    || before.move_error != after.move_error
+            });
+        if structure_changed {
             self.revision = revision;
-            self.root = document.root().0;
-            self.nodes = nodes;
         }
+        if !structure_changed
+            && self
+                .nodes
+                .iter()
+                .zip(&nodes)
+                .any(|(before, after)| before.has_comment != after.has_comment)
+        {
+            self.comment_revision = revision;
+        }
+        self.root = document.root().0;
+        self.nodes = nodes;
         Ok(())
     }
 }

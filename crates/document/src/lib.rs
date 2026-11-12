@@ -1,6 +1,7 @@
 //! Pure game document tree and editing commands.
 
 mod edit;
+mod game;
 mod key;
 mod metadata;
 mod presentation;
@@ -9,6 +10,7 @@ mod semantics;
 mod tree;
 mod types;
 
+pub use game::{GameInfoEdit, NewGameOptions};
 pub use key::AnalysisKey;
 pub use presentation::{GameInfo, VariationNode};
 pub use preview::{PreviewStone, VariationPreview};

@@ -24,6 +24,8 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     AppEvent::export_all_to(directory)?;
     app_core::BoardSyncOptions::export_all_to(directory)?;
     MoveView::export_all_to(directory)?;
+    app_core::NewGameOptions::export_all_to(directory)?;
+    app_core::GameInfoEdit::export_all_to(directory)?;
     VariationTreeView::export_all_to(directory)?;
     VariationPreviewView::export_all_to(directory)?;
     Settings::export_all_to(directory)?;

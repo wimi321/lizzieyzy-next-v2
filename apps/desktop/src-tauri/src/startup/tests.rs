@@ -233,7 +233,15 @@ async fn startup_opens_document_and_uses_only_selected_config_directory() {
     open_arg.push(&document);
     let options = StartupOptions::parse([config_arg, open_arg]).unwrap();
     let (core, mut output) = within(start(options, fallback.clone())).await.unwrap();
-    assert_eq!(within(core.settings()).await.unwrap(), settings);
+    let expected_settings = Settings {
+        recent_files: vec![document.to_string_lossy().into_owned()],
+        ..settings
+    };
+    assert_eq!(within(core.settings()).await.unwrap(), expected_settings);
+    assert_eq!(
+        within(Settings::load(&selected)).await.unwrap(),
+        expected_settings
+    );
     let view = within(async {
         loop {
             if let AppEvent::DocumentChanged { revision, view } = output.recv().await.unwrap() {

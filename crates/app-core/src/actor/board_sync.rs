@@ -217,6 +217,7 @@ impl Actor {
                     return Ok(());
                 }
                 let file_name_changed = self.file_name.take().is_some();
+                self.file_state.path = None;
                 self.board_sync.status.phase = BoardSyncPhase::Syncing;
                 self.board_sync.status.remote_move_number = snapshot.fox_move_number;
                 self.board_sync.status.error = None;

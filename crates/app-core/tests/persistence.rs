@@ -74,6 +74,7 @@ async fn saved_nested_variations_and_java_properties_reopen_with_identical_trees
         assert_eq!(opened.file_name, None);
         assert_eq!(reopened.file_name.as_deref(), Some("first.sgf"));
         reopened.file_name = None;
+        reopened.file_path = None;
         assert_eq!(reopened, opened);
         within(app.save(&second)).await.unwrap();
         assert_eq!(read_games(&second), read_games(&first));
@@ -268,6 +269,7 @@ async fn file_name_tracks_open_save_as_and_bytes_without_changing_saved_revision
     assert_eq!(renamed.file_name.as_deref(), Some("另存为.sgf"));
     let mut expected = navigated;
     expected.file_name = Some("另存为.sgf".into());
+    expected.file_path = Some(saved.to_string_lossy().into_owned());
     assert_eq!(renamed, expected);
 
     assert!(

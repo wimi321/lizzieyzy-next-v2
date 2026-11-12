@@ -38,6 +38,8 @@ pub struct Settings {
     #[ts(as = "Option<bool>", optional)]
     pub auto_quick_analyze_on_load: bool,
     pub fox_history: Vec<crate::fox::FoxAccount>,
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub recent_files: Vec<String>,
     pub move_rank: crate::MoveRankSettings,
     pub tsumego: crate::TsumegoOptions,
     #[ts(as = "Option<BTreeMap<String, crate::BenchmarkResult>>", optional)]
@@ -53,6 +55,7 @@ impl Default for Settings {
             analysis_limits: crate::AnalysisLimitSettings::default(),
             auto_quick_analyze_on_load: true,
             fox_history: Vec::new(),
+            recent_files: Vec::new(),
             move_rank: crate::MoveRankSettings::default(),
             tsumego: crate::TsumegoOptions::default(),
             benchmarks: BTreeMap::new(),
@@ -126,6 +129,7 @@ impl Settings {
         }
         self.version = SETTINGS_VERSION;
         crate::fox::normalize_history(&mut self.fox_history);
+        crate::edit::normalize_recent_files(&mut self.recent_files);
         self.move_rank.validate()?;
         self.tsumego.validate()?;
         self.analysis_limits.validate()?;
