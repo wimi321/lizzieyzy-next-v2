@@ -125,3 +125,101 @@ async fn name_only_edit_preserves_raw_fox_metadata_through_save_and_reopen() {
     assert!(!reopened.modified);
     within(app.shutdown()).await.unwrap();
 }
+
+#[tokio::test]
+async fn rule_only_fox_edit_keeps_submitted_komi_through_save_reopen_and_single_undo() {
+    let directory = tempfile::tempdir().unwrap();
+    let (app, mut events) = within(app_core::spawn(directory.path())).await.unwrap();
+    let source = b"(;SZ[19]AP[foxwq]KM[375]RU[Chinese]PB[black]KO[unused];B[aa])";
+    within(app.open_bytes(source.to_vec())).await.unwrap();
+    let opened = document(&mut events).await;
+    let mut changed = current_edit(&opened.game_info);
+    assert_eq!(changed.komi, 7.5);
+    changed.rules = "japanese".into();
+    within(app.set_game_info(changed)).await.unwrap();
+    let edited = document(&mut events).await;
+    assert_eq!(edited.game_info.komi, 7.5);
+    assert_eq!(edited.game_info.rules_preset, "japanese");
+    assert!(edited.modified);
+
+    within(app.undo()).await.unwrap();
+    let undone = document(&mut events).await;
+    assert_eq!(undone.game_info, opened.game_info);
+    assert!(!undone.modified);
+    assert!(!undone.can_undo);
+    assert!(undone.can_redo);
+    let undo_target = directory.path().join("rules-undone.sgf");
+    within(app.save(&undo_target)).await.unwrap();
+    assert!(!document(&mut events).await.modified);
+    let restored = sgf::parse(&std::fs::read(&undo_target).unwrap()).unwrap();
+    let original = sgf::parse(source).unwrap();
+    let without_encoding = |game: &sgf::GameTree| {
+        game.sequence[0]
+            .properties
+            .iter()
+            .filter(|property| property.identifier != "CA")
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        without_encoding(&restored.games[0]),
+        without_encoding(&original.games[0])
+    );
+
+    within(app.redo()).await.unwrap();
+    let redone = document(&mut events).await;
+    assert_eq!(redone.game_info, edited.game_info);
+    assert!(redone.modified);
+    let target = directory.path().join("rules-edited.sgf");
+    within(app.save(&target)).await.unwrap();
+    assert!(!document(&mut events).await.modified);
+    let saved = sgf::parse(&std::fs::read(&target).unwrap()).unwrap();
+    let km = saved.games[0].sequence[0]
+        .properties
+        .iter()
+        .find(|property| property.identifier == "KM")
+        .unwrap();
+    assert_eq!(km.values, ["7.5"]);
+    within(app.open_path(&target)).await.unwrap();
+    let reopened = document(&mut events).await;
+    assert_eq!(reopened.game_info, edited.game_info);
+    assert_eq!(reopened.game_info.komi, 7.5);
+    assert!(!reopened.modified);
+    within(app.shutdown()).await.unwrap();
+}
+
+#[tokio::test]
+async fn rule_only_ordinary_edit_preserves_raw_komi_properties() {
+    let directory = tempfile::tempdir().unwrap();
+    let (app, mut events) = within(app_core::spawn(directory.path())).await.unwrap();
+    let source = b"(;SZ[19]KM[6.50][ignored]KM[8.5]KO[unused]LZKOMI[stale]RU[Chinese];B[aa])";
+    within(app.open_bytes(source.to_vec())).await.unwrap();
+    let opened = document(&mut events).await;
+    let mut changed = current_edit(&opened.game_info);
+    assert_eq!(changed.komi, 6.5);
+    changed.rules = "japanese".into();
+    within(app.set_game_info(changed)).await.unwrap();
+    let edited = document(&mut events).await;
+    assert_eq!(edited.game_info.komi, 6.5);
+    assert_eq!(edited.game_info.rules_preset, "japanese");
+    let target = directory.path().join("ordinary-rules-edit.sgf");
+    within(app.save(&target)).await.unwrap();
+    assert!(!document(&mut events).await.modified);
+    let saved = sgf::parse(&std::fs::read(&target).unwrap()).unwrap();
+    let original = sgf::parse(source).unwrap();
+    let unchanged_properties = |game: &sgf::GameTree| {
+        game.sequence[0]
+            .properties
+            .iter()
+            .filter(|property| !matches!(property.identifier.as_str(), "RU" | "CA"))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        unchanged_properties(&saved.games[0]),
+        unchanged_properties(&original.games[0])
+    );
+    within(app.open_path(&target)).await.unwrap();
+    assert_eq!(document(&mut events).await.game_info, edited.game_info);
+    within(app.shutdown()).await.unwrap();
+}

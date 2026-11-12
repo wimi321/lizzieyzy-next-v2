@@ -559,39 +559,80 @@ fn unchanged_missing_unknown_and_fallback_game_info_does_not_normalize_source() 
 }
 
 #[test]
-fn changing_rules_alone_preserves_komi_source_and_uses_new_rule_interpretation() {
+fn changing_fox_rules_preserves_submitted_komi_and_undo_restores_source() {
     let mut doc = document("(;SZ[19]AP[foxwq]KM[375][ignored]RU[Chinese]KO[0]LZKOMI[stale])");
     let original = doc.snapshot();
     let mut changed = current_edit(&doc);
     assert_eq!(changed.komi, 7.5);
     changed.rules = "japanese".into();
     doc.apply(Command::SetGameInfo(changed)).unwrap();
-    let without_rules = |doc: &GameDocument| {
+    let untouched = |doc: &GameDocument| {
         doc.node(doc.root())
             .unwrap()
             .properties()
             .iter()
-            .filter(|property| property.identifier != "RU")
+            .filter(|property| !matches!(property.identifier.as_str(), "RU" | "KM" | "LZKOMI"))
             .cloned()
             .collect::<Vec<_>>()
     };
     assert_eq!(
-        without_rules(&doc),
+        untouched(&doc),
         original.nodes[0]
             .properties()
             .iter()
-            .filter(|property| property.identifier != "RU")
+            .filter(|property| !matches!(property.identifier.as_str(), "RU" | "KM" | "LZKOMI"))
             .cloned()
             .collect::<Vec<_>>()
     );
-    // The explicit rule edit changes the interpretation of imported Fox KM;
-    // unchanged KM/KO/LZKOMI must not silently be rewritten to counteract it.
-    assert_eq!(doc.game_info().unwrap().komi, 3.75);
+    assert_eq!(doc.game_info().unwrap().komi, 7.5);
+    assert_eq!(doc.position_at(doc.root()).unwrap().komi, 7.5);
+    let properties = doc.node(doc.root()).unwrap().properties();
+    assert_eq!(
+        properties
+            .iter()
+            .find(|p| p.identifier == "KM")
+            .unwrap()
+            .values,
+        ["7.5"]
+    );
+    assert!(!properties.iter().any(|p| p.identifier == "LZKOMI"));
     assert_eq!(doc.game_info().unwrap().rules_preset, "japanese");
     assert_eq!(roundtrip(&doc).game_info(), doc.game_info());
     doc.undo().unwrap();
     assert_eq!(doc.snapshot(), original);
     assert_eq!(doc.game_info().unwrap().komi, 7.5);
+    assert!(!doc.can_undo());
+    doc.redo().unwrap();
+    assert_eq!(doc.game_info().unwrap().komi, 7.5);
+    assert_eq!(doc.game_info().unwrap().rules_preset, "japanese");
+}
+
+#[test]
+fn changing_rules_preserves_komi_properties_when_interpretation_is_unchanged() {
+    for source in [
+        "(;SZ[19]KM[6.50][ignored]KM[7.5]RU[Chinese]KO[unused]LZKOMI[stale])",
+        "(;SZ[19]AP[foxwq]KM[100.0][ignored]RU[Chinese]KO[unused]LZKOMI[100])",
+    ] {
+        let mut doc = document(source);
+        let original = doc.snapshot();
+        let mut changed = current_edit(&doc);
+        let komi = changed.komi;
+        changed.rules = "japanese".into();
+        doc.apply(Command::SetGameInfo(changed)).unwrap();
+        let without_rules = |properties: &[sgf::Property]| {
+            properties
+                .iter()
+                .filter(|property| property.identifier != "RU")
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            without_rules(doc.node(doc.root()).unwrap().properties()),
+            without_rules(original.nodes[0].properties())
+        );
+        assert_eq!(doc.game_info().unwrap().komi, komi);
+        assert_eq!(roundtrip(&doc).game_info(), doc.game_info());
+    }
 }
 
 #[test]
