@@ -39,6 +39,7 @@ impl Actor {
     /// Keep a cancellation snapshot for event subscribers, never an old Completed
     /// state paired with an empty result table in the new namespace.
     pub(super) fn invalidate_review(&mut self) {
+        self.graph_analysis.clear();
         self.review.results.clear();
         self.review.line.clear();
         self.review.batches.clear();
@@ -80,6 +81,17 @@ impl Actor {
 
     /// Called only after coordinates and current document identity are checked.
     pub(super) fn retain_analysis(&mut self, snapshot: &AnalysisSnapshot) {
+        // Both live and review callers already checked this result against the
+        // current document. Publishing its graph point needs no second replay.
+        self.graph_analysis.valid_nodes.insert(snapshot.node_id);
+        if self
+            .review
+            .results
+            .get(&snapshot.node_id)
+            .is_some_and(|stored| stored.key != snapshot.key)
+        {
+            self.summaries.remove(&snapshot.node_id);
+        }
         let candidate = StoredAnalysis {
             node_id: snapshot.node_id,
             key: snapshot.key,

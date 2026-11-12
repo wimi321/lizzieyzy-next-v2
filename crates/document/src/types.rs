@@ -1,4 +1,6 @@
-use go_core::{BoardSizeError, Color, IllegalMove, Move, Point, Position, RulePreset, SetupError};
+use go_core::{
+    BoardSize, BoardSizeError, Color, IllegalMove, Move, Point, Position, RulePreset, SetupError,
+};
 use sgf::Property;
 
 /// Stable within a document, including across deletion and undo. Never recycled.
@@ -29,18 +31,23 @@ pub enum WarningKind {
     KomiFromKo,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     Play(Move),
     GoTo(NodeId),
     /// Negative: ancestors. Positive: first children. Stops at either boundary.
     Step(i32),
-    /// Replaces all C properties on the current node with one C property.
+    /// Replaces C properties with one comment; an empty string removes them.
     SetComment(String),
     /// Deletes the whole subtree; deleting the root is forbidden.
     DeleteNode(NodeId),
     /// Makes this node the first child of its parent.
     PromoteVariation(NodeId),
+    /// Deletes from the nearest ancestor fork, or this node when no fork exists.
+    DeleteBranch(NodeId),
+    /// Makes every ancestor on the path the first child, as one undoable edit.
+    PromoteToMain(NodeId),
+    SetGameInfo(crate::GameInfoEdit),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -49,6 +56,10 @@ pub enum DocError {
     MissingNode(NodeId),
     #[error("cannot delete or promote the root")]
     RootOperation,
+    #[error("invalid fixed handicap {handicap} for board {size:?}")]
+    InvalidHandicap { handicap: u8, size: BoardSize },
+    #[error("unknown rules {0:?}")]
+    UnknownRules(String),
     #[error("SGF game tree has an empty sequence")]
     EmptyTree,
     #[error("no command to undo")]

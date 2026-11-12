@@ -113,9 +113,13 @@ impl From<&GamePosition> for BoardView {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct TreeView {
-    /// Fetch variation_tree only when this changes; independent of navigation.
+    /// Fetch variation_tree when either tree revision changes; navigation is independent.
     #[ts(type = "number")]
     pub structure_revision: u64,
+    /// Fetch the tree when comment markers change, independently of structure.
+    #[serde(default)]
+    #[ts(as = "Option<f64>", optional)]
+    pub comment_revision: u64,
     pub root: u32,
     pub current: u32,
     /// Root followed by each first child, including empty SGF nodes.
@@ -184,6 +188,18 @@ pub struct DocumentView {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub file_name: Option<String>,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub file_path: Option<String>,
+    #[serde(default)]
+    #[ts(as = "Option<bool>", optional)]
+    pub modified: bool,
+    #[serde(default)]
+    #[ts(as = "Option<bool>", optional)]
+    pub can_undo: bool,
+    #[serde(default)]
+    #[ts(as = "Option<bool>", optional)]
+    pub can_redo: bool,
 }
 
 impl DocumentView {
@@ -205,10 +221,15 @@ impl DocumentView {
         };
         Ok(Self {
             file_name: None,
+            file_path: None,
+            modified: false,
+            can_undo: document.can_undo(),
+            can_redo: document.can_redo(),
             game_info: Box::new(document.game_info()?.into()),
             board,
             tree: TreeView {
                 structure_revision,
+                comment_revision: 0,
                 root: document.root().0,
                 current: document.current().0,
                 main_line,

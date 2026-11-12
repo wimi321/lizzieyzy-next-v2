@@ -17,6 +17,7 @@ mod analysis_limits;
 mod auto_curve;
 mod benchmark;
 mod board_sync;
+mod edit;
 mod engine_auto_setup;
 mod frame;
 mod problem_moves;

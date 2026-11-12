@@ -23,9 +23,11 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
         Actor {
             document: GameDocument::new(),
             file_name: None,
+            file_state: crate::actor::editing::FileState::new(&GameDocument::new(), None),
             tsumego: None,
             tree: crate::VariationTreeView::default(),
             summaries: HashMap::new(),
+            graph_analysis: Default::default(),
             review: Default::default(),
             strength: None,
             summary_fingerprint: None,

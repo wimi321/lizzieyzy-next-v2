@@ -2,7 +2,7 @@
 
 /**
  * Root SGF information. Missing fields are null, explicit empty text stays "".
- * Rules are the original RU text; this is not the effective engine preset.
+ * Rules preserve the original RU text; rules_preset is the effective preset.
  */
 export type GameInfoView = { 
 /**
@@ -17,6 +17,10 @@ white_name: string | null, white_rank: string | null,
  * Effective komi, using the document's existing tolerant KM/KO rules.
  */
 komi: number, rules: string | null, 
+/**
+ * Canonical preset used by replay, including the Chinese fallback.
+ */
+rules_preset?: string, 
 /**
  * Null when HA is absent; a present but invalid HA uses document fallback 0.
  */

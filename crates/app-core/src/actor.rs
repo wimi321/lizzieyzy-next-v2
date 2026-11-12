@@ -1,6 +1,6 @@
 use crate::{
     AnalysisSummary, AnalysisView, AppConfig, AppError, AppEvent, DocumentView, EngineProfile,
-    EngineStatus, Settings, VariationPreviewView, VariationTreeView, delivery::Delivery, storage,
+    EngineStatus, Settings, VariationPreviewView, VariationTreeView, delivery::Delivery,
 };
 use analysis::{AnalysisHandle, AnalysisSnapshot, AnalysisStatus, AnalysisSubscription, Focus};
 use document::{AnalysisKey, GameDocument, NodeId};
@@ -13,7 +13,9 @@ mod auto_curve;
 mod auto_setup;
 mod benchmark;
 mod board_sync;
+mod editing;
 mod fox;
+mod graph_analysis;
 mod problem_moves;
 mod review;
 mod strength_estimate;
@@ -26,6 +28,8 @@ pub(crate) enum Input {
     OpenPath(PathBuf),
     OpenDroppedPaths(Vec<PathBuf>),
     Save(PathBuf),
+    NewGame(crate::NewGameOptions),
+    ClearRecentFiles,
     Edit(document::Command),
     Undo,
     Redo,
@@ -116,9 +120,11 @@ struct ViewFocus {
 struct Actor {
     document: GameDocument,
     file_name: Option<String>,
+    file_state: editing::FileState,
     tsumego: Option<tsumego::Session>,
     tree: VariationTreeView,
     summaries: HashMap<NodeId, AnalysisSummary>,
+    graph_analysis: graph_analysis::State,
     review: review::ReviewState,
     strength: Option<strength::Estimator>,
     summary_fingerprint: Option<String>,
@@ -146,9 +152,11 @@ pub(crate) async fn run(
     let mut actor = Actor {
         document: GameDocument::new(),
         file_name: None,
+        file_state: editing::FileState::new(&GameDocument::new(), None),
         tsumego: None,
         tree: VariationTreeView::default(),
         summaries: HashMap::new(),
+        graph_analysis: Default::default(),
         review: review::ReviewState::default(),
         strength: None,
         summary_fingerprint: None,
@@ -344,10 +352,24 @@ impl Actor {
 
     fn publish_document(&mut self) -> Result<(), AppError> {
         self.tree.refresh(&self.document, self.revision)?;
+        self.refresh_graph_analysis();
         let mut view = DocumentView::from_document(&self.document, self.tree.revision)?;
         view.file_name = self.file_name.clone();
+        view.file_path = self
+            .file_state
+            .path
+            .as_ref()
+            .map(|path| path.to_string_lossy().into_owned());
+        view.modified = self.file_state.modified(&self.document);
+        view.tree.comment_revision = self.tree.comment_revision;
         for point in &mut view.graph.points {
-            point.summary = self.summaries.get(&NodeId(point.node_id)).copied();
+            let node = NodeId(point.node_id);
+            point.summary = self
+                .graph_analysis
+                .valid_nodes
+                .contains(&node)
+                .then(|| self.summaries.get(&node).copied())
+                .flatten();
         }
         self.output.send(AppEvent::DocumentChanged {
             revision: self.revision,
@@ -374,21 +396,9 @@ impl Actor {
                 }
             }
             Input::OpenBytes(bytes) => self.open(bytes, None).await?,
-            Input::Save(path) => {
-                let collection = sgf::Collection {
-                    games: vec![self.document.to_sgf()],
-                    encoding: "UTF-8".into(),
-                    warnings: Vec::new(),
-                };
-                let file_name = path
-                    .file_name()
-                    .map(|name| name.to_string_lossy().into_owned());
-                storage::write(path, sgf::serialize(&collection).into_bytes()).await?;
-                if self.file_name != file_name {
-                    self.file_name = file_name;
-                    self.publish_document()?;
-                }
-            }
+            Input::Save(path) => self.save_document(path).await?,
+            Input::NewGame(options) => self.new_game(options).await?,
+            Input::ClearRecentFiles => self.set_recent_files(Vec::new()).await?,
             Input::Edit(command) => {
                 self.next_revision()?;
                 let before_node = self.document.current();
@@ -462,36 +472,11 @@ impl Actor {
         self.revision.checked_add(1).ok_or(AppError::RevisionLimit)
     }
 
-    async fn open_path(&mut self, path: PathBuf) -> Result<(), AppError> {
-        let result = async {
-            let bytes = tokio::fs::read(&path).await?;
-            let file_name = path
-                .file_name()
-                .map(|name| name.to_string_lossy().into_owned());
-            self.open(bytes, file_name).await
-        }
-        .await;
-        if let Err(error) = &result {
-            self.output.send(AppEvent::OpenFailed {
-                path: path.to_string_lossy().into_owned(),
-                reason: error.to_string(),
-            });
-        }
-        result
-    }
-
-    async fn open(&mut self, bytes: Vec<u8>, file_name: Option<String>) -> Result<(), AppError> {
-        let collection = sgf::parse(&bytes)?;
-        let tree = collection.games.first().ok_or(AppError::EmptyCollection)?;
-        let document = GameDocument::from_sgf(tree)?;
-        self.stop_board_sync().await?;
-        self.open_auto_curve_document(document, file_name).await
-    }
-
     async fn replace_document(&mut self, document: GameDocument) -> Result<(), AppError> {
         self.next_revision()?;
         self.document = document;
         self.file_name = None;
+        self.file_state = editing::FileState::new(&self.document, None);
         self.tsumego = None;
         self.document_replaced().await
     }

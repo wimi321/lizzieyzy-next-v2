@@ -22,4 +22,4 @@ mv: MoveView | null,
 /**
  * Local move syntax/coordinate error only; not a full legality assessment.
  */
-move_error: string | null, };
+move_error: string | null, has_comment?: boolean, };
