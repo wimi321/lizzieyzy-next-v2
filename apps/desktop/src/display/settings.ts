@@ -95,6 +95,7 @@ export function hiddenRegions(display: Display): RegionName[] {
   if (!display.show_comment) hidden.push("comment");
   if (!display.show_variation_graph) hidden.push("tree");
   if (!display.show_sub_board) hidden.push("subBoard");
+  if (!display.show_list_pane) hidden.push("list");
   if (!display.show_status_bar) hidden.push("status");
   return hidden;
 }

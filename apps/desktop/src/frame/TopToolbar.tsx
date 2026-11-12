@@ -59,6 +59,9 @@ export interface TopToolbarProps {
   /** The markup tools are out. */
   markupOpen: boolean;
   onMarkup(): void;
+  /** 超级鹰眼: the problem moves page is open. */
+  hawkEye?: boolean;
+  onHawkEye?(): void;
   /** 落子评价标记 is on; the button steps through Java's Alt+M cycle. */
   rankMarks?: boolean;
   onRankMarks?(): void;
@@ -130,7 +133,7 @@ function KomiField({ label, komi, onChange }: { label: string; komi: number | nu
  * LizzieYzy Next's top toolbar in Java's order (`Menu` → `TopHeaderPanel`), wrapping onto a
  * second row when the window is narrower than its controls, as Java's does at 1429 px.
  */
-export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, markupOpen, rankMarks = false, trial, playColor, ...on }: TopToolbarProps) {
+export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, markupOpen, hawkEye = false, rankMarks = false, trial, playColor, ...on }: TopToolbarProps) {
   const icon = JAVA_ICONS;
   return (
     <div className="jt-top" role="toolbar" aria-label="LizzieYzy Next" data-testid="top-toolbar">
@@ -155,7 +158,14 @@ export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, m
         enabled={false}
       />
       <ToolSeparator />
-      <ToolButton icon={icon.hawkeye} title={labels.hawkeye} enabled={false} />
+      <ToolButton
+        icon={icon.hawkeye}
+        title={labels.hawkeye}
+        enabled={on.onHawkEye !== undefined && hasDocument}
+        pressed={hawkEye}
+        testId="tool-hawkeye"
+        onClick={on.onHawkEye}
+      />
       <ToolButton
         icon={icon.rankMark}
         title={labels.rankMark}

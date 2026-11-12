@@ -1,6 +1,6 @@
 import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
 import { boardView, defaultDisplaySettings, documentView } from "../../e2e/fixtures";
-import type { DisplaySettings, DisplaySettingsPayload, VariationPreviewView, WireAppEvent } from "./backend";
+import type { DisplaySettings, VariationPreviewView, WireAppEvent } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, Channel: class {} }));
@@ -10,15 +10,14 @@ beforeEach(() => {
   ipc.invoke.mockReset();
 });
 
-test("legacy required defaults remain assignable while display commands expose the new field", async () => {
-  const { show_list_pane, ...legacyDefaults } = defaultDisplaySettings;
-  const legacy: Required<DisplaySettings> = legacyDefaults;
-  expect(legacy.show_coordinates).toBe(true);
-  expect(show_list_pane).toBe(true);
+test("the display command carries every field, the candidate list's switch included", async () => {
+  const full: Required<DisplaySettings> = defaultDisplaySettings;
+  expect(full.show_list_pane).toBe(true);
   const backend = await import("./backend");
-  expectTypeOf(backend.setDisplaySettings).returns.toEqualTypeOf<Promise<DisplaySettingsPayload>>();
-  ipc.invoke.mockResolvedValueOnce({ ...legacy, show_list_pane: false });
-  expect((await backend.setDisplaySettings(legacy)).show_list_pane).toBe(false);
+  expectTypeOf(backend.setDisplaySettings).returns.toEqualTypeOf<Promise<DisplaySettings>>();
+  ipc.invoke.mockResolvedValueOnce({ ...full, show_list_pane: false });
+  expect((await backend.setDisplaySettings({ ...full, show_list_pane: false })).show_list_pane).toBe(false);
+  expect(ipc.invoke).toHaveBeenLastCalledWith("set_display_settings", { display: { ...full, show_list_pane: false } });
 });
 
 test("display settings API forwards the complete object and preserves persistence errors", async () => {

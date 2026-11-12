@@ -132,7 +132,6 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     exit: when(true, actions.quit),
 
     // The 显示 settings are bound by `displayBindings`.
-    listPane: always,
     kataEstimateClose: { run: () => actions.setOwnership(false), checked: !state.ownership },
     kataEstimateOnMainBoard: { run: () => actions.setOwnership(true), checked: state.ownership },
 

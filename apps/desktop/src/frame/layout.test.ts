@@ -48,3 +48,13 @@ test("hidden panels give their room to their neighbours as Java's do", () => {
   expect(noStatus.comment).toEqual({ x: 0, y: 464, width: 280, height: 369 });
   expect(noStatus.status.height).toBe(0);
 });
+
+test("the candidate list takes the lower half of the tree's room, or the whole column without the tree", () => {
+  const both = inFrameLayout(1429, 833, 19, { ...ALL_PANELS, list: true });
+  expect(both.tree).toEqual({ x: 1145, y: 0, width: 284, height: 274 });
+  expect(both.list).toEqual({ x: 1145, y: 274, width: 284, height: 274 });
+  expect(both.subBoard).toEqual({ x: 1145, y: 548, width: 284, height: 284 });
+  const listOnly = inFrameLayout(1429, 833, 19, { ...ALL_PANELS, tree: false, list: true });
+  expect(listOnly.list).toEqual({ x: 1145, y: 0, width: 284, height: 548 });
+  expect(listOnly.subBoard).toEqual({ x: 1145, y: 548, width: 284, height: 284 });
+});

@@ -708,6 +708,8 @@
     "visits": "visits",
     "autoCurve": "Draw the winrate graph when a game opens",
     "autoCurveHint": "One visit per move draws the whole graph in seconds, alongside live analysis.",
+    "cache": "Cache analysis",
+    "cacheHint": "Analysed positions are kept on this computer and shown again at once; the engine carries on from there.",
     "invalid": "Enter a whole number above 0.",
     "save": "Save",
     "cancel": "Cancel",
@@ -804,7 +806,8 @@
       "spaceToPause": "Space: pause",
       "spaceToResume": "Space: resume",
       "holdX": "Hold X for shortcuts",
-      "noEngine": "Empty"
+      "noEngine": "Empty",
+      "savedAnalysis": "Analysis from the file"
     },
     "title": {
       "black": "B",
@@ -923,5 +926,23 @@
     "cancel": "Cancel",
     "close": "Close",
     "invalid": "Enter a whole number from {min} to {max}"
+  },
+  "candidates": {
+    "label": "Candidate list",
+    "order": "#",
+    "move": "Move",
+    "winrate": "Win%",
+    "visits": "Visits",
+    "share": "Share",
+    "score": "Score",
+    "empty": "No candidates from the engine yet"
+  },
+  "clearing": {
+    "analysisTitle": "Clear analysis",
+    "analysisAll": "Clear the analysis of every move in this game? Undo edit brings it back.",
+    "cacheTitle": "Clear cache",
+    "cacheAll": "Clear all analysis cached on this computer? This cannot be undone.",
+    "confirm": "Clear",
+    "cancel": "Cancel"
   }
 }

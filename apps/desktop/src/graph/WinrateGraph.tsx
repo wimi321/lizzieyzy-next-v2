@@ -84,7 +84,9 @@ export function WinrateGraph({ graph, analysis, mistakes, mode = "Both", fill = 
   const width = size.width;
   const height = Math.max(MIN_HEIGHT, size.height);
   const layout: GraphLayout = { width, height, ...PADDING, count: points.length };
-  const range = scoreRange(points);
+  // Java's old LZ data may carry a winrate without a score; the score line skips those points.
+  const scored = useMemo(() => points.map((point) => (point.summary?.score_lead_available === false ? { ...point, summary: null } : point)), [points]);
+  const range = scoreRange(scored);
   const current = points[graph.current_index];
   const analysed = analysedRanges(points);
   const plotTop = layout.top;
@@ -113,6 +115,7 @@ export function WinrateGraph({ graph, analysis, mistakes, mode = "Both", fill = 
   const beside = (y: number) => (y - 18 < plotTop ? y + 16 : y - 7);
   const winrateY = current?.summary ? yForWinrate(layout, current.summary.winrate) : 0;
   const scoreY = current?.summary ? yForScore(layout, current.summary.score_lead, range) : 0;
+  const scoreKnown = current?.summary?.score_lead_available !== false;
   const winrateLabelY = beside(winrateY);
   let scoreLabelY = beside(scoreY);
   if (Math.abs(scoreLabelY - winrateLabelY) < 13) {
@@ -159,7 +162,7 @@ export function WinrateGraph({ graph, analysis, mistakes, mode = "Both", fill = 
             />
           ))}
           {fill && mode !== "Both"
-            ? areaPaths(layout, points, showWinrate ? winrateAt : scoreAt, middle).map((path) => (
+            ? areaPaths(layout, showWinrate ? points : scored, showWinrate ? winrateAt : scoreAt, middle).map((path) => (
                 <path key={path} className={showWinrate ? "graph-fill winrate" : "graph-fill score"} data-testid="graph-fill" d={path} />
               ))
             : null}
@@ -182,7 +185,7 @@ export function WinrateGraph({ graph, analysis, mistakes, mode = "Both", fill = 
               />
             );
           })}
-          {(showScore ? linePaths(layout, points, scoreAt) : []).map((path) => (
+          {(showScore ? linePaths(layout, scored, scoreAt) : []).map((path) => (
             <path key={path} className="graph-score" data-testid="graph-score" d={path} />
           ))}
           {(showWinrate ? linePaths(layout, points, winrateAt) : []).map((path) => (
@@ -194,7 +197,7 @@ export function WinrateGraph({ graph, analysis, mistakes, mode = "Both", fill = 
             const x = xForIndex(layout, index);
             return (
               <g key={index} className="graph-dot" data-testid="graph-dot" data-index={index}>
-                {showScore ? <circle className="graph-dot-score" cx={x} cy={scoreAt(summary)} r={2} /> : null}
+                {showScore && scored[index]?.summary ? <circle className="graph-dot-score" cx={x} cy={scoreAt(summary)} r={2} /> : null}
                 {showWinrate ? <circle className="graph-dot-winrate" cx={x} cy={winrateAt(summary)} r={2.5} /> : null}
               </g>
             );
@@ -239,9 +242,9 @@ export function WinrateGraph({ graph, analysis, mistakes, mode = "Both", fill = 
               {current.summary ? (
                 <>
                   {/* Both dots first, then both values, so no dot covers a value. */}
-                  {showScore ? <circle cx={currentX} cy={scoreY} r={2.5} className="score" /> : null}
+                  {showScore && scoreKnown ? <circle cx={currentX} cy={scoreY} r={2.5} className="score" /> : null}
                   {showWinrate ? <circle cx={currentX} cy={winrateY} r={3.5} /> : null}
-                  {showScore ? (
+                  {showScore && scoreKnown ? (
                     <text className="graph-value score" x={labelX} y={showWinrate ? scoreLabelY : beside(scoreY)} textAnchor="middle">
                       {leadText(current.summary.score_lead)}
                     </text>
