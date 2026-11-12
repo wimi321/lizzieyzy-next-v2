@@ -421,6 +421,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     configured: profile !== null,
     autoAnalyzing,
     pondering: livePondering,
+    saved: analysis?.source === "Saved" && analysis.node_id === current,
     labels: frame.status,
     states: messages.engine,
   });

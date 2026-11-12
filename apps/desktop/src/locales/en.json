@@ -804,7 +804,8 @@
       "spaceToPause": "Space: pause",
       "spaceToResume": "Space: resume",
       "holdX": "Hold X for shortcuts",
-      "noEngine": "Empty"
+      "noEngine": "Empty",
+      "savedAnalysis": "Analysis from the file"
     },
     "title": {
       "black": "B",

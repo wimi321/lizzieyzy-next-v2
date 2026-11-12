@@ -419,7 +419,8 @@ function drawSuggestions(context: Context, geometry: Geometry, images: BoardImag
       visits: candidate.visits,
       score: scoreLabel(forMover(candidate.score_lead, toPlay, "score"), bestLead, toPlay, style),
     };
-    drawSuggestionText(context, geometry, x, y, values, style);
+    // Java's old LZ data may carry no score: then there is no score row, not a made-up 0.0.
+    drawSuggestionText(context, geometry, x, y, values, candidate.score_lead_available === false ? { ...style, score: false } : style);
 
     // The engine's order in an orange tag at the top right, for the first nine moves.
     if (style.order && candidate.order <= 8) {

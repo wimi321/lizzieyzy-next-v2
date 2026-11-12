@@ -46,3 +46,9 @@ test("a row previews its move under the pointer and plays it on a double click; 
   expect(screen.queryAllByTestId("candidate-row")).toHaveLength(0);
   expect(screen.getByTestId("candidate-list").textContent).toContain(zh.candidates.empty);
 });
+
+test("a candidate from Java's old data without a score shows a dash, not 0.0", () => {
+  const old = { ...analysis, source: "Saved" as const, candidates: analysis.candidates.map((c) => ({ ...c, score_lead_available: false })) };
+  render(<CandidateList analysis={old} toPlay="White" blackWinrate={false} scoreOffset={0} labels={zh.candidates} onHover={vi.fn()} onPlay={vi.fn()} />);
+  expect(rows().map((row) => row[5])).toEqual(["—", "—"]);
+});

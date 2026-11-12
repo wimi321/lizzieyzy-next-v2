@@ -49,7 +49,7 @@ export function CandidateList({ analysis, toPlay, blackWinrate, scoreOffset, lab
           winrate: formatWinrate(blackWinrate ? candidate.winrate : forMover(candidate.winrate, toPlay, "winrate")),
           visits: playoutsText(candidate.visits),
           share: total > 0 ? ((candidate.visits / total) * 100).toFixed(1) : "0.0",
-          score: scoreText(blackWinrate ? blackLead : forMover(blackLead, toPlay, "score")),
+          score: candidate.score_lead_available === false ? "—" : scoreText(blackWinrate ? blackLead : forMover(blackLead, toPlay, "score")),
         };
       });
   }, [analysis, toPlay, blackWinrate, scoreOffset]);
