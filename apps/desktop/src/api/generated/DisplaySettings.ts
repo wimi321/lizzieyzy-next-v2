@@ -21,4 +21,4 @@ next_move_min_visits?: number, show_winrate_graph?: boolean, show_comment?: bool
  * Inverse of Java's misleading show-katago-score-lead-with-komi flag:
  * false there selects the komi-adjusted lead; true selects board score.
  */
-score_lead_includes_komi?: boolean, confirm_new_board?: boolean, confirm_overwrite?: boolean, show_names_below_board?: boolean, };
+score_lead_includes_komi?: boolean, confirm_new_board?: boolean, confirm_overwrite?: boolean, show_names_below_board?: boolean, show_list_pane?: boolean, };

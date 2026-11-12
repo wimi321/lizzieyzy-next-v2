@@ -9,6 +9,9 @@ use std::path::PathBuf;
 pub(super) struct FileState {
     pub path: Option<PathBuf>,
     pub save_warnings: Vec<document::DocumentWarning>,
+    pub analysis_edits: super::clear_analysis::Edits,
+    saved_clears: std::collections::BTreeMap<document::NodeId, u64>,
+    checked_analysis_version: u64,
     saved: sgf::GameTree,
     checked_revision: u64,
     modified: bool,
@@ -19,19 +22,43 @@ impl FileState {
         Self {
             path,
             save_warnings: Vec::new(),
+            analysis_edits: Default::default(),
+            saved_clears: Default::default(),
+            checked_analysis_version: 0,
             saved: document.to_sgf(),
             checked_revision: document.content_revision(),
             modified: false,
         }
     }
 
+    pub(super) fn inherit_clears(&mut self, document: &GameDocument, previous: &Self) {
+        self.analysis_edits.cleared = previous.analysis_edits.active_clears(document);
+        self.analysis_edits.version = previous.analysis_edits.version;
+        self.checked_analysis_version = self.analysis_edits.version;
+        self.saved = self.analysis_edits.effective_tree(document);
+        self.saved_clears = self.analysis_edits.active_clears(document);
+    }
+
+    fn mark_saved(&mut self, document: &GameDocument, path: PathBuf) {
+        self.path = Some(path);
+        self.saved = self.analysis_edits.effective_tree(document);
+        self.saved_clears = self.analysis_edits.active_clears(document);
+        self.checked_revision = document.content_revision();
+        self.checked_analysis_version = self.analysis_edits.version;
+        self.modified = false;
+    }
+
     pub fn modified(&mut self, document: &GameDocument) -> bool {
         // Stable node IDs and cursor position are not file contents. Exact SGF
         // properties/child order also recognize undo back to a saved document.
-        if self.checked_revision != document.content_revision() {
+        if self.checked_revision != document.content_revision()
+            || self.checked_analysis_version != self.analysis_edits.version
+        {
             self.save_warnings.clear();
-            self.modified = self.saved != document.to_sgf();
+            self.modified = self.saved != self.analysis_edits.effective_tree(document)
+                || self.saved_clears != self.analysis_edits.active_clears(document);
             self.checked_revision = document.content_revision();
+            self.checked_analysis_version = self.analysis_edits.version;
         }
         self.modified
     }
@@ -40,7 +67,15 @@ impl FileState {
 impl Actor {
     pub(super) async fn convert_to_start_position(&mut self) -> Result<(), AppError> {
         self.ensure_no_move_trial()?;
-        let document = self.document.to_start_position()?;
+        let mut document = self.document.to_start_position()?;
+        if self.is_analysis_cleared(self.document.root()) {
+            let mut tree = document.to_sgf();
+            if let Some(root) = tree.sequence.first_mut() {
+                root.properties
+                    .retain(|p| !super::clear_analysis::is_analysis(&p.identifier));
+            }
+            document = GameDocument::from_sgf(&tree)?;
+        }
         self.stop_board_sync().await?;
         self.open_auto_curve_document(document, None, false).await
     }
@@ -75,7 +110,7 @@ impl Actor {
         self.file_name = path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned());
-        self.file_state = FileState::new(&self.document, Some(path.clone()));
+        self.file_state.mark_saved(&self.document, path.clone());
         self.file_state.save_warnings = warnings;
         self.publish_document()?;
         self.remember_recent_file(&path)

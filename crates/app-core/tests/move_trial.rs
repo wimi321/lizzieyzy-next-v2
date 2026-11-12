@@ -262,8 +262,10 @@ async fn final_analysis(
             match events.recv().await.unwrap() {
                 AppEvent::AnalysisUpdated(result) => {
                     assert_eq!((result.revision, result.node_id), (revision, node));
-                    if !result.is_during_search {
-                        assert_eq!(result.source, app_core::AnalysisSource::Live);
+                    // The same position may now be restored from SQLite before
+                    // its new document-scoped query completes. Verify the live
+                    // query too; every intervening cache still needs fresh IDs.
+                    if !result.is_during_search && result.source == app_core::AnalysisSource::Live {
                         return result;
                     }
                 }

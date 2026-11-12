@@ -37,6 +37,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             summary_fingerprint: None,
             revision: 0,
             directory: PathBuf::new(),
+            cache: None,
             settings: Settings::default(),
             config: AppConfig::default(),
             running: None,

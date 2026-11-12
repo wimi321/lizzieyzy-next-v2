@@ -1,6 +1,6 @@
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
 import { boardView, defaultDisplaySettings, documentView } from "../../e2e/fixtures";
-import type { DisplaySettings, VariationPreviewView, WireAppEvent } from "./backend";
+import type { DisplaySettings, DisplaySettingsPayload, VariationPreviewView, WireAppEvent } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, Channel: class {} }));
@@ -10,10 +10,21 @@ beforeEach(() => {
   ipc.invoke.mockReset();
 });
 
+test("legacy required defaults remain assignable while display commands expose the new field", async () => {
+  const { show_list_pane, ...legacyDefaults } = defaultDisplaySettings;
+  const legacy: Required<DisplaySettings> = legacyDefaults;
+  expect(legacy.show_coordinates).toBe(true);
+  expect(show_list_pane).toBe(true);
+  const backend = await import("./backend");
+  expectTypeOf(backend.setDisplaySettings).returns.toEqualTypeOf<Promise<DisplaySettingsPayload>>();
+  ipc.invoke.mockResolvedValueOnce({ ...legacy, show_list_pane: false });
+  expect((await backend.setDisplaySettings(legacy)).show_list_pane).toBe(false);
+});
+
 test("display settings API forwards the complete object and preserves persistence errors", async () => {
   const backend = await import("./backend");
   const display: DisplaySettings = {
-    ...defaultDisplaySettings, show_coordinates: false, show_sub_board: false,
+    ...defaultDisplaySettings, show_coordinates: false, show_sub_board: false, show_list_pane: false,
     move_numbers: "LastN", last_move_numbers: 23,
   };
   ipc.invoke.mockResolvedValueOnce(display);
@@ -40,20 +51,26 @@ test("mock settings fill display defaults and preserve explicitly scripted prefe
     { command: "settings", result: legacy },
     { command: "settings", result: legacy },
     { command: "settings", result: { ...legacy, display } },
+    { command: "settings", result: { ...legacy, display: { show_list_pane: false } } },
   ] });
   const first = await mock.settings();
   expect(first.display).toEqual(defaultDisplaySettings);
   expect(first.display!.show_sub_board).toBe(true);
+  expect(first.display!.show_list_pane).toBe(true);
   first.display!.show_coordinates = false;
   expect((await mock.settings()).display).toEqual(defaultDisplaySettings);
   const scripted = await mock.settings();
-  expect(scripted.display).toEqual(display);
+  expect(scripted.display).toEqual({ ...display, show_list_pane: true });
   expect(scripted.display!.show_sub_board).toBe(false);
+  expect(scripted.display!.show_list_pane).toBe(true);
+  expect((await mock.settings()).display!.show_list_pane).toBe(false);
 });
 
 test("mock display updates require a script and return only its reply", async () => {
   const mock = await vi.importActual<typeof import("../../e2e/mock-backend")>("../../e2e/mock-backend");
-  const display: DisplaySettings = { ...defaultDisplaySettings, show_coordinates: false, show_sub_board: false };
+  const display: DisplaySettings = {
+    ...defaultDisplaySettings, show_coordinates: false, show_sub_board: false, show_list_pane: false,
+  };
   const reply: DisplaySettings = { ...display, last_move_numbers: 8 };
   const error = { type: "App", data: "settings could not be saved" } as const;
   mock.setScript({ commands: [

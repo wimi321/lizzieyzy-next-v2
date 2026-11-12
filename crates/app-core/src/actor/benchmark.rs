@@ -138,6 +138,7 @@ impl Actor {
             self.review_command(ReviewInput::Pause).await?;
         }
         self.output.clear_analysis();
+        self.flush_cached_analysis().await;
         self.focus = None;
         if let Some(running) = self.running.take() {
             let coordinator = running.coordinator.shutdown().await;

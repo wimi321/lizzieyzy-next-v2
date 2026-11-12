@@ -5,7 +5,7 @@ import type {
   CandidateView,
   ColorView,
   DocumentView,
-  DisplaySettings,
+  DisplaySettingsPayload,
   GraphView,
   FoxSearchResult,
   MoveView,
@@ -23,8 +23,11 @@ import type {
 
 type Stone = [x: number, y: number, color: ColorView];
 
+/** P2-09 fixture default; cache behavior remains in Rust. */
+export const defaultCacheEnabled = true;
+
 /** P2-06 fixture defaults; Rust owns validation and persistence. */
-export const defaultDisplaySettings: Required<DisplaySettings> = {
+export const defaultDisplaySettings: Required<DisplaySettingsPayload> = {
   show_coordinates: true,
   move_numbers: "None",
   last_move_numbers: 1,
@@ -41,6 +44,7 @@ export const defaultDisplaySettings: Required<DisplaySettings> = {
   winrate_always_black: false,
   show_hover_variation: true,
   show_sub_board: true,
+  show_list_pane: true,
   max_suggestions: 10,
   suggestion_max_red: false,
   next_moves: "Evaluation",

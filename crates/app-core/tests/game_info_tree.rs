@@ -56,7 +56,12 @@ async fn first_final(output: &mut AppSubscription, node_id: u32) {
     within(async {
         loop {
             match output.recv().await.unwrap() {
-                AppEvent::AnalysisUpdated(value) if !value.is_during_search => {
+                // A persisted cache can arrive before the engine has read its
+                // first query. This control needs a completed live search.
+                AppEvent::AnalysisUpdated(value)
+                    if !value.is_during_search
+                        && value.source == app_core::AnalysisSource::Live =>
+                {
                     assert_eq!(value.revision, 0);
                     assert_eq!(value.node_id, node_id);
                     assert_eq!(value.visits, 1);

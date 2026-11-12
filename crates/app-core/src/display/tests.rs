@@ -33,6 +33,7 @@ fn defaults_match_java_config_and_maintainer_overrides() {
             "show_comment": true,
             "show_variation_graph": true,
             "show_sub_board": true,
+            "show_list_pane": true,
             "show_information_panel": true,
             "show_status_bar": true,
             "show_top_toolbar": true,

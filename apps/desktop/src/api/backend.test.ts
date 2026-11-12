@@ -410,6 +410,7 @@ test.each([
       limit_time: true, max_analyze_time_seconds: 600, limit_playout: false, limit_playouts: 100000,
     },
     auto_quick_analyze_on_load: true,
+    cache_enabled: true,
     benchmarks: {},
     fox_history: history ? customHistory : [],
     move_rank: rank ? customRank : {

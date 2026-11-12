@@ -104,6 +104,10 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::fox::fox_clear_history,
             commands::settings::settings,
             commands::settings::set_display_settings,
+            commands::cache::cache_enabled,
+            commands::cache::set_cache_enabled,
+            commands::cache::clear_cache,
+            commands::cache::clear_analysis,
             commands::settings::auto_quick_analyze_on_load,
             commands::settings::set_auto_quick_analyze_on_load,
         ])
@@ -125,8 +129,13 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 Some(directory) => directory.clone(),
                 None => app.path().app_config_dir()?,
             };
-            let (core, subscription) =
-                tauri::async_runtime::block_on(startup::start(options, default_dir))?;
+            let data_dir = match &options.config_dir {
+                Some(directory) => directory.clone(),
+                None => app.path().app_data_dir()?,
+            };
+            let (core, subscription) = tauri::async_runtime::block_on(
+                startup::start_with_data_directory(options, default_dir, data_dir),
+            )?;
             app.manage(DesktopState::new(core.clone(), subscription));
             tauri::async_runtime::spawn(system_open::serve(core, incoming));
             Ok(())
