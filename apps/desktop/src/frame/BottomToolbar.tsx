@@ -50,6 +50,8 @@ export interface BottomToolbarProps {
   onToggleOwnership(): void;
   onToggleCoordinates(): void;
   onToggleMoveNumbers?(): void;
+  /** 跳转: the move number typed in the field. */
+  onGotoMove?(moveNumber: number): void;
   onStep(steps: number): void;
   onSetMain(): void;
   onClear(): void;
@@ -148,8 +150,7 @@ export function BottomToolbar({ labels, pondering, hasBoard, ownership, coordina
             onClick={() => on.onStep(item.steps)}
           />
         ))}
-        <input className="jt-input" aria-label={labels.gotoMove} disabled />
-        <ToolButton label={labels.gotoMove} enabled={false} />
+        <GotoMove label={labels.gotoMove} enabled={hasBoard && on.onGotoMove !== undefined} onGo={(n) => on.onGotoMove?.(n)} />
         <ToolButton className="jt-optional" label={labels.autoPlay} enabled={false} />
       </div>
       <div className="jt-group" data-align="end">
@@ -161,5 +162,32 @@ export function BottomToolbar({ labels, pondering, hasBoard, ownership, coordina
         <MoreButton labels={labels} trial={trial} hasBoard={hasBoard} onTrial={on.onTrial} />
       </div>
     </div>
+  );
+}
+
+/** Java's move-number field and 跳转: Enter or the button goes there and empties the field. */
+function GotoMove({ label, enabled, onGo }: { label: string; enabled: boolean; onGo(moveNumber: number): void }) {
+  const [text, setText] = useState("");
+  const go = () => {
+    const trimmed = text.trim();
+    setText("");
+    if (/^\d+$/.test(trimmed)) onGo(Number(trimmed));
+  };
+  return (
+    <>
+      <input
+        className="jt-input"
+        aria-label={label}
+        inputMode="numeric"
+        disabled={!enabled}
+        value={text}
+        data-testid="goto-move"
+        onChange={(event) => setText(event.target.value.replace(/\D/g, ""))}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") go();
+        }}
+      />
+      <ToolButton label={label} enabled={enabled && text.trim() !== ""} testId="goto-move-button" onClick={go} />
+    </>
   );
 }

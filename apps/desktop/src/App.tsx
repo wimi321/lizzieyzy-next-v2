@@ -47,6 +47,7 @@ import { EngineSetup } from "./settings/EngineSetup";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { BottomToolbar, JUMP } from "./frame/BottomToolbar";
+import { jumpTarget } from "./frame/jump";
 import { MainPanel } from "./frame/MainPanel";
 import { MessageBox } from "./frame/MessageBox";
 import { StatusLine } from "./frame/StatusLine";
@@ -639,6 +640,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onToggleOwnership={() => setOwnership((value) => !value)}
           onToggleCoordinates={() => display.set({ show_coordinates: !shown.show_coordinates })}
           onToggleMoveNumbers={() => display.set(nextMoveNumbers(shown))}
+          onGotoMove={(n) => {
+            const target = jumpTarget(points, document?.tree.main_line ?? [], n);
+            if (target !== null && target !== current) jump(target);
+          }}
           onStep={step}
           onSetMain={editing.setAsMain}
           onClear={editing.newBoard}

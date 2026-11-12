@@ -167,3 +167,21 @@ test("下一手提示 → 简单 rings the recorded moves without what they lead
   await page.keyboard.press("Escape");
   await expect(page).toHaveScreenshot("next-move-simple.png", { clip: await boardPart(page, "top") });
 });
+
+test("跳转 goes to the move number typed beside it", async ({ page }) => {
+  const { view } = recordedGame(7);
+  await start(page, [documentChanged(view, 7)], [{ command: "goTo", result: 8 }, { command: "goTo", result: 9 }]);
+  const field = page.getByTestId("goto-move");
+  await expect(page.getByTestId("goto-move-button")).toBeDisabled();
+  await field.fill("5");
+  // Typing a digit or M there never reaches the board's shortcuts.
+  await field.press("m");
+  await field.press("Enter");
+  await expect(field).toHaveValue("");
+  await field.fill("12");
+  await page.getByTestId("goto-move-button").click();
+  await expect.poll(() => calls(page)).toEqual([
+    { command: "goTo", args: [5] },
+    { command: "goTo", args: [12] },
+  ]);
+});
