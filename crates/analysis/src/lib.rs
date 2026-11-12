@@ -5,6 +5,7 @@ mod actor;
 mod cache;
 mod delivery;
 mod limits;
+pub mod persistent_cache;
 mod request;
 pub mod review;
 mod speed;
@@ -68,6 +69,7 @@ pub struct AnalysisConfig {
     /// Immutable for this coordinator; use a new coordinator when it changes.
     pub engine_fingerprint: String,
     pub cache_capacity: usize,
+    pub cache_enabled: bool,
     pub live: LiveSettings,
     pub pondering: bool,
     pub limits: AnalysisLimits,
@@ -78,6 +80,7 @@ impl Default for AnalysisConfig {
         Self {
             engine_fingerprint: String::new(),
             cache_capacity: 128,
+            cache_enabled: true,
             live: LiveSettings::default(),
             pondering: true,
             limits: AnalysisLimits::default(),
@@ -212,6 +215,18 @@ impl AnalysisHandle {
 
     pub async fn set_pondering(&self, enabled: bool) -> Result<(), AnalysisError> {
         self.send(actor::Input::SetPondering(enabled)).await
+    }
+
+    /// Disable both reading and writing the coordinator's in-memory cache.
+    /// Existing results stay retained and become available again on re-enable.
+    pub async fn set_cache_enabled(&self, enabled: bool) -> Result<(), AnalysisError> {
+        self.send(actor::Input::SetCacheEnabled(enabled)).await
+    }
+
+    /// Forget old document analysis without resetting user intent or a limit
+    /// pause. Any ongoing query restarts so old output cannot refill the view.
+    pub async fn discard_cached_analysis(&self) -> Result<(), AnalysisError> {
+        self.send(actor::Input::DiscardCachedAnalysis).await
     }
 
     /// Resume a limit-paused query without changing the persisted pondering

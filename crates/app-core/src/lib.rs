@@ -2,6 +2,7 @@
 //! engine session and analysis coordinator. Handles contain only channels.
 
 mod actor;
+mod analysis_cache;
 mod analysis_limit;
 mod auto_setup;
 mod benchmark;
@@ -115,6 +116,9 @@ pub enum AppError {
 pub struct AppConfig {
     pub session: engine_session::SessionConfig,
     pub analysis: analysis::AnalysisConfig,
+    /// Defaults to the settings directory for headless callers.
+    pub cache_directory: Option<PathBuf>,
+    pub cache_max_bytes: u64,
     pub engine_setup_timeout: std::time::Duration,
     /// Optional client with caller-provided endpoints and timeout. None uses
     /// the public Fox endpoints, constructed lazily on the first Fox command.
@@ -126,6 +130,8 @@ impl Default for AppConfig {
         Self {
             session: Default::default(),
             analysis: Default::default(),
+            cache_directory: None,
+            cache_max_bytes: analysis::persistent_cache::DEFAULT_MAX_BYTES,
             engine_setup_timeout: std::time::Duration::from_secs(120),
             fox_client: None,
         }

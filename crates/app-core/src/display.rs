@@ -113,6 +113,9 @@ pub struct DisplaySettings {
     pub confirm_overwrite: bool,
     #[ts(as = "Option<bool>", optional)]
     pub show_names_below_board: bool,
+    // Java show-list-pane; kept optional for the next interface card.
+    #[ts(as = "Option<bool>", optional)]
+    pub show_list_pane: bool,
 }
 
 impl Default for DisplaySettings {
@@ -141,6 +144,7 @@ impl Default for DisplaySettings {
             show_comment: true,
             show_variation_graph: true,
             show_sub_board: true,
+            show_list_pane: true,
             show_information_panel: true,
             show_status_bar: true,
             show_top_toolbar: true,

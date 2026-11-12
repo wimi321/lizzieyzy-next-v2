@@ -18,6 +18,8 @@ pub(crate) enum Input {
         bool,
     ),
     SetPondering(bool),
+    SetCacheEnabled(bool),
+    DiscardCachedAnalysis,
     Resume,
     SetLimits(AnalysisLimits),
     SetLiveSettings(LiveSettings),
@@ -160,10 +162,11 @@ impl Actor {
                     self.limited_on_current = false;
                     self.status.send_replace(AnalysisStatus::Idle);
                 }
-                if (self.last_published.is_none()
-                    || self.focus.as_ref().is_none_or(|current| {
-                        current.node_id != focus.node_id || current.key != focus.key
-                    }))
+                if self.config.cache_enabled
+                    && (self.last_published.is_none()
+                        || self.focus.as_ref().is_none_or(|current| {
+                            current.node_id != focus.node_id || current.key != focus.key
+                        }))
                     && let Some(response) = cached
                 {
                     self.cache
@@ -214,6 +217,19 @@ impl Actor {
                 self.cancel().await?;
                 self.start().await
             }
+            Input::SetCacheEnabled(enabled) => {
+                self.config.cache_enabled = enabled;
+                Ok(())
+            }
+            Input::DiscardCachedAnalysis => {
+                self.cache.clear();
+                self.output.clear();
+                self.throttle.reset();
+                self.last_published = None;
+                self.display_floor = None;
+                self.cancel().await?;
+                self.start().await
+            }
             Input::Resume => {
                 self.playout_exempt |=
                     self.limited_on_current && self.limited == Some(LimitReason::Playouts);
@@ -252,7 +268,8 @@ impl Actor {
     }
 
     fn offer_cached(&mut self) {
-        if let Some(focus) = &self.focus
+        if self.config.cache_enabled
+            && let Some(focus) = &self.focus
             && let Some(response) = self.cache.get(focus.key, &self.config.engine_fingerprint)
         {
             self.offer(AnalysisSnapshot {
@@ -349,11 +366,13 @@ impl Actor {
                     active.speed.record(response.root_info.visits);
                 }
                 let visits_per_second = active.speed.visits_per_second();
-                self.cache.insert(
-                    identity.key,
-                    &self.config.engine_fingerprint,
-                    response.clone(),
-                );
+                if self.config.cache_enabled {
+                    self.cache.insert(
+                        identity.key,
+                        &self.config.engine_fingerprint,
+                        response.clone(),
+                    );
+                }
                 self.offer(AnalysisSnapshot {
                     revision: identity.revision,
                     node_id: identity.node_id,

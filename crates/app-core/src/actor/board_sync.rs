@@ -226,6 +226,9 @@ impl Actor {
                 if outcome.rebuilt {
                     self.replace_document(document).await?;
                 } else {
+                    if self.document.content_revision() != document.content_revision() {
+                        self.file_state.analysis_edits.document_edit();
+                    }
                     self.document = document;
                     // Follow the accepted remote path, independent of the locally
                     // browsed node. Repeated frames and backward jumps stay paused.

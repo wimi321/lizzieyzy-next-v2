@@ -47,6 +47,8 @@ impl Actor {
         let original_file_name = self.file_name.take();
         let original_file_state =
             std::mem::replace(&mut self.file_state, FileState::new(&self.document, None));
+        self.file_state
+            .inherit_clears(&self.document, &original_file_state);
         self.move_trial = Some(TrialSession {
             original,
             original_file_name,

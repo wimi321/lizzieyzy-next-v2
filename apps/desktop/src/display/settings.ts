@@ -37,6 +37,7 @@ export const DISPLAY_DEFAULTS: Display = {
   show_top_toolbar: true,
   show_bottom_toolbar: true,
   show_sub_board: true,
+  show_list_pane: true,
   winrate_graph_mode: "Both",
   fill_winrate_graph: true,
   show_blunder_bar: false,

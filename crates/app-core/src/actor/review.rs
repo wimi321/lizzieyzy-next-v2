@@ -20,7 +20,7 @@ mod tests;
 pub(super) struct ReviewState {
     pub results: HashMap<NodeId, StoredAnalysis>,
     pub progress: Option<WholeGameProgress>,
-    line: Vec<(NodeId, GamePosition)>,
+    pub(super) line: Vec<(NodeId, GamePosition)>,
     batches: VecDeque<ReviewBatch>,
     active: Option<ReviewRun>,
 }
@@ -207,6 +207,7 @@ impl Actor {
         }
         self.cancel_review().await;
         self.review.line = line;
+        self.restore_cached_review().await?;
         self.review.progress = Some(WholeGameProgress {
             source,
             completed: 0,
@@ -372,6 +373,7 @@ impl Actor {
             )
             .map_err(analysis::AnalysisError::from)?;
             self.retain_analysis(&snapshot);
+            self.persist_analysis(&snapshot);
             self.summaries
                 .entry(result.node_id)
                 .and_modify(|best| {

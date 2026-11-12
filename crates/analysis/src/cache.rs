@@ -23,6 +23,10 @@ impl Cache {
         }
     }
 
+    pub(crate) fn clear(&mut self) {
+        self.entries.clear();
+    }
+
     pub(crate) fn get(&mut self, key: AnalysisKey, fingerprint: &str) -> Option<AnalysisResponse> {
         let index = self.find(key, fingerprint)?;
         let entry = self.entries.remove(index)?;

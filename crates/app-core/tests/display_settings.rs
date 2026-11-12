@@ -36,6 +36,7 @@ async fn display_settings_save_restart_and_whole_object_replacement() {
         show_comment: false,
         show_variation_graph: false,
         show_sub_board: false,
+        show_list_pane: false,
         show_information_panel: false,
         show_status_bar: false,
         show_top_toolbar: false,
@@ -68,6 +69,7 @@ async fn display_settings_save_restart_and_whole_object_replacement() {
     assert_eq!(settings.display, replacement);
     assert!(settings.display.show_coordinates);
     assert!(settings.display.show_sub_board);
+    assert!(settings.display.show_list_pane);
     assert!(settings.pondering);
     assert_eq!(settings.version, 1);
     app.shutdown().await.unwrap();
@@ -88,6 +90,7 @@ async fn legacy_settings_and_partial_display_load_defaults_without_version_bump(
         let settings = app.settings().await.unwrap();
         assert_eq!(settings.display, DisplaySettings::default());
         assert!(settings.display.show_sub_board);
+        assert!(settings.display.show_list_pane);
         assert_eq!(settings.version, 1);
         assert!(!settings.pondering);
         app.shutdown().await.unwrap();
@@ -100,6 +103,7 @@ async fn legacy_settings_and_partial_display_load_defaults_without_version_bump(
     .unwrap();
     let settings = Settings::load(directory.path()).await.unwrap();
     assert!(settings.display.show_sub_board);
+    assert!(settings.display.show_list_pane);
     assert_eq!(
         settings.display,
         DisplaySettings {
