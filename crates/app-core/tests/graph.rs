@@ -85,6 +85,7 @@ async fn final_analysis(output: &mut AppSubscription, revision: u64, node: u32) 
                         assert_eq!(
                             value.summary,
                             AnalysisSummary {
+                                score_lead_available: true,
                                 winrate: value.winrate,
                                 score_lead: value.score_lead,
                                 visits: value.visits,

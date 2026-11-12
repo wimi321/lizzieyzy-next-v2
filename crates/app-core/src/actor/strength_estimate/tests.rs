@@ -37,6 +37,7 @@ fn loaded() -> Actor {
         actor.review.results.insert(
             id,
             StoredAnalysis {
+                saved: None,
                 node_id: id,
                 key: position.analysis_key(),
                 response,

@@ -76,6 +76,9 @@ impl Actor {
         if let Some(summary) = self.summaries.get(&stored.node_id) {
             view.summary = *summary;
         }
+        if let Some(saved) = &stored.saved {
+            super::game_files::mark_saved_view(&mut view, saved);
+        }
         Ok(Some(view))
     }
 
@@ -92,10 +95,22 @@ impl Actor {
         {
             self.summaries.remove(&snapshot.node_id);
         }
+        // A file payload is not tied to this engine. Its depth must never keep
+        // the first fresh engine result (live or review) from replacing it.
+        if self
+            .review
+            .results
+            .get(&snapshot.node_id)
+            .is_some_and(|stored| stored.saved.is_some())
+        {
+            self.review.results.remove(&snapshot.node_id);
+            self.summaries.remove(&snapshot.node_id);
+        }
         let candidate = StoredAnalysis {
             node_id: snapshot.node_id,
             key: snapshot.key,
             response: snapshot.response.clone(),
+            saved: None,
         };
         self.review
             .results

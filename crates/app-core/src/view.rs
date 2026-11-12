@@ -6,6 +6,10 @@ use ts_rs::TS;
 
 use crate::{AnalysisSummary, GameInfoView, GraphView};
 
+pub(crate) fn score_available() -> bool {
+    true
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub enum ColorView {
     Black,
@@ -288,6 +292,9 @@ pub struct CandidateView {
     pub visits: u64,
     pub winrate: f64,
     pub score_lead: f64,
+    #[serde(default = "score_available")]
+    #[ts(as = "Option<bool>", optional)]
+    pub score_lead_available: bool,
     pub prior: f64,
     pub order: u32,
     /// Starts with the current player; colors alternate after every move/pass.
@@ -298,6 +305,7 @@ pub struct CandidateView {
 pub enum AnalysisSource {
     Cache,
     Live,
+    Saved,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -359,6 +367,7 @@ impl AnalysisView {
                 visits: candidate.visits,
                 winrate: candidate.winrate,
                 score_lead: candidate.score_lead,
+                score_lead_available: true,
                 prior: candidate.prior,
                 order: candidate.order,
                 pv,
@@ -374,6 +383,7 @@ impl AnalysisView {
             summary: AnalysisSummary {
                 winrate: response.root_info.winrate,
                 score_lead: response.root_info.score_lead,
+                score_lead_available: true,
                 visits: response.root_info.visits,
             },
             candidates,

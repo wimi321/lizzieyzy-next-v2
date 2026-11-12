@@ -27,6 +27,7 @@ fn retain(actor: &mut Actor, node: u32, best_winrate: f64, best_score: f64) {
     actor.review.results.insert(
         id,
         StoredAnalysis {
+            saved: None,
             node_id: id,
             key: position.analysis_key(),
             response,

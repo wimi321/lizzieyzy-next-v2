@@ -15,6 +15,11 @@ pub(super) struct State {
 }
 
 impl State {
+    /// All entries were validated while restoring/importing this document.
+    pub fn validated_content(&mut self, revision: Revision) {
+        self.content_revision = Some(revision);
+    }
+
     pub fn clear(&mut self) {
         self.content_revision = None;
         self.valid_nodes.clear();

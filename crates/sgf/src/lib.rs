@@ -2,11 +2,14 @@
 //!
 //! Property and value order (including repeated identifiers) is preserved. The
 //! writer changes only line endings, escaping, and the game roots' `CA` property.
+//! GIB import normalizes its metadata and move records into the same SGF tree.
 
 mod encoding;
+mod gib;
 mod parser;
 mod writer;
 
+pub use gib::parse_gib;
 pub use parser::parse;
 pub use writer::serialize;
 
@@ -35,7 +38,7 @@ pub struct Node {
     pub properties: Vec<Property>,
 }
 
-/// Identifiers in parsed trees are nonempty uppercase ASCII letters. Each
+/// Identifiers are nonempty uppercase ASCII letters, plus Java's LZ2/LZOP2. Each
 /// property has at least one value, which may itself be empty. Values are
 /// unescaped text with LF line endings; no SGF type-specific trimming occurs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,6 +73,9 @@ pub enum WarningKind {
     UnknownEncoding {
         declared: String,
     },
+    GibHandicapClamped {
+        requested: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -99,6 +105,8 @@ pub enum ErrorKind {
     UnexpectedCharacter(char),
     #[error("variation nesting exceeds the limit of {limit}")]
     NestingLimit { limit: usize },
+    #[error("invalid GIB: {reason}")]
+    InvalidGib { reason: String },
 }
 
 #[cfg(test)]

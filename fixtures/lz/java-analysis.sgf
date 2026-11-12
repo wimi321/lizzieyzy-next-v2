@@ -1,0 +1,4 @@
+(;FF[4]GM[1]CA[UTF-8]SZ[5]KM[7.5]C[manual comment]LZ[Main 45 12.3k 2.5 1.2 -2.0 rootVisits=12345 wrn=0.04
+move C3 visits 50000 winrate 5500 prior 123 scoreMean 2.50 order 10 edgeVisits 0 pv C3 D4 pvVisits 123 45 info move pass visits 25 winrate 5100 prior 1.5 scoreMean 0.50 order 11 pv pass C3 ownership 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2]LZ2[Second 55 23.5k -2.5 1.3 1.0 rootVisits=23456 wrn=0.1
+move D4 visits 60000 winrate 4500 scoreMean -2.5 order 3 edgeVisits 17 pv D4 C3 ownership -0.4 0.5];B[aa]LZ[Main 45 2k 3.0 0.8 0.0 rootVisits=2000 wrn=0.0
+move D4 visits 1800 winrate 5500 prior 2500 scoreMean 3.00 order 0 pv D4 C3 ownership 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2];W[bb])
