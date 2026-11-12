@@ -72,6 +72,7 @@ export function MoveTree({ tree, current, line, boardSize, ranks, label, onJump 
                 data-id={node.id}
                 data-current={isCurrent}
                 data-rank={rank}
+                data-comment={node.has_comment || undefined}
                 onClick={() => !isCurrent && onJump(node.id)}
               >
                 <title>{coordinate ? `${node.move_number} · ${coordinate}` : String(node.move_number)}</title>
@@ -80,7 +81,9 @@ export function MoveTree({ tree, current, line, boardSize, ranks, label, onJump 
                     {node.move_number}
                   </text>
                 ) : null}
-                {isCurrent ? <circle className="tree-current" cx={x(placed)} cy={y(placed)} r={8} /> : null}
+                {/* Java rings a commented move in blue. */}
+                {node.has_comment ? <circle className="tree-comment" data-testid="tree-comment" cx={x(placed)} cy={y(placed)} r={7.2} /> : null}
+                {isCurrent ? <circle className="tree-current" cx={x(placed)} cy={y(placed)} r={node.has_comment ? 9.6 : 8} /> : null}
                 {node.parent === null ? (
                   <rect className="tree-root" x={x(placed) - 4.5} y={y(placed) - 4.5} width={9} height={9} rx={2} />
                 ) : (

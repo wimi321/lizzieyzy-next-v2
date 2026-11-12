@@ -45,7 +45,8 @@ test("LizzieYzy Next's menus sit above the toolbar, in Java's order", async ({ p
   const popup = page.getByTestId("menu-popup");
   await expect(popup).toHaveCount(1);
   await expect(row(page, "open")).not.toHaveAttribute("aria-disabled");
-  await expect(row(page, "newBoard")).toHaveAttribute("aria-disabled", "true");
+  await expect(row(page, "newBoard")).not.toHaveAttribute("aria-disabled");
+  await expect(row(page, "openUrl")).toHaveAttribute("aria-disabled", "true");
   await expect(popup).toHaveScreenshot("file-menu.png");
 
   // While a menu is open, the strip switches on hover and submenus open on hover.

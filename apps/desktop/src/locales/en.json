@@ -834,6 +834,36 @@
     "lead": "Lead: {lead}",
     "engine": "({engine} / {visits} visits)",
     "visits": "({visits} visits)",
-    "komi": "Komi: {komi}"
+    "komi": "Komi: {komi}",
+    "editHint": "Click to edit the comment"
+  },
+  "edit": {
+    "confirm": "OK",
+    "cancel": "Cancel",
+    "close": "Close",
+    "noAgain": "Do not ask again",
+    "newBoardTitle": "New board?",
+    "newBoardMessage": "This clears the board and all analysis. Continue?",
+    "replaceTitle": "Overwrite the file?",
+    "replaceNotice": "Note: to keep the original file, use File > Save as",
+    "boardSizeTitle": "Set board size",
+    "other": "Other",
+    "sizeInvalid": "Width and height must be between 2 and 25",
+    "infoTitle": "Game info",
+    "black": "Black",
+    "white": "White",
+    "name": "name",
+    "rank": "rank",
+    "komi": "Komi",
+    "rules": "Rules",
+    "result": "Result",
+    "date": "Date",
+    "event": "Event",
+    "komiInvalid": "Komi must be a number",
+    "failed": "Not changed",
+    "undo": "Undo edit",
+    "redo": "Redo edit",
+    "recentEmpty": "(No games opened yet)",
+    "clearRecent": "Clear list"
   }
 }

@@ -94,7 +94,19 @@ describe("the menu matches LizzieYzy Next's", () => {
 function actions(): MenuActions {
   return {
     open: vi.fn(),
+    openRecent: vi.fn(),
+    clearRecent: vi.fn(),
+    newBoard: vi.fn(),
+    setBoardSize: vi.fn(),
+    editGameInfo: vi.fn(),
+    save: vi.fn(),
     saveAs: vi.fn(),
+    deleteMove: vi.fn(),
+    deleteBranch: vi.fn(),
+    setAsMain: vi.fn(),
+    undo: vi.fn(),
+    redo: vi.fn(),
+    toggleConfirm: vi.fn(),
     quit: vi.fn(),
     toggleCoordinates: vi.fn(),
     setOwnership: vi.fn(),
@@ -133,6 +145,11 @@ const IDLE: MenuState = {
   syncOptions: { always_sync: true, always_goto_last: false },
   tree: null,
   current: null,
+  canUndo: false,
+  canRedo: false,
+  recent: [],
+  confirmNewBoard: true,
+  confirmReplace: true,
 };
 
 function line(...ids: number[]): VariationTreeView {
@@ -169,7 +186,8 @@ describe("what the menu can do now", () => {
     expect(idle.restartCurrentEngine?.enabled).toBe(false);
     expect(idle.jumpToLeft?.enabled).toBe(false);
     idle.save?.run?.();
-    expect(run.saveAs).toHaveBeenCalledTimes(1);
+    expect(run.save).toHaveBeenCalledTimes(1);
+    expect(run.saveAs).not.toHaveBeenCalled();
     idle.kataEstimateOnMainBoard?.run?.();
     expect(run.setOwnership).toHaveBeenCalledWith(true);
 
@@ -246,10 +264,10 @@ describe("the menu strip", () => {
     expect(popups()).toHaveLength(1);
     expect(row("open").querySelector(".menu-label")?.textContent).toBe("打开棋谱");
     expect(row("open").querySelector(".menu-hint")?.textContent).toBe("O");
-    expect(row("newBoard").getAttribute("aria-disabled")).toBe("true");
+    expect(row("openUrl").getAttribute("aria-disabled")).toBe("true");
     expect(row("openRecent").getAttribute("aria-disabled")).toBe("true");
 
-    fireEvent.click(row("newBoard"));
+    fireEvent.click(row("openUrl"));
     expect(popups()).toHaveLength(1);
     fireEvent.click(row("open"));
     expect(user.open).toHaveBeenCalledTimes(1);
@@ -271,10 +289,13 @@ describe("the menu strip", () => {
     const file = within(bar).getByText("文件");
     file.focus();
     fireEvent.keyDown(file, { key: "ArrowDown" });
-    expect(row("open").dataset.active).toBe("true");
+    expect(row("newBoard").dataset.active).toBe("true");
     const key = (name: string) => fireEvent.keyDown(document.activeElement ?? document.body, { key: name });
     key("ArrowDown");
+    expect(row("open").dataset.active).toBe("true");
+    key("ArrowDown");
     expect(row("save").dataset.active).toBe("true");
+    key("ArrowUp");
     key("ArrowUp");
     key("ArrowUp");
     expect(row("exit").dataset.active).toBe("true");
