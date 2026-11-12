@@ -8,6 +8,7 @@ pub mod error;
 pub mod events;
 pub mod fox_error;
 pub mod startup;
+mod system_open;
 
 use app_core::{AppCore, AppSubscription};
 use tauri::{Manager, Runtime};
@@ -114,7 +115,9 @@ fn context<R: Runtime>() -> tauri::Context<R> {
 
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let options = startup::StartupOptions::parse(std::env::args_os().skip(1))?;
-    let app = commands(tauri::Builder::default())
+    let (opener, incoming) = system_open::SystemOpener::channel();
+    let builder = system_open::single_instance(tauri::Builder::default().manage(opener));
+    let app = commands(builder)
         .setup(move |app| {
             app.manage(engine_setup::SetupEnvironment::for_app(app.handle())?);
             app.manage(board_sync::BoardSyncEnvironment::for_app(app.handle())?);
@@ -124,11 +127,13 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             };
             let (core, subscription) =
                 tauri::async_runtime::block_on(startup::start(options, default_dir))?;
-            app.manage(DesktopState::new(core, subscription));
+            app.manage(DesktopState::new(core.clone(), subscription));
+            tauri::async_runtime::spawn(system_open::serve(core, incoming));
             Ok(())
         })
         .build(context())?;
     app.run(|app, event| {
+        system_open::on_run_event(app, &event);
         if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
             // Keep the runtime alive until AppCore has cancelled analysis and
             // reaped its child. Merely dropping managed state at exit is too late.

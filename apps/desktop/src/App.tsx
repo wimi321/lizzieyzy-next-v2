@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
-import type { AnalysisLimitSettings, AutoSetupError, ColorView, EngineProfile, EngineStatus, FoxAccount, MoveRank, OpenFailed, PointView, ProblemMoveSort, ProblemMovesQuery, TsumegoOptions, TsumegoStatus, VariationTreeView } from "@/api/backend";
-import { Board } from "./board/Board";
+import type { AnalysisLimitSettings, AutoSetupError, ColorView, EngineProfile, EngineStatus, FoxAccount, MoveRank, PointView, ProblemMoveSort, ProblemMovesQuery } from "@/api/backend";
+import { Board, type StoneMarks } from "./board/Board";
 import type { NextMove } from "./board/draw";
 import { SubBoard } from "./board/SubBoard";
 import { useVariationPreview } from "./board/useVariationPreview";
+import { hiddenRegions, nextMoveNumbers, nextRankMarks, numberWindow, rankWindow, shiftScores, suggestionStyle } from "./display/settings";
+import { useDisplay } from "./display/useDisplay";
 import { useCommentEdit } from "./edit/useCommentEdit";
 import { useBoardMenu } from "./edit/BoardMenu";
 import { useBoardModes } from "./edit/useBoardModes";
@@ -19,10 +21,11 @@ import { isEnabled, menuBindings } from "./menu/bindings";
 import { MenuBar } from "./menu/MenuBar";
 import { useShortcuts } from "./menu/shortcuts";
 import { useMenus } from "./menu/useMenus";
-import { analysisSummary } from "./panels/info";
+import { analysisSummary, reviewStatusOf } from "./panels/info";
 import { CapturedBox, StatisticsBox } from "./panels/InfoPanel";
 import { MoveTree } from "./panels/MoveTree";
-import { NotesPanel, type ReviewStatus } from "./panels/NotesPanel";
+import { NotesPanel } from "./panels/NotesPanel";
+import { useVariationTree } from "./panels/useVariationTree";
 import { AutoAnalysis, type AutoAnalysisHandle } from "./review/AutoAnalysis";
 import { ProblemList } from "./review/ProblemList";
 import { StrengthDialog } from "./review/StrengthDialog";
@@ -35,6 +38,7 @@ import { BoardSyncChip } from "./sync/BoardSyncChip";
 import { useBoardSync } from "./sync/useBoardSync";
 import { TsumegoChip } from "./tsumego/TsumegoChip";
 import { TsumegoDialog } from "./tsumego/TsumegoDialog";
+import { useTsumego } from "./tsumego/useTsumego";
 import { TIER_ORDER } from "./review/strength";
 import { useProblemMoves } from "./review/useProblemMoves";
 import { useStrength } from "./review/useStrength";
@@ -43,24 +47,21 @@ import { EngineSetup } from "./settings/EngineSetup";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { BottomToolbar, JUMP } from "./frame/BottomToolbar";
+import { jumpTarget } from "./frame/jump";
 import { MainPanel } from "./frame/MainPanel";
 import { MessageBox } from "./frame/MessageBox";
 import { StatusLine } from "./frame/StatusLine";
-import { evaluationText, joinParts, windowTitle } from "./frame/title";
+import { statusLine } from "./frame/status";
 import { ToolButton } from "./frame/ToolButton";
 import { TopToolbar } from "./frame/TopToolbar";
 import { useEngineName } from "./frame/useEngineName";
+import { useOpenFailed } from "./frame/useOpenFailed";
+import { useWindowTitle } from "./frame/useWindowTitle";
 
 export { JUMP };
 
-/** Candidates drawn on the board. */
-const MAX_CANDIDATES = 10;
-
 /** Java shows the board synchronization tool on Windows only. */
 const WINDOWS = navigator.userAgent.includes("Windows");
-
-/** Java's starting 死活题 options, until the settings say otherwise. */
-const TSUMEGO_DEFAULTS: TsumegoOptions = { to_play: "Inherit", attacker: "Auto", ko_threat: "Both", wall_distance: 1 };
 
 /** A wheel notch (or this much trackpad travel) moves one move, as on Java's board. */
 const WHEEL_STEP = 40;
@@ -100,7 +101,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const revision = useAppState(store, (state) => state.revision);
   const messages = getMessages(navigator.language);
   const chinese = navigator.language.toLowerCase().startsWith("zh");
-  const [coordinates, setCoordinates] = useState(true);
   const [ownership, setOwnership] = useState(false);
   const [pondering, setPondering] = useState(true);
   const [profile, setProfile] = useState<EngineProfile | null>(null);
@@ -116,14 +116,16 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [aboutOpen, setAboutOpen] = useState(false);
   // State, not a ref: menu bindings are built during render and only call it later.
   const [autoAnalysis, setAutoAnalysis] = useState<AutoAnalysisHandle | null>(null);
-  const [tsumegoOpen, setTsumegoOpen] = useState(false);
-  const [tsumegoOptions, setTsumegoOptions] = useState<TsumegoOptions>(TSUMEGO_DEFAULTS);
-  // Set while a framed problem is on the board; null otherwise.
-  const [tsumego, setTsumego] = useState<TsumegoStatus | null>(null);
+  const tsumego = useTsumego(backend, revision);
+  const setTsumegoOptions = tsumego.setOptions;
+  // 显示: saved in the settings, read with them at start.
+  const display = useDisplay(backend, messages.display);
+  const loadDisplay = display.load;
+  const shown = display.display;
   const wheel = useRef(0);
   const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
   const [boardHover, setBoardHover] = useState<PointView | null>(null);
-  const [tree, setTree] = useState<VariationTreeView | null>(null);
+  const { tree, live: liveTree } = useVariationTree(backend, document);
   const wholeGame = useWholeGame(backend);
   // LizzieYzy Next draws the graph with a one-visit pass when a game opens; that pass stays quiet.
   const [autoCurve, setAutoCurve] = useState(true);
@@ -145,7 +147,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [problemColor, setProblemColor] = useState<ColorView | null>(null);
   const [problemSort, setProblemSort] = useState<ProblemMoveSort>("LossDesc");
   const [notesTab, setNotesTab] = useState<"comment" | "problems">("comment");
-  const [openFailure, setOpenFailure] = useState<OpenFailed | null>(null);
+  // A game that cannot be opened, picked or dropped, is reported by Rust; say so as Java does.
+  const [openFailure, closeOpenFailure] = useOpenFailed(backend);
   const problemQuery = useMemo<ProblemMovesQuery>(
     () => ({ minimum_rank: "Inaccuracy", color: problemColor, sort: problemSort }),
     [problemColor, problemSort],
@@ -167,6 +170,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         setProfile(settings.engine);
         setFoxHistory(settings.fox_history);
         setTsumegoOptions(settings.tsumego);
+        loadDisplay(settings.display);
         if (settings.engine) return;
         setAutoSetup(true);
         try {
@@ -184,40 +188,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     return () => {
       active = false;
     };
-  }, []);
-
-  // The tree is fetched when its structure or its comment marks change, never on plain navigation.
-  const structure = document?.tree.structure_revision;
-  const commentMarks = document?.tree.comment_revision ?? 0;
-  useEffect(() => {
-    if (structure === undefined) return;
-    let active = true;
-    backend
-      .variationTree()
-      .then((view) => {
-        if (active && view.revision === structure && (view.comment_revision ?? 0) === commentMarks) setTree(view);
-      })
-      .catch(report);
-    return () => {
-      active = false;
-    };
-  }, [structure, commentMarks]);
-
-  // Rust ends a problem when another game is opened; while one is on, re-read its status.
-  const framing = tsumego !== null;
-  useEffect(() => {
-    if (!framing) return;
-    let active = true;
-    backend
-      .tsumegoStatus()
-      .then((status) => {
-        if (active && status.revision >= revision) setTsumego(status.active ? status : null);
-      })
-      .catch(report);
-    return () => {
-      active = false;
-    };
-  }, [framing, revision]);
+    // A state setter: the settings are read once.
+  }, [setTsumegoOptions, loadDisplay]);
 
   // A comment being edited is saved before the app moves to another move by itself.
   const comment = useCommentEdit(backend, document);
@@ -225,20 +197,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     comment.commit();
     backend.step(steps).catch(report);
   };
-  const generateTsumego = async (options: TsumegoOptions) => {
-    await backend.generateTsumego(options);
-    setTsumegoOptions(options);
-    setTsumegoOpen(false);
-    const status = await backend.tsumegoStatus();
-    setTsumego(status.active ? status : null);
-  };
-  const exitTsumego = () => {
-    backend
-      .exitTsumego()
-      .then(() => setTsumego(null))
-      .catch(report);
-  };
-
   const board = document?.board ?? null;
   const points = useMemo(() => (document ? liveGraph(document.graph, analysis) : []), [document, analysis]);
   const line = useMemo(() => points.map((point) => point.node_id), [points]);
@@ -255,7 +213,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     return best?.point ?? null;
   }, [analysis, currentNode]);
   const replay = useVariationPreview(backend, currentNode, revision, analysis, boardHover ?? bestPoint);
-  const variation = boardHover ? replay : null;
+  const variation = boardHover && shown.show_hover_variation ? replay : null;
   const info = document?.game_info ?? null;
   // The mistake bars share the graph's line and indexing; anything else is stale.
   const mistakes = problems && problems.error_bar.length === points.length ? problems.error_bar : undefined;
@@ -271,7 +229,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     () => mistakes?.find((point) => point.node_id === currentNode)?.loss?.rank ?? null,
     [mistakes, currentNode],
   );
-  const liveTree = tree && document && tree.revision === document.tree.structure_revision ? tree : null;
   const currentTreeNode = useMemo(() => liveTree?.nodes.find((node) => node.id === currentNode) ?? null, [liveTree, currentNode]);
   // The recorded continuations, each with the position it leads to when that is analysed.
   const nextMoves = useMemo<NextMove[]>(() => {
@@ -284,9 +241,31 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     }
     return moves;
   }, [liveTree, currentTreeNode, points]);
+  // 显示: the board's marks and candidate text, the panels shown, the score with or without komi.
+  const branchStart = document?.tree.branch_start_move_number ?? null;
+  const marks = useMemo<StoneMarks>(
+    () => ({
+      numbers: {
+        window: numberWindow(shown),
+        fromOne: shown.move_numbers_from_one,
+        branchPoint: branchStart === null ? null : branchStart - 1,
+        branchFromOne: shown.branch_move_numbers_from_one,
+        allInBranch: shown.show_all_branch_move_numbers,
+      },
+      rankWindow: rankWindow(shown),
+      ranks,
+    }),
+    [shown, branchStart, ranks],
+  );
+  const komi = info?.komi ?? 0;
+  const style = useMemo(() => suggestionStyle(shown, komi), [shown, komi]);
+  const nextHint = useMemo(() => ({ mode: shown.next_moves, minVisits: shown.next_move_min_visits }), [shown.next_moves, shown.next_move_min_visits]);
+  const hidden = useMemo(() => hiddenRegions(shown), [shown]);
+  const scoreOffset = shown.score_lead_includes_komi ? 0 : komi;
+  const scorePoints = useMemo(() => shiftScores(points, scoreOffset), [points, scoreOffset]);
   const boardNames = useMemo(
-    () => (info && (info.black_name || info.white_name) ? { black: info.black_name ?? "", white: info.white_name ?? "" } : null),
-    [info],
+    () => (shown.show_names_below_board && info && (info.black_name || info.white_name) ? { black: info.black_name ?? "", white: info.white_name ?? "" } : null),
+    [info, shown.show_names_below_board],
   );
   const emptyGame =
     board !== null &&
@@ -303,7 +282,16 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     if (path) await backend.openPath(path);
   };
   const modes = useBoardModes(backend, document, messages.modes);
-  const editing = useEditing(backend, document, emptyGame, messages.edit, messages.info.rules, openFailure);
+  const editing = useEditing(
+    backend,
+    document,
+    emptyGame,
+    messages.edit,
+    messages.info.rules,
+    openFailure,
+    { newBoard: shown.confirm_new_board, replace: shown.confirm_overwrite },
+    (kind) => display.set(kind === "newBoard" ? { confirm_new_board: false } : { confirm_overwrite: false }),
+  );
   const boardMenu = useBoardMenu(backend, document, analysis, revision, messages.boardMenu, modes.startMove);
   // Space and the chip resume a limit stop without changing the saved setting.
   const togglePondering = run.toggle;
@@ -330,159 +318,117 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     setFoxOpen(true);
   };
   const current = document?.tree.current ?? null;
-  const speed = analysis?.visits_per_second ?? null;
   const best = analysis && analysis.node_id === current ? analysis.candidates[0] : undefined;
   const wholeGameStatus = wholeGame.progress?.status.type;
-  const bindings = menuBindings(
-    {
-      hasDocument: document !== null,
-      hasBoard: board !== null,
-      coordinates,
-      ownership,
-      wholeGameActive: wholeGameStatus === "Running" || wholeGameStatus === "Paused",
-      hasBestMove: board !== null && best !== undefined,
-      engineFailed: engine.type === "Failed" && profile !== null,
-      engineConfigured: profile !== null,
-      windows: WINDOWS,
-      syncPhase: sync.status?.phase ?? "Stopped",
-      syncOptions,
-      tree: liveTree,
-      current,
-      canUndo: document?.can_undo ?? false,
-      canRedo: document?.can_redo ?? false,
-      recent: editing.recent,
-      confirmNewBoard: editing.confirms.newBoard,
-      confirmReplace: editing.confirms.replace,
-      setupTool: modes.mode.kind === "setup" ? modes.mode.tool : null,
-      setupEditable: modes.setupEditable,
-      trial: editing.trial,
-      playColor: modes.mode.kind === "color" ? modes.mode.color : null,
-      insertColor: modes.mode.kind === "insert" ? modes.mode.color : null,
-    },
-    {
-      open: () => void openFile().catch(report),
-      openRecent: editing.openRecent,
-      clearRecent: editing.clearRecent,
-      newBoard: editing.newBoard,
-      setBoardSize: editing.openBoardSize,
-      editGameInfo: editing.openGameInfo,
-      save: editing.save,
-      saveAs: editing.saveAs,
-      deleteMove: editing.deleteMove,
-      deleteBranch: editing.deleteBranch,
-      setAsMain: editing.setAsMain,
-      undo: editing.undo,
-      redo: editing.redo,
-      toggleConfirm: editing.toggleConfirm,
-      toggleSetup: modes.toggleSetup,
-      setupTool: modes.setupTool,
-      clearSetup: modes.clearSetup,
-      setFirstPlayer: modes.setFirstPlayer,
-      convertToStart: modes.convertToStart,
-      colorMode: modes.colorMode,
-      alternate: modes.exit,
-      insertMode: modes.insertMode,
-      quit: () => void backend.quit().catch(report),
-      toggleCoordinates: () => setCoordinates((value) => !value),
-      setOwnership,
-      togglePondering,
-      openAutoAnalysis: () => autoAnalysis?.show(),
-      flashAnalyze: () => wholeGame.start(1),
-      cancelAutoAnalysis: wholeGame.cancel,
-      openStrength: () => setStrengthOpen(true),
-      playBestMove: () => {
-        if (best?.point) play(best.point);
-        else if (best) pass();
+  const bindings = {
+    ...menuBindings(
+      {
+        hasDocument: document !== null,
+        hasBoard: board !== null,
+        ownership,
+        wholeGameActive: wholeGameStatus === "Running" || wholeGameStatus === "Paused",
+        hasBestMove: board !== null && best !== undefined,
+        engineFailed: engine.type === "Failed" && profile !== null,
+        engineConfigured: profile !== null,
+        windows: WINDOWS,
+        syncPhase: sync.status?.phase ?? "Stopped",
+        syncOptions,
+        tree: liveTree,
+        current,
+        canUndo: document?.can_undo ?? false,
+        canRedo: document?.can_redo ?? false,
+        recent: editing.recent,
+        setupTool: modes.mode.kind === "setup" ? modes.mode.tool : null,
+        setupEditable: modes.setupEditable,
+        trial: editing.trial,
+        playColor: modes.mode.kind === "color" ? modes.mode.color : null,
+        insertColor: modes.mode.kind === "insert" ? modes.mode.color : null,
       },
-      pass,
-      step,
-      goTo: jump,
-      openFox,
-      startBoardSync: () => sync.start({ ...syncOptions, language: chinese ? "Cn" : "En" }),
-      toggleSyncOption: (key) => setSyncOptions((options) => ({ ...options, [key]: !options[key] })),
-      openTsumego: () => setTsumegoOpen(true),
-      openBenchmark: () => setTuningOpen(true),
-      openSettings: () => setSettingsOpen(true),
-      openEngineSetup: () => setSetupOpen(true),
-      restartEngine: () => {
-        if (profile) backend.configureEngine(profile).catch(report);
+      {
+        open: () => void openFile().catch(report),
+        openRecent: editing.openRecent,
+        clearRecent: editing.clearRecent,
+        newBoard: editing.newBoard,
+        setBoardSize: editing.openBoardSize,
+        editGameInfo: editing.openGameInfo,
+        save: editing.save,
+        saveAs: editing.saveAs,
+        deleteMove: editing.deleteMove,
+        deleteBranch: editing.deleteBranch,
+        setAsMain: editing.setAsMain,
+        undo: editing.undo,
+        redo: editing.redo,
+        toggleSetup: modes.toggleSetup,
+        setupTool: modes.setupTool,
+        clearSetup: modes.clearSetup,
+        setFirstPlayer: modes.setFirstPlayer,
+        convertToStart: modes.convertToStart,
+        colorMode: modes.colorMode,
+        alternate: modes.exit,
+        insertMode: modes.insertMode,
+        quit: () => void backend.quit().catch(report),
+        setOwnership,
+        togglePondering,
+        openAutoAnalysis: () => autoAnalysis?.show(),
+        flashAnalyze: () => wholeGame.start(1),
+        cancelAutoAnalysis: wholeGame.cancel,
+        openStrength: () => setStrengthOpen(true),
+        playBestMove: () => {
+          if (best?.point) play(best.point);
+          else if (best) pass();
+        },
+        pass,
+        step,
+        goTo: jump,
+        openFox,
+        startBoardSync: () => sync.start({ ...syncOptions, language: chinese ? "Cn" : "En" }),
+        toggleSyncOption: (key) => setSyncOptions((options) => ({ ...options, [key]: !options[key] })),
+        openTsumego: () => tsumego.setOpen(true),
+        openBenchmark: () => setTuningOpen(true),
+        openSettings: () => setSettingsOpen(true),
+        openEngineSetup: () => setSetupOpen(true),
+        restartEngine: () => {
+          if (profile) backend.configureEngine(profile).catch(report);
+        },
+        openAbout: () => setAboutOpen(true),
       },
-      openAbout: () => setAboutOpen(true),
-    },
+    ),
+    ...display.bindings,
+  };
+  useShortcuts(
+    bindings,
+    !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen),
   );
-  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen));
   const frame = messages.frame;
   const engineLabel = useEngineName(backend, profile, frame.engineNames);
   // "No engine" is for no engine: one that Rust has not named yet shows without a name.
-  const menus = useMenus(WINDOWS, editing.recent, messages.edit, engineLabel ?? (profile ? "" : null));
+  const menus = useMenus(WINDOWS, editing.recent, messages.edit, engineLabel ?? (profile ? "" : null), shown.last_move_rank_marks, shown.next_move_min_visits);
   const autoAnalyzing = quickRunning || wholeGameStatus === "Running";
-  // Java's title: "[Black's winrate, lead, visits] engine speed - [黑] A vs [白] B (结果:…)".
-  const gameTitle = windowTitle({
+  useWindowTitle(backend, {
     app: messages.app.title,
-    evaluation:
-      analysis && analysis.node_id === current && analysis.visits > 0 ? evaluationText(analysis.winrate, analysis.score_lead, analysis.visits) : null,
+    analysis,
+    current,
     engine: engineLabel,
-    speed:
-      (livePondering && speed !== null ? `${Math.round(speed)} ${frame.title.speedUnit}` : "") +
-      (engineLabel !== null && /b11|11b/i.test(engineLabel) ? ` · ${frame.title.b11} ` : ""),
-    players:
-      info && (info.black_name || info.white_name)
-        ? `[${frame.title.black}] ${info.black_name ?? ""} vs [${frame.title.white}] ${info.white_name ?? ""}`
-        : null,
-    result: info?.result?.trim() ? `(${frame.title.result}${info.result.trim()})` : null,
+    pondering: livePondering,
+    info,
     file: document?.file_name ?? null,
+    trial: editing.trial,
+    labels: frame.title,
   });
-  // Java titles the window 试下中... for as long as a trial lasts.
-  const title = editing.trial ? frame.title.trial : gameTitle;
-  useEffect(() => {
-    backend.setWindowTitle(title).catch(report);
-  }, [title]);
-  // A game that cannot be opened, picked or dropped, is reported by Rust; say so as Java does.
-  useEffect(() => {
-    let active = true;
-    let id: number | undefined;
-    backend
-      .subscribeOpenFailed(setOpenFailure)
-      .then((subscription) => {
-        if (active) id = subscription;
-        else backend.unsubscribe(subscription).catch(report);
-      })
-      .catch(report);
-    return () => {
-      active = false;
-      if (id !== undefined) backend.unsubscribe(id).catch(report);
-    };
-  }, []);
   const reviewing = wholeGameStatus === "Running" || wholeGameStatus === "Paused";
-  const reviewStatus: ReviewStatus | null =
-    reviewing && wholeGame.progress
-      ? { state: "running", text: messages.notes.statusRunning.replace("{done}", String(wholeGame.progress.completed)).replace("{total}", String(wholeGame.progress.total)) }
-      : points.length > 1 && analysedCount === points.length
-        ? { state: "done", text: messages.notes.statusDone }
-        : analysedCount > 1
-          ? { state: "partial", text: messages.notes.statusPartial.replace("{done}", String(analysedCount)).replace("{total}", String(points.length)) }
-          : null;
+  const reviewStatus = reviewStatusOf(reviewing ? wholeGame.progress : null, analysedCount, points.length, messages.notes);
   const summaryLines = board ? analysisSummary(points, currentIndex, board.last_move, engineLabel, info?.komi ?? 0, messages.notes) : [];
-  // Java's status line: "engine · state · the key to press". First-run setup reads as starting.
+  // First-run setup reads as starting.
   const shownEngine: EngineStatus = autoSetup && engine.type === "Stopped" ? { type: "Starting" } : engine;
-  const engineDetail =
-    shownEngine.type === "Failed" || shownEngine.type === "Restarting"
-      ? shownEngine.data.reason
-      : shownEngine.type === "Ready"
-        ? shownEngine.data.version
-        : undefined;
-  const statusText = joinParts(
-    " · ",
-    profile ? engineLabel : frame.status.noEngine,
-    shownEngine.type !== "Ready"
-      ? messages.engine[shownEngine.type]
-      : autoAnalyzing
-        ? frame.status.autoAnalyzing
-        : livePondering
-          ? frame.status.analyzing
-          : frame.status.paused,
-    shownEngine.type === "Ready" && !autoAnalyzing ? (livePondering ? frame.status.spaceToPause : frame.status.spaceToResume) : null,
-  );
+  const status = statusLine({
+    engine: shownEngine,
+    name: engineLabel,
+    configured: profile !== null,
+    autoAnalyzing,
+    pondering: livePondering,
+    labels: frame.status,
+    states: messages.engine,
+  });
 
   return (
     <main className="app">
@@ -502,7 +448,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           <>
             {editing.trialChip}
             {modes.chip}
-            {tsumego ? <TsumegoChip status={tsumego} labels={messages.tsumego} onExit={exitTsumego} /> : null}
+            {tsumego.status ? <TsumegoChip status={tsumego.status} labels={messages.tsumego} onExit={tsumego.exit} /> : null}
             {sync.status && sync.status.phase !== "Stopped" ? <BoardSyncChip status={sync.status} labels={messages.sync} onStop={sync.stop} /> : null}
             {tuning.status && !tuningOpen ? (
               <BenchmarkChip status={tuning.status} labels={messages.benchmark} onOpen={() => setTuningOpen(true)} onStop={tuning.cancel} />
@@ -510,34 +456,39 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           </>
         }
       />
-      <TopToolbar
-        labels={frame.top}
-        hasDocument={document !== null}
-        hasBoard={board !== null}
-        offMainLine={isEnabled(bindings.backToMainBranch)}
-        komi={info?.komi ?? null}
-        onNew={editing.newBoard}
-        onSetMain={editing.setAsMain}
-        onKomi={editing.setKomi}
-        onBoardSize={editing.openBoardSize}
-        markupOpen={modes.mode.kind === "markup"}
-        onMarkup={modes.toggleMarkup}
-        onChangeTurn={modes.toggleToPlay}
-        trial={editing.trial}
-        playColor={modes.mode.kind === "color" ? modes.mode.color : null}
-        onColor={modes.colorMode}
-        onAlternate={modes.exit}
-        onOpen={() => void openFile().catch(report)}
-        onSave={editing.save}
-        onFox={openFox}
-        onStrength={() => setStrengthOpen(true)}
-        onAutoSetup={() => setTuningOpen(true)}
-        onFlash={() => wholeGame.start(1)}
-        onBackMain={() => bindings.backToMainBranch?.run?.()}
-        onPass={pass}
-        onTsumego={() => setTsumegoOpen(true)}
-      />
+      {shown.show_top_toolbar ? (
+        <TopToolbar
+          labels={frame.top}
+          hasDocument={document !== null}
+          hasBoard={board !== null}
+          offMainLine={isEnabled(bindings.backToMainBranch)}
+          komi={info?.komi ?? null}
+          onNew={editing.newBoard}
+          onSetMain={editing.setAsMain}
+          onKomi={editing.setKomi}
+          onBoardSize={editing.openBoardSize}
+          markupOpen={modes.mode.kind === "markup"}
+          onMarkup={modes.toggleMarkup}
+          rankMarks={shown.move_rank_marks !== "None"}
+          onRankMarks={() => display.set(nextRankMarks(shown))}
+          onChangeTurn={modes.toggleToPlay}
+          trial={editing.trial}
+          playColor={modes.mode.kind === "color" ? modes.mode.color : null}
+          onColor={modes.colorMode}
+          onAlternate={modes.exit}
+          onOpen={() => void openFile().catch(report)}
+          onSave={editing.save}
+          onFox={openFox}
+          onStrength={() => setStrengthOpen(true)}
+          onAutoSetup={() => setTuningOpen(true)}
+          onFlash={() => wholeGame.start(1)}
+          onBackMain={() => bindings.backToMainBranch?.run?.()}
+          onPass={pass}
+          onTsumego={() => tsumego.setOpen(true)}
+        />
+      ) : null}
       <MainPanel
+        hidden={hidden}
         boardSize={board?.width ?? 19}
         boardData={{ "data-revision": revision, "data-node-id": document?.tree.current }}
         onBoardWheel={(event) => {
@@ -567,13 +518,25 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               data-visits={analysis?.visits}
               title={analysis ? messages.board.visits.replace("{visits}", String(analysis.visits)) : undefined}
             >
-              <StatisticsBox board={board} points={points} currentIndex={currentIndex} labels={messages.info} />
+              <StatisticsBox board={board} points={scorePoints} currentIndex={currentIndex} labels={messages.info} />
             </div>
           ),
           graph: (
             <div className="graph-region">
               {quickRunning && quickPass ? <CurveProgress done={quickPass.completed} total={quickPass.total} labels={messages.graph} onStop={wholeGame.cancel} /> : null}
-              {document ? <WinrateGraph graph={document.graph} analysis={analysis} mistakes={mistakes} labels={messages.graph} onJump={jump} /> : null}
+              {document ? (
+                <WinrateGraph
+                  graph={document.graph}
+                  analysis={analysis}
+                  mistakes={mistakes}
+                  mode={shown.winrate_graph_mode}
+                  fill={shown.fill_winrate_graph}
+                  bars={shown.show_blunder_bar}
+                  scoreOffset={scoreOffset}
+                  labels={messages.graph}
+                  onJump={jump}
+                />
+              ) : null}
             </div>
           ),
           comment: (
@@ -602,22 +565,25 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             </NotesPanel>
           ),
           status: (
-            <span data-testid="engine-status" data-state={shownEngine.type} title={engineDetail ?? messages.engine[shownEngine.type]}>
-              <StatusLine text={statusText} />
+            <span data-testid="engine-status" data-state={shownEngine.type} title={status.detail}>
+              <StatusLine text={status.text} />
             </span>
           ),
           board: board ? (
             <Board
               board={board}
               analysis={analysis}
-              coordinates={coordinates}
+              coordinates={shown.show_coordinates}
               ownership={ownership}
-              maxCandidates={MAX_CANDIDATES}
+              maxCandidates={shown.max_suggestions > 0 ? shown.max_suggestions : board.width * board.height}
               label={messages.board.label}
               variation={variation}
               names={boardNames}
               lastRank={lastRank}
               next={nextMoves}
+              nextHint={nextHint}
+              marks={marks}
+              style={style}
               passLabel={messages.board.pass}
               emptyHint={emptyGame ? messages.board.emptyHint : null}
               markup={document?.markup ?? undefined}
@@ -640,45 +606,54 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           subBoard: board ? <SubBoard board={board} node={currentNode} revision={revision} variation={replay} label={messages.tree.subBoard} /> : null,
         }}
       />
-      <BottomToolbar
-        labels={frame.bottom}
-        pondering={livePondering}
-        hasBoard={board !== null}
-        ownership={ownership}
-        coordinates={coordinates}
-        canSetMain={isEnabled(bindings.setAsMain)}
-        canDelete={isEnabled(bindings.delete)}
-        autoAnalysis={
-          <AutoAnalysis
-            ref={setAutoAnalysis}
-            placement="above"
-            progress={quickPass ? null : wholeGame.progress}
-            positions={points.length}
-            labels={messages.review}
-            onStart={wholeGame.start}
-            onPause={wholeGame.pause}
-            onResume={wholeGame.resume}
-            onCancel={wholeGame.cancel}
-            autoCurve={autoCurve}
-            onAutoCurve={(enabled) => {
-              backend
-                .setAutoQuickAnalyzeOnLoad(enabled)
-                .then(setAutoCurve)
-                .catch(report);
-            }}
-          />
-        }
-        onTogglePondering={togglePondering}
-        onToggleOwnership={() => setOwnership((value) => !value)}
-        onToggleCoordinates={() => setCoordinates((value) => !value)}
-        onStep={step}
-        onSetMain={editing.setAsMain}
-        onClear={editing.newBoard}
-        onDelete={editing.deleteMove}
-        trial={editing.trial}
-        onTrial={editing.toggleTrial}
-      />
+      {shown.show_bottom_toolbar ? (
+        <BottomToolbar
+          labels={frame.bottom}
+          pondering={livePondering}
+          hasBoard={board !== null}
+          ownership={ownership}
+          coordinates={shown.show_coordinates}
+          moveNumbers={shown.move_numbers !== "None"}
+          canSetMain={isEnabled(bindings.setAsMain)}
+          canDelete={isEnabled(bindings.delete)}
+          autoAnalysis={
+            <AutoAnalysis
+              ref={setAutoAnalysis}
+              placement="above"
+              progress={quickPass ? null : wholeGame.progress}
+              positions={points.length}
+              labels={messages.review}
+              onStart={wholeGame.start}
+              onPause={wholeGame.pause}
+              onResume={wholeGame.resume}
+              onCancel={wholeGame.cancel}
+              autoCurve={autoCurve}
+              onAutoCurve={(enabled) => {
+                backend
+                  .setAutoQuickAnalyzeOnLoad(enabled)
+                  .then(setAutoCurve)
+                  .catch(report);
+              }}
+            />
+          }
+          onTogglePondering={togglePondering}
+          onToggleOwnership={() => setOwnership((value) => !value)}
+          onToggleCoordinates={() => display.set({ show_coordinates: !shown.show_coordinates })}
+          onToggleMoveNumbers={() => display.set(nextMoveNumbers(shown))}
+          onGotoMove={(n) => {
+            const target = jumpTarget(points, document?.tree.main_line ?? [], n);
+            if (target !== null && target !== current) jump(target);
+          }}
+          onStep={step}
+          onSetMain={editing.setAsMain}
+          onClear={editing.newBoard}
+          onDelete={editing.deleteMove}
+          trial={editing.trial}
+          onTrial={editing.toggleTrial}
+        />
+      ) : null}
       {editing.dialogs}
+      {display.dialog}
       {modes.dialog}
       {boardMenu.menu}
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}
@@ -688,7 +663,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           lines={[fileName(openFailure.path), openFailure.reason]}
           ok={frame.openFailed.ok}
           testId="open-failed"
-          onClose={() => setOpenFailure(null)}
+          onClose={closeOpenFailure}
         />
       ) : null}
       {strengthOpen ? (
@@ -740,8 +715,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onClose={() => setTuningOpen(false)}
         />
       ) : null}
-      {tsumegoOpen ? (
-        <TsumegoDialog options={tsumegoOptions} labels={messages.tsumego} onConfirm={generateTsumego} onClose={() => setTsumegoOpen(false)} />
+      {tsumego.open ? (
+        <TsumegoDialog options={tsumego.options} labels={messages.tsumego} onConfirm={tsumego.generate} onClose={() => tsumego.setOpen(false)} />
       ) : null}
       {setupOpen ? (
         <EngineSetup

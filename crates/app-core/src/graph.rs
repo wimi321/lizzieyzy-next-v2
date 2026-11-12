@@ -9,6 +9,11 @@ use ts_rs::TS;
 pub struct AnalysisSummary {
     pub winrate: f64,
     pub score_lead: f64,
+    /// Legacy LZ may contain winrate only; zero is a compatibility placeholder
+    /// when this flag is false, never an evaluated even score.
+    #[serde(default = "crate::view::score_available")]
+    #[ts(as = "Option<bool>", optional)]
+    pub score_lead_available: bool,
     #[ts(type = "number")]
     pub visits: u64,
 }

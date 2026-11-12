@@ -169,13 +169,15 @@ impl GameDocument {
     /// illegal move. Recomputed without mutating the document or accumulating
     /// duplicates; deleting and restoring a subtree updates its warnings too.
     pub fn warnings(&self) -> Vec<DocumentWarning> {
-        semantics::warnings(
+        let mut warnings = semantics::warnings(
             self.root,
             self.arena
                 .iter()
                 .filter(|node| node.live)
                 .map(|node| (node.id, node.properties.as_slice())),
-        )
+        );
+        warnings.extend(self.analysis_warnings());
+        warnings
     }
 
     pub fn can_undo(&self) -> bool {

@@ -156,9 +156,10 @@ export const foxClearHistory: Backend["foxClearHistory"] = () => invoke("fox_cle
 export const settings: Backend["settings"] = () => invoke("settings");
 
 const SGF_FILTERS = [{ name: "SGF", extensions: ["sgf"] }];
+const GAME_FILTERS = [{ name: "SGF / GIB", extensions: ["sgf", "gib"] }];
 
 export const pickOpenPath: Backend["pickOpenPath"] = async () => {
-  const path = await openDialog({ multiple: false, directory: false, filters: SGF_FILTERS });
+  const path = await openDialog({ multiple: false, directory: false, filters: GAME_FILTERS });
   return typeof path === "string" ? path : null;
 };
 

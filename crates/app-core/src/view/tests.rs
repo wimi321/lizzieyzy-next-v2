@@ -128,12 +128,14 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
         visits: 43,
         visits_per_second: Some(1250.5),
         summary: AnalysisSummary {
+            score_lead_available: true,
             winrate: 0.73,
             score_lead: 5.2,
             visits: 43,
         },
         candidates: vec![
             CandidateView {
+                score_lead_available: true,
                 coordinate: "C3".into(),
                 point: Some(PointView { x: 2, y: 16 }),
                 visits: 31,
@@ -152,6 +154,7 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
                 ],
             },
             CandidateView {
+                score_lead_available: true,
                 coordinate: "pass".into(),
                 point: None,
                 visits: 12,
@@ -283,7 +286,7 @@ fn rectangular_board_ownership_candidates_and_pv_share_top_left_coordinates() {
     let json = serde_json::to_value(&view).unwrap();
     assert_eq!(
         json["summary"],
-        json!({"winrate": 0.7, "score_lead": 4.0, "visits": 50})
+        json!({"winrate": 0.7, "score_lead": 4.0, "score_lead_available": true, "visits": 50})
     );
     assert_eq!(json["candidates"][1]["point"], json!({"x": 8, "y": 4}));
     assert_eq!(
@@ -431,6 +434,7 @@ fn analysis_serialization_preserves_best_summary_separately_from_current_result(
     )
     .unwrap();
     view.summary = AnalysisSummary {
+        score_lead_available: true,
         winrate: 0.9,
         score_lead: 8.0,
         visits: 100,
@@ -442,7 +446,7 @@ fn analysis_serialization_preserves_best_summary_separately_from_current_result(
     assert_eq!(json["data"]["score_lead"], 4.0);
     assert_eq!(
         json["data"]["summary"],
-        json!({"winrate": 0.9, "score_lead": 8.0, "visits": 100})
+        json!({"winrate": 0.9, "score_lead": 8.0, "score_lead_available": true, "visits": 100})
     );
     assert_eq!(serde_json::from_value::<AppEvent>(json).unwrap(), event);
 }

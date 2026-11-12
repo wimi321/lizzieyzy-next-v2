@@ -911,5 +911,17 @@
     "switchStone": "反色",
     "deleteStone": "删除",
     "review": "回看"
+  },
+  "display": {
+    "numbersTitle": "最后N手",
+    "numbersPrompt": "显示最后几手的手数",
+    "ranksTitle": "落子评价标记",
+    "ranksPrompt": "标记最后几手",
+    "minVisitsTitle": "下一手提示",
+    "minVisitsPrompt": "下一手的计算量低于此值时，显示它的胜率和目差",
+    "confirm": "确定",
+    "cancel": "取消",
+    "close": "关闭",
+    "invalid": "请输入 {min} 到 {max} 之间的整数"
   }
 }

@@ -62,7 +62,8 @@ impl Actor {
                     .to_gtp(position.board.size())
                     .map_err(analysis::AnalysisError::from)?,
                 winrate_loss: sign * (before_root.winrate - after_root.winrate) * 100.0,
-                score_loss: Some(sign * (before_root.score_lead - after_root.score_lead)),
+                score_loss: (before.root_has_score() && after.root_has_score())
+                    .then_some(sign * (before_root.score_lead - after_root.score_lead)),
                 move_rank: loss.rank.severity_level(),
                 candidates: candidates
                     .into_iter()
@@ -73,11 +74,13 @@ impl Actor {
                         } else {
                             1.0 - candidate.winrate
                         } * 100.0,
-                        score_lead: Some(if is_black {
-                            candidate.score_lead
-                        } else {
-                            -candidate.score_lead
-                        }),
+                        score_lead: before.candidate_has_score(&candidate.coordinate).then_some(
+                            if is_black {
+                                candidate.score_lead
+                            } else {
+                                -candidate.score_lead
+                            },
+                        ),
                         prior: candidate.prior,
                         order: candidate.order,
                     })

@@ -1,0 +1,1 @@
+java-analysis.sgf: Generated using the unchanged reference SgfAnalysisPayloadWriter.java on Java 17, with synthetic BoardData slots based on SGFAnalysisWrnRoundTripTest (plus prior, pass, PV visits and a White-to-play node); the fixture is not a played game.

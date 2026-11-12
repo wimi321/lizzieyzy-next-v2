@@ -271,7 +271,7 @@ async fn startup_creates_default_config_directory() {
 }
 
 #[tokio::test]
-async fn startup_reports_config_and_document_failures() {
+async fn startup_reports_config_failures_and_keeps_window_for_document_failures() {
     let temp = tempdir().unwrap();
     let file = temp.path().join("not-a-directory");
     std::fs::write(&file, "file").unwrap();
@@ -279,17 +279,31 @@ async fn startup_reports_config_and_document_failures() {
         within(start(StartupOptions::default(), file)).await,
         Err(StartupError::ConfigDirectory { .. })
     ));
-    assert!(matches!(
-        within(start(
-            StartupOptions {
-                config_dir: None,
-                document: Some(temp.path().join("missing.sgf"))
-            },
-            temp.path().join("config"),
-        ))
-        .await,
-        Err(StartupError::Core(error)) if matches!(error.as_ref(), AppError::Io(_))
-    ));
+    let missing = temp.path().join("missing.sgf");
+    let (core, mut output) = within(start(
+        StartupOptions {
+            config_dir: None,
+            document: Some(missing.clone()),
+        },
+        temp.path().join("config"),
+    ))
+    .await
+    .unwrap();
+    within(async {
+        loop {
+            if let AppEvent::OpenFailed { path, reason } = output.recv().await.unwrap() {
+                assert_eq!(path, missing.to_string_lossy());
+                assert!(!reason.is_empty());
+                break;
+            }
+        }
+    })
+    .await;
+    assert_eq!(
+        within(core.open_bytes(b"(;SZ[9])".to_vec())).await.unwrap(),
+        1
+    );
+    within(core.shutdown()).await.unwrap();
     std::fs::write(temp.path().join("settings.json"), "invalid JSON").unwrap();
     assert!(matches!(
         within(start(StartupOptions::default(), temp.path().to_owned())).await,

@@ -49,9 +49,6 @@ type Dialog =
 export interface Editing {
   /** Recently opened or saved games, newest first. */
   recent: readonly string[];
-  /** Whether the two questions are asked; Java's 显示 → 主界面设置 switches. */
-  confirms: Readonly<Record<ConfirmKind, boolean>>;
-  toggleConfirm(kind: ConfirmKind): void;
   /** An empty game of the current size, komi and rules. */
   newBoard(): void;
   openBoardSize(): void;
@@ -94,9 +91,12 @@ export function useEditing(
   ruleNames: Readonly<Record<string, string>>,
   /** Bumped by the app when the recent list may have changed without a document change. */
   recentSignal: unknown,
+  /** Whether the two questions are asked: Java's 显示 → 主界面设置 switches, saved with the display settings. */
+  confirms: Readonly<Record<ConfirmKind, boolean>> = { newBoard: true, replace: true },
+  /** 不再询问 in a question turns its switch off. */
+  onStopAsking: (kind: ConfirmKind) => void = () => {},
 ): Editing {
   const [dialog, setDialog] = useState<Dialog | null>(null);
-  const [confirms, setConfirms] = useState<Record<ConfirmKind, boolean>>({ newBoard: true, replace: true });
   const [recent, setRecent] = useState<readonly string[]>([]);
   const [recentVersion, setRecentVersion] = useState(0);
 
@@ -153,7 +153,7 @@ export function useEditing(
 
   const close = useCallback(() => setDialog(null), []);
   const stopAsking = (kind: ConfirmKind, noAgain: boolean) => {
-    if (noAgain) setConfirms((value) => ({ ...value, [kind]: false }));
+    if (noAgain) onStopAsking(kind);
   };
 
   let dialogs: ReactNode = null;
@@ -201,8 +201,6 @@ export function useEditing(
 
   return {
     recent,
-    confirms,
-    toggleConfirm: (kind) => setConfirms((value) => ({ ...value, [kind]: !value[kind] })),
     newBoard: () => askNewGame(board?.width ?? 19, board?.height ?? 19),
     openBoardSize: () => setDialog({ kind: "boardSize" }),
     openGameInfo: () => {

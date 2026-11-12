@@ -76,13 +76,26 @@ impl Actor {
             return None;
         }
         let size = after_position.board.size();
-        let loss = MoveLoss::between(
+        let mut loss = MoveLoss::between(
             mv,
             size,
             &before.response,
             &after.response,
             &self.settings.move_rank,
         )?;
+        let best = before
+            .response
+            .move_infos
+            .iter()
+            .min_by_key(|candidate| candidate.order)?;
+        if !before.candidate_has_score(&best.coordinate) || !after.root_has_score() {
+            loss.score_loss_available = false;
+            loss.score_loss = 0.0;
+            loss.rank = self
+                .settings
+                .move_rank
+                .classify_losses(loss.winrate_loss, None);
+        }
         Some((mv.to_gtp(size).ok()?, loss))
     }
 

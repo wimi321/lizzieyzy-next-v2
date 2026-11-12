@@ -1,4 +1,4 @@
-import type { AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import type { AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 import { defaultDisplaySettings, emptyStrengthEstimate } from "./fixtures";
 
 export type {
@@ -137,6 +137,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
         try {
           const cloned = structuredClone(event);
           if (cloned.type === "DocumentChanged") fillDocumentDefaults(cloned.data.view);
+          if (cloned.type === "AnalysisUpdated") fillAnalysisDefaults(cloned.data);
           listener(cloned);
         } catch (error) {
           console.error("Backend event listener failed", error);
@@ -185,6 +186,8 @@ async function command<K extends CommandName>(
     lastAnalysisState = structuredClone(next.result);
   }
   const cloned = structuredClone(result);
+  if (next.command === "wholeGameResult" && cloned) fillAnalysisDefaults(cloned as AnalysisView);
+  if (next.command === "problemMoves" && cloned) fillLossDefaults(cloned as ProblemMovesView);
   if (next.command === "variationTree") fillTreeDefaults(cloned as VariationTreeView);
   if (next.command === "settings") defaultField(cloned as Settings, "recent_files", []);
   return cloned as Awaited<ReturnType<Backend[K]>>;
@@ -210,7 +213,22 @@ function fillDocumentDefaults(view: DocumentView): void {
   defaultField(view.game_info, "rules_preset", "chinese");
   defaultField(view.tree, "comment_revision", 0);
   defaultField(view.tree, "branch_start_move_number", null);
+  for (const point of view.graph.points) {
+    if (point.summary) defaultField(point.summary, "score_lead_available", true);
+  }
   if (view.board) fillBoardDefaults(view.board);
+}
+
+function fillAnalysisDefaults(view: AnalysisView): void {
+  defaultField(view.summary, "score_lead_available", true);
+  for (const candidate of view.candidates) defaultField(candidate, "score_lead_available", true);
+}
+
+function fillLossDefaults(view: ProblemMovesView): void {
+  for (const entry of view.entries) defaultField(entry.loss, "score_loss_available", true);
+  for (const point of view.error_bar) {
+    if (point.loss) defaultField(point.loss, "score_loss_available", true);
+  }
 }
 
 function fillBoardDefaults(board: BoardView): void {
@@ -268,7 +286,9 @@ function query<K extends "variationTree" | "previewVariation" | "engineDisplayNa
   fallback: () => Awaited<ReturnType<Backend[K]>>,
 ): Promise<Awaited<ReturnType<Backend[K]>>> {
   if (commands[0]?.command === name) return command(name, args);
-  return Promise.resolve(structuredClone(fallback()));
+  const cloned = structuredClone(fallback());
+  if (name === "problemMoves") fillLossDefaults(cloned as ProblemMovesView);
+  return Promise.resolve(cloned);
 }
 
 /** The main line of the last document as a branchless tree; moves are unknown to the mock. */
