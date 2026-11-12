@@ -5,6 +5,7 @@ import type {
   CandidateView,
   ColorView,
   DocumentView,
+  DisplaySettings,
   GraphView,
   FoxSearchResult,
   MoveView,
@@ -21,6 +22,44 @@ import type {
 } from "../src/api/backend";
 
 type Stone = [x: number, y: number, color: ColorView];
+
+/** P2-06 fixture defaults; Rust owns validation and persistence. */
+export const defaultDisplaySettings: Required<DisplaySettings> = {
+  show_coordinates: true,
+  move_numbers: "None",
+  last_move_numbers: 1,
+  move_numbers_from_one: false,
+  branch_move_numbers_from_one: true,
+  show_all_branch_move_numbers: false,
+  move_rank_marks: "LastOne",
+  last_move_rank_marks: 3,
+  show_winrate_in_suggestion: true,
+  show_visits_in_suggestion: true,
+  show_score_in_suggestion: true,
+  show_score_as_diff: false,
+  show_suggestion_order: true,
+  winrate_always_black: false,
+  show_hover_variation: true,
+  show_sub_board: true,
+  max_suggestions: 10,
+  suggestion_max_red: false,
+  next_moves: "Evaluation",
+  next_move_min_visits: 30,
+  show_winrate_graph: true,
+  show_comment: true,
+  show_variation_graph: true,
+  show_information_panel: true,
+  show_status_bar: true,
+  show_top_toolbar: true,
+  show_bottom_toolbar: true,
+  winrate_graph_mode: "Both",
+  fill_winrate_graph: true,
+  show_blunder_bar: false,
+  score_lead_includes_komi: true,
+  confirm_new_board: true,
+  confirm_overwrite: true,
+  show_names_below_board: true,
+};
 
 /** Scripted Fox reply for UI tests; network parsing remains in Rust. */
 export function foxSearchResult(): FoxSearchResult {

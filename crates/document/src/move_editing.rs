@@ -56,57 +56,24 @@ impl GameDocument {
         Ok(trial)
     }
 
-    /// Walks only the current ancestor path. Captures and explicit setup at the
-    /// queried point clear provenance, even if setup replaces it with its color.
+    /// Reuses provenance computed during ordinary position replay. Captures
+    /// and explicit setup clear it, even when setup writes the same color.
     pub fn stone_origin(&self, point: Point) -> Result<Option<StoneOrigin>, DocError> {
-        let mut path = Vec::new();
-        let mut next = Some(self.current);
-        while let Some(id) = next {
-            let node = self.node(id)?;
-            path.push(node);
-            next = node.parent;
-        }
-        path.reverse();
-        let mut position = semantics::replay([(self.root, self.node(self.root)?.properties())])?;
+        let position = self.position_at(self.current)?;
         validate_point(self.current, point, position.board.size())?;
-        let mut origin = None;
-        for node in path {
-            if node.id != self.root {
-                semantics::apply_node(&mut position, node.id, &node.properties)?;
-            }
-            for property in node
-                .properties
-                .iter()
-                .filter(|property| matches!(property.identifier.as_str(), "AB" | "AW" | "AE"))
-            {
-                for value in &property.values {
-                    if semantics::setup_points(
-                        node.id,
-                        &property.identifier,
-                        value,
-                        position.board.size(),
-                    )?
-                    .contains(&point)
-                    {
-                        origin = None;
-                    }
-                }
-            }
-            if let Some(Move::Play(_, played)) =
-                semantics::recorded_move(node.id, &node.properties, position.board.size())?
-                && played == point
-            {
-                origin = Some(StoneOrigin {
-                    node: node.id,
-                    move_number: position.moves.len(),
-                    review_parent: node.parent,
-                });
-            }
-            if position.board.stone_at(point).is_none() {
-                origin = None;
-            }
-        }
-        Ok(origin)
+        let index =
+            usize::from(point.y) * usize::from(position.board.size().width) + usize::from(point.x);
+        let (Some(node), Some(move_number)) = (
+            position.stone_node_ids[index],
+            position.stone_move_numbers[index],
+        ) else {
+            return Ok(None);
+        };
+        Ok(Some(StoneOrigin {
+            node,
+            move_number,
+            review_parent: self.node(node)?.parent,
+        }))
     }
 
     pub(crate) fn prepare_insert_move(&self, mv: Move) -> Result<Edit, DocError> {

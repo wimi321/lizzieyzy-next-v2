@@ -1,4 +1,4 @@
-use go_core::{BoardSize, Color, Move, Point, Position};
+use go_core::{BoardSize, Color, Move, PlayOutcome, Point, Position};
 use sgf::Property;
 
 use crate::{Captures, DocError, DocumentWarning, GamePosition, NodeId, metadata};
@@ -28,6 +28,8 @@ pub(crate) fn replay<'a>(
         .map_err(|reason| DocError::InvalidSetup { node: root, reason })?;
     let mut position = GamePosition {
         board,
+        stone_move_numbers: vec![None; size.area()],
+        stone_node_ids: vec![None; size.area()],
         moves: Vec::new(),
         initial_stones: Vec::new(),
         initial_player,
@@ -121,6 +123,12 @@ pub(crate) fn apply_node_with_rules(
         position.initial_stones = initial_stones;
         position.initial_player = player;
         position.analysis_moves.clear();
+        for (index, changed) in seen.into_iter().enumerate() {
+            if changed {
+                position.stone_move_numbers[index] = None;
+                position.stone_node_ids[index] = None;
+            }
+        }
     }
 
     let Some(mv) = recorded_move(node, properties, size)? else {
@@ -144,7 +152,29 @@ pub(crate) fn apply_node_with_rules(
     }
     position.moves.push(mv);
     position.analysis_moves.push(mv);
+    record_move_origin(position, mv, &outcome, position.moves.len(), Some(node));
     Ok(())
+}
+
+/// Update the two board-sized provenance arrays with the same move outcome
+/// that replay/preview already obtained. No ancestor or board replay is needed.
+pub(crate) fn record_move_origin(
+    position: &mut GamePosition,
+    mv: Move,
+    outcome: &PlayOutcome,
+    move_number: usize,
+    node: Option<NodeId>,
+) {
+    let width = usize::from(position.board.size().width);
+    let index = |point: Point| usize::from(point.y) * width + usize::from(point.x);
+    if let Move::Play(_, point) = mv {
+        position.stone_move_numbers[index(point)] = Some(move_number);
+        position.stone_node_ids[index(point)] = node;
+    }
+    for &point in outcome.captured.iter().chain(&outcome.self_captured) {
+        position.stone_move_numbers[index(point)] = None;
+        position.stone_node_ids[index(point)] = None;
+    }
 }
 
 /// Decode a recorded move without replaying its ancestors or checking legality.

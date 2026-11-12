@@ -73,6 +73,7 @@
     "allow-fox-open-game",
     "allow-fox-clear-history",
     "allow-settings",
+    "allow-set-display-settings",
     "allow-auto-quick-analyze-on-load",
     "allow-set-auto-quick-analyze-on-load",
     "allow-subscribe",

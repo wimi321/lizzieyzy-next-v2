@@ -16,4 +16,9 @@ main_line: Array<number>,
 /**
  * Number of direct children of the current node, including the main line.
  */
-variation_count: number, };
+variation_count: number, 
+/**
+ * First move after leaving the root's first-child main line. An empty
+ * branch starts numbering at its next move; nested branches keep this base.
+ */
+branch_start_move_number?: number | null, };
