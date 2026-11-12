@@ -34,12 +34,19 @@ export interface BottomToolbarProps {
   hasBoard: boolean;
   ownership: boolean;
   coordinates: boolean;
+  /** Off the main line there is a branch to promote. */
+  canSetMain: boolean;
+  /** Anywhere but the root there is a move to delete. */
+  canDelete: boolean;
   /** The 自动分析 entry, which keeps its own panel. */
   autoAnalysis: ReactNode;
   onTogglePondering(): void;
   onToggleOwnership(): void;
   onToggleCoordinates(): void;
   onStep(steps: number): void;
+  onSetMain(): void;
+  onClear(): void;
+  onDelete(): void;
 }
 
 const NAVIGATION: { key: keyof BottomToolbarLabels; text: string; steps: number }[] = [
@@ -88,7 +95,7 @@ function MoreButton({ labels }: { labels: BottomToolbarLabels }) {
 }
 
 /** LizzieYzy Next's bottom toolbar with its default buttons (`BottomToolbar`, `Config`). */
-export function BottomToolbar({ labels, pondering, hasBoard, ownership, coordinates, autoAnalysis, ...on }: BottomToolbarProps) {
+export function BottomToolbar({ labels, pondering, hasBoard, ownership, coordinates, canSetMain, canDelete, autoAnalysis, ...on }: BottomToolbarProps) {
   return (
     <div className="jt-bottom" role="toolbar" data-testid="bottom-toolbar">
       <div className="jt-group">
@@ -126,11 +133,11 @@ export function BottomToolbar({ labels, pondering, hasBoard, ownership, coordina
         <ToolButton className="jt-optional" label={labels.autoPlay} enabled={false} />
       </div>
       <div className="jt-group" data-align="end">
-        <ToolButton className="jt-optional" label={labels.setMain} enabled={false} />
+        <ToolButton className="jt-optional" label={labels.setMain} enabled={canSetMain} testId="bottom-set-main" onClick={on.onSetMain} />
         <ToolButton label={labels.move} enabled={false} />
         <ToolButton label={labels.coords} pressed={coordinates} testId="toggle-coordinates" onClick={on.onToggleCoordinates} />
-        <ToolButton role="danger" label={labels.clear} enabled={false} />
-        <ToolButton role="danger" label={labels.delete} enabled={false} />
+        <ToolButton role="danger" label={labels.clear} testId="bottom-clear" onClick={on.onClear} />
+        <ToolButton role="danger" label={labels.delete} enabled={canDelete} testId="bottom-delete" onClick={on.onDelete} />
         <MoreButton labels={labels} />
       </div>
     </div>

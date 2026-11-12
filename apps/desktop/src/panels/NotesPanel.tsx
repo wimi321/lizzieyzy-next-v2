@@ -4,6 +4,17 @@ export interface NotesLabels {
   comment: string;
   problems: string;
   noComment: string;
+  editHint: string;
+}
+
+/** The comment while it is being edited: Java swaps the text for an editor in place. */
+export interface CommentEditor {
+  text: string;
+  onChange(text: string): void;
+  /** Leaving the editor saves; Ctrl+Enter does too. */
+  onCommit(): void;
+  /** Escape puts the comment back as it was. */
+  onCancel(): void;
 }
 
 export interface ReviewStatus {
@@ -21,6 +32,10 @@ export interface NotesPanelProps {
   summary: readonly string[];
   /** The comment recorded in the game for the current move. */
   comment: string | null;
+  /** Set while the comment is being edited. */
+  editor?: CommentEditor | null;
+  /** A click on the comment starts editing it; absent when there is no game to edit. */
+  onEdit?(): void;
   labels: NotesLabels;
   /** The problem-move list, shown on its tab. */
   children: ReactNode;
@@ -30,7 +45,7 @@ export interface NotesPanelProps {
  * LizzieYzy Next's sidebar under the graph: 评论 and 问题手 tabs with the evaluation state beside
  * them. The comment tab opens with the analysis note on the move, then the game's own comment.
  */
-export function NotesPanel({ tab, onTab, problemCount, status, summary, comment, labels, children }: NotesPanelProps) {
+export function NotesPanel({ tab, onTab, problemCount, status, summary, comment, editor = null, onEdit, labels, children }: NotesPanelProps) {
   return (
     <section className="notes">
       <header className="notes-head">
@@ -59,7 +74,30 @@ export function NotesPanel({ tab, onTab, problemCount, status, summary, comment,
               {summary.join("\n")}
             </p>
           ) : null}
-          {comment ? <p className="notes-text">{comment}</p> : summary.length === 0 ? <p className="panel-empty">{labels.noComment}</p> : null}
+          {editor ? (
+            <textarea
+              className="notes-editor"
+              data-testid="comment-editor"
+              aria-label={labels.comment}
+              autoFocus
+              value={editor.text}
+              onChange={(event) => editor.onChange(event.target.value)}
+              onBlur={editor.onCommit}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  editor.onCancel();
+                } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                  event.preventDefault();
+                  editor.onCommit();
+                }
+              }}
+            />
+          ) : (
+            <div className="notes-text" data-testid="comment-text" data-editable={onEdit ? "" : undefined} title={onEdit ? labels.editHint : undefined} onClick={onEdit}>
+              {comment ? <p>{comment}</p> : <p className="panel-empty">{labels.noComment}</p>}
+            </div>
+          )}
         </div>
       )}
     </section>

@@ -15,6 +15,8 @@ export type MenuEntry =
       readonly text?: string;
       /** Appended to the label, as Java appends current values. */
       readonly suffix?: string;
+      /** Shown on hover, e.g. a recent file's whole path. */
+      readonly title?: string;
     }
   | {
       readonly kind: "submenu";
@@ -470,6 +472,46 @@ function without(menu: MenuSubmenu, ids: ReadonlySet<string>): MenuSubmenu {
     .filter((entry) => entry.kind === "separator" || !ids.has(entry.id))
     .map((entry) => (entry.kind === "submenu" ? without(entry, ids) : entry));
   return { ...menu, items };
+}
+
+export interface EditingMenuText {
+  undo: string;
+  redo: string;
+  recentEmpty: string;
+  clearRecent: string;
+}
+
+function fileName(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
+
+function rewrite(menu: MenuSubmenu, change: (entry: MenuEntry) => MenuEntry): MenuSubmenu {
+  return { ...menu, items: menu.items.map((entry) => change(entry.kind === "submenu" ? rewrite(entry, change) : entry)) };
+}
+
+/**
+ * The entries that depend on the running app: 最近打开 lists the recent games by file name
+ * (ids `recent0`…, the whole path on hover) above 清空列表, and Java's 撤销删除 / 恢复删除 are
+ * worded for what they do here, which is undo and redo any edit.
+ */
+export function withEditing(menus: readonly MenuSubmenu[], recent: readonly string[], text: EditingMenuText): MenuSubmenu[] {
+  const files: MenuEntry[] =
+    recent.length === 0
+      ? [item("recentEmpty", null, undefined, text.recentEmpty)]
+      : [
+          ...recent.map((path, index): MenuEntry => ({ kind: "item", id: `recent${index}`, key: null, text: fileName(path), title: path })),
+          SEP,
+          item("clearRecent", null, undefined, text.clearRecent),
+        ];
+  return menus.map((menu) =>
+    rewrite(menu, (entry) => {
+      if (entry.kind === "separator") return entry;
+      if (entry.id === "openRecent" && entry.kind === "submenu") return { ...entry, items: files };
+      if (entry.id === "undoDelete") return item("undoDelete", null, undefined, text.undo);
+      if (entry.id === "redoDelete") return item("redoDelete", null, undefined, text.redo);
+      return entry;
+    }),
+  );
 }
 
 /** The menus as Java builds them on this platform. */

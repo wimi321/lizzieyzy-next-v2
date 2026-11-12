@@ -834,6 +834,36 @@
     "lead": "领先: {lead}",
     "engine": "({engine} / {visits} 计算量)",
     "visits": "({visits} 计算量)",
-    "komi": "贴目: {komi}"
+    "komi": "贴目: {komi}",
+    "editHint": "点击编辑评论"
+  },
+  "edit": {
+    "confirm": "确定",
+    "cancel": "取消",
+    "close": "关闭",
+    "noAgain": "不再提示",
+    "newBoardTitle": "新的棋盘?",
+    "newBoardMessage": "此操作将会清空棋盘和所有分析,是否继续?",
+    "replaceTitle": "覆盖原文件?",
+    "replaceNotice": "注: 如果需要保留原文件,请使用 \"菜单-文件-另存为\"",
+    "boardSizeTitle": "设置棋盘大小",
+    "other": "其他",
+    "sizeInvalid": "宽和高要在 2 到 25 之间",
+    "infoTitle": "棋局信息",
+    "blackName": "黑方",
+    "blackRank": "黑方段位",
+    "whiteName": "白方",
+    "whiteRank": "白方段位",
+    "komi": "贴目",
+    "rules": "规则",
+    "result": "结果",
+    "date": "日期",
+    "event": "赛事",
+    "komiInvalid": "贴目要是一个数字",
+    "failed": "没有改成",
+    "undo": "撤销编辑",
+    "redo": "恢复编辑",
+    "recentEmpty": "(还没有打开过棋谱)",
+    "clearRecent": "清空列表"
   }
 }

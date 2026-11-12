@@ -388,6 +388,7 @@ function MenuRow({ id, entry, text, enabled, checked, active, expanded, register
       aria-disabled={enabled ? undefined : true}
       aria-haspopup={submenu ? "menu" : undefined}
       aria-expanded={submenu ? expanded : undefined}
+      title={entry.kind === "submenu" ? undefined : entry.title}
       data-menu-id={entry.id}
       data-active={active || undefined}
       onMouseEnter={onHover}

@@ -5,6 +5,8 @@ import { Board } from "./board/Board";
 import type { NextMove } from "./board/draw";
 import { SubBoard } from "./board/SubBoard";
 import { useVariationPreview } from "./board/useVariationPreview";
+import { useCommentEdit } from "./edit/useCommentEdit";
+import { useEditing } from "./edit/useEditing";
 import { FoxDialog } from "./fox/FoxDialog";
 import { CurveProgress } from "./graph/CurveProgress";
 import { liveGraph } from "./graph/scale";
@@ -14,7 +16,7 @@ import { AboutDialog } from "./menu/AboutDialog";
 import { isEnabled, menuBindings } from "./menu/bindings";
 import { MenuBar } from "./menu/MenuBar";
 import { useShortcuts } from "./menu/shortcuts";
-import { engineMenu, menusFor } from "./menu/spec";
+import { useMenus } from "./menu/useMenus";
 import { analysisSummary } from "./panels/info";
 import { CapturedBox, StatisticsBox } from "./panels/InfoPanel";
 import { MoveTree } from "./panels/MoveTree";
@@ -182,21 +184,22 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     };
   }, []);
 
-  // The tree is fetched only when its structure changes, never on plain navigation.
+  // The tree is fetched when its structure or its comment marks change, never on plain navigation.
   const structure = document?.tree.structure_revision;
+  const commentMarks = document?.tree.comment_revision ?? 0;
   useEffect(() => {
     if (structure === undefined) return;
     let active = true;
     backend
       .variationTree()
       .then((view) => {
-        if (active && view.revision === structure) setTree(view);
+        if (active && view.revision === structure && (view.comment_revision ?? 0) === commentMarks) setTree(view);
       })
       .catch(report);
     return () => {
       active = false;
     };
-  }, [structure]);
+  }, [structure, commentMarks]);
 
   // Rust ends a problem when another game is opened; while one is on, re-read its status.
   const framing = tsumego !== null;
@@ -214,7 +217,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     };
   }, [framing, revision]);
 
+  // A comment being edited is saved before the app moves to another move by itself.
+  const comment = useCommentEdit(backend, document);
   const step = (steps: number) => {
+    comment.commit();
     backend.step(steps).catch(report);
   };
   const generateTsumego = async (options: TsumegoOptions) => {
@@ -294,10 +300,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     const path = await backend.pickOpenPath();
     if (path) await backend.openPath(path);
   };
-  const saveFile = async () => {
-    const path = await backend.pickSavePath();
-    if (path) await backend.save(path);
-  };
+  const editing = useEditing(backend, document, emptyGame, messages.edit, messages.info.rules, openFailure);
   // Space and the chip resume a limit stop without changing the saved setting.
   const togglePondering = run.toggle;
   const livePondering = run.state?.pondering ?? pondering;
@@ -312,6 +315,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       .catch(report);
   };
   const jump = (nodeId: number) => {
+    comment.commit();
     backend.goTo(nodeId).catch(report);
   };
   const pass = () => {
@@ -338,12 +342,29 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       windows: WINDOWS,
       syncPhase: sync.status?.phase ?? "Stopped",
       syncOptions,
-      tree: tree && document && tree.revision === document.tree.structure_revision ? tree : null,
+      tree: liveTree,
       current,
+      canUndo: document?.can_undo ?? false,
+      canRedo: document?.can_redo ?? false,
+      recent: editing.recent,
+      confirmNewBoard: editing.confirms.newBoard,
+      confirmReplace: editing.confirms.replace,
     },
     {
       open: () => void openFile().catch(report),
-      saveAs: () => void saveFile().catch(report),
+      openRecent: editing.openRecent,
+      clearRecent: editing.clearRecent,
+      newBoard: editing.newBoard,
+      setBoardSize: editing.openBoardSize,
+      editGameInfo: editing.openGameInfo,
+      save: editing.save,
+      saveAs: editing.saveAs,
+      deleteMove: editing.deleteMove,
+      deleteBranch: editing.deleteBranch,
+      setAsMain: editing.setAsMain,
+      undo: editing.undo,
+      redo: editing.redo,
+      toggleConfirm: editing.toggleConfirm,
       quit: () => void backend.quit().catch(report),
       toggleCoordinates: () => setCoordinates((value) => !value),
       setOwnership,
@@ -372,11 +393,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       openAbout: () => setAboutOpen(true),
     },
   );
-  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen || tuningOpen || settingsOpen));
+  useShortcuts(bindings, !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumegoOpen || tuningOpen || settingsOpen || editing.dialogOpen));
   const frame = messages.frame;
   const engineLabel = useEngineName(backend, profile, frame.engineNames);
   // "No engine" is for no engine: one that Rust has not named yet shows without a name.
-  const menus = useMemo(() => [...menusFor(WINDOWS), engineMenu(engineLabel ?? (profile ? "" : null))], [engineLabel, profile]);
+  const menus = useMenus(WINDOWS, editing.recent, messages.edit, engineLabel ?? (profile ? "" : null));
   const autoAnalyzing = quickRunning || wholeGameStatus === "Running";
   // Java's title: "[Black's winrate, lead, visits] engine speed - [黑] A vs [白] B (结果:…)".
   const title = windowTitle({
@@ -474,8 +495,12 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         hasBoard={board !== null}
         offMainLine={isEnabled(bindings.backToMainBranch)}
         komi={info?.komi ?? null}
+        onNew={editing.newBoard}
+        onSetMain={editing.setAsMain}
+        onKomi={editing.setKomi}
+        onBoardSize={editing.openBoardSize}
         onOpen={() => void openFile().catch(report)}
-        onSave={() => void saveFile().catch(report)}
+        onSave={editing.save}
         onFox={openFox}
         onStrength={() => setStrengthOpen(true)}
         onAutoSetup={() => setTuningOpen(true)}
@@ -531,6 +556,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               status={reviewStatus}
               summary={summaryLines}
               comment={document?.comment ?? null}
+              editor={comment.text === null ? null : { text: comment.text, onChange: comment.change, onCommit: comment.commit, onCancel: comment.cancel }}
+              onEdit={document ? comment.begin : undefined}
               labels={messages.notes}
             >
               <ProblemList
@@ -585,6 +612,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         hasBoard={board !== null}
         ownership={ownership}
         coordinates={coordinates}
+        canSetMain={isEnabled(bindings.setAsMain)}
+        canDelete={isEnabled(bindings.delete)}
         autoAnalysis={
           <AutoAnalysis
             ref={setAutoAnalysis}
@@ -609,7 +638,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         onToggleOwnership={() => setOwnership((value) => !value)}
         onToggleCoordinates={() => setCoordinates((value) => !value)}
         onStep={step}
+        onSetMain={editing.setAsMain}
+        onClear={editing.newBoard}
+        onDelete={editing.deleteMove}
       />
+      {editing.dialogs}
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}
       {openFailure ? (
         <MessageBox

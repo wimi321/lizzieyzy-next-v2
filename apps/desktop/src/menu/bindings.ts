@@ -34,11 +34,30 @@ export interface MenuState {
   syncOptions: { always_sync: boolean; always_goto_last: boolean };
   tree: VariationTreeView | null;
   current: number | null;
+  canUndo: boolean;
+  canRedo: boolean;
+  /** Recently opened games, newest first: entries `recent0`… of 最近打开. */
+  recent: readonly string[];
+  /** Whether a new board and writing over the game's file are confirmed first. */
+  confirmNewBoard: boolean;
+  confirmReplace: boolean;
 }
 
 export interface MenuActions {
   open(): void;
+  openRecent(path: string): void;
+  clearRecent(): void;
+  newBoard(): void;
+  setBoardSize(): void;
+  editGameInfo(): void;
+  save(): void;
   saveAs(): void;
+  deleteMove(): void;
+  deleteBranch(): void;
+  setAsMain(): void;
+  undo(): void;
+  redo(): void;
+  toggleConfirm(kind: "newBoard" | "replace"): void;
   quit(): void;
   toggleCoordinates(): void;
   setOwnership(visible: boolean): void;
@@ -82,11 +101,19 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
   };
   const step = (steps: number) => when(state.hasDocument, () => actions.step(steps));
   const always: MenuBinding = { checked: true };
+  // The root is the game itself; it is cleared, not deleted.
+  const deletable = navigable && current !== tree.root;
+  const recent: Record<string, MenuBinding> = {};
+  state.recent.forEach((path, index) => {
+    recent[`recent${index}`] = when(true, () => actions.openRecent(path));
+  });
+  if (state.recent.length > 0) recent.clearRecent = when(true, actions.clearRecent);
 
   return {
+    newBoard: when(true, actions.newBoard),
     open: when(true, actions.open),
-    // There is no remembered file to write back to yet, so saving always asks where.
-    save: when(state.hasDocument, actions.saveAs),
+    ...recent,
+    save: when(state.hasDocument, actions.save),
     saveAs: when(state.hasDocument, actions.saveAs),
     exit: when(true, actions.quit),
 
@@ -97,6 +124,8 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     informationPane: always,
     coordsMenu: { run: actions.toggleCoordinates, checked: state.coordinates },
     showVariationOnMouse: always,
+    showNewBoardConfirmDialog: { run: () => actions.toggleConfirm("newBoard"), checked: state.confirmNewBoard },
+    showReplaceFileConfirmDialog: { run: () => actions.toggleConfirm("replace"), checked: state.confirmReplace },
     kataEstimateClose: { run: () => actions.setOwnership(false), checked: !state.ownership },
     kataEstimateOnMainBoard: { run: () => actions.setOwnership(true), checked: state.ownership },
 
@@ -114,7 +143,16 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     autoSetup: when(state.engineConfigured, actions.openBenchmark),
     comprehensiveSettings: when(true, actions.openSettings),
 
+    clearBoard: when(true, actions.newBoard),
     backToMainBranch: when(trunk !== null, goTo(trunk)),
+    // Off the main line there is something to promote.
+    setAsMain: when(trunk !== null, actions.setAsMain),
+    delete: when(deletable, actions.deleteMove),
+    deleteBranch: when(deletable, actions.deleteBranch),
+    undoDelete: when(state.canUndo, actions.undo),
+    redoDelete: when(state.canRedo, actions.redo),
+    setInfo: when(state.hasDocument, actions.editGameInfo),
+    setBoard: when(true, actions.setBoardSize),
     jumpToFirst: step(-JUMP),
     jumpToLast: step(JUMP),
     jumpToLeft: when(left !== null, goTo(left)),
