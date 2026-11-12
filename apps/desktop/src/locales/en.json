@@ -793,7 +793,9 @@
       "previous": "Previous move",
       "next": "Next move",
       "forward10": "Forward ten moves",
-      "last": "Last move"
+      "last": "Last move",
+      "tryPlay": "Try",
+      "tryBack": "Restore"
     },
     "status": {
       "analyzing": "Analyzing",
@@ -809,7 +811,8 @@
       "white": "W",
       "result": "Result:",
       "speedUnit": "visits/s",
-      "b11": "B11: lower speed, stronger play"
+      "b11": "B11: lower speed, stronger play",
+      "trial": "Trying..."
     },
     "engineNames": {
       "b10-lightweight": "Transformer 10B Lightweight",
@@ -864,6 +867,49 @@
     "undo": "Undo edit",
     "redo": "Redo edit",
     "recentEmpty": "(No games opened yet)",
-    "clearRecent": "Clear list"
+    "clearRecent": "Clear list",
+    "trialActive": "Trying",
+    "trialBack": "Restore",
+    "trialHint": "Trial play leaves the game alone; Restore goes back to its move"
+  },
+  "modes": {
+    "setupTitle": "Starting position",
+    "setupBlack": "Place black stone",
+    "setupWhite": "Place white stone",
+    "setupErase": "Erase stone",
+    "blackFirst": "Black first",
+    "whiteFirst": "White first",
+    "clearSetup": "Clear",
+    "convertTitle": "Set current board as starting position",
+    "convertMessage": "This will clear all moves, passes, and variations. Continue?",
+    "markupTitle": "Markup",
+    "markupLetter": "Letter markup",
+    "markupNumber": "Number markup",
+    "markupCross": "Cross markup",
+    "markupSquare": "Square markup",
+    "markupTriangle": "Triangle markup",
+    "markupCircle": "Circle markup",
+    "markupEraser": "Eraser",
+    "clearMarkup": "Clear markup",
+    "done": "Done",
+    "doneHint": "Done (Esc)",
+    "confirm": "OK",
+    "cancel": "Cancel",
+    "colorTitle": "Add stones",
+    "insertTitle": "Insert stones",
+    "black": "Black",
+    "white": "White",
+    "moveTitle": "Move: click where it goes"
+  },
+  "boardMenu": {
+    "insertBlack": "Insert black",
+    "insertWhite": "Insert white",
+    "addBranch": "Add as branch",
+    "previousMove": "Back one move",
+    "findStone": "Go to this move",
+    "moveStone": "Move",
+    "switchStone": "Switch color",
+    "deleteStone": "Delete",
+    "review": "Review"
   }
 }

@@ -1,8 +1,9 @@
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { AnalysisView, BoardView, MoveRank, PointView, VariationPreviewView } from "@/api/backend";
+import type { AnalysisView, BoardView, MarkupView, MoveRank, PointView, VariationPreviewView } from "@/api/backend";
 import { useBoardAssets, useElementSize } from "./assets";
 import { drawGoban, drawOverlay, drawStones, type Names, type NextMove, prepare } from "./draw";
 import { computeGeometry, pixelToPoint, pointIndex } from "./geometry";
+import { drawMarkup } from "./markup";
 
 export interface BoardProps {
   board: BoardView;
@@ -24,10 +25,22 @@ export interface BoardProps {
   passLabel?: string;
   /** Hint for an empty game; shown only while there is no analysis to show. */
   emptyHint?: string | null;
+  /** The current move's triangles, squares, circles, crosses and labels. */
+  markup?: readonly MarkupView[];
+  /**
+   * A setup or markup tool is in hand: every click, on a stone or not, goes to `onPoint`, and
+   * candidates show no variation.
+   */
+  editing?: boolean;
+  onPoint?(point: PointView): void;
+  /** A right click on the board, at a point, with the pointer's position for a menu. */
+  onContextMenu?(point: PointView, x: number, y: number): void;
   /** The candidate under the pointer, so the app can ask Rust for its variation. */
   onHoverCandidate?(point: PointView | null): void;
   onPlay(point: PointView): void;
 }
+
+const NO_MARKUP: readonly MarkupView[] = [];
 
 const NO_NEXT: NextMove[] = [];
 
@@ -50,6 +63,10 @@ export function Board({
   next = NO_NEXT,
   passLabel = "Pass",
   emptyHint = null,
+  markup = NO_MARKUP,
+  editing = false,
+  onPoint,
+  onContextMenu,
   onHoverCandidate,
   onPlay,
 }: BoardProps) {
@@ -69,7 +86,8 @@ export function Board({
   // Canvas pixels per CSS pixel, as laid out: the pointer and E2E speak CSS pixels.
   const scale = size.width > 0 ? size.deviceWidth / size.width : 1;
 
-  const target = hover ?? preview;
+  // With a tool in hand the board shows the game itself, never a candidate's variation.
+  const target = editing ? null : (hover ?? preview);
   // The replay replaces the stones while a candidate is previewed.
   const shown = target && variation ? variation : null;
   const stones = shown ? shown.board : board;
@@ -105,9 +123,11 @@ export function Board({
         emptyHint,
         dpr: geometry.dpr,
       });
+      // Java hides the markup while a variation is shown.
+      if (!shown) drawMarkup(context, geometry, images, board, markup);
     });
     return () => cancelAnimationFrame(frame);
-  }, [geometry, images, fonts, board, analysis, ownership, maxCandidates, target, shown, lastRank, next, passLabel, emptyHint]);
+  }, [geometry, images, fonts, board, analysis, ownership, maxCandidates, target, shown, lastRank, next, passLabel, emptyHint, markup]);
 
   const pointAt = (event: MouseEvent<HTMLElement>): PointView | null => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -115,6 +135,7 @@ export function Board({
   };
 
   const onMouseMove = (event: MouseEvent<HTMLElement>) => {
+    if (editing) return;
     const point = pointAt(event);
     const candidate = point && analysis?.candidates.some((c) => c.point?.x === point.x && c.point?.y === point.y);
     const nextHover = candidate ? point : null;
@@ -131,7 +152,9 @@ export function Board({
 
   const onClick = (event: MouseEvent<HTMLElement>) => {
     const point = pointAt(event);
-    if (point && !board.stones[pointIndex(board.width, point)]) onPlay(point);
+    if (!point) return;
+    if (editing) onPoint?.(point);
+    else if (!board.stones[pointIndex(board.width, point)]) onPlay(point);
   };
 
   return (
@@ -144,6 +167,7 @@ export function Board({
       data-columns={board.width}
       data-rows={board.height}
       data-ready={images && fonts > 0 ? "true" : "false"}
+      data-editing={editing || undefined}
       // What the analysis layer was given, so E2E can wait for it before comparing pixels.
       data-last-rank={lastRank ?? ""}
       data-next-moves={next.length}
@@ -154,6 +178,11 @@ export function Board({
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       onClick={onClick}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        const point = pointAt(event);
+        if (point) onContextMenu?.(point, event.clientX, event.clientY);
+      }}
     >
       <canvas ref={gobanCanvas} className="board-layer" />
       <canvas ref={stoneCanvas} className="board-layer" />

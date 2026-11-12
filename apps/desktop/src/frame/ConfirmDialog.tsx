@@ -4,8 +4,8 @@ import { ToolButton } from "./ToolButton";
 export interface ConfirmDialogProps {
   title: string;
   lines: readonly string[];
-  /** "Do not ask again": Java puts the checkbox in the box itself. */
-  noAgain: string;
+  /** "Do not ask again": Java puts the checkbox in the box itself, for questions that can be switched off. */
+  noAgain?: string;
   confirm: string;
   cancel: string;
   testId: string;
@@ -30,10 +30,12 @@ export function ConfirmDialog({ title, lines, noAgain, confirm, cancel, testId, 
         {lines.map((line) => (
           <p key={line}>{line}</p>
         ))}
-        <label className="jt-check">
-          <input type="checkbox" checked={skip} data-testid={`${testId}-no-again`} onChange={(event) => setSkip(event.target.checked)} />
-          <span>{noAgain}</span>
-        </label>
+        {noAgain ? (
+          <label className="jt-check">
+            <input type="checkbox" checked={skip} data-testid={`${testId}-no-again`} onChange={(event) => setSkip(event.target.checked)} />
+            <span>{noAgain}</span>
+          </label>
+        ) : null}
         <footer>
           <ToolButton role="primary" label={confirm} testId={`${testId}-ok`} onClick={() => onConfirm(skip)} />
           <ToolButton label={cancel} testId={`${testId}-cancel`} onClick={onCancel} />

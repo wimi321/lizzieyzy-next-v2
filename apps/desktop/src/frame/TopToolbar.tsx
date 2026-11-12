@@ -56,6 +56,16 @@ export interface TopToolbarProps {
   komi: number | null;
   onNew(): void;
   onSetMain(): void;
+  /** The markup tools are out. */
+  markupOpen: boolean;
+  onMarkup(): void;
+  onChangeTurn(): void;
+  /** 试下 is on: the buttons that would replace the game wait. */
+  trial: boolean;
+  /** 添加黑子 / 添加白子 in force, or null for alternate play. */
+  playColor: "Black" | "White" | null;
+  onColor(color: "Black" | "White"): void;
+  onAlternate(): void;
   onKomi(komi: number): void;
   onBoardSize(): void;
   onOpen(): void;
@@ -117,14 +127,14 @@ function KomiField({ label, komi, onChange }: { label: string; komi: number | nu
  * LizzieYzy Next's top toolbar in Java's order (`Menu` → `TopHeaderPanel`), wrapping onto a
  * second row when the window is narrower than its controls, as Java's does at 1429 px.
  */
-export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, ...on }: TopToolbarProps) {
+export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, markupOpen, trial, playColor, ...on }: TopToolbarProps) {
   const icon = JAVA_ICONS;
   return (
     <div className="jt-top" role="toolbar" aria-label="LizzieYzy Next" data-testid="top-toolbar">
-      <ToolButton icon={icon.newFile} title={labels.newFile} testId="tool-new" onClick={on.onNew} />
-      <ToolButton icon={icon.open} title={labels.open} testId="open-file" onClick={on.onOpen} />
+      <ToolButton icon={icon.newFile} title={labels.newFile} enabled={!trial} testId="tool-new" onClick={on.onNew} />
+      <ToolButton icon={icon.open} title={labels.open} enabled={!trial} testId="open-file" onClick={on.onOpen} />
       <ToolButton icon={icon.save} title={labels.save} enabled={hasDocument} testId="save-file" onClick={on.onSave} />
-      <ToolButton role="primary" label={labels.fox} title={labels.foxTip} testId="open-fox" onClick={on.onFox} />
+      <ToolButton role="primary" label={labels.fox} title={labels.foxTip} enabled={!trial} testId="open-fox" onClick={on.onFox} />
       <ToolButton role="primary" label={labels.tencent} title={labels.tencentTip} enabled={false} />
       <ToolButton role="primary" label={labels.strength} title={labels.strengthTip} testId="open-strength" onClick={on.onStrength} />
       <ToolSeparator />
@@ -144,15 +154,15 @@ export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, .
       <ToolSeparator />
       <ToolButton icon={icon.hawkeye} title={labels.hawkeye} enabled={false} />
       <ToolButton icon={icon.rankMark} title={labels.rankMark} enabled={false} />
-      <ToolButton icon={icon.changeTurn} title={labels.changeTurn} enabled={false} />
+      <ToolButton icon={icon.changeTurn} title={labels.changeTurn} enabled={hasBoard} testId="tool-change-turn" onClick={on.onChangeTurn} />
       <ToolButton icon={icon.setMain} title={labels.setMain} enabled={offMainLine} testId="tool-set-main" onClick={on.onSetMain} />
       <ToolButton icon={icon.backMain} title={labels.backMain} enabled={offMainLine} testId="tool-back-main" onClick={on.onBackMain} />
       <ToolButton icon={icon.controlPanel} title={labels.controlPanel} enabled={false} />
-      <ToolButton icon={icon.markup} title={labels.markup} enabled={false} />
+      <ToolButton icon={icon.markup} title={labels.markup} enabled={hasBoard} pressed={markupOpen} testId="tool-markup" onClick={on.onMarkup} />
       <ToolSeparator />
-      <ToolButton icon={icon.black} title={labels.playBlack} enabled={false} />
-      <ToolButton icon={icon.white} title={labels.playWhite} enabled={false} />
-      <ToolButton icon={icon.alternately} title={labels.playAlternately} enabled={false} />
+      <ToolButton icon={icon.black} title={labels.playBlack} enabled={hasBoard} pressed={playColor === "Black"} testId="tool-play-black" onClick={() => on.onColor("Black")} />
+      <ToolButton icon={icon.white} title={labels.playWhite} enabled={hasBoard} pressed={playColor === "White"} testId="tool-play-white" onClick={() => on.onColor("White")} />
+      <ToolButton icon={icon.alternately} title={labels.playAlternately} enabled={hasBoard} pressed={playColor === null} testId="tool-alternately" onClick={on.onAlternate} />
       <ToolButton icon={icon.pass} title={labels.playPass} enabled={hasBoard} testId="tool-pass" onClick={on.onPass} />
       <ToolSeparator />
       <ToolButton icon={icon.allow} title={labels.selectAllow} enabled={false} />
@@ -190,9 +200,9 @@ export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, .
       </label>
       <ToolSeparator />
       <ToolButton small className="jt-rules" label={labels.rules} enabled={false} />
-      <ToolButton small label={labels.tsumego} testId="tool-tsumego" onClick={on.onTsumego} />
+      <ToolButton small label={labels.tsumego} enabled={!trial} testId="tool-tsumego" onClick={on.onTsumego} />
       <ToolButton small label={labels.params} enabled={false} />
-      <ToolButton small label={labels.goban} testId="tool-goban" onClick={on.onBoardSize} />
+      <ToolButton small label={labels.goban} enabled={!trial} testId="tool-goban" onClick={on.onBoardSize} />
       <ToolButton small label={labels.saveLoad} enabled={false} />
     </div>
   );

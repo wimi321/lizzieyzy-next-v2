@@ -15,6 +15,9 @@ export interface EditLabels extends BoardSizeLabels, GameInfoLabels {
   redo: string;
   recentEmpty: string;
   clearRecent: string;
+  trialActive: string;
+  trialBack: string;
+  trialHint: string;
 }
 
 type EditBackend = Pick<
@@ -31,6 +34,8 @@ type EditBackend = Pick<
   | "promoteToMain"
   | "undo"
   | "redo"
+  | "startTrial"
+  | "endTrial"
 >;
 
 export type ConfirmKind = "newBoard" | "replace";
@@ -62,6 +67,11 @@ export interface Editing {
   setAsMain(): void;
   undo(): void;
   redo(): void;
+  /** 试下: play freely on a copy; 恢复 brings the game back as it was. */
+  trial: boolean;
+  toggleTrial(): void;
+  /** The tray chip while a trial is on. */
+  trialChip: ReactNode;
   /** A dialog of this hook is open, so the board's shortcuts rest. */
   dialogOpen: boolean;
   dialogs: ReactNode;
@@ -107,6 +117,7 @@ export function useEditing(
 
   const current = document?.tree.current;
   const board = document?.board ?? null;
+  const trial = document?.trial ?? false;
 
   const startGame = (options: NewGameOptions) => {
     setDialog(null);
@@ -132,6 +143,7 @@ export function useEditing(
     setDialog(null);
     backend.save(target).catch(report);
   };
+  // During a trial a save only exports to a new file, so 保存 always asks where.
   const saveAs = () => {
     backend
       .pickSavePath()
@@ -197,7 +209,7 @@ export function useEditing(
       if (document) setDialog({ kind: "gameInfo" });
     },
     save: () => {
-      const route = saveRoute(path, confirms.replace);
+      const route = trial ? "choose" : saveRoute(path, confirms.replace);
       if (route === "choose" || !path) saveAs();
       else if (route === "confirm") setDialog({ kind: "confirmReplace", path });
       else write(path);
@@ -230,6 +242,17 @@ export function useEditing(
     },
     undo: () => void backend.undo().catch(report),
     redo: () => void backend.redo().catch(report),
+    trial,
+    toggleTrial: () => void (trial ? backend.endTrial() : backend.startTrial()).catch(report),
+    trialChip: trial ? (
+      <span className="chip edit-chip" data-testid="trial-chip" title={labels.trialHint}>
+        <span className="edit-chip-mark" aria-hidden="true" />
+        <span className="chip-label">{labels.trialActive}</span>
+        <button type="button" className="tsumego-exit" data-testid="trial-back" onClick={() => void backend.endTrial().catch(report)}>
+          {labels.trialBack}
+        </button>
+      </span>
+    ) : null,
     dialogOpen: dialog !== null,
     dialogs,
   };

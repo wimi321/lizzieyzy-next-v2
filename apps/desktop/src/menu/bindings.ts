@@ -41,6 +41,16 @@ export interface MenuState {
   /** Whether a new board and writing over the game's file are confirmed first. */
   confirmNewBoard: boolean;
   confirmReplace: boolean;
+  /** The setup tool in hand, or null outside 起始局面设置模式. */
+  setupTool: "Black" | "White" | "Erase" | null;
+  /** The game has no move yet, so its setup stones and first player can be edited. */
+  setupEditable: boolean;
+  /** 试下 is on: entries that replace the game wait until it ends. */
+  trial: boolean;
+  /** 添加黑子 / 添加白子 in force, or null for alternate play. */
+  playColor: "Black" | "White" | null;
+  /** 插入黑子 / 插入白子 as a mode, or null. */
+  insertColor: "Black" | "White" | null;
 }
 
 export interface MenuActions {
@@ -58,6 +68,14 @@ export interface MenuActions {
   undo(): void;
   redo(): void;
   toggleConfirm(kind: "newBoard" | "replace"): void;
+  toggleSetup(): void;
+  setupTool(tool: "Black" | "White" | "Erase"): void;
+  clearSetup(): void;
+  setFirstPlayer(color: "Black" | "White"): void;
+  convertToStart(): void;
+  colorMode(color: "Black" | "White"): void;
+  alternate(): void;
+  insertMode(color: "Black" | "White"): void;
   quit(): void;
   toggleCoordinates(): void;
   setOwnership(visible: boolean): void;
@@ -103,15 +121,17 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
   const always: MenuBinding = { checked: true };
   // The root is the game itself; it is cleared, not deleted.
   const deletable = navigable && current !== tree.root;
+  // A trial is a copy of the game: what would replace the game waits until it ends.
+  const free = !state.trial;
   const recent: Record<string, MenuBinding> = {};
   state.recent.forEach((path, index) => {
-    recent[`recent${index}`] = when(true, () => actions.openRecent(path));
+    recent[`recent${index}`] = when(free, () => actions.openRecent(path));
   });
   if (state.recent.length > 0) recent.clearRecent = when(true, actions.clearRecent);
 
   return {
-    newBoard: when(true, actions.newBoard),
-    open: when(true, actions.open),
+    newBoard: when(free, actions.newBoard),
+    open: when(free, actions.open),
     ...recent,
     save: when(state.hasDocument, actions.save),
     saveAs: when(state.hasDocument, actions.saveAs),
@@ -130,6 +150,14 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     kataEstimateOnMainBoard: { run: () => actions.setOwnership(true), checked: state.ownership },
 
     playBestMove: when(state.hasBestMove, actions.playBestMove),
+    setupModeToggle: { run: actions.toggleSetup, enabled: state.hasBoard, checked: state.setupTool !== null },
+    setupToolBlack: { run: () => actions.setupTool("Black"), enabled: state.hasBoard, checked: state.setupTool === "Black" },
+    setupToolWhite: { run: () => actions.setupTool("White"), enabled: state.hasBoard, checked: state.setupTool === "White" },
+    setupToolErase: { run: () => actions.setupTool("Erase"), enabled: state.hasBoard, checked: state.setupTool === "Erase" },
+    setupClearAll: when(state.setupEditable, actions.clearSetup),
+    setupBlackToPlay: when(state.setupEditable, () => actions.setFirstPlayer("Black")),
+    setupWhiteToPlay: when(state.setupEditable, () => actions.setFirstPlayer("White")),
+    convertCurrentPosition: when(state.hasBoard, actions.convertToStart),
     playPassMove: when(state.hasBoard, actions.pass),
 
     togglePonder: when(true, actions.togglePondering),
@@ -138,12 +166,17 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     flashAnalyzeAllGame: when(state.hasDocument, actions.flashAnalyze),
     stopAutoAnalyze: when(state.wholeGameActive, actions.cancelAutoAnalysis),
     playerStrengthEstimate: when(state.hasDocument, actions.openStrength),
-    tsumeGoMenu: when(state.hasBoard, actions.openTsumego),
+    tsumeGoMenu: when(state.hasBoard && free, actions.openTsumego),
     // 引擎一键设置 opens Java's 性能优化 page: KataGo's own benchmark, started by the user.
     autoSetup: when(state.engineConfigured, actions.openBenchmark),
     comprehensiveSettings: when(true, actions.openSettings),
 
-    clearBoard: when(true, actions.newBoard),
+    clearBoard: when(free, actions.newBoard),
+    addBlack: when(state.hasBoard, () => actions.colorMode("Black")),
+    addWhite: when(state.hasBoard, () => actions.colorMode("White")),
+    alternatelyMoves: when(state.hasBoard, actions.alternate),
+    insertBlack: { run: () => actions.insertMode("Black"), enabled: state.hasBoard, checked: state.insertColor === "Black" },
+    insertWhite: { run: () => actions.insertMode("White"), enabled: state.hasBoard, checked: state.insertColor === "White" },
     backToMainBranch: when(trunk !== null, goTo(trunk)),
     // Off the main line there is something to promote.
     setAsMain: when(trunk !== null, actions.setAsMain),
@@ -152,7 +185,7 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     undoDelete: when(state.canUndo, actions.undo),
     redoDelete: when(state.canRedo, actions.redo),
     setInfo: when(state.hasDocument, actions.editGameInfo),
-    setBoard: when(true, actions.setBoardSize),
+    setBoard: when(free, actions.setBoardSize),
     jumpToFirst: step(-JUMP),
     jumpToLast: step(JUMP),
     jumpToLeft: when(left !== null, goTo(left)),
@@ -162,9 +195,9 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     back10: step(-10),
     forward10: step(10),
 
-    foxKifu: when(true, actions.openFox),
+    foxKifu: when(free, actions.openFox),
     // Started once; readboard's own window stops it, as does the toolbar chip.
-    readBoard: when(state.windows && (state.syncPhase === "Stopped" || state.syncPhase === "Failed"), actions.startBoardSync),
+    readBoard: when(free && state.windows && (state.syncPhase === "Stopped" || state.syncPhase === "Failed"), actions.startBoardSync),
     alwaysKeepBoardStatSync: { run: () => actions.toggleSyncOption("always_sync"), checked: state.syncOptions.always_sync },
     alwaysGoToLastMove: { run: () => actions.toggleSyncOption("always_goto_last"), checked: state.syncOptions.always_goto_last },
     about: when(true, actions.openAbout),

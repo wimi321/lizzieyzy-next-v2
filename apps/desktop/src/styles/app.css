@@ -2912,3 +2912,93 @@ button.fox-row[aria-busy="true"] {
 .confirm-dialog footer {
   gap: 8px;
 }
+
+/* The tool in hand: starting position setup and markup. The chip sits on the light menu strip. */
+
+.edit-chip {
+  gap: 6px;
+  height: 26px;
+  padding: 0 3px 0 10px;
+  color: var(--jf-text);
+  background: #eaf2ff;
+  border-color: #a9c8f5;
+  font-family: var(--jf-font);
+}
+
+.edit-chip .chip-label {
+  font-weight: 600;
+}
+
+.edit-chip-mark {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2f7bf5;
+}
+
+.edit-chip-tools {
+  display: inline-flex;
+  gap: 1px;
+  padding: 2px;
+  background: rgba(31, 41, 38, 0.07);
+  border-radius: 999px;
+}
+
+.edit-chip-tool {
+  min-width: 22px;
+  height: 18px;
+  padding: 0 5px;
+  color: #3d4a55;
+  font: 600 12px/18px var(--jf-font);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.edit-chip-tool:hover {
+  color: #10151d;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.edit-chip-tool[aria-pressed="true"] {
+  color: #fff;
+  background: #2f7bf5;
+}
+
+.edit-chip-action {
+  height: 20px;
+  padding: 0 6px;
+  color: #3d4a55;
+  font: inherit;
+  font-size: 11px;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.edit-chip-action:hover:not(:disabled) {
+  color: #10151d;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.edit-chip-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.edit-chip .tsumego-exit {
+  height: 20px;
+  color: #fff;
+  background: #2f3a46;
+}
+
+.edit-chip .tsumego-exit:hover {
+  background: #1f2730;
+}
+
+.board[data-editing] {
+  cursor: crosshair;
+}

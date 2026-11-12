@@ -629,3 +629,18 @@
   min-width: 72px;
   height: 24px;
 }
+
+/* The board's right-click menu: Java's narrow popup, lit under the pointer like the menu strip's. */
+.board-menu {
+  z-index: 40;
+  min-width: 112px;
+}
+
+.board-menu .menu-row {
+  cursor: default;
+}
+
+.board-menu .menu-row:hover {
+  color: var(--jf-text);
+  background: var(--jf-primary);
+}
