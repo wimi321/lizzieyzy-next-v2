@@ -3,7 +3,8 @@ import type { MoveWindow } from "../board/moveMarks";
 import type { SuggestionStyle } from "../board/suggestionText";
 import type { RegionName } from "../frame/MainPanel";
 
-export type Display = Required<DisplaySettings>;
+/** `show_list_pane` arrives with P2-09; until then the interface keeps it itself. */
+export type Display = Required<DisplaySettings> & { show_list_pane: boolean };
 
 /**
  * What the 显示 menu starts with. Rust owns the settings and always sends every field; these
@@ -37,6 +38,7 @@ export const DISPLAY_DEFAULTS: Display = {
   show_top_toolbar: true,
   show_bottom_toolbar: true,
   show_sub_board: true,
+  show_list_pane: true,
   winrate_graph_mode: "Both",
   fill_winrate_graph: true,
   show_blunder_bar: false,
@@ -94,6 +96,7 @@ export function hiddenRegions(display: Display): RegionName[] {
   if (!display.show_comment) hidden.push("comment");
   if (!display.show_variation_graph) hidden.push("tree");
   if (!display.show_sub_board) hidden.push("subBoard");
+  if (!display.show_list_pane) hidden.push("list");
   if (!display.show_status_bar) hidden.push("status");
   return hidden;
 }

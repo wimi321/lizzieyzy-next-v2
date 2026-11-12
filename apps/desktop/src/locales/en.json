@@ -923,5 +923,15 @@
     "cancel": "Cancel",
     "close": "Close",
     "invalid": "Enter a whole number from {min} to {max}"
+  },
+  "candidates": {
+    "label": "Candidate list",
+    "order": "#",
+    "move": "Move",
+    "winrate": "Win%",
+    "visits": "Visits",
+    "share": "Share%",
+    "score": "Score",
+    "empty": "No candidates from the engine yet"
   }
 }

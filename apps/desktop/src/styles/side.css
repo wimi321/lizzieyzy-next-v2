@@ -409,6 +409,63 @@
   padding: 8px 12px 0;
 }
 
+/* 选点列表面板: the candidates as a compact table under the tree. */
+
+.candidate-list {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+  border-top: 1px solid var(--line-strong);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+.candidate-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.candidate-list th {
+  position: sticky;
+  top: 0;
+  padding: 5px 6px;
+  font-weight: 500;
+  color: var(--text-3);
+  text-align: right;
+  background: #1b1c20;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.candidate-list td {
+  padding: 3px 6px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.candidate-list th:nth-child(2),
+.candidate-list td:nth-child(2) {
+  text-align: left;
+}
+
+.candidate-list tbody tr {
+  cursor: pointer;
+}
+
+.candidate-list tbody tr:hover {
+  color: var(--text-1);
+  background: var(--bg-hover);
+}
+
+.candidate-list tbody tr[data-best] {
+  color: #7fc3ff;
+}
+
+.candidate-empty {
+  margin: 12px;
+  color: var(--text-3);
+}
+
 /* Variation tree */
 
 .tree-panel {

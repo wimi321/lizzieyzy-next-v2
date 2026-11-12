@@ -23,6 +23,7 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "playPassMove", code: "KeyP" },
   { id: "playBestMove", code: "Comma" },
   { id: "coordsMenu", code: "KeyC" },
+  { id: "hawkEye2", code: "KeyY" },
   { id: "toggleMoveNumbers", code: "KeyM" },
   { id: "showAllMoveNumberInBranch", code: "KeyM", control: true },
   { id: "toggleMoveRankMarks", code: "KeyM", alt: true },

@@ -21,6 +21,7 @@ export function displayBindings(display: Display, set: (patch: Partial<Display>)
     winrateGraph: toggle("show_winrate_graph"),
     commitPane: toggle("show_comment"),
     variationPane: toggle("show_variation_graph"),
+    listPane: toggle("show_list_pane"),
     informationPane: toggle("show_information_panel"),
     statusPanel: toggle("show_status_bar"),
     // One top toolbar layout here: Java's separated and combined rows are the same toolbar.

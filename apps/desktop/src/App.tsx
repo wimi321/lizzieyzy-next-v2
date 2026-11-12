@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
 import type { AnalysisLimitSettings, AutoSetupError, ColorView, EngineProfile, EngineStatus, FoxAccount, MoveRank, PointView, ProblemMoveSort, ProblemMovesQuery } from "@/api/backend";
-import { Board, type StoneMarks } from "./board/Board";
+import { Board } from "./board/Board";
 import type { NextMove } from "./board/draw";
 import { SubBoard } from "./board/SubBoard";
 import { useVariationPreview } from "./board/useVariationPreview";
-import { hiddenRegions, nextMoveNumbers, nextRankMarks, numberWindow, rankWindow, shiftScores, suggestionStyle } from "./display/settings";
+import { nextMoveNumbers, nextRankMarks } from "./display/settings";
+import { useDisplayView } from "./display/useDisplayView";
 import { useDisplay } from "./display/useDisplay";
 import { useCommentEdit } from "./edit/useCommentEdit";
 import { useBoardMenu } from "./edit/BoardMenu";
@@ -17,13 +18,14 @@ import { liveGraph } from "./graph/scale";
 import { WinrateGraph } from "./graph/WinrateGraph";
 import { getMessages } from "./locales";
 import { AboutDialog } from "./menu/AboutDialog";
-import { isEnabled, menuBindings } from "./menu/bindings";
+import { isEnabled, menuBindings, type MenuBindings } from "./menu/bindings";
 import { MenuBar } from "./menu/MenuBar";
 import { useShortcuts } from "./menu/shortcuts";
 import { useMenus } from "./menu/useMenus";
 import { analysisSummary, reviewStatusOf } from "./panels/info";
 import { CapturedBox, StatisticsBox } from "./panels/InfoPanel";
 import { MoveTree } from "./panels/MoveTree";
+import { CandidateList } from "./panels/CandidateList";
 import { NotesPanel } from "./panels/NotesPanel";
 import { useVariationTree } from "./panels/useVariationTree";
 import { AutoAnalysis, type AutoAnalysisHandle } from "./review/AutoAnalysis";
@@ -125,6 +127,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const wheel = useRef(0);
   const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
   const [boardHover, setBoardHover] = useState<PointView | null>(null);
+  // A row of the candidate list under the pointer previews like a hovered candidate.
+  const [listHover, setListHover] = useState<PointView | null>(null);
   const { tree, live: liveTree } = useVariationTree(backend, document);
   const wholeGame = useWholeGame(backend);
   // LizzieYzy Next draws the graph with a one-visit pass when a game opens; that pass stays quiet.
@@ -212,8 +216,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     );
     return best?.point ?? null;
   }, [analysis, currentNode]);
-  const replay = useVariationPreview(backend, currentNode, revision, analysis, boardHover ?? bestPoint);
-  const variation = boardHover && shown.show_hover_variation ? replay : null;
+  const hovered = boardHover ?? listHover;
+  const replay = useVariationPreview(backend, currentNode, revision, analysis, hovered ?? bestPoint);
+  const variation = hovered && shown.show_hover_variation ? replay : null;
   const info = document?.game_info ?? null;
   // The mistake bars share the graph's line and indexing; anything else is stale.
   const mistakes = problems && problems.error_bar.length === points.length ? problems.error_bar : undefined;
@@ -241,31 +246,12 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     }
     return moves;
   }, [liveTree, currentTreeNode, points]);
-  // 显示: the board's marks and candidate text, the panels shown, the score with or without komi.
-  const branchStart = document?.tree.branch_start_move_number ?? null;
-  const marks = useMemo<StoneMarks>(
-    () => ({
-      numbers: {
-        window: numberWindow(shown),
-        fromOne: shown.move_numbers_from_one,
-        branchPoint: branchStart === null ? null : branchStart - 1,
-        branchFromOne: shown.branch_move_numbers_from_one,
-        allInBranch: shown.show_all_branch_move_numbers,
-      },
-      rankWindow: rankWindow(shown),
-      ranks,
-    }),
-    [shown, branchStart, ranks],
-  );
-  const komi = info?.komi ?? 0;
-  const style = useMemo(() => suggestionStyle(shown, komi), [shown, komi]);
-  const nextHint = useMemo(() => ({ mode: shown.next_moves, minVisits: shown.next_move_min_visits }), [shown.next_moves, shown.next_move_min_visits]);
-  const hidden = useMemo(() => hiddenRegions(shown), [shown]);
-  const scoreOffset = shown.score_lead_includes_komi ? 0 : komi;
-  const scorePoints = useMemo(() => shiftScores(points, scoreOffset), [points, scoreOffset]);
-  const boardNames = useMemo(
-    () => (shown.show_names_below_board && info && (info.black_name || info.white_name) ? { black: info.black_name ?? "", white: info.white_name ?? "" } : null),
-    [info, shown.show_names_below_board],
+  const { marks, style, nextHint, hidden, scoreOffset, scorePoints, names: boardNames } = useDisplayView(
+    shown,
+    info,
+    document?.tree.branch_start_move_number ?? null,
+    ranks,
+    points,
   );
   const emptyGame =
     board !== null &&
@@ -320,7 +306,13 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const current = document?.tree.current ?? null;
   const best = analysis && analysis.node_id === current ? analysis.candidates[0] : undefined;
   const wholeGameStatus = wholeGame.progress?.status.type;
-  const bindings = {
+  const hawkEyeOpen = shown.show_comment && notesTab === "problems";
+  const toggleHawkEye = () => {
+    if (hawkEyeOpen) return setNotesTab("comment");
+    setNotesTab("problems");
+    if (!shown.show_comment) display.set({ show_comment: true });
+  };
+  const bindings: MenuBindings = {
     ...menuBindings(
       {
         hasDocument: document !== null,
@@ -394,6 +386,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       },
     ),
     ...display.bindings,
+    // 超级鹰眼: Java's problem-move window is the 问题手 page here.
+    hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
+    hawkEye2: { run: toggleHawkEye, enabled: document !== null },
   };
   useShortcuts(
     bindings,
@@ -469,6 +464,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onBoardSize={editing.openBoardSize}
           markupOpen={modes.mode.kind === "markup"}
           onMarkup={modes.toggleMarkup}
+          hawkEye={hawkEyeOpen}
+          onHawkEye={toggleHawkEye}
           rankMarks={shown.move_rank_marks !== "None"}
           onRankMarks={() => display.set(nextRankMarks(shown))}
           onChangeTurn={modes.toggleToPlay}
@@ -577,6 +574,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               ownership={ownership}
               maxCandidates={shown.max_suggestions > 0 ? shown.max_suggestions : board.width * board.height}
               label={messages.board.label}
+              preview={listHover}
               variation={variation}
               names={boardNames}
               lastRank={lastRank}
@@ -599,6 +597,17 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             <p className="board-message" data-testid="position-error">
               {document?.position_error ? messages.board.positionError.replace("{reason}", document.position_error) : messages.board.loading}
             </p>
+          ),
+          list: (
+            <CandidateList
+              analysis={analysis && analysis.node_id === current ? analysis : null}
+              toPlay={board?.to_play ?? "Black"}
+              blackWinrate={shown.winrate_always_black}
+              scoreOffset={scoreOffset}
+              labels={messages.candidates}
+              onHover={setListHover}
+              onPlay={play}
+            />
           ),
           tree: (
             <MoveTree tree={tree} current={document?.tree.current ?? -1} line={line} boardSize={board?.width ?? 19} ranks={ranks} label={messages.tree.label} onJump={jump} />
