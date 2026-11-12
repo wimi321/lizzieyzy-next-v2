@@ -106,7 +106,9 @@ pub enum WholeGameError {
 }
 
 /// Best complete protocol payload for a node in the current document and engine
-/// fingerprint. This store is independent of the live coordinator's LRU.
+/// fingerprint, or an imported file result with original metadata in `saved`.
+/// File results survive engine changes until replaced by fresh analysis.
+/// This store is independent of the live coordinator's LRU.
 /// `response.root_info` contains Black's winrate/score/visits; `move_infos`
 /// retains every candidate, PV, and all other parsed protocol statistics.
 /// P1-24/P1-25 should read this by NodeId, not reconstruct data from graph
@@ -118,6 +120,26 @@ pub struct StoredAnalysis {
     pub node_id: NodeId,
     pub key: AnalysisKey,
     pub response: AnalysisResponse,
+    /// Original file metadata, absent once an engine result replaces it.
+    pub saved: Option<document::SavedAnalysis>,
+}
+
+impl StoredAnalysis {
+    pub(crate) fn root_has_score(&self) -> bool {
+        self.saved
+            .as_ref()
+            .is_none_or(|saved| saved.score_lead.is_some())
+    }
+
+    pub(crate) fn candidate_has_score(&self, coordinate: &str) -> bool {
+        self.saved.as_ref().is_none_or(|saved| {
+            saved
+                .candidates
+                .iter()
+                .find(|candidate| candidate.coordinate == coordinate)
+                .is_some_and(|candidate| candidate.score_lead.is_some())
+        })
+    }
 }
 
 pub(crate) enum ReviewInput {

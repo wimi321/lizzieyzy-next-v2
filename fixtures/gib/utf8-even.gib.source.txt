@@ -1,0 +1,1 @@
+Handwritten utf-8 fixture; INI/STO/SKI/GONGJE and handicap placement follow ../lizzieyzy-next GIBParser.java and GIBParserTest.java; parenthesized ranks and GAMETAG/GRLT/ZIPSU use https://github.com/SabakiHQ/Sabaki/blob/master/src/modules/fileformats/gib.js (Java omits these metadata fields).

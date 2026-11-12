@@ -16,6 +16,7 @@ mod board_sync;
 mod display;
 mod editing;
 mod fox;
+mod game_files;
 mod graph_analysis;
 mod move_editing;
 mod problem_moves;
@@ -378,6 +379,13 @@ impl Actor {
             .as_ref()
             .map(|path| path.to_string_lossy().into_owned());
         view.modified = self.file_state.modified(&self.document);
+        view.warnings.extend(
+            self.file_state
+                .save_warnings
+                .iter()
+                .cloned()
+                .map(Into::into),
+        );
         view.trial = self.move_trial.is_some();
         view.tree.comment_revision = self.tree.comment_revision;
         for point in &mut view.graph.points {
@@ -404,14 +412,17 @@ impl Actor {
             Input::ExitTsumego => self.exit_tsumego().await?,
             Input::OpenPath(path) => self.open_path(path).await?,
             Input::OpenDroppedPaths(paths) => {
-                self.ensure_no_move_trial()?;
+                if let Err(error) = self.ensure_no_move_trial() {
+                    if let Some(path) = paths.iter().find(|path| game_files::is_game_file(path)) {
+                        self.output.send(AppEvent::OpenFailed {
+                            path: path.to_string_lossy().into_owned(),
+                            reason: error.to_string(),
+                        });
+                    }
+                    return Err(error);
+                }
                 for path in paths {
-                    if path
-                        .extension()
-                        .and_then(|extension| extension.to_str())
-                        .is_some_and(|extension| extension.eq_ignore_ascii_case("sgf"))
-                        && self.open_path(path).await.is_ok()
-                    {
+                    if game_files::is_game_file(&path) && self.open_path(path).await.is_ok() {
                         break;
                     }
                 }
@@ -509,12 +520,14 @@ impl Actor {
     /// A new arena can reuse node IDs, so all analysis and tree namespaces
     /// must be reset even when its root happens to have the same board key.
     async fn document_replaced(&mut self) -> Result<(), AppError> {
-        self.document_replaced_with_cache(HashMap::new()).await
+        self.document_replaced_with_cache(HashMap::new(), false)
+            .await
     }
 
     async fn document_replaced_with_cache(
         &mut self,
         cached: HashMap<AnalysisKey, crate::StoredAnalysis>,
+        import_saved: bool,
     ) -> Result<(), AppError> {
         self.auto_curve.pending = false;
         self.cancel_review().await;
@@ -547,6 +560,9 @@ impl Actor {
         // Restore before the first focus: otherwise a fast live result could
         // establish a shallow snapshot before the deep cached payload is seeded.
         self.restore_loaded_analysis(cached)?;
+        if import_saved {
+            self.import_saved_analysis()?;
+        }
         self.document_changed().await
     }
 
@@ -567,6 +583,7 @@ impl Actor {
     }
 
     async fn update_focus_with_resume(&mut self, resume_limited: bool) {
+        self.publish_saved_focus();
         if self.running.is_none() {
             return;
         }
@@ -608,7 +625,7 @@ impl Actor {
             .review
             .results
             .get(&node_id)
-            .filter(|stored| stored.key == key)
+            .filter(|stored| stored.key == key && stored.saved.is_none())
             .map(|stored| stored.response.clone());
         let focus = Focus {
             revision: self.revision,
@@ -656,6 +673,7 @@ impl Actor {
             self.set_summary_fingerprint(None);
             self.output
                 .send(AppEvent::EngineStatusChanged(EngineStatus::Stopped));
+            self.publish_saved_focus();
             return;
         };
         let prepared = async {
@@ -669,6 +687,7 @@ impl Actor {
             Err(error) => {
                 self.set_summary_fingerprint(None);
                 self.failed(error.to_string());
+                self.publish_saved_focus();
                 return;
             }
         };
@@ -700,9 +719,18 @@ impl Actor {
     fn set_summary_fingerprint(&mut self, fingerprint: Option<String>) {
         if self.summary_fingerprint != fingerprint {
             self.summary_fingerprint = fingerprint;
+            let saved = self
+                .review
+                .results
+                .iter()
+                .filter(|(_, result)| result.saved.is_some())
+                .map(|(&id, result)| (id, result.clone()))
+                .collect();
             self.invalidate_review();
+            self.review.results = saved;
             if !self.summaries.is_empty() {
-                self.summaries.clear();
+                self.summaries
+                    .retain(|id, _| self.review.results.contains_key(id));
                 // Settings changes do not change the document revision, but
                 // clients need a fresh graph before new-engine analysis.
                 if let Err(error) = self.publish_document() {

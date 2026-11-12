@@ -122,9 +122,7 @@ impl Parser<'_> {
                 break;
             }
             let position = self.cursor;
-            while self.byte().is_some_and(|b| b.is_ascii_alphabetic()) {
-                self.cursor += 1;
-            }
+            self.cursor = identifier_end(self.text.as_bytes(), position);
             let original = &self.text[position..self.cursor];
             let identifier = normalize_identifier(original);
             if original != identifier {
@@ -240,11 +238,31 @@ impl Parser<'_> {
 }
 
 pub(crate) fn normalize_identifier(original: &str) -> String {
-    if original.bytes().all(|b| b.is_ascii_lowercase()) {
+    if original.eq_ignore_ascii_case("LZ2")
+        || original.eq_ignore_ascii_case("LZOP2")
+        || original.bytes().all(|b| b.is_ascii_lowercase())
+    {
         original.to_ascii_uppercase()
     } else {
         original.chars().filter(char::is_ascii_uppercase).collect()
     }
+}
+
+/// Java's secondary analysis slots are the only accepted numeric SGF extension.
+/// Share token boundaries with bracket recovery and the encoding declaration
+/// scanner so LZ2 before CA cannot swallow or hide subsequent properties.
+pub(crate) fn identifier_end(bytes: &[u8], start: usize) -> usize {
+    let mut end = start;
+    while bytes.get(end).is_some_and(u8::is_ascii_alphabetic) {
+        end += 1;
+    }
+    if bytes.get(end) == Some(&b'2')
+        && (bytes[start..end].eq_ignore_ascii_case(b"LZ")
+            || bytes[start..end].eq_ignore_ascii_case(b"LZOP"))
+    {
+        end += 1;
+    }
+    end
 }
 
 /// A legal SGF boundary always wins. Treat an otherwise stray `]` as text
@@ -259,10 +277,7 @@ pub(crate) fn literal_closing_bracket(bytes: &[u8], position: usize) -> bool {
     match rest.get(index) {
         None | Some(b';' | b'(' | b')' | b'[') => return false,
         Some(b) if b.is_ascii_alphabetic() => {
-            let mut end = index;
-            while rest.get(end).is_some_and(u8::is_ascii_alphabetic) {
-                end += 1;
-            }
+            let mut end = identifier_end(rest, index);
             while rest.get(end).is_some_and(u8::is_ascii_whitespace) {
                 end += 1;
             }

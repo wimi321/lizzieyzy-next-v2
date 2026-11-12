@@ -33,11 +33,6 @@ pub enum StartupError {
     },
     #[error(transparent)]
     Core(Box<AppError>),
-    #[error("startup failed: {startup}; cleanup also failed: {shutdown}")]
-    Cleanup {
-        startup: Box<AppError>,
-        shutdown: Box<AppError>,
-    },
 }
 
 impl From<AppError> for StartupError {
@@ -124,8 +119,8 @@ fn inline_value(arg: &OsStr, prefix: &str) -> Option<OsString> {
     Some(OsString::from_wide(&units.collect::<Vec<_>>()))
 }
 
-/// Initialize AppCore before registering the shell state. If opening the
-/// startup document fails, await core cleanup before reporting the error.
+/// Initialize AppCore before registering the shell state. File failures are
+/// delivered as OpenFailed, keeping the application usable like a failed drop.
 pub async fn start(
     options: StartupOptions,
     default_dir: PathBuf,
@@ -139,15 +134,9 @@ pub async fn start(
         })?;
     let (core, subscription) = app_core::spawn(directory).await?;
     if let Some(document) = options.document
-        && let Err(startup) = core.open_path(document).await
+        && let Err(error) = crate::system_open::open_paths(&core, vec![document]).await
     {
-        return match core.shutdown().await {
-            Ok(()) => Err(startup.into()),
-            Err(shutdown) => Err(StartupError::Cleanup {
-                startup: Box::new(startup),
-                shutdown: Box::new(shutdown),
-            }),
-        };
+        eprintln!("startup file open: {error}");
     }
     Ok((core, subscription))
 }

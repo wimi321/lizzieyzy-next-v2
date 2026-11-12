@@ -171,3 +171,25 @@ async fn navigation_and_analysis_publish_without_revalidating_graph_but_content_
     document(&mut output).await;
     assert_eq!(validation_work(&actor), (baseline.0 + 4, baseline.1 + 8));
 }
+
+#[tokio::test]
+async fn imported_analysis_does_not_replay_positions_again_when_publishing_its_graph() {
+    let (mut actor, mut output) = actor();
+    let mut game = "(;SZ[5]LZ[test 45 10 2]".to_owned();
+    for _ in 0..1000 {
+        game.push_str(";B[];W[]");
+    }
+    game.push(')');
+    let baseline = validation_work(&actor);
+    within(actor.apply(Input::OpenBytes(game.into_bytes())))
+        .await
+        .unwrap();
+    let view = document(&mut output).await;
+    assert_eq!(view.graph.points[0].summary.unwrap().visits, 10);
+    assert!(
+        view.graph.points[1..]
+            .iter()
+            .all(|point| point.summary.is_none())
+    );
+    assert_eq!(validation_work(&actor), baseline);
+}

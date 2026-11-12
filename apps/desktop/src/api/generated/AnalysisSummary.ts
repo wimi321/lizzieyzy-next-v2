@@ -3,4 +3,9 @@
 /**
  * Root evaluation in Black's perspective, copied from a published analysis.
  */
-export type AnalysisSummary = { winrate: number, score_lead: number, visits: number, };
+export type AnalysisSummary = { winrate: number, score_lead: number, 
+/**
+ * Legacy LZ may contain winrate only; zero is a compatibility placeholder
+ * when this flag is false, never an evaluated even score.
+ */
+score_lead_available?: boolean, visits: number, };

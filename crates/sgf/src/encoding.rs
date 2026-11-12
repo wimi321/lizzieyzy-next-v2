@@ -43,9 +43,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Decoded, SgfError> {
             continue;
         }
         let start = cursor;
-        while bytes.get(cursor).is_some_and(u8::is_ascii_alphabetic) {
-            cursor += 1;
-        }
+        cursor = crate::parser::identifier_end(bytes, cursor);
         if normalized_identifier(&bytes[start..cursor]) != "CA" {
             continue;
         }
@@ -163,9 +161,7 @@ fn root_declaration(text: &str) -> Option<Declaration> {
     loop {
         skip_space(bytes, &mut cursor);
         let start = cursor;
-        while bytes.get(cursor).is_some_and(u8::is_ascii_alphabetic) {
-            cursor += 1;
-        }
+        cursor = crate::parser::identifier_end(bytes, cursor);
         if start == cursor {
             return None;
         }

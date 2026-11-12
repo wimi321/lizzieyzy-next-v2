@@ -74,6 +74,10 @@ pub enum AppError {
     #[error(transparent)]
     Sgf(#[from] sgf::SgfError),
     #[error(transparent)]
+    Lz(#[from] document::LzError),
+    #[error("GIB files are import-only; choose an SGF save target")]
+    GibSaveTarget,
+    #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Settings(#[from] SettingsError),

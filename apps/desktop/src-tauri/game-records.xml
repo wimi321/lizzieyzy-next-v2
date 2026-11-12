@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-go-sgf">
+    <comment>Smart Game Format</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.sgf"/>
+  </mime-type>
+  <mime-type type="application/x-go-gib">
+    <comment>Tygem Go game record</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.gib"/>
+  </mime-type>
+</mime-info>

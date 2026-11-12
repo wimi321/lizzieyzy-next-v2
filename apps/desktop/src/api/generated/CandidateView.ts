@@ -10,7 +10,7 @@ coordinate: string,
 /**
  * Zero-based board point for rendering; None means pass.
  */
-point: PointView | null, visits: number, winrate: number, score_lead: number, prior: number, order: number, 
+point: PointView | null, visits: number, winrate: number, score_lead: number, score_lead_available?: boolean, prior: number, order: number, 
 /**
  * Starts with the current player; colors alternate after every move/pass.
  */
