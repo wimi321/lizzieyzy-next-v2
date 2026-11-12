@@ -55,6 +55,7 @@ impl Actor {
             Request::Status => {}
             Request::Stop => self.stop_board_sync().await?,
             Request::Start(program, options) => {
+                self.ensure_no_move_trial()?;
                 if self.board_sync.process.is_some()
                     && self.board_sync.program.as_ref() == Some(&program)
                     && self.board_sync.options == options

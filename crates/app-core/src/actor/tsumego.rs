@@ -32,6 +32,9 @@ impl Actor {
         &mut self,
         options: TsumegoOptions,
     ) -> Result<(), AppError> {
+        if self.move_trial.is_some() {
+            return Err(crate::TrialError::TsumegoConflict.into());
+        }
         options.validate()?;
         let original = self
             .tsumego

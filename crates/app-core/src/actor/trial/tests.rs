@@ -25,6 +25,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
             file_name: None,
             file_state: crate::actor::editing::FileState::new(&GameDocument::new(), None),
             tsumego: None,
+            move_trial: None,
             tree: crate::VariationTreeView::default(),
             summaries: HashMap::new(),
             graph_analysis: Default::default(),

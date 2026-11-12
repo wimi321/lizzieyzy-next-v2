@@ -24,6 +24,7 @@ export type {
   StrengthPhasesReport, PhaseEstimate, PhaseExtremes,
   EditCommands, GameInfoEdit, NewGameOptions,
   SetupMarkupCommands, MarkupKindView, MarkupView,
+  MoveEditingCommands, StoneOriginView,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "unsubscribe" | "setWindowTitle">;
@@ -202,6 +203,7 @@ function fillDocumentDefaults(view: DocumentView): void {
   defaultField(view, "can_undo", false);
   defaultField(view, "can_redo", false);
   defaultField(view, "markup", []);
+  defaultField(view, "trial", false);
   defaultField(view.game_info, "rules_preset", "chinese");
   defaultField(view.tree, "comment_revision", 0);
 }
@@ -233,6 +235,15 @@ export const convertToStartPosition: Backend["convertToStartPosition"] = () => c
 export const setMarkup: Backend["setMarkup"] = (point, kind) => command("setMarkup", [point, kind]);
 export const clearMarkup: Backend["clearMarkup"] = () => command("clearMarkup", []);
 export const toggleToPlay: Backend["toggleToPlay"] = () => command("toggleToPlay", []);
+export const playColored: Backend["playColored"] = (mv) => command("playColored", [mv]);
+export const insertMove: Backend["insertMove"] = (mv) => command("insertMove", [mv]);
+export const switchStone: Backend["switchStone"] = (point) => command("switchStone", [point]);
+export const deleteStone: Backend["deleteStone"] = (point) => command("deleteStone", [point]);
+export const moveStone: Backend["moveStone"] = (from, to) => command("moveStone", [from, to]);
+export const addVariation: Backend["addVariation"] = (moves) => command("addVariation", [moves]);
+export const stoneOrigin: Backend["stoneOrigin"] = (point) => query("stoneOrigin", [point], () => null);
+export const startTrial: Backend["startTrial"] = () => command("startTrial", []);
+export const endTrial: Backend["endTrial"] = () => command("endTrial", []);
 export const generateTsumego: Backend["generateTsumego"] = (options) => command("generateTsumego", [options]);
 export const exitTsumego: Backend["exitTsumego"] = () => command("exitTsumego", []);
 export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoStatus", []);
@@ -241,7 +252,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles">(
+function query<K extends "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin">(
   name: K,
   args: Parameters<Backend[K]>,
   fallback: () => Awaited<ReturnType<Backend[K]>>,
