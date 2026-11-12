@@ -3,6 +3,7 @@ import type { BoardView } from "./BoardView";
 import type { DocumentWarningView } from "./DocumentWarningView";
 import type { GameInfoView } from "./GameInfoView";
 import type { GraphView } from "./GraphView";
+import type { MarkupView } from "./MarkupView";
 import type { TreeView } from "./TreeView";
 
 export type DocumentView = { 
@@ -13,4 +14,4 @@ game_info: GameInfoView,
 /**
  * Invalid recorded positions remain navigable but have no invented board.
  */
-board: BoardView | null, tree: TreeView, graph: GraphView, comment: string | null, warnings: Array<DocumentWarningView>, position_error: string | null, file_name?: string | null, file_path?: string | null, modified?: boolean, can_undo?: boolean, can_redo?: boolean, };
+board: BoardView | null, tree: TreeView, graph: GraphView, comment: string | null, markup?: Array<MarkupView>, warnings: Array<DocumentWarningView>, position_error: string | null, file_name?: string | null, file_path?: string | null, modified?: boolean, can_undo?: boolean, can_redo?: boolean, };

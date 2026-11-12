@@ -6,13 +6,13 @@ use crate::{Command, DocError, GameDocument, NodeId, Revision};
 /// Reversible deltas, rather than cloning the document for each command.
 #[derive(Debug, Clone)]
 pub(crate) struct Edit {
-    before: NodeId,
-    after: NodeId,
-    change: Change,
+    pub(crate) before: NodeId,
+    pub(crate) after: NodeId,
+    pub(crate) change: Change,
 }
 
 #[derive(Debug, Clone)]
-enum Change {
+pub(crate) enum Change {
     Add {
         id: NodeId,
         parent: NodeId,
@@ -130,6 +130,18 @@ impl GameDocument {
                     },
                 })
             }
+            Command::SetSetupStone { point, color } => {
+                self.property_edit(self.root, self.updated_setup_stone(point, color)?)?
+            }
+            Command::ClearSetup => self.property_edit(self.root, self.cleared_setup()?)?,
+            Command::SetFirstPlayer(color) => {
+                self.property_edit(self.root, self.updated_first_player(color)?)?
+            }
+            Command::SetMarkup { point, kind } => {
+                self.property_edit(before, self.updated_markup(point, kind)?)?
+            }
+            Command::ClearMarkup => self.property_edit(before, self.cleared_markup()?)?,
+            Command::ToggleToPlay => self.prepare_toggle_to_play()?,
             Command::DeleteNode(id) => Some(self.prepare_delete(id)?),
             Command::PromoteVariation(id) => {
                 let (parent, index) = self.sibling_index(id)?;
@@ -148,6 +160,23 @@ impl GameDocument {
             self.content_revision = next_revision;
         }
         Ok(self.revision)
+    }
+
+    pub(crate) fn property_edit(
+        &self,
+        id: NodeId,
+        updated: Vec<Property>,
+    ) -> Result<Option<Edit>, DocError> {
+        let properties = self.node(id)?.properties();
+        Ok((updated != properties).then(|| Edit {
+            before: self.current,
+            after: self.current,
+            change: Change::Properties {
+                id,
+                before: properties.to_vec(),
+                after: updated,
+            },
+        }))
     }
 
     fn prepare_delete(&self, id: NodeId) -> Result<Edit, DocError> {

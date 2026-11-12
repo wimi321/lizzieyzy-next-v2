@@ -22,6 +22,7 @@ mod engine_auto_setup;
 mod frame;
 mod problem_moves;
 mod review;
+mod setup_markup;
 mod strength;
 mod tsumego;
 mod variation;

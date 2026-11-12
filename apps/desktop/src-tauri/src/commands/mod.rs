@@ -8,6 +8,7 @@ pub mod fox;
 pub mod problem_moves;
 pub mod review;
 pub mod settings;
+pub mod setup_markup;
 pub mod strength;
 pub mod tsumego;
 pub mod variation;

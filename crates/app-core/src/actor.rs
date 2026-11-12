@@ -29,6 +29,7 @@ pub(crate) enum Input {
     OpenDroppedPaths(Vec<PathBuf>),
     Save(PathBuf),
     NewGame(crate::NewGameOptions),
+    ConvertToStartPosition,
     ClearRecentFiles,
     Edit(document::Command),
     Undo,
@@ -398,6 +399,7 @@ impl Actor {
             Input::OpenBytes(bytes) => self.open(bytes, None).await?,
             Input::Save(path) => self.save_document(path).await?,
             Input::NewGame(options) => self.new_game(options).await?,
+            Input::ConvertToStartPosition => self.convert_to_start_position().await?,
             Input::ClearRecentFiles => self.set_recent_files(Vec::new()).await?,
             Input::Edit(command) => {
                 self.next_revision()?;
