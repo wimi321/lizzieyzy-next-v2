@@ -19,7 +19,6 @@ export function isEnabled(binding: MenuBinding | undefined): boolean {
 export interface MenuState {
   hasDocument: boolean;
   hasBoard: boolean;
-  coordinates: boolean;
   ownership: boolean;
   /** Whole-game analysis is running or paused. */
   wholeGameActive: boolean;
@@ -38,9 +37,6 @@ export interface MenuState {
   canRedo: boolean;
   /** Recently opened games, newest first: entries `recent0`… of 最近打开. */
   recent: readonly string[];
-  /** Whether a new board and writing over the game's file are confirmed first. */
-  confirmNewBoard: boolean;
-  confirmReplace: boolean;
   /** The setup tool in hand, or null outside 起始局面设置模式. */
   setupTool: "Black" | "White" | "Erase" | null;
   /** The game has no move yet, so its setup stones and first player can be edited. */
@@ -67,7 +63,6 @@ export interface MenuActions {
   setAsMain(): void;
   undo(): void;
   redo(): void;
-  toggleConfirm(kind: "newBoard" | "replace"): void;
   toggleSetup(): void;
   setupTool(tool: "Black" | "White" | "Erase"): void;
   clearSetup(): void;
@@ -77,7 +72,6 @@ export interface MenuActions {
   alternate(): void;
   insertMode(color: "Black" | "White"): void;
   quit(): void;
-  toggleCoordinates(): void;
   setOwnership(visible: boolean): void;
   togglePondering(): void;
   openAutoAnalysis(): void;
@@ -137,15 +131,8 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     saveAs: when(state.hasDocument, actions.saveAs),
     exit: when(true, actions.quit),
 
-    winrateGraph: always,
-    commitPane: always,
-    variationPane: always,
+    // The 显示 settings are bound by `displayBindings`.
     listPane: always,
-    informationPane: always,
-    coordsMenu: { run: actions.toggleCoordinates, checked: state.coordinates },
-    showVariationOnMouse: always,
-    showNewBoardConfirmDialog: { run: () => actions.toggleConfirm("newBoard"), checked: state.confirmNewBoard },
-    showReplaceFileConfirmDialog: { run: () => actions.toggleConfirm("replace"), checked: state.confirmReplace },
     kataEstimateClose: { run: () => actions.setOwnership(false), checked: !state.ownership },
     kataEstimateOnMainBoard: { run: () => actions.setOwnership(true), checked: state.ownership },
 

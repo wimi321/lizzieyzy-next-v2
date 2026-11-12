@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { ProblemMovesView, StrengthEstimateView, WireAppEvent, WholeGameProgress } from "../src/api/backend";
-import { analysedGame, documentChanged, strengthView } from "./fixtures";
+import { analysedGame, defaultDisplaySettings, documentChanged, strengthView } from "./fixtures";
 import type { MockCommand } from "./mock-backend";
 
 test.use({ viewport: { width: 1280, height: 820 } });
@@ -64,19 +64,31 @@ test("problem moves list the worst moves, mark the graph and jump on click", asy
   const game = analysedGame();
   await page.goto("/");
   await page.evaluate(
-    ([events, problems]) => {
+    ([events, problems, display]) => {
       window.__mockBackend?.setProblemMoves(problems);
-      window.__mockBackend?.setScript({ initialEvents: events, commands: [{ command: "goTo", result: 8 }] });
+      window.__mockBackend?.setScript({
+        initialEvents: events,
+        commands: [
+          { command: "setDisplaySettings", result: { ...display, show_blunder_bar: true } },
+          { command: "goTo", result: 8 },
+        ],
+      });
     },
-    [[documentChanged(game, 7)], problemView(game.graph.points)] as [WireAppEvent[], ProblemMovesView],
+    [[documentChanged(game, 7)], problemView(game.graph.points), defaultDisplaySettings] as [WireAppEvent[], ProblemMovesView, typeof defaultDisplaySettings],
   );
   // The sidebar opens on the comment, as Java's does; the tab says how many problems there are.
   await expect(page.getByTestId("tab-problems")).toContainText("2");
   await page.getByTestId("tab-problems").click();
   await expect(page.getByTestId("problem-row")).toHaveCount(2);
+  // Java's blunder bars are off until 显示 → 胜率图设置 → 显示柱状失误条.
+  await expect(page.getByTestId("graph-mistake")).toHaveCount(0);
+  await page.getByTestId("menubar").locator('[data-menu-id="viewMenu"]').click();
+  await page.locator('.menu-row[data-menu-id="winrate"]').hover();
+  await page.locator('.menu-row[data-menu-id="showBlunderBar"]').click();
   await expect(page.getByTestId("graph-mistake")).toHaveCount(2);
   await page.getByTestId("problem-row").first().click();
-  await expect.poll(() => calls(page)).toEqual([{ command: "goTo", args: [37] }]);
+  await expect.poll(async () => (await calls(page)).map((call) => call.command)).toEqual(["setDisplaySettings", "goTo"]);
+  expect((await calls(page))[1]).toEqual({ command: "goTo", args: [37] });
 });
 
 test("the strength window starts the whole-game analysis and fills in as results arrive", async ({ page }) => {

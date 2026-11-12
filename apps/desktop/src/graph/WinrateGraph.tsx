@@ -1,7 +1,9 @@
 import { type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { AnalysisView, GraphView, MistakeBarPoint, MoveRank } from "@/api/backend";
+import type { AnalysisSummary, AnalysisView, GraphView, MistakeBarPoint, MoveRank, WinrateGraphMode } from "@/api/backend";
 import { formatWinrate } from "../board/format";
+import { shiftScores } from "../display/settings";
 import {
+  areaPaths,
   type GraphLayout,
   analysedRanges,
   indexAtX,
@@ -29,6 +31,14 @@ export interface WinrateGraphProps {
   analysis: AnalysisView | null;
   /** Per-point losses on the same line and indexing as the graph. */
   mistakes?: readonly MistakeBarPoint[];
+  /** 显示胜率/目数曲线. */
+  mode?: WinrateGraphMode;
+  /** 单曲线模式使用面积填充: the one line is filled to the middle. */
+  fill?: boolean;
+  /** 显示柱状失误条. */
+  bars?: boolean;
+  /** Added to Black's lead: komi when 目数显示 shows the board score instead of KataGo's lead. */
+  scoreOffset?: number;
   labels: GraphLabels;
   onJump(nodeId: number): void;
 }
@@ -50,7 +60,7 @@ function leadText(score: number): string {
  * displayed line, the current move marked with both values. It fills its container; a click or a
  * drag jumps to the move under the pointer.
  */
-export function WinrateGraph({ graph, analysis, mistakes, labels, onJump }: WinrateGraphProps) {
+export function WinrateGraph({ graph, analysis, mistakes, mode = "Both", fill = false, bars = true, scoreOffset = 0, labels, onJump }: WinrateGraphProps) {
   const container = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const dragging = useRef<number | null>(null);
@@ -70,7 +80,7 @@ export function WinrateGraph({ graph, analysis, mistakes, labels, onJump }: Winr
     return () => observer.disconnect();
   }, []);
 
-  const points = useMemo(() => liveGraph(graph, analysis), [graph, analysis]);
+  const points = useMemo(() => shiftScores(liveGraph(graph, analysis), scoreOffset), [graph, analysis, scoreOffset]);
   const width = size.width;
   const height = Math.max(MIN_HEIGHT, size.height);
   const layout: GraphLayout = { width, height, ...PADDING, count: points.length };
@@ -80,6 +90,11 @@ export function WinrateGraph({ graph, analysis, mistakes, labels, onJump }: Winr
   const plotTop = layout.top;
   const plotBottom = layout.top + plotHeight(layout);
   const plotRight = width - layout.right;
+  const showWinrate = mode !== "ScoreLead";
+  const showScore = mode !== "Winrate";
+  const scoreAt = (summary: AnalysisSummary) => yForScore(layout, summary.score_lead, range);
+  const winrateAt = (summary: AnalysisSummary) => yForWinrate(layout, summary.winrate);
+  const middle = yForWinrate(layout, 0.5);
 
   const jumpTo = (event: PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -143,7 +158,12 @@ export function WinrateGraph({ graph, analysis, mistakes, labels, onJump }: Winr
               y2={yForWinrate(layout, level)}
             />
           ))}
-          {mistakes?.map((point, index) => {
+          {fill && mode !== "Both"
+            ? areaPaths(layout, points, showWinrate ? winrateAt : scoreAt, middle).map((path) => (
+                <path key={path} className={showWinrate ? "graph-fill winrate" : "graph-fill score"} data-testid="graph-fill" d={path} />
+              ))
+            : null}
+          {(bars ? mistakes : undefined)?.map((point, index) => {
             const loss = point.loss;
             if (!loss || !BAR_RANKS.has(loss.rank)) return null;
             const barWidth = Math.min(6, Math.max(2, (plotWidth(layout) / Math.max(1, points.length)) * 0.7));
@@ -162,11 +182,11 @@ export function WinrateGraph({ graph, analysis, mistakes, labels, onJump }: Winr
               />
             );
           })}
-          {linePaths(layout, points, (summary) => yForScore(layout, summary.score_lead, range)).map((path) => (
-            <path key={path} className="graph-score" d={path} />
+          {(showScore ? linePaths(layout, points, scoreAt) : []).map((path) => (
+            <path key={path} className="graph-score" data-testid="graph-score" d={path} />
           ))}
-          {linePaths(layout, points, (summary) => yForWinrate(layout, summary.winrate)).map((path) => (
-            <path key={path} className="graph-winrate" d={path} />
+          {(showWinrate ? linePaths(layout, points, winrateAt) : []).map((path) => (
+            <path key={path} className="graph-winrate" data-testid="graph-winrate" d={path} />
           ))}
           {isolatedIndices(points).map((index) => {
             const summary = points[index]?.summary;
@@ -174,27 +194,43 @@ export function WinrateGraph({ graph, analysis, mistakes, labels, onJump }: Winr
             const x = xForIndex(layout, index);
             return (
               <g key={index} className="graph-dot" data-testid="graph-dot" data-index={index}>
-                <circle className="graph-dot-score" cx={x} cy={yForScore(layout, summary.score_lead, range)} r={2} />
-                <circle className="graph-dot-winrate" cx={x} cy={yForWinrate(layout, summary.winrate)} r={2.5} />
+                {showScore ? <circle className="graph-dot-score" cx={x} cy={scoreAt(summary)} r={2} /> : null}
+                {showWinrate ? <circle className="graph-dot-winrate" cx={x} cy={winrateAt(summary)} r={2.5} /> : null}
               </g>
             );
           })}
 
-          <text className="graph-axis" x={layout.left + 3} y={plotTop + 11}>100</text>
-          <text className="graph-axis" x={layout.left + 3} y={yForWinrate(layout, 0.5) - 3}>50%</text>
-          <text className="graph-axis" x={layout.left + 3} y={plotBottom - 3}>0</text>
-          <text className="graph-axis score" x={plotRight - 3} y={plotTop + 11} textAnchor="end">{`+${range}`}</text>
-          <text className="graph-axis score" x={plotRight - 3} y={plotBottom - 3} textAnchor="end">{`−${range}`}</text>
+          {showWinrate ? (
+            <>
+              <text className="graph-axis" x={layout.left + 3} y={plotTop + 11}>100</text>
+              <text className="graph-axis" x={layout.left + 3} y={middle - 3}>50%</text>
+              <text className="graph-axis" x={layout.left + 3} y={plotBottom - 3}>0</text>
+            </>
+          ) : null}
+          {showScore ? (
+            <>
+              <text className="graph-axis score" x={plotRight - 3} y={plotTop + 11} textAnchor="end">{`+${range}`}</text>
+              <text className="graph-axis score" x={plotRight - 3} y={plotBottom - 3} textAnchor="end">{`−${range}`}</text>
+            </>
+          ) : null}
           {moveTicks(points.length).map((move) => (
             <text key={move} className="graph-axis move" x={xForIndex(layout, move)} y={height - 3} textAnchor="middle">
               {move}
             </text>
           ))}
           <text className="graph-legend" x={plotRight} y={12} textAnchor="end" aria-hidden="true">
-            <tspan className="winrate">━ </tspan>
-            {labels.legendWinrate}
-            <tspan className="score" dx={10}>━ </tspan>
-            {labels.legendScore}
+            {showWinrate ? (
+              <>
+                <tspan className="winrate">━ </tspan>
+                {labels.legendWinrate}
+              </>
+            ) : null}
+            {showScore ? (
+              <>
+                <tspan className="score" dx={showWinrate ? 10 : 0}>━ </tspan>
+                {labels.legendScore}
+              </>
+            ) : null}
           </text>
 
           {current ? (
@@ -202,14 +238,19 @@ export function WinrateGraph({ graph, analysis, mistakes, labels, onJump }: Winr
               <line x1={currentX} x2={currentX} y1={plotTop} y2={plotBottom} />
               {current.summary ? (
                 <>
-                  <circle cx={currentX} cy={scoreY} r={2.5} className="score" />
-                  <circle cx={currentX} cy={winrateY} r={3.5} />
-                  <text className="graph-value score" x={labelX} y={scoreLabelY} textAnchor="middle">
-                    {leadText(current.summary.score_lead)}
-                  </text>
-                  <text className="graph-value" x={labelX} y={winrateLabelY} textAnchor="middle">
-                    {formatWinrate(current.summary.winrate)}
-                  </text>
+                  {/* Both dots first, then both values, so no dot covers a value. */}
+                  {showScore ? <circle cx={currentX} cy={scoreY} r={2.5} className="score" /> : null}
+                  {showWinrate ? <circle cx={currentX} cy={winrateY} r={3.5} /> : null}
+                  {showScore ? (
+                    <text className="graph-value score" x={labelX} y={showWinrate ? scoreLabelY : beside(scoreY)} textAnchor="middle">
+                      {leadText(current.summary.score_lead)}
+                    </text>
+                  ) : null}
+                  {showWinrate ? (
+                    <text className="graph-value" x={labelX} y={winrateLabelY} textAnchor="middle">
+                      {formatWinrate(current.summary.winrate)}
+                    </text>
+                  ) : null}
                 </>
               ) : null}
             </g>

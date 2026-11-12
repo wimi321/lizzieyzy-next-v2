@@ -5,6 +5,8 @@ import en from "../locales/en.json";
 import legacyEn from "../locales/legacy/en-US.json";
 import legacyZh from "../locales/legacy/zh-CN.json";
 import zhCN from "../locales/zh-CN.json";
+import { displayBindings } from "../display/bindings";
+import { DISPLAY_DEFAULTS } from "../display/settings";
 import { isEnabled, menuBindings, type MenuActions, type MenuBindings, type MenuState } from "./bindings";
 import { MenuBar } from "./MenuBar";
 import { engineMenu, labelOf, MENUS, type MenuEntry, menusFor } from "./spec";
@@ -106,7 +108,6 @@ function actions(): MenuActions {
     setAsMain: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
-    toggleConfirm: vi.fn(),
     toggleSetup: vi.fn(),
     setupTool: vi.fn(),
     clearSetup: vi.fn(),
@@ -116,7 +117,6 @@ function actions(): MenuActions {
     alternate: vi.fn(),
     insertMode: vi.fn(),
     quit: vi.fn(),
-    toggleCoordinates: vi.fn(),
     setOwnership: vi.fn(),
     togglePondering: vi.fn(),
     openAutoAnalysis: vi.fn(),
@@ -142,7 +142,6 @@ function actions(): MenuActions {
 const IDLE: MenuState = {
   hasDocument: true,
   hasBoard: true,
-  coordinates: true,
   ownership: false,
   wholeGameActive: false,
   hasBestMove: true,
@@ -156,8 +155,6 @@ const IDLE: MenuState = {
   canUndo: false,
   canRedo: false,
   recent: [],
-  confirmNewBoard: true,
-  confirmReplace: true,
   setupTool: null,
   setupEditable: false,
   trial: false,
@@ -192,7 +189,6 @@ describe("what the menu can do now", () => {
   test("checks follow the board, and entries wait for what they need", () => {
     const run = actions();
     const idle = menuBindings(IDLE, run);
-    expect(idle.coordsMenu?.checked).toBe(true);
     expect(idle.kataEstimateClose?.checked).toBe(true);
     expect(idle.kataEstimateOnMainBoard?.checked).toBe(false);
     expect(idle.stopAutoAnalyze?.enabled).toBe(false);
@@ -249,7 +245,8 @@ describe("what the menu can do now", () => {
 });
 
 const user = actions();
-const BINDINGS: MenuBindings = menuBindings(IDLE, user);
+// The app merges the 显示 entries in, as here.
+const BINDINGS: MenuBindings = { ...menuBindings(IDLE, user), ...displayBindings(DISPLAY_DEFAULTS, vi.fn(), vi.fn()) };
 
 function renderBar(bindings: MenuBindings = BINDINGS) {
   render(<MenuBar menus={[...MENUS, engineMenu(null)]} bindings={bindings} labels={zhCN.menu} label="菜单栏" />);

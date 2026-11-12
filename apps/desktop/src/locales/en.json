@@ -911,5 +911,17 @@
     "switchStone": "Switch color",
     "deleteStone": "Delete",
     "review": "Review"
+  },
+  "display": {
+    "numbersTitle": "Last N moves",
+    "numbersPrompt": "Number the last moves",
+    "ranksTitle": "Move rank marks",
+    "ranksPrompt": "Mark the last moves",
+    "minVisitsTitle": "Next move hint",
+    "minVisitsPrompt": "Show the next move's winrate and score when it has fewer visits than",
+    "confirm": "OK",
+    "cancel": "Cancel",
+    "close": "Close",
+    "invalid": "Enter a whole number from {min} to {max}"
   }
 }

@@ -59,6 +59,9 @@ export interface TopToolbarProps {
   /** The markup tools are out. */
   markupOpen: boolean;
   onMarkup(): void;
+  /** 落子评价标记 is on; the button steps through Java's Alt+M cycle. */
+  rankMarks?: boolean;
+  onRankMarks?(): void;
   onChangeTurn(): void;
   /** 试下 is on: the buttons that would replace the game wait. */
   trial: boolean;
@@ -127,7 +130,7 @@ function KomiField({ label, komi, onChange }: { label: string; komi: number | nu
  * LizzieYzy Next's top toolbar in Java's order (`Menu` → `TopHeaderPanel`), wrapping onto a
  * second row when the window is narrower than its controls, as Java's does at 1429 px.
  */
-export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, markupOpen, trial, playColor, ...on }: TopToolbarProps) {
+export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, markupOpen, rankMarks = false, trial, playColor, ...on }: TopToolbarProps) {
   const icon = JAVA_ICONS;
   return (
     <div className="jt-top" role="toolbar" aria-label="LizzieYzy Next" data-testid="top-toolbar">
@@ -153,7 +156,14 @@ export function TopToolbar({ labels, hasDocument, hasBoard, offMainLine, komi, m
       />
       <ToolSeparator />
       <ToolButton icon={icon.hawkeye} title={labels.hawkeye} enabled={false} />
-      <ToolButton icon={icon.rankMark} title={labels.rankMark} enabled={false} />
+      <ToolButton
+        icon={icon.rankMark}
+        title={labels.rankMark}
+        enabled={on.onRankMarks !== undefined}
+        pressed={rankMarks}
+        testId="tool-rank-marks"
+        onClick={on.onRankMarks}
+      />
       <ToolButton icon={icon.changeTurn} title={labels.changeTurn} enabled={hasBoard} testId="tool-change-turn" onClick={on.onChangeTurn} />
       <ToolButton icon={icon.setMain} title={labels.setMain} enabled={offMainLine} testId="tool-set-main" onClick={on.onSetMain} />
       <ToolButton icon={icon.backMain} title={labels.backMain} enabled={offMainLine} testId="tool-back-main" onClick={on.onBackMain} />

@@ -39,12 +39,11 @@ async function calls(page: Page) {
 
 test("the toolbars hold Java's buttons in Java's order; what the new app lacks stays greyed in place", async ({ page }) => {
   await start(page);
-  expect(await buttons(page, "top-toolbar", true)).toEqual(["新建空白棋盘", "打开棋谱(O)", "保存棋谱(Ctrl+S)", "野狐棋谱", "棋力评估", "一键设置", "闪电分析", "交换落子顺序", "标记工具", "添加黑子(右键添加白子)", "添加白子(右键添加黑子)", "交替落子", "停一手(P)", "死活", "棋盘"]);
+  expect(await buttons(page, "top-toolbar", true)).toEqual(["新建空白棋盘", "打开棋谱(O)", "保存棋谱(Ctrl+S)", "野狐棋谱", "棋力评估", "一键设置", "闪电分析", "落子评价标记(Alt+M)", "交换落子顺序", "标记工具", "添加黑子(右键添加白子)", "添加白子(右键添加黑子)", "交替落子", "停一手(P)", "死活", "棋盘"]);
   expect(await buttons(page, "top-toolbar", false)).toEqual([
     "腾讯棋谱",
     "搜索功能",
     "超级鹰眼(Y)",
-    "落子评价标记(Alt+M)",
     "设为主分支(L)",
     "返回主分支(B)",
     "独立棋局控制面板",
@@ -59,8 +58,8 @@ test("the toolbars hold Java's buttons in Java's order; what the new app lacks s
     "参数",
     "存档",
   ]);
-  expect(await buttons(page, "bottom-toolbar", true)).toEqual(["暂停分析", "自动分析", "Kata形势", "|<", "<<", "<", ">", ">>", ">|", "坐标", "清空棋盘", "删除", "更多"]);
-  expect(await buttons(page, "bottom-toolbar", false)).toEqual(["远程算力", "更新官方权重", "跳转", "自动播放", "设为主分支", "手数"]);
+  expect(await buttons(page, "bottom-toolbar", true)).toEqual(["暂停分析", "自动分析", "Kata形势", "|<", "<<", "<", ">", ">>", ">|", "手数", "坐标", "清空棋盘", "删除", "更多"]);
+  expect(await buttons(page, "bottom-toolbar", false)).toEqual(["远程算力", "更新官方权重", "跳转", "自动播放", "设为主分支"]);
   await expect(page.getByTestId("tool-komi")).toHaveValue("7.5");
 
   // The menu strip: the engine as Java captions it, then AI 陪练 and AI 解说, not built yet.

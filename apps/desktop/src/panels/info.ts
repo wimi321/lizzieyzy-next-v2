@@ -1,5 +1,6 @@
 import type { AnalysisSummary, GraphPointView, MoveView } from "@/api/backend";
 import { playoutsText } from "../frame/title";
+import type { ReviewStatus } from "./NotesPanel";
 
 /** Change caused by the last move, from the mover's side: winrate in percentage points, score in points. */
 export interface MoveChange {
@@ -87,4 +88,24 @@ export function analysisSummary(
     engine ? labels.engine.replace("{engine}", engine).replace("{visits}", visits) : labels.visits.replace("{visits}", visits),
     labels.komi.replace("{komi}", String(komi)),
   ];
+}
+
+export interface ReviewStatusLabels {
+  statusRunning: string;
+  statusDone: string;
+  statusPartial: string;
+}
+
+/** The review line over the notes: a running review's progress, a finished one, or how much of the line is analysed. */
+export function reviewStatusOf(
+  running: { completed: number; total: number } | null,
+  analysed: number,
+  total: number,
+  labels: ReviewStatusLabels,
+): ReviewStatus | null {
+  const count = (text: string, done: number, of: number) => text.replace("{done}", String(done)).replace("{total}", String(of));
+  if (running) return { state: "running", text: count(labels.statusRunning, running.completed, running.total) };
+  if (total > 1 && analysed === total) return { state: "done", text: labels.statusDone };
+  if (analysed > 1) return { state: "partial", text: count(labels.statusPartial, analysed, total) };
+  return null;
 }

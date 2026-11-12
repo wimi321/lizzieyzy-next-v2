@@ -4,6 +4,17 @@ import { useBoardAssets, useElementSize } from "./assets";
 import { drawGoban, drawOverlay, drawStones, type Names, type NextMove, prepare } from "./draw";
 import { computeGeometry, pixelToPoint, pointIndex } from "./geometry";
 import { drawMarkup } from "./markup";
+import { moveLabels, type MoveWindow, type NumberRule, rankedStones } from "./moveMarks";
+import { drawMoveNumbers, drawRankDots } from "./stoneMarks";
+import type { SuggestionStyle } from "./suggestionText";
+
+/** 显示 → 手数 and 落子评价标记: which stones get a number, and which a rank dot. */
+export interface StoneMarks {
+  numbers: NumberRule;
+  rankWindow: MoveWindow;
+  /** Each ranked move on the displayed line, by node id. */
+  ranks: ReadonlyMap<number, MoveRank>;
+}
 
 export interface BoardProps {
   board: BoardView;
@@ -22,6 +33,9 @@ export interface BoardProps {
   lastRank?: MoveRank | null;
   /** Recorded continuations of this position, main line first. */
   next?: NextMove[];
+  nextHint?: { mode: "None" | "Simple" | "Evaluation"; minVisits: number };
+  marks?: StoneMarks;
+  style?: SuggestionStyle;
   passLabel?: string;
   /** Hint for an empty game; shown only while there is no analysis to show. */
   emptyHint?: string | null;
@@ -61,6 +75,9 @@ export function Board({
   names = null,
   lastRank = null,
   next = NO_NEXT,
+  nextHint,
+  marks,
+  style,
   passLabel = "Pass",
   emptyHint = null,
   markup = NO_MARKUP,
@@ -91,6 +108,14 @@ export function Board({
   // The replay replaces the stones while a candidate is previewed.
   const shown = target && variation ? variation : null;
   const stones = shown ? shown.board : board;
+  // Numbers replace the rank marks, as in Java; neither shows over a variation.
+  const labels = useMemo(() => (marks && !shown ? moveLabels(board.stone_move_numbers ?? [], marks.numbers) : null), [marks, shown, board]);
+  const numbered = labels?.some((label) => label !== null) ?? false;
+  const dots = useMemo(
+    () => (marks && !shown && !numbered ? rankedStones(board.stone_move_numbers ?? [], board.stone_node_ids ?? [], marks.ranks, marks.rankWindow) : []),
+    [marks, shown, numbered, board],
+  );
+  const lastRankShown = marks && marks.rankWindow === 0 ? null : lastRank;
 
   useEffect(() => {
     const canvas = gobanCanvas.current;
@@ -117,17 +142,24 @@ export function Board({
         maxCandidates,
         hover: target,
         variation: shown,
-        lastRank,
+        lastRank: lastRankShown,
+        lastMark: !numbered,
         next,
+        nextHint,
+        style,
         passLabel,
         emptyHint,
         dpr: geometry.dpr,
       });
       // Java hides the markup while a variation is shown.
-      if (!shown) drawMarkup(context, geometry, images, board, markup);
+      if (!shown) {
+        if (labels && numbered) drawMoveNumbers(context, geometry, board, labels);
+        drawRankDots(context, geometry, board, dots);
+        drawMarkup(context, geometry, images, board, markup);
+      }
     });
     return () => cancelAnimationFrame(frame);
-  }, [geometry, images, fonts, board, analysis, ownership, maxCandidates, target, shown, lastRank, next, passLabel, emptyHint, markup]);
+  }, [geometry, images, fonts, board, analysis, ownership, maxCandidates, target, shown, lastRankShown, numbered, labels, dots, next, nextHint, style, passLabel, emptyHint, markup]);
 
   const pointAt = (event: MouseEvent<HTMLElement>): PointView | null => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -169,8 +201,10 @@ export function Board({
       data-ready={images && fonts > 0 ? "true" : "false"}
       data-editing={editing || undefined}
       // What the analysis layer was given, so E2E can wait for it before comparing pixels.
-      data-last-rank={lastRank ?? ""}
+      data-last-rank={lastRankShown ?? ""}
       data-next-moves={next.length}
+      data-numbers={labels?.filter((label) => label !== null).length ?? 0}
+      data-rank-dots={dots.length}
       // Layout for E2E pointer tests: CSS pixels of point (0, 0) and the line spacing.
       data-cell={(geometry.cell / scale).toFixed(3)}
       data-origin-x={(geometry.originX / scale).toFixed(3)}

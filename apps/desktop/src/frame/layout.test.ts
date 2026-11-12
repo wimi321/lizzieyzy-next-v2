@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { inFrameLayout, STATUS_HEIGHT } from "./layout";
+import { ALL_PANELS, inFrameLayout, STATUS_HEIGHT } from "./layout";
 
 test("the status line reserves what Java reserves for one 14 px line", () => {
   expect(STATUS_HEIGHT).toBe(29);
@@ -32,4 +32,19 @@ test("a 1920 × 1080 window (a 1920 × 963 panel, the toolbar on one row) is lai
 test("an odd panel height leaves Java's one-pixel gap under the sub-board", () => {
   const layout = inFrameLayout(1429, 835);
   expect(layout.tree.height + layout.subBoard.height).toBe(834);
+});
+
+test("hidden panels give their room to their neighbours as Java's do", () => {
+  // No comment: the sub-board stays under the graph and the tree takes the whole right column.
+  const noComment = inFrameLayout(1429, 833, 19, { ...ALL_PANELS, comment: false });
+  expect(noComment.subBoard).toEqual({ x: 0, y: 464, width: 280, height: 280 });
+  expect(noComment.tree).toEqual({ x: 1145, y: 0, width: 284, height: 833 });
+  // No sub-board: the tree takes the whole right column.
+  expect(inFrameLayout(1429, 833, 19, { ...ALL_PANELS, subBoard: false }).tree).toEqual({ x: 1145, y: 0, width: 284, height: 833 });
+  // No tree: the sub-board drops to the bottom of the right column.
+  expect(inFrameLayout(1429, 833, 19, { ...ALL_PANELS, tree: false }).subBoard).toEqual({ x: 1145, y: 549, width: 284, height: 284 });
+  // No status line: the comment reaches the bottom.
+  const noStatus = inFrameLayout(1429, 833, 19, { ...ALL_PANELS, status: false });
+  expect(noStatus.comment).toEqual({ x: 0, y: 464, width: 280, height: 369 });
+  expect(noStatus.status.height).toBe(0);
 });
