@@ -33,6 +33,7 @@ import { ProblemList } from "./review/ProblemList";
 import { StrengthDialog } from "./review/StrengthDialog";
 import { LimitDialog } from "./analysis/LimitDialog";
 import { useAnalysisRun } from "./analysis/useAnalysisRun";
+import { useClearing } from "./analysis/useClearing";
 import { BenchmarkChip } from "./benchmark/BenchmarkChip";
 import { BenchmarkDialog } from "./benchmark/BenchmarkDialog";
 import { useBenchmark } from "./benchmark/useBenchmark";
@@ -133,6 +134,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const wholeGame = useWholeGame(backend);
   // LizzieYzy Next draws the graph with a one-visit pass when a game opens; that pass stays quiet.
   const [autoCurve, setAutoCurve] = useState(true);
+  const [cacheOn, setCacheOn] = useState(true);
   const quickPass = wholeGame.progress?.source === "AutomaticQuick" ? wholeGame.progress : null;
   const quickRunning = quickPass !== null && (quickPass.status.type === "Running" || quickPass.status.type === "Paused");
   const sync = useBoardSync(backend);
@@ -171,6 +173,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         if (!active) return;
         setPondering(settings.pondering);
         setAutoCurve(settings.auto_quick_analyze_on_load ?? true);
+        setCacheOn(settings.cache_enabled ?? true);
         setProfile(settings.engine);
         setFoxHistory(settings.fox_history);
         setTsumegoOptions(settings.tsumego);
@@ -267,6 +270,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     const path = await backend.pickOpenPath();
     if (path) await backend.openPath(path);
   };
+  const clearing = useClearing(backend, board !== null, messages.clearing);
   const modes = useBoardModes(backend, document, messages.modes);
   const editing = useEditing(
     backend,
@@ -386,13 +390,14 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       },
     ),
     ...display.bindings,
+    ...clearing.bindings,
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
     hawkEye2: { run: toggleHawkEye, enabled: document !== null },
   };
   useShortcuts(
     bindings,
-    !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen),
+    !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen),
   );
   const frame = messages.frame;
   const engineLabel = useEngineName(backend, profile, frame.engineNames);
@@ -664,6 +669,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       ) : null}
       {editing.dialogs}
       {display.dialog}
+      {clearing.dialog}
       {modes.dialog}
       {boardMenu.menu}
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}
@@ -704,11 +710,12 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {aboutOpen ? <AboutDialog name={messages.app.title} labels={messages.about} onClose={() => setAboutOpen(false)} /> : null}
       {settingsOpen && limits ? (
         <SettingsDialog
-          values={{ limits, autoCurve }}
+          values={{ limits, autoCurve, cache: cacheOn }}
           labels={messages.prefs}
           onSave={async (values) => {
             setLimits(await backend.setAnalysisLimits(values.limits));
             if (values.autoCurve !== autoCurve) setAutoCurve(await backend.setAutoQuickAnalyzeOnLoad(values.autoCurve));
+            if (values.cache !== cacheOn) setCacheOn((await backend.setCacheEnabled?.(values.cache)) ?? values.cache);
             setSettingsOpen(false);
           }}
           onClose={() => setSettingsOpen(false)}

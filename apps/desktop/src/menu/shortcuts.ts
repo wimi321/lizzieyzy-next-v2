@@ -20,6 +20,7 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "save", code: "KeyS", control: true },
   { id: "togglePonder", code: "Space" },
   { id: "autoAnalyze", code: "KeyA" },
+  { id: "clearAllLizzieCache", code: "KeyA", shift: true },
   { id: "playPassMove", code: "KeyP" },
   { id: "playBestMove", code: "Comma" },
   { id: "coordsMenu", code: "KeyC" },
