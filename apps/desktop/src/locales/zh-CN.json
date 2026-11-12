@@ -793,7 +793,9 @@
       "previous": "上一手",
       "next": "下一手",
       "forward10": "前进十手",
-      "last": "最后一手"
+      "last": "最后一手",
+      "tryPlay": "试下",
+      "tryBack": "恢复"
     },
     "status": {
       "analyzing": "分析中",
@@ -809,7 +811,8 @@
       "white": "白",
       "result": "结果:",
       "speedUnit": "搜索/秒",
-      "b11": "B11：速度较低，棋力更强"
+      "b11": "B11：速度较低，棋力更强",
+      "trial": "试下中..."
     },
     "engineNames": {
       "b10-lightweight": "Transformer 10B 轻量版",
@@ -864,7 +867,10 @@
     "undo": "撤销编辑",
     "redo": "恢复编辑",
     "recentEmpty": "(还没有打开过棋谱)",
-    "clearRecent": "清空列表"
+    "clearRecent": "清空列表",
+    "trialActive": "试下中",
+    "trialBack": "恢复",
+    "trialHint": "试下不改动原棋谱；点「恢复」回到原来那一手"
   },
   "modes": {
     "setupTitle": "起始局面设置",
@@ -888,6 +894,22 @@
     "done": "完成",
     "doneHint": "完成（Esc）",
     "confirm": "确定",
-    "cancel": "取消"
+    "cancel": "取消",
+    "colorTitle": "添加棋子",
+    "insertTitle": "插入棋子",
+    "black": "黑",
+    "white": "白",
+    "moveTitle": "移动：点要放的位置"
+  },
+  "boardMenu": {
+    "insertBlack": "插入黑子",
+    "insertWhite": "插入白子",
+    "addBranch": "添加为分支",
+    "previousMove": "回退一手",
+    "findStone": "跳到此步",
+    "moveStone": "移动",
+    "switchStone": "反色",
+    "deleteStone": "删除",
+    "review": "回看"
   }
 }

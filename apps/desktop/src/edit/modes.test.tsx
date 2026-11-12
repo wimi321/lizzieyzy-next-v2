@@ -17,6 +17,9 @@ function fake() {
     setMarkup: vi.fn(() => Promise.resolve(1)),
     clearMarkup: vi.fn(() => Promise.resolve(1)),
     toggleToPlay: vi.fn(() => Promise.resolve(1)),
+    playColored: vi.fn(() => Promise.resolve(1)),
+    insertMove: vi.fn(() => Promise.resolve(1)),
+    moveStone: vi.fn(() => Promise.resolve(1)),
   };
 }
 
@@ -118,5 +121,44 @@ describe("the board's editing modes", () => {
     expect(result.current.editing).toBe(true);
     rerender({ view: null });
     expect(result.current.mode).toEqual({ kind: "play" });
+  });
+});
+
+describe("playing a chosen color, inserting and moving stones", () => {
+  test("the play modes send the right command for a click", () => {
+    expect(clickCommand({ kind: "color", color: "White" }, D4)).toEqual({ colored: { type: "Play", data: { color: "White", point: D4 } } });
+    expect(clickCommand({ kind: "insert", color: "Black" }, D4)).toEqual({ insert: { type: "Play", data: { color: "Black", point: D4 } } });
+    expect(clickCommand({ kind: "move", from: { x: 1, y: 1 } }, D4)).toEqual({ move: [{ x: 1, y: 1 }, D4] });
+  });
+
+  test("添加黑子 plays black on a click and white on a right click; the same button goes back to alternate play", () => {
+    const backend = fake();
+    const { result } = renderHook(() => useBoardModes(backend, midGame(), zh.modes));
+    expect(result.current.secondary(D4)).toBe(false);
+    act(() => result.current.colorMode("Black"));
+    expect(result.current.editing).toBe(true);
+    act(() => result.current.onPoint(D4));
+    expect(backend.playColored).toHaveBeenCalledWith({ type: "Play", data: { color: "Black", point: D4 } });
+    let taken = false;
+    act(() => {
+      taken = result.current.secondary(D4);
+    });
+    expect(taken).toBe(true);
+    expect(backend.playColored).toHaveBeenLastCalledWith({ type: "Play", data: { color: "White", point: D4 } });
+    act(() => result.current.colorMode("Black"));
+    expect(result.current.mode).toEqual({ kind: "play" });
+  });
+
+  test("移动 puts the stone down once, where the next click lands, and then plays again", () => {
+    const backend = fake();
+    const { result } = renderHook(() => useBoardModes(backend, midGame(), zh.modes));
+    act(() => result.current.startMove({ x: 3, y: 3 }));
+    act(() => result.current.onPoint(D4));
+    expect(backend.moveStone).toHaveBeenCalledWith({ x: 3, y: 3 }, D4);
+    expect(result.current.mode).toEqual({ kind: "play" });
+    // Putting it back where it was moves nothing.
+    act(() => result.current.startMove({ x: 3, y: 3 }));
+    act(() => result.current.onPoint({ x: 3, y: 3 }));
+    expect(backend.moveStone).toHaveBeenCalledTimes(1);
   });
 });

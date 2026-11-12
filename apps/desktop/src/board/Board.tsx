@@ -33,6 +33,8 @@ export interface BoardProps {
    */
   editing?: boolean;
   onPoint?(point: PointView): void;
+  /** A right click on the board, at a point, with the pointer's position for a menu. */
+  onContextMenu?(point: PointView, x: number, y: number): void;
   /** The candidate under the pointer, so the app can ask Rust for its variation. */
   onHoverCandidate?(point: PointView | null): void;
   onPlay(point: PointView): void;
@@ -64,6 +66,7 @@ export function Board({
   markup = NO_MARKUP,
   editing = false,
   onPoint,
+  onContextMenu,
   onHoverCandidate,
   onPlay,
 }: BoardProps) {
@@ -175,6 +178,11 @@ export function Board({
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       onClick={onClick}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        const point = pointAt(event);
+        if (point) onContextMenu?.(point, event.clientX, event.clientY);
+      }}
     >
       <canvas ref={gobanCanvas} className="board-layer" />
       <canvas ref={stoneCanvas} className="board-layer" />

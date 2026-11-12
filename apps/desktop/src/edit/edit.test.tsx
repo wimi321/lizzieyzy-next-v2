@@ -152,6 +152,8 @@ describe("saving, game info and new boards", () => {
       promoteToMain: vi.fn(() => Promise.resolve(1)),
       undo: vi.fn(() => Promise.resolve(1)),
       redo: vi.fn(() => Promise.resolve(1)),
+      startTrial: vi.fn(() => Promise.resolve(1)),
+      endTrial: vi.fn(() => Promise.resolve(1)),
     };
   }
 
@@ -285,7 +287,7 @@ describe("the menu's editing entries", () => {
   const state = (change: Partial<MenuState>): MenuState => ({
     hasDocument: true, hasBoard: true, coordinates: true, ownership: false, wholeGameActive: false, hasBestMove: false, engineFailed: false,
     engineConfigured: true, windows: false, syncPhase: "Stopped", syncOptions: { always_sync: true, always_goto_last: false },
-    tree, current: 0, canUndo: false, canRedo: false, recent: [], confirmNewBoard: true, confirmReplace: true, setupTool: null, setupEditable: false, ...change,
+    tree, current: 0, canUndo: false, canRedo: false, recent: [], confirmNewBoard: true, confirmReplace: true, setupTool: null, setupEditable: false, trial: false, playColor: null, insertColor: null, ...change,
   });
   const actions = () => new Proxy({}, { get: (target: Record<string, unknown>, key: string) => (target[key] ??= vi.fn()) }) as unknown as MenuActions;
 

@@ -1,12 +1,22 @@
 import { type ReactNode, useCallback, useEffect, useState } from "react";
-import type { Backend, ColorView, DocumentView, MarkupKindView, PointView } from "@/api/backend";
+import type { Backend, ColorView, DocumentView, MarkupKindView, MoveView, PointView } from "@/api/backend";
 import { ConfirmDialog } from "../frame/ConfirmDialog";
 import { EditModeChip } from "./EditModeChip";
 
 export type SetupTool = "Black" | "White" | "Erase";
 
-/** What a click on the board does: play, edit the starting position, or mark the current move. */
-export type BoardMode = { kind: "play" } | { kind: "setup"; tool: SetupTool } | { kind: "markup"; tool: MarkupKindView | null };
+/**
+ * What a click on the board does: play, edit the starting position, mark the current move, play
+ * one color whatever the turn (编辑 → 添加黑子), insert a move before the continuation, or put a
+ * stone picked up with 移动 down elsewhere.
+ */
+export type BoardMode =
+  | { kind: "play" }
+  | { kind: "setup"; tool: SetupTool }
+  | { kind: "markup"; tool: MarkupKindView | null }
+  | { kind: "color"; color: ColorView }
+  | { kind: "insert"; color: ColorView }
+  | { kind: "move"; from: PointView };
 
 export interface ModeLabels {
   setupTitle: string;
@@ -27,13 +37,30 @@ export interface ModeLabels {
   markupCircle: string;
   markupEraser: string;
   clearMarkup: string;
+  colorTitle: string;
+  insertTitle: string;
+  black: string;
+  white: string;
+  moveTitle: string;
   done: string;
   doneHint: string;
   confirm: string;
   cancel: string;
 }
 
-type ModeBackend = Pick<Backend, "setSetupStone" | "clearSetup" | "setFirstPlayer" | "convertToStartPosition" | "setMarkup" | "clearMarkup" | "toggleToPlay">;
+type ModeBackend = Pick<
+  Backend,
+  | "setSetupStone"
+  | "clearSetup"
+  | "setFirstPlayer"
+  | "convertToStartPosition"
+  | "setMarkup"
+  | "clearMarkup"
+  | "toggleToPlay"
+  | "playColored"
+  | "insertMove"
+  | "moveStone"
+>;
 
 export interface BoardModes {
   mode: BoardMode;
@@ -50,6 +77,14 @@ export interface BoardModes {
   convertToStart(): void;
   toggleMarkup(): void;
   toggleToPlay(): void;
+  /** 添加黑子 / 添加白子: the same button again goes back to alternate play. */
+  colorMode(color: ColorView): void;
+  /** 插入黑子 / 插入白子 as a mode: every click inserts. */
+  insertMode(color: ColorView): void;
+  /** 移动: the stone at `from` goes where the next click lands. */
+  startMove(from: PointView): void;
+  /** A right click: in 添加 mode Java plays the other color; true when it was taken. */
+  secondary(point: PointView): boolean;
   exit(): void;
   /** The chip for the strip's tray while a tool is in hand. */
   chip: ReactNode;
@@ -63,11 +98,31 @@ function report(error: unknown) {
   console.error("Board editing command failed", error);
 }
 
+export type ClickCommand =
+  | { setup: [PointView, ColorView | null] }
+  | { markup: [PointView, MarkupKindView] }
+  | { colored: MoveView }
+  | { insert: MoveView }
+  | { move: [PointView, PointView] };
+
+const placing = (color: ColorView, point: PointView): MoveView => ({ type: "Play", data: { color, point } });
+
 /** Where a click goes in each mode; null means the board plays as usual. */
-export function clickCommand(mode: BoardMode, point: PointView): { setup: [PointView, ColorView | null] } | { markup: [PointView, MarkupKindView] } | null {
-  if (mode.kind === "setup") return { setup: [point, mode.tool === "Erase" ? null : mode.tool] };
-  if (mode.kind === "markup" && mode.tool) return { markup: [point, mode.tool] };
-  return null;
+export function clickCommand(mode: BoardMode, point: PointView): ClickCommand | null {
+  switch (mode.kind) {
+    case "setup":
+      return { setup: [point, mode.tool === "Erase" ? null : mode.tool] };
+    case "markup":
+      return mode.tool ? { markup: [point, mode.tool] } : null;
+    case "color":
+      return { colored: placing(mode.color, point) };
+    case "insert":
+      return { insert: placing(mode.color, point) };
+    case "move":
+      return { move: [mode.from, point] };
+    default:
+      return null;
+  }
 }
 
 /**
@@ -81,7 +136,7 @@ export function useBoardModes(backend: ModeBackend, document: DocumentView | nul
   const setupEditable = document !== null && document.tree.main_line.length === 1;
 
   const exit = useCallback(() => setMode(PLAY), []);
-  const editing = (mode.kind === "setup") || (mode.kind === "markup" && mode.tool !== null);
+  const editing = mode.kind !== "play" && !(mode.kind === "markup" && mode.tool === null);
 
   // Esc puts the tool down, unless a field or dialog has the key.
   useEffect(() => {
@@ -108,7 +163,14 @@ export function useBoardModes(backend: ModeBackend, document: DocumentView | nul
     const command = clickCommand(mode, point);
     if (!command) return;
     if ("setup" in command) backend.setSetupStone(...command.setup).catch(report);
-    else backend.setMarkup(...command.markup).catch(report);
+    else if ("markup" in command) backend.setMarkup(...command.markup).catch(report);
+    else if ("colored" in command) backend.playColored(command.colored).catch(report);
+    else if ("insert" in command) backend.insertMove(command.insert).catch(report);
+    else {
+      // The stone is put down once; the board goes back to play.
+      setMode(PLAY);
+      if (command.move[0].x !== point.x || command.move[0].y !== point.y) backend.moveStone(...command.move).catch(report);
+    }
   };
 
   const setupTools = [
@@ -162,6 +224,30 @@ export function useBoardModes(backend: ModeBackend, document: DocumentView | nul
     );
   }
 
+  const colors = [
+    { value: "Black" as const, label: labels.black, glyph: "●" },
+    { value: "White" as const, label: labels.white, glyph: "○" },
+  ];
+  if (mode.kind === "color" || mode.kind === "insert") {
+    const kind = mode.kind;
+    chip = (
+      <EditModeChip
+        title={kind === "color" ? labels.colorTitle : labels.insertTitle}
+        tools={colors}
+        tool={mode.color}
+        done={labels.done}
+        doneHint={labels.doneHint}
+        testId={`${kind}-chip`}
+        onTool={(color) => setMode({ kind, color })}
+        onDone={exit}
+      />
+    );
+  } else if (mode.kind === "move") {
+    chip = (
+      <EditModeChip title={labels.moveTitle} tools={[]} tool={null} done={labels.cancel} doneHint={labels.doneHint} testId="move-chip" onTool={() => {}} onDone={exit} />
+    );
+  }
+
   const dialog = convert ? (
     <ConfirmDialog
       title={labels.convertTitle}
@@ -195,6 +281,14 @@ export function useBoardModes(backend: ModeBackend, document: DocumentView | nul
     convertToStart: () => setConvert({ then: null }),
     toggleMarkup: () => setMode(mode.kind === "markup" ? PLAY : { kind: "markup", tool: null }),
     toggleToPlay: () => void backend.toggleToPlay().catch(report),
+    colorMode: (color) => setMode(mode.kind === "color" && mode.color === color ? PLAY : { kind: "color", color }),
+    insertMode: (color) => setMode(mode.kind === "insert" && mode.color === color ? PLAY : { kind: "insert", color }),
+    startMove: (from) => setMode({ kind: "move", from }),
+    secondary: (point) => {
+      if (mode.kind !== "color") return false;
+      backend.playColored(placing(mode.color === "Black" ? "White" : "Black", point)).catch(report);
+      return true;
+    },
     exit,
     chip,
     dialog,

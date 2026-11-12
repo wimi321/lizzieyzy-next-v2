@@ -6,6 +6,7 @@ import type { NextMove } from "./board/draw";
 import { SubBoard } from "./board/SubBoard";
 import { useVariationPreview } from "./board/useVariationPreview";
 import { useCommentEdit } from "./edit/useCommentEdit";
+import { useBoardMenu } from "./edit/BoardMenu";
 import { useBoardModes } from "./edit/useBoardModes";
 import { useEditing } from "./edit/useEditing";
 import { FoxDialog } from "./fox/FoxDialog";
@@ -303,6 +304,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   };
   const modes = useBoardModes(backend, document, messages.modes);
   const editing = useEditing(backend, document, emptyGame, messages.edit, messages.info.rules, openFailure);
+  const boardMenu = useBoardMenu(backend, document, analysis, revision, messages.boardMenu, modes.startMove);
   // Space and the chip resume a limit stop without changing the saved setting.
   const togglePondering = run.toggle;
   const livePondering = run.state?.pondering ?? pondering;
@@ -353,6 +355,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       confirmReplace: editing.confirms.replace,
       setupTool: modes.mode.kind === "setup" ? modes.mode.tool : null,
       setupEditable: modes.setupEditable,
+      trial: editing.trial,
+      playColor: modes.mode.kind === "color" ? modes.mode.color : null,
+      insertColor: modes.mode.kind === "insert" ? modes.mode.color : null,
     },
     {
       open: () => void openFile().catch(report),
@@ -374,6 +379,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       clearSetup: modes.clearSetup,
       setFirstPlayer: modes.setFirstPlayer,
       convertToStart: modes.convertToStart,
+      colorMode: modes.colorMode,
+      alternate: modes.exit,
+      insertMode: modes.insertMode,
       quit: () => void backend.quit().catch(report),
       toggleCoordinates: () => setCoordinates((value) => !value),
       setOwnership,
@@ -409,7 +417,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const menus = useMenus(WINDOWS, editing.recent, messages.edit, engineLabel ?? (profile ? "" : null));
   const autoAnalyzing = quickRunning || wholeGameStatus === "Running";
   // Java's title: "[Black's winrate, lead, visits] engine speed - [黑] A vs [白] B (结果:…)".
-  const title = windowTitle({
+  const gameTitle = windowTitle({
     app: messages.app.title,
     evaluation:
       analysis && analysis.node_id === current && analysis.visits > 0 ? evaluationText(analysis.winrate, analysis.score_lead, analysis.visits) : null,
@@ -424,6 +432,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     result: info?.result?.trim() ? `(${frame.title.result}${info.result.trim()})` : null,
     file: document?.file_name ?? null,
   });
+  // Java titles the window 试下中... for as long as a trial lasts.
+  const title = editing.trial ? frame.title.trial : gameTitle;
   useEffect(() => {
     backend.setWindowTitle(title).catch(report);
   }, [title]);
@@ -490,6 +500,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         }
         tray={
           <>
+            {editing.trialChip}
             {modes.chip}
             {tsumego ? <TsumegoChip status={tsumego} labels={messages.tsumego} onExit={exitTsumego} /> : null}
             {sync.status && sync.status.phase !== "Stopped" ? <BoardSyncChip status={sync.status} labels={messages.sync} onStop={sync.stop} /> : null}
@@ -512,6 +523,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         markupOpen={modes.mode.kind === "markup"}
         onMarkup={modes.toggleMarkup}
         onChangeTurn={modes.toggleToPlay}
+        trial={editing.trial}
+        playColor={modes.mode.kind === "color" ? modes.mode.color : null}
+        onColor={modes.colorMode}
+        onAlternate={modes.exit}
         onOpen={() => void openFile().catch(report)}
         onSave={editing.save}
         onFox={openFox}
@@ -608,6 +623,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               markup={document?.markup ?? undefined}
               editing={modes.editing}
               onPoint={modes.onPoint}
+              onContextMenu={(point, x, y) => {
+                if (!modes.secondary(point)) boardMenu.open(point, x, y);
+              }}
               onHoverCandidate={setBoardHover}
               onPlay={play}
             />
@@ -657,9 +675,12 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         onSetMain={editing.setAsMain}
         onClear={editing.newBoard}
         onDelete={editing.deleteMove}
+        trial={editing.trial}
+        onTrial={editing.toggleTrial}
       />
       {editing.dialogs}
       {modes.dialog}
+      {boardMenu.menu}
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}
       {openFailure ? (
         <MessageBox
