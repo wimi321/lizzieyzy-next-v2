@@ -1,0 +1,467 @@
+/*
+ * The side columns of LizzieYzy Next's window: what Java shows, where Java shows it. Java cuts
+ * the columns in proportion to the window, so the two boxes at the top size their type by their
+ * own height (container units), not by the screen.
+ */
+
+.main-region[data-region="captured"],
+.main-region[data-region="statistics"] {
+  container-type: size;
+  color: #f2f2f2;
+  font-family: var(--jf-font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Captured stones: Black's column, the game's terms, White's column. */
+
+.captured-box {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  grid-template-rows: 42fr 29fr 29fr;
+  align-items: center;
+  justify-items: center;
+  height: 100%;
+  padding: 3px 8px 5px;
+  padding-block: 3cqh 5cqh;
+  font-size: 14px;
+  font-size: clamp(11px, 14.5cqh, 15px);
+}
+
+.cap-stone {
+  height: 26px;
+  height: min(28cqh, 30px);
+  aspect-ratio: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+}
+
+/* The side to move has the larger stone. */
+.cap-stone[data-to-play="true"] {
+  height: 36px;
+  height: min(38cqh, 42px);
+}
+
+.cap-rules {
+  padding: 0 10px;
+  font-size: 1.2em;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+.cap-turn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  font-size: 0.86em;
+  color: #cfcfcf;
+}
+
+.cap-turn i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8fd24a;
+}
+
+.cap-match {
+  cursor: help;
+}
+
+/* Statistics: both winrates around the move number, the bar, the lead. */
+
+.statistics {
+  height: 100%;
+}
+
+.stat-box {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: 35fr 30fr 35fr;
+  align-items: center;
+  height: 100%;
+  padding: 0 6px;
+  font-size: 13px;
+  font-size: clamp(11px, 17cqh, 14px);
+}
+
+.stat-numbers {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: baseline;
+  font-size: 18px;
+  font-size: clamp(13px, 24cqh, 20px);
+}
+
+.stat-numbers > :last-child {
+  text-align: right;
+}
+
+.stat-numbers strong {
+  font-weight: 500;
+}
+
+.stat-bar {
+  position: relative;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 9px;
+  max-height: 24px;
+  overflow: hidden;
+  background: #efebe0;
+  border: 1px solid #7a7a7a;
+  border-radius: 2px;
+}
+
+.stat-bar-black {
+  height: 100%;
+  background: #0b0b0b;
+  transition: width 0.35s ease;
+}
+
+/* A tick at every quarter, visible on the black part and on the white. */
+.stat-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), rgba(128, 128, 128, 0.6) calc(25% - 1px), rgba(128, 128, 128, 0.6) 25%);
+}
+
+.stat-lead {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  overflow: hidden;
+}
+
+.stat-lead .move-change {
+  color: #d6d6d6;
+}
+
+.stat-lead .move-change[data-trend="worse"] {
+  color: #ff8f85;
+}
+
+.stat-lead .move-change[data-trend="better"] {
+  color: #8fe0a0;
+}
+
+/* Winrate graph */
+
+.main-region[data-region="graph"] {
+  background: #1d1f22;
+}
+
+.graph-region {
+  position: relative;
+  height: 100%;
+}
+
+.graph-region .graph {
+  height: 100%;
+}
+
+.graph-region .curve-progress {
+  position: absolute;
+  top: 1px;
+  left: 6px;
+  z-index: 1;
+  color: #c9c9c9;
+}
+
+.graph-plot {
+  fill: rgba(0, 0, 0, 0.28);
+}
+
+.graph-grid {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-dasharray: 2 4;
+}
+
+.graph-grid.middle {
+  stroke: rgba(255, 255, 255, 0.42);
+  stroke-dasharray: none;
+}
+
+.graph-winrate {
+  stroke: #5aa0f2;
+  stroke-width: 1.7;
+}
+
+.graph-score {
+  stroke: #bd62da;
+  stroke-width: 1.3;
+}
+
+.graph-dot-winrate {
+  fill: #5aa0f2;
+}
+
+.graph-dot-score {
+  fill: #bd62da;
+}
+
+.graph-axis {
+  fill: #d8d8d8;
+  font: 10px var(--jf-font);
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.65);
+  stroke-width: 2px;
+  opacity: 1;
+}
+
+.graph-axis.score {
+  fill: #d08ae6;
+  opacity: 1;
+}
+
+.graph-axis.move {
+  stroke: none;
+  fill: #bcbcbc;
+}
+
+.graph-legend {
+  fill: #d8d8d8;
+  font: 11px var(--jf-font);
+}
+
+.graph-legend .winrate {
+  fill: #5aa0f2;
+}
+
+.graph-legend .score {
+  fill: #bd62da;
+}
+
+.graph-current line {
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 1;
+}
+
+.graph-current circle {
+  fill: #fff;
+  stroke: #111;
+  stroke-width: 1;
+}
+
+.graph-current circle.score {
+  fill: #f4d84a;
+}
+
+.graph-value {
+  fill: #fff;
+  font: 700 12px var(--jf-font);
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.8);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
+.graph-value.score {
+  fill: #f4d84a;
+  font-size: 11px;
+}
+
+.graph-empty {
+  fill: #9a9a9a;
+  font: 12px var(--jf-font);
+}
+
+/* Comment and problem moves */
+
+.main-region[data-region="comment"] {
+  display: flex;
+}
+
+.notes {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  color: #eee;
+  font-family: var(--jf-font);
+}
+
+.notes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px 0;
+}
+
+.notes-tabs {
+  display: flex;
+  gap: 16px;
+}
+
+.notes-tabs button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 1px 7px;
+  color: #a8a8a8;
+  font: 13px var(--jf-font);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.notes-tabs button:hover {
+  color: #e6e6e6;
+}
+
+.notes-tabs button[aria-selected="true"] {
+  color: #fff;
+  font-weight: 600;
+}
+
+.notes-tabs button[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  left: 1px;
+  height: 2px;
+  background: #6ea8ff;
+  border-radius: 1px;
+}
+
+.notes-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  color: #bdbdbd;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.notes-status i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #58d6a4;
+}
+
+.notes-status[data-state="running"] i {
+  background: #e2b04c;
+}
+
+.notes-status[data-state="partial"] i {
+  background: #8c8c8c;
+}
+
+.notes-comment {
+  flex: 1;
+  min-height: 0;
+  padding: 10px 12px 12px;
+  overflow: auto;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.notes-comment p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notes-summary {
+  color: #f4f4f4;
+  font-variant-numeric: tabular-nums;
+}
+
+.notes-comment .notes-text {
+  margin-top: 10px;
+  padding-top: 10px;
+  color: #dcdcdc;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.notes-comment .notes-text:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.notes .problem-list {
+  padding: 8px 12px 0;
+}
+
+/* Variation tree */
+
+.tree-panel {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+}
+
+.tree-edge {
+  stroke: #676767;
+}
+
+.tree-edge.lit {
+  stroke: #f2f2f2;
+}
+
+.tree-dot {
+  fill: #e3e3e3;
+  stroke: rgba(0, 0, 0, 0.4);
+  stroke-width: 1;
+}
+
+.tree-dot.empty {
+  fill: #8a8a8a;
+}
+
+.tree-dot.off-line {
+  opacity: 0.55;
+}
+
+.tree-root {
+  fill: #e3e3e3;
+  stroke: rgba(0, 0, 0, 0.4);
+  stroke-width: 1;
+}
+
+.tree-current {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.tree-number {
+  fill: #b5b5b5;
+  font: 9.5px var(--jf-font);
+  font-variant-numeric: tabular-nums;
+}
+
+.tree-number.current {
+  fill: #fff;
+}
+
+.tree-node:hover .tree-dot {
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+/* Sub-board */
+
+.main-region[data-region="sub-board"] {
+  display: flex;
+}
+
+.sub-board {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}

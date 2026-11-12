@@ -70,8 +70,10 @@ test("problem moves list the worst moves, mark the graph and jump on click", asy
     },
     [[documentChanged(game, 7)], problemView(game.graph.points)] as [WireAppEvent[], ProblemMovesView],
   );
-  await expect(page.getByTestId("problem-row")).toHaveCount(2);
+  // The sidebar opens on the comment, as Java's does; the tab says how many problems there are.
   await expect(page.getByTestId("tab-problems")).toContainText("2");
+  await page.getByTestId("tab-problems").click();
+  await expect(page.getByTestId("problem-row")).toHaveCount(2);
   await expect(page.getByTestId("graph-mistake")).toHaveCount(2);
   await page.getByTestId("problem-row").first().click();
   await expect.poll(() => calls(page)).toEqual([{ command: "goTo", args: [37] }]);
@@ -100,7 +102,7 @@ test("the strength window starts the whole-game analysis and fills in as results
   await expect(dialog.getByTestId("strength-report")).toBeVisible();
   await expect(dialog.getByTestId("strength-black-match")).toHaveText("74%");
   await expect(dialog.getByTestId("strength-partial")).toBeVisible();
-  await expect(page.getByTestId("player-match-black")).toHaveText("Match 74%");
+  await expect(page.getByTestId("player-match-black")).toHaveText("Match 74.0");
   await expect.poll(() => calls(page)).toEqual([{ command: "startWholeGameAnalysis", args: [{ visits: 1000 }] }]);
 
   await page.keyboard.press("Escape");

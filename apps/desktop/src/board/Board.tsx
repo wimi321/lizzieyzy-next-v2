@@ -1,8 +1,8 @@
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { AnalysisView, BoardView, PointView, VariationPreviewView } from "@/api/backend";
-import { type AnalysisLayer, drawAnalysis, drawBackground, drawPreviewLabels, drawStones, prepare } from "./draw";
-import { backingSize, computeGeometry, pixelToPoint, pointIndex } from "./geometry";
-import { type Palette, readPalette } from "./palette";
+import type { AnalysisView, BoardView, MoveRank, PointView, VariationPreviewView } from "@/api/backend";
+import { useBoardAssets, useElementSize } from "./assets";
+import { drawGoban, drawOverlay, drawStones, type Names, type NextMove, prepare } from "./draw";
+import { computeGeometry, pixelToPoint, pointIndex } from "./geometry";
 
 export interface BoardProps {
   board: BoardView;
@@ -13,26 +13,28 @@ export interface BoardProps {
   label: string;
   /** A candidate picked outside the board, e.g. a table row; the pointer still wins. */
   preview?: PointView | null;
-  /**
-   * Rust's replay of the previewed candidate's variation, captures included.
-   * Until it arrives the board overlays the variation on the current stones.
-   */
+  /** Rust's replay of the previewed candidate's variation, captures included. */
   variation?: VariationPreviewView | null;
+  /** Player names under the board; null when the game has none. */
+  names?: Names | null;
+  /** The last move's rank, when it and the move before it are analysed. */
+  lastRank?: MoveRank | null;
+  /** Recorded continuations of this position, main line first. */
+  next?: NextMove[];
+  passLabel?: string;
+  /** Hint for an empty game; shown only while there is no analysis to show. */
+  emptyHint?: string | null;
   /** The candidate under the pointer, so the app can ask Rust for its variation. */
   onHoverCandidate?(point: PointView | null): void;
   onPlay(point: PointView): void;
 }
 
-interface Size {
-  width: number;
-  height: number;
-  dpr: number;
-}
+const NO_NEXT: NextMove[] = [];
 
 /**
- * Three stacked canvases: wood and grid, stones, analysis. Each layer redraws
- * only when its own inputs change; analysis frames are coalesced per animation
- * frame so a 20 Hz stream never queues work.
+ * Three stacked canvases: goban, stones, analysis. They are laid out in device pixels, as Java
+ * does, so lines and stones land on whole pixels at any scale. Each layer redraws only when its
+ * own inputs change; analysis frames are coalesced per animation frame.
  */
 export function Board({
   board,
@@ -43,89 +45,82 @@ export function Board({
   label,
   preview = null,
   variation = null,
+  names = null,
+  lastRank = null,
+  next = NO_NEXT,
+  passLabel = "Pass",
+  emptyHint = null,
   onHoverCandidate,
   onPlay,
 }: BoardProps) {
   const container = useRef<HTMLDivElement>(null);
-  const backgroundCanvas = useRef<HTMLCanvasElement>(null);
+  const gobanCanvas = useRef<HTMLCanvasElement>(null);
   const stoneCanvas = useRef<HTMLCanvasElement>(null);
-  const analysisCanvas = useRef<HTMLCanvasElement>(null);
-  const [size, setSize] = useState<Size>({ width: 0, height: 0, dpr: 1 });
-  const [palette, setPalette] = useState<Palette>(() => readPalette(null));
+  const overlayCanvas = useRef<HTMLCanvasElement>(null);
+  const size = useElementSize(container);
+  const { images, fonts } = useBoardAssets();
   const [hover, setHover] = useState<PointView | null>(null);
 
-  useEffect(() => {
-    const element = container.current;
-    if (!element || typeof ResizeObserver === "undefined") return;
-    // ResizeObserver reports the initial size too, so no synchronous measuring here.
-    const observer = new ResizeObserver(() => {
-      const rect = element.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      setSize((previous) =>
-        previous.width === rect.width && previous.height === rect.height && previous.dpr === dpr
-          ? previous
-          : { width: rect.width, height: rect.height, dpr },
-      );
-      setPalette(readPalette(element));
-    });
-    observer.observe(element);
-    const scheme = window.matchMedia?.("(prefers-color-scheme: dark)");
-    const refreshPalette = () => setPalette(readPalette(element));
-    scheme?.addEventListener("change", refreshPalette);
-    return () => {
-      observer.disconnect();
-      scheme?.removeEventListener("change", refreshPalette);
-    };
-  }, []);
-
+  const big = coordinates || names !== null;
   const geometry = useMemo(
-    () => computeGeometry(board.width, board.height, size.width, size.height, size.dpr, coordinates),
-    [board.width, board.height, size, coordinates],
+    () => computeGeometry(board.width, board.height, size.deviceWidth, size.deviceHeight, size.dpr, big),
+    [board.width, board.height, size, big],
   );
-  const backing = useMemo(() => backingSize(geometry), [geometry]);
-
-  useEffect(() => {
-    const canvas = backgroundCanvas.current;
-    const context = canvas && prepare(canvas, geometry, backing.width, backing.height);
-    if (context) drawBackground(context, geometry, palette, coordinates);
-  }, [geometry, backing, palette, coordinates]);
+  // Canvas pixels per CSS pixel, as laid out: the pointer and E2E speak CSS pixels.
+  const scale = size.width > 0 ? size.deviceWidth / size.width : 1;
 
   const target = hover ?? preview;
-  // The replay replaces the stones while a candidate is previewed; its last move is numbered instead of ringed.
+  // The replay replaces the stones while a candidate is previewed.
   const shown = target && variation ? variation : null;
-  const stones = useMemo(() => (shown ? { ...shown.board, last_move: null } : board), [shown, board]);
+  const stones = shown ? shown.board : board;
+
+  useEffect(() => {
+    const canvas = gobanCanvas.current;
+    const context = canvas && images && prepare(canvas, geometry);
+    if (context && images) drawGoban(context, geometry, images, { coordinates, names, toPlay: board.to_play, dpr: geometry.dpr });
+  }, [geometry, images, fonts, coordinates, names, board.to_play]);
 
   useEffect(() => {
     const canvas = stoneCanvas.current;
-    const context = canvas && prepare(canvas, geometry, backing.width, backing.height);
-    if (context) drawStones(context, geometry, palette, stones);
-  }, [geometry, backing, palette, stones]);
+    const context = canvas && images && prepare(canvas, geometry);
+    if (context && images) drawStones(context, geometry, images, stones);
+  }, [geometry, images, stones]);
 
   useEffect(() => {
-    if (geometry.cell <= 0) return;
-    const layer: AnalysisLayer = { board, analysis, ownership, maxCandidates, hover: target };
+    if (geometry.cell <= 0 || !images) return;
     const frame = requestAnimationFrame(() => {
-      const canvas = analysisCanvas.current;
-      const context = canvas && prepare(canvas, geometry, backing.width, backing.height);
+      const canvas = overlayCanvas.current;
+      const context = canvas && prepare(canvas, geometry);
       if (!context) return;
-      if (shown) drawPreviewLabels(context, geometry, palette, shown.stones);
-      else drawAnalysis(context, geometry, palette, layer);
+      drawOverlay(context, geometry, images, {
+        board,
+        analysis,
+        ownership,
+        maxCandidates,
+        hover: target,
+        variation: shown,
+        lastRank,
+        next,
+        passLabel,
+        emptyHint,
+        dpr: geometry.dpr,
+      });
     });
     return () => cancelAnimationFrame(frame);
-  }, [geometry, backing, palette, board, analysis, ownership, maxCandidates, target, shown]);
+  }, [geometry, images, fonts, board, analysis, ownership, maxCandidates, target, shown, lastRank, next, passLabel, emptyHint]);
 
   const pointAt = (event: MouseEvent<HTMLElement>): PointView | null => {
     const rect = event.currentTarget.getBoundingClientRect();
-    return pixelToPoint(geometry, event.clientX - rect.left, event.clientY - rect.top);
+    return pixelToPoint(geometry, (event.clientX - rect.left) * scale, (event.clientY - rect.top) * scale);
   };
 
   const onMouseMove = (event: MouseEvent<HTMLElement>) => {
     const point = pointAt(event);
     const candidate = point && analysis?.candidates.some((c) => c.point?.x === point.x && c.point?.y === point.y);
-    const next = candidate ? point : null;
-    if (hover?.x === next?.x && hover?.y === next?.y) return;
-    setHover(next);
-    onHoverCandidate?.(next);
+    const nextHover = candidate ? point : null;
+    if (hover?.x === nextHover?.x && hover?.y === nextHover?.y) return;
+    setHover(nextHover);
+    onHoverCandidate?.(nextHover);
   };
 
   const onMouseLeave = () => {
@@ -148,17 +143,21 @@ export function Board({
       data-testid="board"
       data-columns={board.width}
       data-rows={board.height}
+      data-ready={images && fonts > 0 ? "true" : "false"}
+      // What the analysis layer was given, so E2E can wait for it before comparing pixels.
+      data-last-rank={lastRank ?? ""}
+      data-next-moves={next.length}
       // Layout for E2E pointer tests: CSS pixels of point (0, 0) and the line spacing.
-      data-cell={geometry.cell.toFixed(3)}
-      data-origin-x={geometry.originX.toFixed(3)}
-      data-origin-y={geometry.originY.toFixed(3)}
+      data-cell={(geometry.cell / scale).toFixed(3)}
+      data-origin-x={(geometry.originX / scale).toFixed(3)}
+      data-origin-y={(geometry.originY / scale).toFixed(3)}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       onClick={onClick}
     >
-      <canvas ref={backgroundCanvas} className="board-layer" />
+      <canvas ref={gobanCanvas} className="board-layer" />
       <canvas ref={stoneCanvas} className="board-layer" />
-      <canvas ref={analysisCanvas} className="board-layer" data-testid="board-analysis" />
+      <canvas ref={overlayCanvas} className="board-layer" data-testid="board-analysis" />
     </div>
   );
 }

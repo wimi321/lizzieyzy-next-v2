@@ -577,7 +577,8 @@
   padding: 0 6px;
   overflow: hidden;
   color: #fff;
-  font: 14px/23px var(--jf-font);
+  /* Java draws 14 device pixels, half that to the eye on its Retina screen; 11 px reads well and fits the column. */
+  font: 11px/23px var(--jf-font);
   white-space: nowrap;
   text-overflow: ellipsis;
   background: rgba(0, 0, 0, 0.549);

@@ -68,6 +68,7 @@ test("navigation keys call step as in Java (up and down are moves); keys typed i
   });
   render(<App />);
   await screen.findByTestId("board");
+  fireEvent.click(screen.getByTestId("tab-problems"));
   await act(async () => {
     fireEvent.keyDown(window, { key: "End" });
     fireEvent.keyDown(screen.getByTestId("problems-sort"), { key: "ArrowUp" });

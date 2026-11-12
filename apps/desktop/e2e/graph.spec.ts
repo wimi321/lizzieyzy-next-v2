@@ -37,7 +37,8 @@ async function calls(page: Page) {
 test.describe("screenshots", () => {
   test("graph with analysis", async ({ page }) => {
     const graph = await start(page, [documentChanged(analysedGame(), 7), analysisUpdated(midGameAnalysis(7, 20))]);
-    await expect(page.getByTestId("graph-current")).toContainText("20");
+    // The current move carries Black's lead and winrate.
+    await expect(page.getByTestId("graph-current")).toHaveText("B+1.656.2");
     await expect(graph).toHaveScreenshot("graph-analysed.png");
   });
 

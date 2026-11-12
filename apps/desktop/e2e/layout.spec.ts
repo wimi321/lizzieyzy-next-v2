@@ -27,7 +27,8 @@ test("the window is cut as LizzieYzy Next cuts it: info and graph left, board sq
   const analysis = midGameAnalysis(7, 20);
   await start(page, [documentChanged(analysedGame(), 7), analysisUpdated(analysis)]);
 
-  await expect(page.locator('[data-region="captured"]').getByText("Black")).toBeVisible();
+  await expect(page.locator('[data-region="captured"]').getByTestId("to-play")).toHaveText("Black to play");
+  await expect(page.locator('[data-region="sub-board"]').getByTestId("sub-board")).toBeVisible();
   await expect(page.locator('[data-region="graph"]').getByTestId("winrate-graph")).toBeVisible();
   await expect(page.locator('[data-region="board"]').getByTestId("board")).toBeVisible();
   await expect(page.locator('[data-region="tree"]').getByTestId("move-tree")).toBeVisible();

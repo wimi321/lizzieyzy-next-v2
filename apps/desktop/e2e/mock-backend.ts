@@ -194,7 +194,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState">(
+function query<K extends "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState">(
   name: K,
   args: Parameters<Backend[K]>,
   fallback: () => Awaited<ReturnType<Backend[K]>>,
@@ -282,8 +282,14 @@ export const autoQuickAnalyzeOnLoad: Backend["autoQuickAnalyzeOnLoad"] = () =>
   query("autoQuickAnalyzeOnLoad", [], () => lastAutoQuickAnalyzeOnLoad);
 export const setAutoQuickAnalyzeOnLoad: Backend["setAutoQuickAnalyzeOnLoad"] = (enabled) =>
   command("setAutoQuickAnalyzeOnLoad", [enabled]);
+/** Unscripted, an engine is named by its model file; Rust's naming rules are not simulated. */
 export const engineDisplayName: Backend["engineDisplayName"] = (profile) =>
-  command("engineDisplayName", [profile]);
+  query("engineDisplayName", [profile], () => {
+    const model = profile.canonical_model_name ?? profile.model;
+    const file = model.split(/[\\/]/).pop() ?? model;
+    const stem = file.replace(/\.(bin|txt)(\.gz)?$/i, "").replace(/-s\d+[KMG]?-d\d+[KMG]?$/i, "");
+    return { type: "Text", data: stem || file };
+  });
 export const configureEngine: Backend["configureEngine"] = (profile) =>
   command("configureEngine", [profile]);
 export const detectEngines: Backend["detectEngines"] = () => command("detectEngines", []);

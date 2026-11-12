@@ -10,8 +10,11 @@ import type {
   MoveView,
   PhaseReport,
   PointView,
+  ProblemMovesView,
   Sample,
+  VariationNodeView,
   VariationPreviewView,
+  VariationTreeView,
   StrengthEstimateView,
   StrengthPhasesReport,
   SideReport,
@@ -367,6 +370,48 @@ export function captureVariation(revision: number) {
       stop_reason: null,
     } satisfies VariationPreviewView,
   };
+}
+
+/**
+ * The middle game inside a recorded game: both players named, the last move ranked, and two
+ * recorded continuations. The main line goes where the engine is not looking, so the board shows
+ * what it costs; the branch follows the engine's second choice.
+ */
+export function recordedGame(revision: number) {
+  const view = midGame(graphView(22, 20, { 19: [0.55, 1.4], 20: [0.562, 1.6], 21: [0.4, -2.5] }));
+  view.game_info.black_name = "Black Player";
+  view.game_info.white_name = "White Player";
+  const play = (x: number, y: number): MoveView => ({ type: "Play", data: { color: "Black", point: { x, y } } });
+  const nodes: VariationNodeView[] = view.tree.main_line.map((id, index, line) => ({
+    id,
+    parent: index === 0 ? null : (line[index - 1] ?? null),
+    children: index + 1 < line.length ? [line[index + 1]!] : [21, 22],
+    move_number: index,
+    mv: null,
+    move_error: null,
+  }));
+  nodes.push(
+    { id: 21, parent: 20, children: [], move_number: 21, mv: play(13, 7), move_error: null },
+    { id: 22, parent: 20, children: [], move_number: 21, mv: play(6, 9), move_error: null },
+  );
+  const tree: VariationTreeView = { revision: view.tree.structure_revision, root: 0, nodes };
+  const problems: ProblemMovesView = {
+    revision,
+    settings: { mode: "Auto", winrate_thresholds: [1, 3, 6, 12, 24], score_thresholds: [0.5, 1.5, 3, 6, 12] },
+    query: { minimum_rank: "Inaccuracy", color: null, sort: "LossDesc" },
+    entries: [],
+    error_bar: view.graph.points.map((point) => ({
+      node_id: point.node_id,
+      move_number: point.move_number,
+      mv: null,
+      loss:
+        point.node_id === 20
+          ? { winrate_loss: 4.2, score_loss: 1.1, rank: "Inaccuracy", is_best: false, candidate_rank: 3, visits: 1200, before_visits: 1500 }
+          : null,
+    })),
+    current_index: 20,
+  };
+  return { view, tree, problems, analysis: midGameAnalysis(revision, 20) };
 }
 
 /** The middle game on a 121-move line whose first 91 moves have been analysed. */
