@@ -1,5 +1,5 @@
 import type { AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
-import { defaultDisplaySettings, emptyStrengthEstimate } from "./fixtures";
+import { defaultCacheEnabled, defaultDisplaySettings, emptyStrengthEstimate } from "./fixtures";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
@@ -25,7 +25,7 @@ export type {
   EditCommands, GameInfoEdit, NewGameOptions,
   SetupMarkupCommands, MarkupKindView, MarkupView,
   MoveEditingCommands, StoneOriginView,
-  DisplaySettings, DisplaySettingsCommands,
+  DisplaySettings, DisplaySettingsPayload, DisplaySettingsCommands, AnalysisCacheCommands,
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
@@ -34,7 +34,7 @@ type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgr
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
   ? Omit<Settings, "fox_history" | "move_rank" | "tsumego" | "auto_quick_analyze_on_load"> & Partial<Pick<Settings, "fox_history" | "move_rank" | "tsumego" | "auto_quick_analyze_on_load">>
-  : Awaited<ReturnType<Backend[K]>>;
+  : Awaited<ReturnType<NonNullable<Backend[K]>>>;
 const defaultMoveRank: Settings["move_rank"] = {
   mode: "Auto",
   winrate_thresholds: [1, 3, 6, 12, 24],
@@ -48,7 +48,7 @@ const defaultAnalysisLimits: AnalysisLimitSettings = {
 };
 const defaultAnalysisState: AnalysisState = { pondering: true, pause_reason: null };
 export type MockCall = {
-  [K in CommandName]: { command: K; args: Parameters<Backend[K]> }
+  [K in CommandName]: { command: K; args: Parameters<NonNullable<Backend[K]>> }
 }[CommandName];
 
 export type MockCommand = {
@@ -75,6 +75,7 @@ let dispatching = false;
 let lastDocument: { revision: number; view: DocumentView } | null = null;
 let lastProgress: WholeGameProgress | null = null;
 let lastAutoQuickAnalyzeOnLoad = true;
+let lastCacheEnabled = defaultCacheEnabled;
 let lastAnalysisLimits = structuredClone(defaultAnalysisLimits);
 let lastAnalysisState = structuredClone(defaultAnalysisState);
 let lastBoardSyncStatus: BoardSyncStatus = { phase: "Stopped", always_sync: true, always_goto_last: false, remote_move_number: null, error: null };
@@ -97,6 +98,7 @@ export function setStrengthEstimate(view: StrengthEstimateView | null): void {
 /** Install deterministic replies and events. No Go or analysis logic is simulated. */
 export function setScript(script: MockScript): void {
   lastAutoQuickAnalyzeOnLoad = true;
+  lastCacheEnabled = defaultCacheEnabled;
   lastAnalysisLimits = structuredClone(defaultAnalysisLimits);
   lastAnalysisState = structuredClone(defaultAnalysisState);
   lastBoardSyncStatus = { phase: "Stopped", always_sync: true, always_goto_last: false, remote_move_number: null, error: null };
@@ -151,8 +153,8 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
 
 async function command<K extends CommandName>(
   name: K,
-  args: Parameters<Backend[K]>,
-): Promise<Awaited<ReturnType<Backend[K]>>> {
+  args: Parameters<NonNullable<Backend[K]>>,
+): Promise<Awaited<ReturnType<NonNullable<Backend[K]>>>> {
   calls.push(structuredClone({ command: name, args }) as MockCall);
   const next = commands[0];
   if (!next || next.command !== name) {
@@ -171,15 +173,19 @@ async function command<K extends CommandName>(
       tsumego: next.result.tsumego ?? defaultTsumego,
       benchmarks: next.result.benchmarks ?? {},
       auto_quick_analyze_on_load: next.result.auto_quick_analyze_on_load ?? true,
+      cache_enabled: next.result.cache_enabled ?? defaultCacheEnabled,
       analysis_limits: next.result.analysis_limits ?? defaultAnalysisLimits,
-      display: next.result.display ?? defaultDisplaySettings,
+      display: { show_list_pane: true, ...(next.result.display ?? defaultDisplaySettings) },
     }
     : next.result;
   if (next.command === "settings") {
     lastAutoQuickAnalyzeOnLoad = next.result.auto_quick_analyze_on_load ?? true;
+    lastCacheEnabled = next.result.cache_enabled ?? defaultCacheEnabled;
     lastAnalysisLimits = structuredClone(next.result.analysis_limits ?? defaultAnalysisLimits);
   } else if (next.command === "autoQuickAnalyzeOnLoad" || next.command === "setAutoQuickAnalyzeOnLoad") {
     lastAutoQuickAnalyzeOnLoad = next.result;
+  } else if (next.command === "cacheEnabled" || next.command === "setCacheEnabled") {
+    lastCacheEnabled = next.result;
   } else if (next.command === "analysisLimits" || next.command === "setAnalysisLimits") {
     lastAnalysisLimits = structuredClone(next.result);
   } else if (next.command === "analysisState" || next.command === "togglePondering") {
@@ -190,7 +196,7 @@ async function command<K extends CommandName>(
   if (next.command === "problemMoves" && cloned) fillLossDefaults(cloned as ProblemMovesView);
   if (next.command === "variationTree") fillTreeDefaults(cloned as VariationTreeView);
   if (next.command === "settings") defaultField(cloned as Settings, "recent_files", []);
-  return cloned as Awaited<ReturnType<Backend[K]>>;
+  return cloned as Awaited<ReturnType<NonNullable<Backend[K]>>>;
 }
 
 /** Older scripts are also compared verbatim by existing API consumers.
@@ -280,11 +286,11 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin">(
+function query<K extends "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled">(
   name: K,
-  args: Parameters<Backend[K]>,
-  fallback: () => Awaited<ReturnType<Backend[K]>>,
-): Promise<Awaited<ReturnType<Backend[K]>>> {
+  args: Parameters<NonNullable<Backend[K]>>,
+  fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
+): Promise<Awaited<ReturnType<NonNullable<Backend[K]>>>> {
   if (commands[0]?.command === name) return command(name, args);
   const cloned = structuredClone(fallback());
   if (name === "problemMoves") fillLossDefaults(cloned as ProblemMovesView);
@@ -393,6 +399,12 @@ export const foxSearch: Backend["foxSearch"] = (query) => command("foxSearch", [
 export const foxNextPage: Backend["foxNextPage"] = (uid, cursor) => command("foxNextPage", [uid, cursor]);
 export const foxOpenGame: Backend["foxOpenGame"] = (gameId) => command("foxOpenGame", [gameId]);
 export const foxClearHistory: Backend["foxClearHistory"] = () => command("foxClearHistory", []);
+export const cacheEnabled: NonNullable<Backend["cacheEnabled"]> = () =>
+  query("cacheEnabled", [], () => lastCacheEnabled);
+export const setCacheEnabled: NonNullable<Backend["setCacheEnabled"]> = (enabled) =>
+  command("setCacheEnabled", [enabled]);
+export const clearCache: NonNullable<Backend["clearCache"]> = (all) => command("clearCache", [all]);
+export const clearAnalysis: NonNullable<Backend["clearAnalysis"]> = (all) => command("clearAnalysis", [all]);
 export const settings: Backend["settings"] = () => command("settings", []);
 export const setDisplaySettings: Backend["setDisplaySettings"] = (display) =>
   command("setDisplaySettings", [display]);

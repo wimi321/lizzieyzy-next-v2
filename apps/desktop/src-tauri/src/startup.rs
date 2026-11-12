@@ -125,6 +125,17 @@ pub async fn start(
     options: StartupOptions,
     default_dir: PathBuf,
 ) -> Result<(AppCore, AppSubscription), StartupError> {
+    start_with_data_directory(options, default_dir.clone(), default_dir).await
+}
+
+/// The normal shell keeps the disposable database in the application data
+/// directory. A portable --config-dir isolates both settings and cache.
+pub async fn start_with_data_directory(
+    options: StartupOptions,
+    default_dir: PathBuf,
+    data_dir: PathBuf,
+) -> Result<(AppCore, AppSubscription), StartupError> {
+    let cache_directory = options.config_dir.clone().unwrap_or(data_dir);
     let directory = options.config_dir.unwrap_or(default_dir);
     tokio::fs::create_dir_all(&directory)
         .await
@@ -132,7 +143,11 @@ pub async fn start(
             path: directory.clone(),
             source,
         })?;
-    let (core, subscription) = app_core::spawn(directory).await?;
+    let config = app_core::AppConfig {
+        cache_directory: Some(cache_directory),
+        ..Default::default()
+    };
+    let (core, subscription) = app_core::spawn_with_config(directory, config).await?;
     if let Some(document) = options.document
         && let Err(error) = crate::system_open::open_paths(&core, vec![document]).await
     {

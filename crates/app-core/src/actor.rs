@@ -8,11 +8,13 @@ use engine_session::EngineHandle;
 use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
+mod analysis_cache;
 mod analysis_limit;
 mod auto_curve;
 mod auto_setup;
 mod benchmark;
 mod board_sync;
+mod clear_analysis;
 mod display;
 mod editing;
 mod fox;
@@ -21,6 +23,7 @@ mod graph_analysis;
 mod move_editing;
 mod problem_moves;
 mod review;
+mod signals;
 mod strength_estimate;
 mod trial;
 mod tsumego;
@@ -40,6 +43,9 @@ pub(crate) enum Input {
     Undo,
     Redo,
     SetPondering(bool),
+    SetCacheEnabled(bool),
+    ClearCache(bool),
+    ClearAnalysis(bool),
     SetAutoQuickAnalyzeOnLoad(bool),
     ConfigureEngine(Option<EngineProfile>),
     GenerateTsumego(crate::TsumegoOptions),
@@ -145,6 +151,7 @@ struct Actor {
     summary_fingerprint: Option<String>,
     revision: u64,
     directory: PathBuf,
+    cache: Option<analysis::persistent_cache::PersistentCache>,
     settings: Settings,
     config: AppConfig,
     running: Option<Running>,
@@ -164,6 +171,16 @@ pub(crate) async fn run(
     mut commands: mpsc::Receiver<Command>,
     output: Delivery,
 ) {
+    let cache_path = config
+        .cache_directory
+        .as_ref()
+        .unwrap_or(&directory)
+        .join("analysis-cache.sqlite3");
+    let cache = analysis::persistent_cache::PersistentCache::spawn(
+        cache_path,
+        config.cache_max_bytes,
+        settings.cache_enabled,
+    );
     let mut actor = Actor {
         document: GameDocument::new(),
         file_name: None,
@@ -178,6 +195,7 @@ pub(crate) async fn run(
         summary_fingerprint: None,
         revision: 0,
         directory,
+        cache: Some(cache),
         settings,
         config,
         running: None,
@@ -245,6 +263,7 @@ pub(crate) async fn run(
                     let benchmark_result = actor.stop_benchmark_process().await;
                     let sync_result = actor.stop_board_sync().await;
                     let result = actor.stop_engine().await.and(sync_result).and(benchmark_result).map(|()| actor.revision);
+                    if let Some(cache) = actor.cache.take() { cache.shutdown().await; }
                     let _ = reply.send(result);
                     break;
                 }
@@ -257,7 +276,7 @@ pub(crate) async fn run(
                 }
                 None => { actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
             },
-            signal = next_signal(&mut actor.running) => actor.signal(signal),
+            signal = next_signal(&mut actor.running) => actor.cache_signal(signal),
             result = review::receive(&mut actor.review) => actor.review_signal(result).await,
             result = trial::wait(&mut actor.trial) => actor.finish_trial(result).await,
             result = board_sync::receive(&mut actor.board_sync) => actor.board_sync_line(result).await,
@@ -265,6 +284,9 @@ pub(crate) async fn run(
         }
         actor.maybe_start_auto_curve().await;
         actor.publish_analysis_state();
+    }
+    if let Some(cache) = actor.cache.take() {
+        cache.shutdown().await;
     }
 }
 
@@ -309,65 +331,6 @@ impl Actor {
         self.failed(reason);
     }
 
-    fn signal(&mut self, signal: Signal) {
-        match signal {
-            Signal::Snapshot(snapshot) => {
-                if (self.pondering() || snapshot.source == analysis::SnapshotSource::Cache)
-                    && let Some(focus) = &self.focus
-                    && (focus.revision, focus.node_id, focus.key)
-                        == (snapshot.revision, snapshot.node_id.0, snapshot.key)
-                {
-                    match AnalysisView::from_snapshot(*snapshot.clone(), focus.size, focus.to_play)
-                    {
-                        Ok(mut view) => {
-                            self.retain_analysis(&snapshot);
-                            // Graph history must not gate current candidates:
-                            // a coordinator cache miss can publish a shallower
-                            // search while the graph retains its best result.
-                            let latest = view.summary;
-                            view.summary = *self
-                                .summaries
-                                .entry(NodeId(view.node_id))
-                                .and_modify(|best| {
-                                    if latest.visits >= best.visits {
-                                        *best = latest;
-                                    }
-                                })
-                                .or_insert(latest);
-                            if view.node_id == self.document.current().0 {
-                                self.output.send(AppEvent::AnalysisUpdated(view));
-                            } else if let Err(error) = self.publish_document() {
-                                self.failed(error.to_string());
-                            }
-                        }
-                        Err(error) => {
-                            self.output.clear_analysis();
-                            self.analysis_failed(format!("invalid analysis coordinate: {error}"));
-                        }
-                    }
-                }
-            }
-            Signal::Engine(status) => {
-                self.output
-                    .send(AppEvent::EngineStatusChanged(status.into()));
-            }
-            Signal::Analysis(AnalysisStatus::Failed(error)) => {
-                // Session failures carry richer diagnostics in EngineStatus.
-                // Preserve those instead of replacing stderr with a query error.
-                let session_failed = self.running.as_ref().is_some_and(|running| {
-                    matches!(
-                        *running.engine_status.borrow(),
-                        engine_session::EngineStatus::Failed { .. }
-                    )
-                });
-                if !session_failed {
-                    self.failed(error.to_string());
-                }
-            }
-            Signal::Analysis(_) => {}
-        }
-    }
-
     fn publish_document(&mut self) -> Result<(), AppError> {
         self.tree.refresh(&self.document, self.revision)?;
         self.refresh_graph_analysis();
@@ -379,6 +342,12 @@ impl Actor {
             .as_ref()
             .map(|path| path.to_string_lossy().into_owned());
         view.modified = self.file_state.modified(&self.document);
+        view.can_undo = self.file_state.analysis_edits.can_undo(&self.document);
+        view.can_redo = self.file_state.analysis_edits.can_redo(&self.document);
+        view.warnings.retain(|warning| {
+            !self.is_analysis_cleared(NodeId(warning.node))
+                || !clear_analysis::is_analysis(&warning.property)
+        });
         view.warnings.extend(
             self.file_state
                 .save_warnings
@@ -444,7 +413,11 @@ impl Actor {
                     document::Command::Step(_) | document::Command::GoTo(_)
                 );
                 let before = self.document.revision();
+                let before_content = self.document.content_revision();
                 self.document.apply(command)?;
+                if self.document.content_revision() != before_content {
+                    self.file_state.analysis_edits.document_edit();
+                }
                 if self.document.revision() != before {
                     let resume_limited = !self.sync_active()
                         && (play || (navigate && self.navigation_plays_move(before_node)));
@@ -452,14 +425,11 @@ impl Actor {
                 }
             }
             Input::Undo | Input::Redo => {
-                self.next_revision()?;
-                if matches!(input, Input::Undo) {
-                    self.document.undo()?;
-                } else {
-                    self.document.redo()?;
-                }
-                self.document_changed().await?;
+                self.edit_history(matches!(input, Input::Undo)).await?;
             }
+            Input::ClearAnalysis(all) => self.clear_analysis(all).await?,
+            Input::SetCacheEnabled(enabled) => self.set_cache_enabled(enabled).await?,
+            Input::ClearCache(all) => self.clear_cache(all).await?,
             Input::SetPondering(enabled) => {
                 self.set_pondering(enabled).await?;
             }
@@ -529,6 +499,7 @@ impl Actor {
         cached: HashMap<AnalysisKey, crate::StoredAnalysis>,
         import_saved: bool,
     ) -> Result<(), AppError> {
+        self.flush_cached_analysis().await;
         self.auto_curve.pending = false;
         self.cancel_review().await;
         self.invalidate_review();
@@ -596,6 +567,7 @@ impl Actor {
             self.document.current()
         };
         let Ok(position) = self.document.position_at(node_id) else {
+            self.flush_cached_focus().await;
             self.focus = None;
             if self.limit_reason().is_none()
                 && let Some(running) = &self.running
@@ -610,6 +582,9 @@ impl Actor {
             .focus
             .as_ref()
             .is_none_or(|focus| focus.node_id != node_id.0 || focus.key != key);
+        if changed {
+            self.flush_cached_focus().await;
+        }
         let restart_review = changed && self.review_running();
         if restart_review && let Err(error) = self.stop_review_query().await {
             self.analysis_failed(error.to_string());
@@ -621,12 +596,7 @@ impl Actor {
             size: position.board.size(),
             to_play: position.board.to_play(),
         };
-        let cached = self
-            .review
-            .results
-            .get(&node_id)
-            .filter(|stored| stored.key == key && stored.saved.is_none())
-            .map(|stored| stored.response.clone());
+        let cached = self.cached_focus(node_id, &position).await;
         let focus = Focus {
             revision: self.revision,
             node_id,
@@ -664,6 +634,7 @@ impl Actor {
         let mut config = self.config.analysis.clone();
         config.engine_fingerprint = fingerprint.to_owned();
         config.pondering = self.pondering();
+        config.cache_enabled = self.settings.cache_enabled;
         config.limits = self.settings.analysis_limits.into();
         Ok(analysis::spawn(engine.clone(), config)?)
     }
@@ -741,6 +712,7 @@ impl Actor {
     }
 
     async fn stop_engine(&mut self) -> Result<(), AppError> {
+        self.flush_cached_analysis().await;
         self.cancel_review().await;
         self.focus = None;
         self.output.clear_analysis();

@@ -799,3 +799,48 @@ async fn atomic_same_focus_resume_keeps_playout_exemption_and_restarts_clock() {
     resume();
     stop(actor).await;
 }
+
+#[tokio::test]
+async fn discarding_analysis_clears_snapshots_and_cache_but_preserves_limit_pause() {
+    let (mut actor, mut output) = actor();
+    within_discard_test(actor.start()).await.unwrap();
+    partial(&mut actor, 100);
+    within_discard_test(actor.stop_by_limit(LimitReason::Time)).await;
+    actor.playout_exempt = true;
+    let focus = actor.focus.clone().unwrap();
+    assert!(actor.last_published.is_some());
+    assert!(
+        actor
+            .cache
+            .get(focus.key, &actor.config.engine_fingerprint)
+            .is_some()
+    );
+    within_discard_test(actor.command(Input::DiscardCachedAnalysis))
+        .await
+        .unwrap();
+    assert_eq!(actor.focus, Some(focus.clone()));
+    assert_eq!(actor.limited, Some(LimitReason::Time));
+    assert!(actor.limited_on_current);
+    assert!(actor.playout_exempt);
+    assert!(actor.config.pondering);
+    assert!(actor.active.is_none());
+    assert!(actor.last_published.is_none());
+    assert!(actor.display_floor.is_none());
+    assert_eq!(actor.throttle.deadline(), None);
+    assert_eq!(
+        actor.cache.get(focus.key, &actor.config.engine_fingerprint),
+        None
+    );
+    assert_eq!(
+        *actor.status.borrow(),
+        AnalysisStatus::Limited(LimitReason::Time)
+    );
+    assert_no_output(&mut output).await;
+    stop(actor).await;
+}
+
+async fn within_discard_test<T>(future: impl std::future::Future<Output = T>) -> T {
+    timeout(Duration::from_secs(5), future)
+        .await
+        .expect("discard test safety deadline")
+}

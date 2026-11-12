@@ -271,6 +271,43 @@ async fn startup_creates_default_config_directory() {
 }
 
 #[tokio::test]
+async fn cache_uses_application_data_or_explicit_portable_directory() {
+    let temp = tempdir().unwrap();
+    let config = temp.path().join("configuration");
+    let data = temp.path().join("application data");
+    let (core, _) = within(start_with_data_directory(
+        StartupOptions::default(),
+        config.clone(),
+        data.clone(),
+    ))
+    .await
+    .unwrap();
+    within(core.clear_cache(true)).await.unwrap();
+    assert!(data.join("analysis-cache.sqlite3").is_file());
+    assert!(!config.join("analysis-cache.sqlite3").exists());
+    within(core.shutdown()).await.unwrap();
+
+    let portable = temp.path().join("portable");
+    let unused_config = temp.path().join("unused config");
+    let unused_data = temp.path().join("unused data");
+    let (core, _) = within(start_with_data_directory(
+        StartupOptions {
+            config_dir: Some(portable.clone()),
+            document: None,
+        },
+        unused_config.clone(),
+        unused_data.clone(),
+    ))
+    .await
+    .unwrap();
+    within(core.clear_cache(true)).await.unwrap();
+    assert!(portable.join("analysis-cache.sqlite3").is_file());
+    assert!(!unused_config.exists());
+    assert!(!unused_data.exists());
+    within(core.shutdown()).await.unwrap();
+}
+
+#[tokio::test]
 async fn startup_reports_config_failures_and_keeps_window_for_document_failures() {
     let temp = tempdir().unwrap();
     let file = temp.path().join("not-a-directory");

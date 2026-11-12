@@ -56,7 +56,7 @@ impl Actor {
         let manual = self.manual_review_active();
         // Reuse only the immediately loaded same game. Results already belong to
         // summary_fingerprint; rebind by replay key, never by the old arena's IDs.
-        let cached = if self.auto_curve.loaded == Some(identity) {
+        let cached = if self.settings.cache_enabled && self.auto_curve.loaded == Some(identity) {
             best_by_key(self.review.results.values())
         } else {
             HashMap::new()

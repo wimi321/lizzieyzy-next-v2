@@ -103,7 +103,49 @@ impl Actor {
                 );
             }
         }
-        Ok(self.document.to_sgf_with_analysis_and_warnings(&saved)?)
+        // Cleared nodes must lose secondary and malformed slots as well as
+        // the primary data. Fresh results still serialize through the shared
+        // domain writer rather than reviving any original property.
+        let cleared_saved: BTreeMap<_, _> = saved
+            .keys()
+            .copied()
+            .filter(|node| self.is_analysis_cleared(*node))
+            .collect::<Vec<_>>()
+            .into_iter()
+            .filter_map(|node| saved.remove(&node).map(|value| (node, value)))
+            .collect();
+        let (mut tree, mut warnings) = self.document.to_sgf_with_analysis_and_warnings(&saved)?;
+        let mut replacements = BTreeMap::new();
+        for (node, analysis) in cleared_saved {
+            let position = self.document.position_at(node)?;
+            let (payload, clamped) = document::lz::format_with_warnings(
+                &analysis,
+                position.board.size(),
+                position.board.to_play(),
+            )?;
+            replacements.insert(node, payload);
+            if clamped {
+                warnings.push(document::DocumentWarning {
+                    node,
+                    property: "LZ".into(),
+                    kind: document::WarningKind::OutOfRange {
+                        fallback: i32::MAX.to_string(),
+                    },
+                });
+            }
+        }
+        super::clear_analysis::visit_tree(&self.document, &mut tree, |node, properties| {
+            if self.is_analysis_cleared(node) {
+                properties.retain(|p| !super::clear_analysis::is_analysis(&p.identifier));
+                if let Some(payload) = replacements.remove(&node) {
+                    properties.push(sgf::Property {
+                        identifier: "LZ".into(),
+                        values: vec![payload],
+                    });
+                }
+            }
+        });
+        Ok((tree, warnings))
     }
 }
 

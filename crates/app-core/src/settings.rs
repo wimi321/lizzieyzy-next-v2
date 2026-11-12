@@ -33,6 +33,8 @@ pub struct Settings {
     pub version: u32,
     pub engine: Option<EngineProfile>,
     pub pondering: bool,
+    #[ts(as = "Option<bool>", optional)]
+    pub cache_enabled: bool,
     #[ts(as = "Option<crate::DisplaySettings>", optional)]
     pub display: crate::DisplaySettings,
     #[ts(as = "Option<crate::AnalysisLimitSettings>", optional)]
@@ -54,6 +56,7 @@ impl Default for Settings {
             version: SETTINGS_VERSION,
             engine: None,
             pondering: true,
+            cache_enabled: true,
             display: crate::DisplaySettings::default(),
             analysis_limits: crate::AnalysisLimitSettings::default(),
             auto_quick_analyze_on_load: true,

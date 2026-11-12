@@ -34,6 +34,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
             summary_fingerprint: None,
             revision: 0,
             directory: directory.to_owned(),
+            cache: None,
             settings: Settings::default(),
             config,
             running: None,
