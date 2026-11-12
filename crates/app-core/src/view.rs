@@ -84,6 +84,15 @@ pub struct BoardView {
     /// SGF row `a`, GTP row 19 on a 19x19 board, or row `height` on a rectangle.
     /// AnalysisView::ownership uses the same order.
     pub stones: Vec<Option<ColorView>>,
+    /// Surviving stone's root-relative move number, including passes. Setup
+    /// stones and empty points are null; preview stones use one-based PV indices.
+    #[serde(default)]
+    #[ts(as = "Option<Vec<Option<usize>>>", optional)]
+    pub stone_move_numbers: Vec<Option<usize>>,
+    /// Source node of each surviving recorded move; preview stones have no node.
+    #[serde(default)]
+    #[ts(as = "Option<Vec<Option<u32>>>", optional)]
+    pub stone_node_ids: Vec<Option<u32>>,
     pub last_move: Option<MoveView>,
     pub to_play: ColorView,
     pub move_number: usize,
@@ -101,6 +110,12 @@ impl From<&GamePosition> for BoardView {
                 .stones()
                 .iter()
                 .map(|stone| stone.map(ColorView::from))
+                .collect(),
+            stone_move_numbers: position.stone_move_numbers.clone(),
+            stone_node_ids: position
+                .stone_node_ids
+                .iter()
+                .map(|node| node.map(|id| id.0))
                 .collect(),
             last_move: position.moves.last().copied().map(MoveView::from),
             to_play: position.board.to_play().into(),
@@ -126,6 +141,11 @@ pub struct TreeView {
     pub main_line: Vec<u32>,
     /// Number of direct children of the current node, including the main line.
     pub variation_count: usize,
+    /// First move after leaving the root's first-child main line. An empty
+    /// branch starts numbering at its next move; nested branches keep this base.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub branch_start_move_number: Option<usize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -226,6 +246,7 @@ impl DocumentView {
             Ok(position) => (Some(BoardView::from(&position)), None),
             Err(error) => (None, Some(error.to_string())),
         };
+        let (graph, branch_start_move_number) = GraphView::from_document_with_branch(document)?;
         Ok(Self {
             file_name: None,
             file_path: None,
@@ -242,8 +263,9 @@ impl DocumentView {
                 current: document.current().0,
                 main_line,
                 variation_count: current.children().len(),
+                branch_start_move_number,
             },
-            graph: GraphView::from_document(document)?,
+            graph,
             comment: current.comment().map(str::to_owned),
             markup: document
                 .markup_at(document.current())?

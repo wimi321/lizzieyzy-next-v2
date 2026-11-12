@@ -205,3 +205,69 @@ fn preview_preserves_focus_revision_and_entire_undo_redo_history() {
     }
     assert_eq!(doc.redo(), Err(DocError::NothingToRedo));
 }
+
+#[test]
+fn preview_origin_arrays_keep_base_sources_and_use_local_numbers_without_node_ids() {
+    let mut doc = document("(;SZ[5];B[aa];W[ee])");
+    doc.apply(Command::Step(2)).unwrap();
+    let preview = doc
+        .preview_variation(
+            doc.current(),
+            &[
+                Move::Pass(Color::Black),
+                play(Color::White, 1, 1),
+                play(Color::Black, 0, 0), // Occupied; cannot acquire a preview origin.
+            ],
+        )
+        .unwrap();
+    let mut numbers = vec![None; 25];
+    let mut nodes = vec![None; 25];
+    numbers[0] = Some(1);
+    nodes[0] = Some(NodeId(1));
+    numbers[24] = Some(2);
+    nodes[24] = Some(NodeId(2));
+    numbers[6] = Some(2); // PV #2, not cumulative game move #4.
+    assert_eq!(preview.position.moves.len(), 4);
+    assert_eq!(preview.position.stone_move_numbers, numbers);
+    assert_eq!(preview.position.stone_node_ids, nodes);
+    assert_eq!(preview.applied_moves.len(), 2);
+}
+
+#[test]
+fn preview_origin_arrays_clear_captured_base_and_preview_stones() {
+    let mut doc = document("(;SZ[5]AB[ab][ba][bc]AW[ca][cc][db];W[bb])");
+    doc.apply(Command::Step(1)).unwrap();
+    let preview = doc
+        .preview_variation(
+            doc.current(),
+            &[
+                play(Color::Black, 2, 1),
+                Move::Pass(Color::White),
+                Move::Pass(Color::Black),
+                play(Color::White, 1, 1),
+            ],
+        )
+        .unwrap();
+    let mut numbers = vec![None; 25];
+    numbers[6] = Some(4);
+    assert_eq!(preview.stop_reason, None);
+    assert_eq!(preview.position.stone_move_numbers, numbers);
+    assert_eq!(preview.position.stone_node_ids, vec![None; 25]);
+    assert_eq!(preview.position.board.stone_at(Point { x: 2, y: 1 }), None);
+}
+
+#[test]
+fn preview_origin_arrays_clear_self_captured_base_stones_and_new_move() {
+    let mut doc = document("(;SZ[3]RU[tromp-taylor]AW[ba][ac];B[aa];W[bb])");
+    doc.apply(Command::Step(2)).unwrap();
+    let preview = doc
+        .preview_variation(doc.current(), &[play(Color::Black, 0, 1)])
+        .unwrap();
+    assert_eq!(preview.stop_reason, None);
+    let mut numbers = vec![None; 9];
+    let mut nodes = vec![None; 9];
+    numbers[4] = Some(2);
+    nodes[4] = Some(NodeId(2));
+    assert_eq!(preview.position.stone_move_numbers, numbers);
+    assert_eq!(preview.position.stone_node_ids, nodes);
+}

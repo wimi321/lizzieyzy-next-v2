@@ -1,5 +1,5 @@
-import type { AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
-import { emptyStrengthEstimate } from "./fixtures";
+import type { AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import { defaultDisplaySettings, emptyStrengthEstimate } from "./fixtures";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
@@ -25,6 +25,8 @@ export type {
   EditCommands, GameInfoEdit, NewGameOptions,
   SetupMarkupCommands, MarkupKindView, MarkupView,
   MoveEditingCommands, StoneOriginView,
+  DisplaySettings, DisplaySettingsCommands,
+  MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "unsubscribe" | "setWindowTitle">;
@@ -169,6 +171,7 @@ async function command<K extends CommandName>(
       benchmarks: next.result.benchmarks ?? {},
       auto_quick_analyze_on_load: next.result.auto_quick_analyze_on_load ?? true,
       analysis_limits: next.result.analysis_limits ?? defaultAnalysisLimits,
+      display: next.result.display ?? defaultDisplaySettings,
     }
     : next.result;
   if (next.command === "settings") {
@@ -206,6 +209,13 @@ function fillDocumentDefaults(view: DocumentView): void {
   defaultField(view, "trial", false);
   defaultField(view.game_info, "rules_preset", "chinese");
   defaultField(view.tree, "comment_revision", 0);
+  defaultField(view.tree, "branch_start_move_number", null);
+  if (view.board) fillBoardDefaults(view.board);
+}
+
+function fillBoardDefaults(board: BoardView): void {
+  defaultField(board, "stone_move_numbers", Array<null>(board.stones.length).fill(null));
+  defaultField(board, "stone_node_ids", Array<null>(board.stones.length).fill(null));
 }
 
 function fillTreeDefaults(tree: VariationTreeView): void {
@@ -283,6 +293,9 @@ export const previewVariation: Backend["previewVariation"] = (nodeId, moves) =>
   query("previewVariation", [nodeId, moves], () => {
     if (!lastDocument?.view.board) throw new Error("mock preview needs a document with a board");
     return { revision: lastDocument.revision, node_id: nodeId, board: lastDocument.view.board, applied_moves: [], stones: [], stop_reason: null };
+  }).then((preview) => {
+    fillBoardDefaults(preview.board);
+    return preview;
   });
 export const startWholeGameAnalysis: Backend["startWholeGameAnalysis"] = (options = { visits: 1000 }) =>
   command("startWholeGameAnalysis", [options]);
@@ -361,6 +374,8 @@ export const foxNextPage: Backend["foxNextPage"] = (uid, cursor) => command("fox
 export const foxOpenGame: Backend["foxOpenGame"] = (gameId) => command("foxOpenGame", [gameId]);
 export const foxClearHistory: Backend["foxClearHistory"] = () => command("foxClearHistory", []);
 export const settings: Backend["settings"] = () => command("settings", []);
+export const setDisplaySettings: Backend["setDisplaySettings"] = (display) =>
+  command("setDisplaySettings", [display]);
 export const pickOpenPath: Backend["pickOpenPath"] = () => command("pickOpenPath", []);
 export const pickSavePath: Backend["pickSavePath"] = () => command("pickSavePath", []);
 export const pickEngineFile: Backend["pickEngineFile"] = (kind) => command("pickEngineFile", [kind]);

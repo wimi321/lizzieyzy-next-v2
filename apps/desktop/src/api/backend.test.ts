@@ -1,4 +1,5 @@
 import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
+import { defaultDisplaySettings } from "../../e2e/fixtures";
 import type { AppEvent, Backend, CommandError, MoveRankSettings, Settings } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn(), channels: [] as FakeChannel[] }));
@@ -404,6 +405,7 @@ test.each([
   expectTypeOf(result).toEqualTypeOf<Settings>();
   expect(result).toEqual({
     ...base,
+    display: defaultDisplaySettings,
     analysis_limits: {
       limit_time: true, max_analyze_time_seconds: 600, limit_playout: false, limit_playouts: 100000,
     },

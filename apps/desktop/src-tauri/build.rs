@@ -68,6 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "fox_open_game",
         "fox_clear_history",
         "settings",
+        "set_display_settings",
         "auto_quick_analyze_on_load",
         "set_auto_quick_analyze_on_load",
         "subscribe",

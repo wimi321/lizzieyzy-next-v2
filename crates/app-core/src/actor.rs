@@ -13,6 +13,7 @@ mod auto_curve;
 mod auto_setup;
 mod benchmark;
 mod board_sync;
+mod display;
 mod editing;
 mod fox;
 mod graph_analysis;
@@ -46,6 +47,10 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    SetDisplaySettings(
+        crate::DisplaySettings,
+        oneshot::Sender<Result<crate::DisplaySettings, AppError>>,
+    ),
     AnalysisLimit(crate::analysis_limit::Request),
     Benchmark(
         crate::benchmark::Request,
@@ -192,6 +197,7 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             command = commands.recv() => match command {
+                Some(Command::SetDisplaySettings(display, reply)) => { let _ = reply.send(actor.set_display_settings(display).await); }
                 Some(Command::AnalysisLimit(request)) => {
                     use crate::analysis_limit::Request;
                     match request {
