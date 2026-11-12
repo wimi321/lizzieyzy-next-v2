@@ -12,6 +12,8 @@ export interface SettingsLabels {
   visits: string;
   autoCurve: string;
   autoCurveHint: string;
+  cache: string;
+  cacheHint: string;
   invalid: string;
   save: string;
   cancel: string;
@@ -21,6 +23,8 @@ export interface SettingsLabels {
 export interface SettingsValues {
   limits: AnalysisLimitSettings;
   autoCurve: boolean;
+  /** 启用缓存: analysed positions are kept on disk and shown again without recomputing. */
+  cache: boolean;
 }
 
 export interface SettingsDialogProps {
@@ -47,6 +51,7 @@ export function SettingsDialog({ values, labels, onSave, onClose }: SettingsDial
   const [limitPlayout, setLimitPlayout] = useState(values.limits.limit_playout);
   const [playouts, setPlayouts] = useState(String(values.limits.limit_playouts));
   const [autoCurve, setAutoCurve] = useState(values.autoCurve);
+  const [cache, setCache] = useState(values.cache);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,6 +80,7 @@ export function SettingsDialog({ values, labels, onSave, onClose }: SettingsDial
         limit_playouts: playoutsValue ?? values.limits.limit_playouts,
       },
       autoCurve,
+      cache,
     }).catch((reason: unknown) => {
       setBusy(false);
       setError(typeof reason === "object" && reason !== null && "data" in reason ? String((reason as { data: unknown }).data) : String(reason));
@@ -138,6 +144,13 @@ export function SettingsDialog({ values, labels, onSave, onClose }: SettingsDial
               <span>{labels.autoCurve}</span>
             </label>
             <p className="settings-hint">{labels.autoCurveHint}</p>
+          </div>
+          <div className="settings-row">
+            <label className="settings-check">
+              <input type="checkbox" data-testid="settings-cache" checked={cache} onChange={(event) => setCache(event.target.checked)} />
+              <span>{labels.cache}</span>
+            </label>
+            <p className="settings-hint">{labels.cacheHint}</p>
           </div>
           {!valid ? (
             <p className="settings-invalid" role="alert" data-testid="settings-invalid">

@@ -708,6 +708,8 @@
     "visits": "次",
     "autoCurve": "打开棋谱后自动生成胜率曲线",
     "autoCurveHint": "每手只算 1 次，几秒钟画出整盘曲线，不影响实时分析。",
+    "cache": "启用缓存",
+    "cacheHint": "分析过的局面存在本机，再次打开或翻到时直接显示，引擎接着往上算。",
     "invalid": "请填写大于 0 的整数。",
     "save": "保存",
     "cancel": "取消",
@@ -804,7 +806,8 @@
       "spaceToPause": "空格 暂停",
       "spaceToResume": "空格 继续",
       "holdX": "按住 X 看快捷键",
-      "noEngine": "未加载引擎"
+      "noEngine": "未加载引擎",
+      "savedAnalysis": "分析来自棋谱"
     },
     "title": {
       "black": "黑",
@@ -923,5 +926,23 @@
     "cancel": "取消",
     "close": "关闭",
     "invalid": "请输入 {min} 到 {max} 之间的整数"
+  },
+  "candidates": {
+    "label": "选点列表",
+    "order": "序号",
+    "move": "坐标",
+    "winrate": "胜率",
+    "visits": "计算量",
+    "share": "占比",
+    "score": "目差",
+    "empty": "引擎还没有给出选点"
+  },
+  "clearing": {
+    "analysisTitle": "清除分析信息",
+    "analysisAll": "清除这盘棋所有手的分析结果？可以用「撤销编辑」恢复。",
+    "cacheTitle": "清除缓存",
+    "cacheAll": "清除本机保存的所有分析缓存？此操作不能撤销。",
+    "confirm": "清除",
+    "cancel": "取消"
   }
 }

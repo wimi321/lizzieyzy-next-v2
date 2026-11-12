@@ -14,6 +14,7 @@ const DATA_NAMES: Record<RegionName, string> = {
   comment: "comment",
   status: "status",
   tree: "tree",
+  list: "list",
   subBoard: "sub-board",
 };
 
@@ -59,6 +60,7 @@ export function MainPanel({ regions, hidden = [], boardSize, boardData, onBoardW
     subBoard: shown("subBoard"),
     tree: shown("tree"),
     status: shown("status"),
+    list: regions.list !== undefined && shown("list"),
   });
   return (
     <div className="main-panel" ref={root} data-testid="main-panel">

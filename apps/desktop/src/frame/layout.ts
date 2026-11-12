@@ -17,6 +17,8 @@ export interface FrameLayout {
   /** The engine status line at the bottom of the left column. */
   status: Rect;
   tree: Rect;
+  /** 选点列表面板: the candidates, under the tree. */
+  list: Rect;
   subBoard: Rect;
 }
 
@@ -34,6 +36,8 @@ export interface PanelFlags {
   subBoard: boolean;
   tree: boolean;
   status: boolean;
+  /** 选点列表面板; Java's reference layouts here leave it out. */
+  list?: boolean;
 }
 
 export const ALL_PANELS: PanelFlags = { comment: true, subBoard: true, tree: true, status: true };
@@ -68,10 +72,12 @@ export function inFrameLayout(width: number, height: number, boardSize = 19, sho
   let subBoardLength = Math.min(subBoardWidth, subBoardHeight);
   let subBoardX = div(capw - subBoardLength, 2);
 
+  // The tree and the list share the right column; either keeps the comment out of it.
+  const column = show.tree || show.list === true;
   let treeHeight = vh;
   let comment: Rect = { x: vx, y: 0, width: vw, height: vh };
   if (show.comment) {
-    if (show.tree) {
+    if (column) {
       treeHeight = div(vh, 2);
       comment = { x: vx, y: treeHeight, width: vw, height: treeHeight };
     }
@@ -89,9 +95,19 @@ export function inFrameLayout(width: number, height: number, boardSize = 19, sho
   }
   if (show.subBoard && show.comment) {
     treeHeight = treeHeight + div(vh, 2) - subBoardLength;
-    subBoardY = Math.max(show.tree ? subBoardY + div(vh, 2) - subBoardLength : subBoardY + vh - subBoardLength, 0);
+    subBoardY = Math.max(column ? subBoardY + div(vh, 2) - subBoardLength : subBoardY + vh - subBoardLength, 0);
   }
-  if (show.tree && show.subBoard !== show.comment) treeHeight = vh;
+  if (column && show.subBoard !== show.comment) treeHeight = vh;
+  // The list takes the lower half of the tree's room, or all of it without the tree.
+  let list: Rect = { x: vx, y: 0, width: vw, height: 0 };
+  if (show.list) {
+    if (show.tree) {
+      treeHeight = div(treeHeight, 2);
+      list = { x: vx, y: treeHeight, width: vw, height: treeHeight };
+    } else {
+      list = { x: vx, y: 0, width: vw, height: treeHeight };
+    }
+  }
 
   return {
     board: { x: boardX, y: boardY, width: maxSize, height: maxSize },
@@ -101,6 +117,7 @@ export function inFrameLayout(width: number, height: number, boardSize = 19, sho
     comment: { ...comment, height: Math.max(0, comment.height) },
     status: { x: 0, y: ponderingY, width: capw, height: show.status ? STATUS_HEIGHT : 0 },
     tree: { x: vx, y: 0, width: vw, height: treeHeight },
+    list,
     subBoard: { x: subBoardX, y: subBoardY, width: Math.max(0, subBoardLength), height: Math.max(0, subBoardLength) },
   };
 }
