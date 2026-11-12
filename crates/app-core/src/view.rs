@@ -204,6 +204,9 @@ pub struct DocumentView {
     #[serde(default)]
     #[ts(as = "Option<bool>", optional)]
     pub can_redo: bool,
+    #[serde(default)]
+    #[ts(as = "Option<bool>", optional)]
+    pub trial: bool,
 }
 
 impl DocumentView {
@@ -229,6 +232,7 @@ impl DocumentView {
             modified: false,
             can_undo: document.can_undo(),
             can_redo: document.can_redo(),
+            trial: false,
             game_info: Box::new(document.game_info()?.into()),
             board,
             tree: TreeView {

@@ -20,6 +20,7 @@ mod board_sync;
 mod edit;
 mod engine_auto_setup;
 mod frame;
+mod move_editing;
 mod problem_moves;
 mod review;
 mod setup_markup;

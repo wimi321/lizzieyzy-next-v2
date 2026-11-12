@@ -32,6 +32,7 @@ pub(crate) enum Change {
         index: usize,
     },
     MainPath(Vec<(NodeId, usize)>),
+    Nodes(Vec<crate::move_editing::NodePatch>),
 }
 
 enum PreparedPlay {
@@ -47,10 +48,19 @@ impl GameDocument {
         let next_revision = self.next_revision()?;
         let before = self.current;
         let edit = match command {
-            Command::Play(mv) => match self.prepare_play(mv)? {
+            Command::Play(mv) => match self.prepare_play(mv, true)? {
                 PreparedPlay::Existing(id) => return Ok(self.navigate(id, next_revision)),
                 PreparedPlay::New(edit) => Some(edit),
             },
+            Command::PlayColored(mv) => match self.prepare_play(mv, false)? {
+                PreparedPlay::Existing(id) => return Ok(self.navigate(id, next_revision)),
+                PreparedPlay::New(edit) => Some(edit),
+            },
+            Command::InsertMove(mv) => Some(self.prepare_insert_move(mv)?),
+            Command::SwitchStone(point) => self.prepare_stone_edit(point, None, true)?,
+            Command::DeleteStone(point) => self.prepare_stone_edit(point, None, false)?,
+            Command::MoveStone { from, to } => self.prepare_stone_edit(from, Some(to), false)?,
+            Command::AddVariation(moves) => self.prepare_add_variation(&moves)?,
             Command::GoTo(id) => {
                 self.node(id)?;
                 return Ok(self.navigate(id, next_revision));
@@ -242,9 +252,9 @@ impl GameDocument {
         self.revision
     }
 
-    fn prepare_play(&mut self, mv: Move) -> Result<PreparedPlay, DocError> {
+    fn prepare_play(&mut self, mv: Move, check_turn: bool) -> Result<PreparedPlay, DocError> {
         let mut position = self.position_at(self.current)?;
-        if mv.color() != position.board.to_play() {
+        if check_turn && mv.color() != position.board.to_play() {
             return Err(DocError::WrongPlayer {
                 node: self.current,
                 expected: position.board.to_play(),
@@ -332,6 +342,7 @@ impl GameDocument {
 
     fn execute(&mut self, edit: &Edit, forward: bool) {
         match &edit.change {
+            Change::Nodes(patches) => self.execute_node_patches(patches, forward),
             Change::Add { id, parent } => {
                 if forward {
                     self.arena[parent.0 as usize].children.push(*id);

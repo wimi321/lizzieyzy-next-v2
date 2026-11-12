@@ -34,6 +34,18 @@ pub enum WarningKind {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     Play(Move),
+    /// Explicit color; full Go rules still apply, without checking whose turn.
+    PlayColored(Move),
+    /// Inserts after the current node and reconnects its continuations.
+    InsertMove(Move),
+    SwitchStone(Point),
+    DeleteStone(Point),
+    MoveStone {
+        from: Point,
+        to: Point,
+    },
+    /// Always creates a distinct variation and keeps the current focus.
+    AddVariation(Vec<Move>),
     GoTo(NodeId),
     /// Negative: ancestors. Positive: first children. Stops at either boundary.
     Step(i32),
@@ -64,6 +76,8 @@ pub enum Command {
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DocError {
+    #[error("there is no surviving played stone at {0:?}")]
+    NoMoveAtPoint(Point),
     #[error("starting position edits require a root snapshot with no children")]
     SetupRequiresRoot,
     #[error("cannot allocate another {kind} label")]

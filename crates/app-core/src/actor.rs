@@ -16,6 +16,7 @@ mod board_sync;
 mod editing;
 mod fox;
 mod graph_analysis;
+mod move_editing;
 mod problem_moves;
 mod review;
 mod strength_estimate;
@@ -30,6 +31,8 @@ pub(crate) enum Input {
     Save(PathBuf),
     NewGame(crate::NewGameOptions),
     ConvertToStartPosition,
+    StartTrial,
+    EndTrial,
     ClearRecentFiles,
     Edit(document::Command),
     Undo,
@@ -79,6 +82,10 @@ pub(crate) enum Command {
     ReviewResult(u32, oneshot::Sender<Result<Option<AnalysisView>, AppError>>),
     ReviewAnalysis(u32, oneshot::Sender<Option<crate::StoredAnalysis>>),
     VariationTree(oneshot::Sender<VariationTreeView>),
+    StoneOrigin(
+        go_core::Point,
+        oneshot::Sender<Result<Option<crate::StoneOriginView>, AppError>>,
+    ),
     PreviewVariation(
         u32,
         Vec<go_core::Move>,
@@ -123,6 +130,7 @@ struct Actor {
     file_name: Option<String>,
     file_state: editing::FileState,
     tsumego: Option<tsumego::Session>,
+    move_trial: Option<move_editing::TrialSession>,
     tree: VariationTreeView,
     summaries: HashMap<NodeId, AnalysisSummary>,
     graph_analysis: graph_analysis::State,
@@ -155,6 +163,7 @@ pub(crate) async fn run(
         file_name: None,
         file_state: editing::FileState::new(&GameDocument::new(), None),
         tsumego: None,
+        move_trial: None,
         tree: VariationTreeView::default(),
         summaries: HashMap::new(),
         graph_analysis: Default::default(),
@@ -210,6 +219,7 @@ pub(crate) async fn run(
                 Some(Command::ReviewResult(node, reply)) => { let _ = reply.send(actor.review_view(node)); }
                 Some(Command::ReviewAnalysis(node, reply)) => { let _ = reply.send(actor.stored_analysis(node)); }
                 Some(Command::VariationTree(reply)) => { let _ = reply.send(actor.tree.clone()); }
+                Some(Command::StoneOrigin(point, reply)) => { let _ = reply.send(actor.stone_origin(point)); }
                 Some(Command::PreviewVariation(node_id, moves, reply)) => {
                     let result = VariationPreviewView::from_document(
                         &actor.document, actor.revision, node_id, &moves,
@@ -362,6 +372,7 @@ impl Actor {
             .as_ref()
             .map(|path| path.to_string_lossy().into_owned());
         view.modified = self.file_state.modified(&self.document);
+        view.trial = self.move_trial.is_some();
         view.tree.comment_revision = self.tree.comment_revision;
         for point in &mut view.graph.points {
             let node = NodeId(point.node_id);
@@ -381,10 +392,13 @@ impl Actor {
 
     async fn apply(&mut self, input: Input) -> Result<u64, AppError> {
         match input {
+            Input::StartTrial => self.start_move_trial().await?,
+            Input::EndTrial => self.end_move_trial().await?,
             Input::GenerateTsumego(options) => self.generate_tsumego(options).await?,
             Input::ExitTsumego => self.exit_tsumego().await?,
             Input::OpenPath(path) => self.open_path(path).await?,
             Input::OpenDroppedPaths(paths) => {
+                self.ensure_no_move_trial()?;
                 for path in paths {
                     if path
                         .extension()
@@ -404,7 +418,10 @@ impl Actor {
             Input::Edit(command) => {
                 self.next_revision()?;
                 let before_node = self.document.current();
-                let play = matches!(command, document::Command::Play(_));
+                let play = matches!(
+                    command,
+                    document::Command::Play(_) | document::Command::PlayColored(_)
+                );
                 let navigate = matches!(
                     command,
                     document::Command::Step(_) | document::Command::GoTo(_)
