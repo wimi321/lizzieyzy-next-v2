@@ -23,6 +23,7 @@ export type {
   TsumegoOptions, TsumegoStatus, TsumegoToPlay, TsumegoAttacker, TsumegoKoThreat,
   StrengthPhasesReport, PhaseEstimate, PhaseExtremes,
   EditCommands, GameInfoEdit, NewGameOptions,
+  SetupMarkupCommands, MarkupKindView, MarkupView,
 } from "../src/api/backend";
 
 type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "unsubscribe" | "setWindowTitle">;
@@ -200,6 +201,7 @@ function fillDocumentDefaults(view: DocumentView): void {
   defaultField(view, "modified", false);
   defaultField(view, "can_undo", false);
   defaultField(view, "can_redo", false);
+  defaultField(view, "markup", []);
   defaultField(view.game_info, "rules_preset", "chinese");
   defaultField(view.tree, "comment_revision", 0);
 }
@@ -224,6 +226,13 @@ export const promoteToMain: Backend["promoteToMain"] = (nodeId) => command("prom
 export const newGame: Backend["newGame"] = (options) => command("newGame", [options]);
 export const setGameInfo: Backend["setGameInfo"] = (info) => command("setGameInfo", [info]);
 export const clearRecentFiles: Backend["clearRecentFiles"] = () => command("clearRecentFiles", []);
+export const setSetupStone: Backend["setSetupStone"] = (point, color) => command("setSetupStone", [point, color]);
+export const clearSetup: Backend["clearSetup"] = () => command("clearSetup", []);
+export const setFirstPlayer: Backend["setFirstPlayer"] = (color) => command("setFirstPlayer", [color]);
+export const convertToStartPosition: Backend["convertToStartPosition"] = () => command("convertToStartPosition", []);
+export const setMarkup: Backend["setMarkup"] = (point, kind) => command("setMarkup", [point, kind]);
+export const clearMarkup: Backend["clearMarkup"] = () => command("clearMarkup", []);
+export const toggleToPlay: Backend["toggleToPlay"] = () => command("toggleToPlay", []);
 export const generateTsumego: Backend["generateTsumego"] = (options) => command("generateTsumego", [options]);
 export const exitTsumego: Backend["exitTsumego"] = () => command("exitTsumego", []);
 export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoStatus", []);

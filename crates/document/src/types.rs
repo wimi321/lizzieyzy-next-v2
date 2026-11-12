@@ -48,10 +48,26 @@ pub enum Command {
     /// Makes every ancestor on the path the first child, as one undoable edit.
     PromoteToMain(NodeId),
     SetGameInfo(crate::GameInfoEdit),
+    SetSetupStone {
+        point: Point,
+        color: Option<Color>,
+    },
+    ClearSetup,
+    SetFirstPlayer(Color),
+    SetMarkup {
+        point: Point,
+        kind: crate::MarkupKind,
+    },
+    ClearMarkup,
+    ToggleToPlay,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DocError {
+    #[error("starting position edits require a root snapshot with no children")]
+    SetupRequiresRoot,
+    #[error("cannot allocate another {kind} label")]
+    MarkupLabelLimit { kind: String },
     #[error("node {0:?} is not in the live document")]
     MissingNode(NodeId),
     #[error("cannot delete or promote the root")]

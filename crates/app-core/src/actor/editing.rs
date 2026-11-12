@@ -27,6 +27,12 @@ impl FileState {
 }
 
 impl Actor {
+    pub(super) async fn convert_to_start_position(&mut self) -> Result<(), AppError> {
+        let document = self.document.to_start_position()?;
+        self.stop_board_sync().await?;
+        self.open_auto_curve_document(document, None).await
+    }
+
     pub(super) async fn new_game(&mut self, options: NewGameOptions) -> Result<(), AppError> {
         let document = GameDocument::new_game(options.into())?;
         self.stop_board_sync().await?;

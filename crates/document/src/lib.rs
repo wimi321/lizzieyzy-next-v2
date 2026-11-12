@@ -3,15 +3,18 @@
 mod edit;
 mod game;
 mod key;
+mod markup;
 mod metadata;
 mod presentation;
 mod preview;
 mod semantics;
+mod setup;
 mod tree;
 mod types;
 
 pub use game::{GameInfoEdit, NewGameOptions};
 pub use key::AnalysisKey;
+pub use markup::{Markup, MarkupKind};
 pub use presentation::{GameInfo, VariationNode};
 pub use preview::{PreviewStone, VariationPreview};
 pub use tree::GameDocument;

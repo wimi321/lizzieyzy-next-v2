@@ -182,6 +182,10 @@ pub struct DocumentView {
     pub tree: TreeView,
     pub graph: GraphView,
     pub comment: Option<String>,
+    // Current-node SGF marks, independent of the legality of its moves.
+    #[serde(default)]
+    #[ts(as = "Option<Vec<crate::MarkupView>>", optional)]
+    pub markup: Vec<crate::MarkupView>,
     pub warnings: Vec<DocumentWarningView>,
     pub position_error: Option<String>,
     // File basename after opening or saving; non-file imports have no name.
@@ -237,6 +241,11 @@ impl DocumentView {
             },
             graph: GraphView::from_document(document)?,
             comment: current.comment().map(str::to_owned),
+            markup: document
+                .markup_at(document.current())?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
             warnings: document.warnings().into_iter().map(Into::into).collect(),
             position_error,
         })

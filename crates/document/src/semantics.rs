@@ -172,7 +172,7 @@ fn stones_with_points(stones: &[Option<Color>], size: BoardSize) -> Vec<(Color, 
         .collect()
 }
 
-fn setup_points(
+pub(crate) fn setup_points(
     node: NodeId,
     name: &str,
     value: &str,
