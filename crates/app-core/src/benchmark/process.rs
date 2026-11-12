@@ -43,13 +43,22 @@ pub(crate) enum Update {
 }
 
 impl Process {
+    #[cfg(test)]
     pub async fn spawn(profile: &EngineProfile) -> Result<Self, BenchmarkError> {
+        Self::spawn_with_environment(profile, Default::default()).await
+    }
+
+    pub async fn spawn_with_environment(
+        profile: &EngineProfile,
+        environment: std::collections::BTreeMap<OsString, OsString>,
+    ) -> Result<Self, BenchmarkError> {
         let TransportSpec::LocalProcess {
             program,
             args,
             cwd,
-            env,
+            mut env,
         } = benchmark_transport(profile)?;
+        env.extend(environment);
         let (explicit_batch, explicit_server) = explicit_gpu_overrides(&args);
         let mut command = Command::new(program);
         command
@@ -62,7 +71,9 @@ impl Process {
         if let Some(cwd) = cwd {
             command.current_dir(cwd);
         }
-        let mut child = command.spawn().map_err(failed)?;
+        let mut child = engine_session::spawn_process(&mut command)
+            .await
+            .map_err(failed)?;
         let Some(stdout) = child.stdout.take() else {
             let _ = child.kill().await;
             return Err(failed("missing benchmark stdout pipe"));

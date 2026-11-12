@@ -126,6 +126,39 @@ mod processes {
     }
 
     #[tokio::test]
+    async fn version_probe_applies_the_supplied_child_environment() {
+        let directory = TempDir::new().unwrap();
+        let path = program(
+            &directory,
+            "printf 'KataGo v%s\\n' \"$LIZZIEYZY_VERSION_PROBE_FIXTURE\"",
+        );
+        assert_eq!(
+            within(probe_with_environment(
+                &path,
+                vec![("LIZZIEYZY_VERSION_PROBE_FIXTURE".into(), "1.17.0".into(),)]
+            ))
+            .await
+            .unwrap(),
+            "v1.17.0"
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test(start_paused = true)]
+    async fn version_deadline_includes_text_busy_spawn_retries() {
+        let directory = TempDir::new().unwrap();
+        let path = program(&directory, "printf 'KataGo v1.16.5\\n'");
+        let _writer = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        let start = tokio::time::Instant::now();
+        let error = probe_with_timeout(&path, Duration::from_millis(1))
+            .await
+            .unwrap_err();
+        assert!(error.contains("version check timed out"), "{error}");
+        assert_eq!(start.elapsed(), Duration::from_millis(1));
+        assert!(!directory.path().join("pid").exists());
+    }
+
+    #[tokio::test]
     async fn oversized_output_terminates_the_probe_without_waiting_for_eof() {
         let directory = TempDir::new().unwrap();
         for redirect in ["", ">&2"] {

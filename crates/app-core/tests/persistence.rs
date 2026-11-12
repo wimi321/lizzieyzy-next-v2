@@ -26,6 +26,9 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                 AppEvent::EngineStatusChanged(_) => {}
                 AppEvent::BoardSyncStatusChanged(_) => {}
                 AppEvent::AnalysisStateChanged(_) => {}
+                AppEvent::AssetDownloadProgress(_) => {
+                    panic!("unexpected download without starting a task")
+                }
                 AppEvent::BenchmarkProgress(_) => {
                     panic!("unexpected benchmark without starting a task")
                 }

@@ -108,7 +108,17 @@ impl Actor {
 
     async fn run_processes(&mut self, spec: TransportSpec) {
         loop {
-            let mut process = match transport::start(&spec, &self.cfg) {
+            let startup_deadline = Instant::now() + self.cfg.startup_timeout;
+            let started =
+                tokio::time::timeout_at(startup_deadline, transport::start(&spec, &self.cfg))
+                    .await
+                    .unwrap_or_else(|_| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "engine process startup timed out",
+                        ))
+                    });
+            let mut process = match started {
                 Ok(process) => process,
                 Err(error) => {
                     self.fail(format!("could not start engine: {error}"), Vec::new());
@@ -123,7 +133,7 @@ impl Actor {
             self.queue_action(Action::QueryVersion {
                 id: self.version_id.clone(),
             });
-            let outcome = self.drive(&mut process).await;
+            let outcome = self.drive(&mut process, startup_deadline).await;
             let (reason, fatal, exit) = match outcome {
                 Outcome::Exited(exit) => {
                     let reason = match &exit.status {
@@ -183,8 +193,11 @@ impl Actor {
         }
     }
 
-    async fn drive(&mut self, process: &mut transport::Transport) -> Outcome {
-        let startup_deadline = Instant::now() + self.cfg.startup_timeout;
+    async fn drive(
+        &mut self,
+        process: &mut transport::Transport,
+        startup_deadline: Instant,
+    ) -> Outcome {
         let mut driver_done = false;
         let mut input_open = true;
         loop {

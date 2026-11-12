@@ -31,6 +31,10 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     app_core::StoneOriginView::export_all_to(directory)?;
     Settings::export_all_to(directory)?;
     app_core::JavaImportPreview::export_all_to(directory)?;
+    app_core::OfficialWeight::export_all_to(directory)?;
+    app_core::AccelerationPlan::export_all_to(directory)?;
+    app_core::EngineDiagnostics::export_all_to(directory)?;
+    app_core::DiagnosticRepair::export_all_to(directory)?;
     EngineSetupProfile::export_all_to(directory)?;
     app_core::EngineDisplayName::export_all_to(directory)?;
     EngineDiscovery::export_all_to(directory)?;

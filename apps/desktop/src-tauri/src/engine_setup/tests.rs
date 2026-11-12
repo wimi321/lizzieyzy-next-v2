@@ -3,6 +3,42 @@
 use super::{application_directories, java_content_roots, platform_directory};
 
 #[test]
+fn repair_paths_use_only_the_bundled_current_platform() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let resources = root.join("resources");
+    let mut environment = super::SetupEnvironment {
+        roots: app_core::engine_setup::SearchRoots {
+            resource_dirs: vec![resources.clone()],
+            platform_dirs: vec!["windows-x64".into()],
+            path_dirs: vec![root.join("path")],
+            java_install_dirs: vec![root.join("java")],
+            ..Default::default()
+        },
+        default_config_source: resources.join("katago/analysis.cfg"),
+    };
+    let paths = environment.repair_resources();
+    assert_eq!(
+        paths.program,
+        Some(resources.join("engines/katago/windows-x64/katago.exe"))
+    );
+    assert_eq!(paths.model, Some(resources.join("weights/default.bin.gz")));
+    assert_eq!(
+        paths.config_template,
+        Some(resources.join("katago/analysis.cfg"))
+    );
+    environment.roots.platform_dirs = vec!["macos-arm64".into()];
+    assert_eq!(
+        environment.repair_resources().program,
+        Some(resources.join("engines/katago/macos-arm64/katago"))
+    );
+    environment.roots.platform_dirs.clear();
+    assert_eq!(environment.repair_resources().program, None);
+    environment.roots.resource_dirs.clear();
+    assert_eq!(environment.repair_resources().model, None);
+}
+
+#[test]
 fn application_roots_include_portable_bundle_neighbors() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();

@@ -1,4 +1,4 @@
-use std::{path::Path, process::Stdio, time::Duration};
+use std::{ffi::OsString, path::Path, process::Stdio, time::Duration};
 use tokio::{
     io::{AsyncRead, AsyncReadExt},
     process::Command,
@@ -9,22 +9,42 @@ const OUTPUT_LIMIT: usize = 16 * 1024;
 
 /// The version subcommand does not load a model or initialize an analysis
 /// session. Drain both pipes concurrently, with independent memory limits.
-pub(super) async fn probe(program: &Path) -> Result<String, String> {
+pub(crate) async fn probe(program: &Path) -> Result<String, String> {
     probe_with_timeout(program, TIMEOUT).await
 }
 
+pub(crate) async fn probe_with_environment(
+    program: &Path,
+    environment: Vec<(OsString, OsString)>,
+) -> Result<String, String> {
+    probe_with_timeout_and_environment(program, TIMEOUT, environment).await
+}
+
 async fn probe_with_timeout(program: &Path, timeout: Duration) -> Result<String, String> {
-    let mut child = Command::new(program)
+    probe_with_timeout_and_environment(program, timeout, Vec::new()).await
+}
+
+async fn probe_with_timeout_and_environment(
+    program: &Path,
+    timeout: Duration,
+    environment: Vec<(OsString, OsString)>,
+) -> Result<String, String> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    let mut command = Command::new(program);
+    command
         .arg("version")
+        .envs(environment)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
+        .kill_on_drop(true);
+    let mut child = tokio::time::timeout_at(deadline, engine_session::spawn_process(&mut command))
+        .await
+        .map_err(|_| format!("version check timed out after {timeout:?}"))?
         .map_err(|error| format!("cannot start version check: {error}"))?;
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
-    let result = tokio::time::timeout(timeout, async {
+    let result = tokio::time::timeout_at(deadline, async {
         let stdout = stdout.ok_or_else(|| "version check has no stdout pipe".to_owned())?;
         let stderr = stderr.ok_or_else(|| "version check has no stderr pipe".to_owned())?;
         tokio::try_join!(

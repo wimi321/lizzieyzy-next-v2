@@ -31,6 +31,7 @@ mod strength;
 mod system_open;
 mod tsumego;
 mod variation;
+mod weights;
 
 const SAFETY: Duration = Duration::from_secs(5);
 
@@ -164,6 +165,7 @@ impl Harness {
                     | AppEvent::EngineStatusChanged(_)
                     | AppEvent::WholeGameProgress(_)
                     | AppEvent::BenchmarkProgress(_)
+                    | AppEvent::AssetDownloadProgress(_)
                     | AppEvent::AnalysisStateChanged(_)
                     | AppEvent::BoardSyncStatusChanged(_) => {}
                 }

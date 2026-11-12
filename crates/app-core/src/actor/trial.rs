@@ -132,7 +132,9 @@ impl Actor {
             // and cache identity. The candidate never owns the old engine.
             let fingerprint = profile.fingerprint().await?;
             let benchmark = self.settings.benchmarks.get(&fingerprint);
-            let transport = profile.transport_with_benchmark(benchmark)?;
+            let mut transport = profile.transport_with_benchmark(benchmark)?;
+            self.with_runtime_environment(&profile, &mut transport)
+                .await?;
             Ok((profile, transport, fingerprint, timeout))
         };
         let prepared = if let Some((_, deadline)) = &auto {
@@ -191,8 +193,10 @@ impl Actor {
                 return Err(AppError::from(EngineSetupError::InvalidTimeout));
             }
             let fingerprint = profile.fingerprint().await?;
-            let transport =
+            let mut transport =
                 profile.transport_with_benchmark(self.settings.benchmarks.get(&fingerprint))?;
+            self.with_runtime_environment(&profile, &mut transport)
+                .await?;
             Ok((fingerprint, transport, timeout))
         }
         .await;

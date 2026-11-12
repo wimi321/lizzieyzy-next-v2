@@ -30,6 +30,7 @@ mod signals;
 mod strength_estimate;
 mod trial;
 mod tsumego;
+mod weights;
 use trial::PendingTrial;
 
 pub(crate) enum Input {
@@ -57,6 +58,14 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    Assets(oneshot::Sender<Result<crate::assets::AssetHandle, AppError>>),
+    ReplaceMainEngine(
+        crate::EngineEntry,
+        EngineProfile,
+        bool,
+        oneshot::Sender<Result<Settings, AppError>>,
+    ),
+    DataDirectory(oneshot::Sender<PathBuf>),
     SetEngineSettings(
         crate::EngineSettings,
         oneshot::Sender<Result<crate::EngineSettings, AppError>>,
@@ -174,6 +183,7 @@ struct Actor {
     auto_curve: auto_curve::State,
     board_sync: board_sync::State,
     benchmark: benchmark::State,
+    assets: weights::State,
     focus: Option<ViewFocus>,
     output: Delivery,
 }
@@ -220,6 +230,7 @@ pub(crate) async fn run(
         auto_curve: Default::default(),
         board_sync: Default::default(),
         benchmark: Default::default(),
+        assets: Default::default(),
         focus: None,
         output,
     };
@@ -232,6 +243,9 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             command = commands.recv() => match command {
+                Some(Command::Assets(reply)) => { let result = actor.asset_handle(); let _ = reply.send(result); }
+                Some(Command::ReplaceMainEngine(expected, profile, restart, reply)) => actor.replace_main_engine(expected, profile, restart, reply).await,
+                Some(Command::DataDirectory(reply)) => { let _ = reply.send(actor.directory.clone()); }
                 Some(Command::Engines(request, reply)) => actor.engine_command(request, reply).await,
                 Some(Command::JavaImport(request)) => {
                     match request {
@@ -284,9 +298,10 @@ pub(crate) async fn run(
                 Some(Command::Apply(Input::Shutdown, reply)) => {
                     actor.auto_setup.cancel();
                     actor.cancel_trial().await;
+                    let assets_result = actor.assets.shutdown().await;
                     let benchmark_result = actor.stop_benchmark_process().await;
                     let sync_result = actor.stop_board_sync().await;
-                    let result = actor.stop_engine().await.and(sync_result).and(benchmark_result).map(|()| actor.revision);
+                    let result = actor.stop_engine().await.and(sync_result).and(benchmark_result).and(assets_result).map(|()| actor.revision);
                     if let Some(cache) = actor.cache.take() { cache.shutdown().await; }
                     let _ = reply.send(result);
                     break;
@@ -305,10 +320,12 @@ pub(crate) async fn run(
             result = trial::wait(&mut actor.trial) => actor.finish_trial(result).await,
             result = board_sync::receive(&mut actor.board_sync) => actor.board_sync_line(result).await,
             result = benchmark::receive(&mut actor.benchmark) => actor.benchmark_signal(result).await,
+            progress = weights::receive(&mut actor.assets) => actor.output.send(AppEvent::AssetDownloadProgress(progress)),
         }
         actor.maybe_start_auto_curve().await;
         actor.publish_analysis_state();
     }
+    let _ = actor.assets.shutdown().await;
     if let Some(cache) = actor.cache.take() {
         cache.shutdown().await;
     }
@@ -633,7 +650,7 @@ impl Actor {
     }
 
     async fn start_engine(&mut self) {
-        let Some(profile) = &self.settings.engine else {
+        let Some(profile) = self.settings.engine.clone() else {
             self.set_summary_fingerprint(None);
             self.output
                 .send(AppEvent::EngineStatusChanged(EngineStatus::Stopped));
@@ -643,7 +660,10 @@ impl Actor {
         let prepared = async {
             let fingerprint = profile.fingerprint().await?;
             let benchmark = self.settings.benchmarks.get(&fingerprint);
-            Ok::<_, AppError>((profile.transport_with_benchmark(benchmark)?, fingerprint))
+            let mut transport = profile.transport_with_benchmark(benchmark)?;
+            self.with_runtime_environment(&profile, &mut transport)
+                .await?;
+            Ok::<_, AppError>((transport, fingerprint))
         }
         .await;
         let (transport, fingerprint) = match prepared {

@@ -187,5 +187,127 @@
   },
   "origin": "project-source-build",
   "engineReleaseRepository": "wimi321/lizzieyzy-next",
-  "engineReleaseTag": "next-2026-10-28.1"
+  "engineReleaseTag": "next-2026-10-28.1",
+  "runtimePackages": {
+    "cuda_cudart": {
+      "fileName": "cuda_cudart-windows-x86_64-12.8.57-archive.zip",
+      "downloadUrl": "https://developer.download.nvidia.com/compute/cuda/redist/cuda_cudart/windows-x86_64/cuda_cudart-windows-x86_64-12.8.57-archive.zip",
+      "sizeBytes": 3034859,
+      "sha256": "2c7aa62a195d79229d4381c8bd0174a30502cf3d8124c6e94ee50a7fc8a1e9f4",
+      "version": "12.8.57"
+    },
+    "cuda_nvrtc": {
+      "fileName": "cuda_nvrtc-windows-x86_64-12.8.61-archive.zip",
+      "downloadUrl": "https://developer.download.nvidia.com/compute/cuda/redist/cuda_nvrtc/windows-x86_64/cuda_nvrtc-windows-x86_64-12.8.61-archive.zip",
+      "sizeBytes": 305553480,
+      "sha256": "e43603b09f8a52d681ceb814c00b655af19da53692ab91671dabbf8071c8f93d",
+      "version": "12.8.61"
+    },
+    "libcublas": {
+      "fileName": "libcublas-windows-x86_64-12.8.3.14-archive.zip",
+      "downloadUrl": "https://developer.download.nvidia.com/compute/cuda/redist/libcublas/windows-x86_64/libcublas-windows-x86_64-12.8.3.14-archive.zip",
+      "sizeBytes": 574528660,
+      "sha256": "a2f990cf61f0086d942632f2455727240baa9378c2e9fa2bdda56ef81f6cf8ad",
+      "version": "12.8.3.14"
+    },
+    "libnvjitlink": {
+      "fileName": "libnvjitlink-windows-x86_64-12.8.61-archive.zip",
+      "downloadUrl": "https://developer.download.nvidia.com/compute/cuda/redist/libnvjitlink/windows-x86_64/libnvjitlink-windows-x86_64-12.8.61-archive.zip",
+      "sizeBytes": 257312022,
+      "sha256": "8258afaadbd9744d87070525067c497041dd52c6b22d11ba7297421fc8f6f39d",
+      "version": "12.8.61"
+    },
+    "cudnn": {
+      "fileName": "cudnn-windows-x86_64-9.8.0.87_cuda12-archive.zip",
+      "downloadUrl": "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-9.8.0.87_cuda12-archive.zip",
+      "sizeBytes": 675349654,
+      "sha256": "d8a23705e3884b137b7e05449fb2b61bfa524e7cfc3fda80743d633f423c6ce4",
+      "version": "9.8.0.87"
+    },
+    "tensorrt": {
+      "fileName": "TensorRT-10.9.0.34.Windows.win10.cuda-12.8.zip",
+      "downloadUrl": "https://developer.download.nvidia.com/compute/machine-learning/tensorrt/10.9.0/zip/TensorRT-10.9.0.34.Windows.win10.cuda-12.8.zip",
+      "sizeBytes": 1845842538,
+      "sha256": "c2758eb60191f01a47b24f54700e5463f577ebe129cd18fe835d0aa9f1e1a16d",
+      "version": "10.9.0.34"
+    },
+    "msvc-runtime": {
+      "fileName": "katago-v1.18.1-cuda12.8-cudnn9.8.0-windows-x64.zip",
+      "downloadUrl": "https://github.com/lightvector/KataGo/releases/download/v1.18.1/katago-v1.18.1-cuda12.8-cudnn9.8.0-windows-x64.zip",
+      "sizeBytes": 10135501,
+      "sha256": "8caabc5675950f52d285a686c19727f7a56a982313a7f055ade060ba78df552e",
+      "version": "v1.18.1"
+    }
+  },
+  "runtimePackageSource": "Java scripts/katago_cuda_dependencies.json and KataGoRuntimeHelper / NvidiaRuntimePins; CUDA 12.8 / cuDNN 9.8 / TensorRT 10.9 fixed pins",
+  "runtimeProfiles": {
+    "cuda12.8-cudnn9": {
+      "engineAsset": "windows-nvidia",
+      "assets": [
+        "windows-nvidia",
+        "runtime-cuda_cudart",
+        "runtime-libcublas",
+        "runtime-libnvjitlink",
+        "runtime-cuda_nvrtc",
+        "runtime-cudnn",
+        "runtime-msvc-runtime"
+      ],
+      "requiredFiles": [
+        "katago.exe",
+        "cudart64_12.dll",
+        "cublas64_12.dll",
+        "cublasLt64_12.dll",
+        "nvJitLink_120_0.dll",
+        "nvrtc64_120_0.dll",
+        "nvrtc-builtins64_128.dll",
+        "cudnn64_9.dll",
+        "cudnn_adv64_9.dll",
+        "cudnn_cnn64_9.dll",
+        "cudnn_engines_precompiled64_9.dll",
+        "cudnn_engines_runtime_compiled64_9.dll",
+        "cudnn_graph64_9.dll",
+        "cudnn_heuristic64_9.dll",
+        "cudnn_ops64_9.dll",
+        "msvcp140.dll",
+        "vcruntime140.dll",
+        "vcruntime140_1.dll"
+      ]
+    },
+    "cuda12.8-cudnn9-tensorrt": {
+      "engineAsset": "windows-tensorrt",
+      "assets": [
+        "windows-tensorrt",
+        "runtime-cuda_cudart",
+        "runtime-libcublas",
+        "runtime-libnvjitlink",
+        "runtime-cuda_nvrtc",
+        "runtime-cudnn",
+        "runtime-msvc-runtime",
+        "runtime-tensorrt"
+      ],
+      "requiredFiles": [
+        "katago.exe",
+        "cudart64_12.dll",
+        "cublas64_12.dll",
+        "cublasLt64_12.dll",
+        "nvJitLink_120_0.dll",
+        "nvrtc64_120_0.dll",
+        "nvrtc-builtins64_128.dll",
+        "cudnn64_9.dll",
+        "cudnn_adv64_9.dll",
+        "cudnn_cnn64_9.dll",
+        "cudnn_engines_precompiled64_9.dll",
+        "cudnn_engines_runtime_compiled64_9.dll",
+        "cudnn_graph64_9.dll",
+        "cudnn_heuristic64_9.dll",
+        "cudnn_ops64_9.dll",
+        "msvcp140.dll",
+        "vcruntime140.dll",
+        "vcruntime140_1.dll",
+        "nvinfer_10.dll",
+        "nvinfer_plugin_10.dll",
+        "nvonnxparser_10.dll"
+      ]
+    }
+  }
 }

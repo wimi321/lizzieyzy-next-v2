@@ -100,6 +100,7 @@ impl Actor {
             .clone()
             .ok_or(BenchmarkError::NoEngine)?;
         profile.transport()?;
+        let environment = self.runtime_environment(&profile).await?;
         let fingerprint = profile.fingerprint().await?;
         self.auto_setup.cancel();
         self.cancel_trial().await;
@@ -117,7 +118,7 @@ impl Actor {
                 .await;
             return Err(error);
         }
-        match Process::spawn(&profile).await {
+        match Process::spawn_with_environment(&profile, environment).await {
             Ok(process) => {
                 self.benchmark.process = Some(process);
                 self.publish_benchmark().await;

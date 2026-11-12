@@ -15,3 +15,4 @@ pub mod setup_markup;
 pub mod strength;
 pub mod tsumego;
 pub mod variation;
+pub mod weights;
