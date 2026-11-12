@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { DocumentView, GameInfoEdit, VariationTreeView } from "@/api/backend";
 import { documentView, midGame } from "../../e2e/fixtures";
@@ -158,7 +159,8 @@ describe("saving, game info and new boards", () => {
   }
 
   function Harness({ fake, view, empty = false }: { fake: ReturnType<typeof editingBackend>; view: DocumentView; empty?: boolean }) {
-    const editing = useEditing(fake, view, empty, zh.edit, zh.info.rules, null);
+    const [confirms, setConfirms] = useState({ newBoard: true, replace: true });
+    const editing = useEditing(fake, view, empty, zh.edit, zh.info.rules, null, confirms, (kind) => setConfirms((value) => ({ ...value, [kind]: false })));
     return (
       <>
         <button data-testid="new" onClick={editing.newBoard} />
@@ -166,7 +168,7 @@ describe("saving, game info and new boards", () => {
         <button data-testid="komi" onClick={() => editing.setKomi(6.5)} />
         <button data-testid="delete" onClick={editing.deleteMove} />
         <output data-testid="recent">{editing.recent.join("|")}</output>
-        <output data-testid="asks">{`${editing.confirms.newBoard}/${editing.confirms.replace}`}</output>
+        <output data-testid="asks">{`${confirms.newBoard}/${confirms.replace}`}</output>
         {editing.dialogs}
       </>
     );
@@ -285,9 +287,9 @@ describe("the menu's editing entries", () => {
     ],
   };
   const state = (change: Partial<MenuState>): MenuState => ({
-    hasDocument: true, hasBoard: true, coordinates: true, ownership: false, wholeGameActive: false, hasBestMove: false, engineFailed: false,
+    hasDocument: true, hasBoard: true, ownership: false, wholeGameActive: false, hasBestMove: false, engineFailed: false,
     engineConfigured: true, windows: false, syncPhase: "Stopped", syncOptions: { always_sync: true, always_goto_last: false },
-    tree, current: 0, canUndo: false, canRedo: false, recent: [], confirmNewBoard: true, confirmReplace: true, setupTool: null, setupEditable: false, trial: false, playColor: null, insertColor: null, ...change,
+    tree, current: 0, canUndo: false, canRedo: false, recent: [], setupTool: null, setupEditable: false, trial: false, playColor: null, insertColor: null, ...change,
   });
   const actions = () => new Proxy({}, { get: (target: Record<string, unknown>, key: string) => (target[key] ??= vi.fn()) }) as unknown as MenuActions;
 
@@ -326,14 +328,12 @@ describe("the menu's editing entries", () => {
     expect(root.setAsMain?.enabled).toBe(false);
     expect(root.undoDelete?.enabled).toBe(false);
     expect(root.clearRecent).toBeUndefined();
-    expect(root.showNewBoardConfirmDialog?.checked).toBe(true);
 
-    const main = menuBindings(state({ current: 2, canUndo: true, confirmReplace: false }), run);
+    const main = menuBindings(state({ current: 2, canUndo: true }), run);
     expect(main.delete?.enabled).toBe(true);
     expect(main.setAsMain?.enabled).toBe(false);
     expect(main.undoDelete?.enabled).toBe(true);
     expect(main.redoDelete?.enabled).toBe(false);
-    expect(main.showReplaceFileConfirmDialog?.checked).toBe(false);
 
     const branch = menuBindings(state({ current: 3, recent: ["/a.sgf", "/b.sgf"] }), run);
     expect(branch.setAsMain?.enabled).toBe(true);

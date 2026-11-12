@@ -19,6 +19,8 @@ const DATA_NAMES: Record<RegionName, string> = {
 
 export interface MainPanelProps {
   regions: Partial<Record<RegionName, ReactNode>>;
+  /** Panels switched off under 显示 → 面板; the rest are laid out around them as Java does. */
+  hidden?: readonly RegionName[];
   boardSize: number;
   /** Extra attributes on the board region, which tests use to match it to the document. */
   boardData?: Record<`data-${string}`, string | number | undefined>;
@@ -33,7 +35,7 @@ function style(rect: Rect) {
  * The window's content between the toolbars, cut into LizzieYzy Next's panels by its own
  * layout formula (`InFrameLayout`) every time the panel changes size.
  */
-export function MainPanel({ regions, boardSize, boardData, onBoardWheel }: MainPanelProps) {
+export function MainPanel({ regions, hidden = [], boardSize, boardData, onBoardWheel }: MainPanelProps) {
   const root = useRef<HTMLDivElement>(null);
   // A nominal panel until the first measurement, so the first frame is never empty.
   const [size, setSize] = useState(NOMINAL);
@@ -51,10 +53,16 @@ export function MainPanel({ regions, boardSize, boardData, onBoardWheel }: MainP
     return () => observer.disconnect();
   }, []);
 
-  const layout = inFrameLayout(size.width, size.height, boardSize);
+  const shown = (name: RegionName) => !hidden.includes(name);
+  const layout = inFrameLayout(size.width, size.height, boardSize, {
+    comment: shown("comment"),
+    subBoard: shown("subBoard"),
+    tree: shown("tree"),
+    status: shown("status"),
+  });
   return (
     <div className="main-panel" ref={root} data-testid="main-panel">
-      {(Object.keys(DATA_NAMES) as RegionName[]).map((name) => (
+      {(Object.keys(DATA_NAMES) as RegionName[]).filter(shown).map((name) => (
         <section
           key={name}
           className="main-region"

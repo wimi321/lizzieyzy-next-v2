@@ -81,9 +81,14 @@ export function linePaths(
   return paths;
 }
 
-/** Closed areas between each run of the winrate line and the bottom edge. */
-export function areaPaths(layout: GraphLayout, points: readonly GraphPointView[]): string[] {
-  const bottom = round(layout.top + plotHeight(layout));
+/** Closed areas between each run of a line (the winrate by default) and a baseline (the bottom edge by default). */
+export function areaPaths(
+  layout: GraphLayout,
+  points: readonly GraphPointView[],
+  y: (summary: AnalysisSummary) => number = (summary) => yForWinrate(layout, summary.winrate),
+  baseline = layout.top + plotHeight(layout),
+): string[] {
+  const bottom = round(baseline);
   const areas: string[] = [];
   let run: number[] = [];
   const flush = () => {
@@ -91,7 +96,10 @@ export function areaPaths(layout: GraphLayout, points: readonly GraphPointView[]
     const first = run[0] ?? 0;
     const last = run[run.length - 1] ?? first;
     const top = run
-      .map((index) => `${round(xForIndex(layout, index))} ${round(yForWinrate(layout, points[index]?.summary?.winrate ?? 0.5))}`)
+      .map((index) => {
+        const summary = points[index]?.summary;
+        return `${round(xForIndex(layout, index))} ${round(summary ? y(summary) : baseline)}`;
+      })
       .join(" L");
     areas.push(`M${round(xForIndex(layout, first))} ${bottom} L${top} L${round(xForIndex(layout, last))} ${bottom} Z`);
     run = [];

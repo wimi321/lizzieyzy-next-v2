@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { DocumentView, WireAppEvent } from "../src/api/backend";
-import { documentChanged, midGame, recordedGame } from "./fixtures";
+import { defaultDisplaySettings, documentChanged, midGame, recordedGame } from "./fixtures";
 import type { MockCommand } from "./mock-backend";
 
 // The window of the reference screenshots, in LizzieYzy Next's own language.
@@ -102,6 +102,8 @@ test("off the main line, L and both toolbars make the branch the main line", asy
 test("a new board is asked about first; the board size follows Java's dialog", async ({ page }) => {
   await start(page, midGame(), [
     { command: "newGame", result: 8 },
+    // 不再询问 saves the switch with the display settings first.
+    { command: "setDisplaySettings", result: { ...defaultDisplaySettings, confirm_new_board: false } },
     { command: "newGame", result: 9 },
     { command: "newGame", result: 10 },
   ]);
@@ -121,7 +123,8 @@ test("a new board is asked about first; the board size follows Java's dialog", a
   await page.keyboard.press("Control+Home");
   await box.getByTestId("confirm-new-board-no-again").check();
   await box.getByTestId("confirm-new-board-ok").click();
-  await expect.poll(async () => (await calls(page)).length).toBe(2);
+  await expect.poll(async () => (await calls(page)).length).toBe(3);
+  expect((await calls(page))[1]).toEqual({ command: "setDisplaySettings", args: [{ ...defaultDisplaySettings, confirm_new_board: false }] });
   await menu(page, "显示").click();
   await row(page, "mainPanelSettings").hover();
   await expect(row(page, "showNewBoardConfirmDialog")).toHaveAttribute("aria-checked", "false");
@@ -138,7 +141,7 @@ test("a new board is asked about first; the board size follows Java's dialog", a
   await size.getByTestId("board-size-9").click();
   await size.getByTestId("board-size-confirm").click();
   await expect(size).toBeHidden();
-  await expect.poll(async () => (await calls(page))[2]).toEqual({ command: "newGame", args: [{ ...NEW_BOARD, width: 9, height: 9 }] });
+  await expect.poll(async () => (await calls(page))[3]).toEqual({ command: "newGame", args: [{ ...NEW_BOARD, width: 9, height: 9 }] });
 });
 
 test("the game's information is edited in Java's dialog, the komi also in the toolbar", async ({ page }) => {

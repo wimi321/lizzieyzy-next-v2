@@ -194,6 +194,19 @@
   stroke-width: 1.3;
 }
 
+/* 单曲线模式使用面积填充: the one line, filled to the middle in its own colour. */
+.graph-fill {
+  stroke: none;
+}
+
+.graph-fill.winrate {
+  fill: rgba(90, 160, 242, 0.22);
+}
+
+.graph-fill.score {
+  fill: rgba(189, 98, 218, 0.22);
+}
+
 .graph-dot-winrate {
   fill: #5aa0f2;
 }

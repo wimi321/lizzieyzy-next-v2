@@ -514,6 +514,18 @@ export function withEditing(menus: readonly MenuSubmenu[], recent: readonly stri
   );
 }
 
+/** The numbers the 显示 menu shows in its labels, as Java does: the last N marked, the visits threshold. */
+export function withDisplayValues(menus: readonly MenuSubmenu[], values: { rankMarks: number; minVisits: number }): MenuSubmenu[] {
+  return menus.map((menu) =>
+    rewrite(menu, (entry) => {
+      if (entry.kind === "separator") return entry;
+      if (entry.id === "setCustomMoves") return { ...entry, suffix: String(values.rankMarks) };
+      if (entry.id === "minPlayoutsForNextMove") return { ...entry, suffix: `${values.minVisits})` };
+      return entry;
+    }),
+  );
+}
+
 /** The menus as Java builds them on this platform. */
 export function menusFor(windows: boolean): readonly MenuSubmenu[] {
   return windows ? MENUS : MENUS.map((menu) => without(menu, WINDOWS_ONLY));
