@@ -5,12 +5,12 @@ import { describe, ENGINE_DEFAULTS, engineName, engineState, nameFromModel } fro
 const profile = { program: "/opt/katago", model: "/opt/kata1-b18c384nbt.bin.gz", config: "", extra_args: [] };
 
 test("the engine list, the main engine and the options come from the settings, with Java's defaults filled in", () => {
-  const settings = { version: 1, engine: profile, pondering: true, engines: [{ id: "e1", name: "B18", profile }, { id: "broken" }], main_engine_id: "e1", engine_settings: { read_komi: false } } as Settings;
+  const settings = { version: 1, engine: profile, pondering: true, engines: [{ id: "e1", name: "B18", profile }, { id: "broken" }], main_engine_id: "e1", engine_settings: { read_komi: false } } as unknown as Settings;
   const state = engineState(settings);
   expect(state.engines).toEqual([{ id: "e1", name: "B18", profile }]);
   expect(state.main).toBe("e1");
   expect(state.options).toEqual({ ...ENGINE_DEFAULTS, read_komi: false });
-  expect(engineState({ version: 1, engine: null, pondering: true } as Settings)).toEqual({ engines: [], main: null, options: ENGINE_DEFAULTS });
+  expect(engineState({ version: 1, engine: null, pondering: true } as unknown as Settings)).toEqual({ engines: [], main: null, options: ENGINE_DEFAULTS });
 });
 
 test("names: a migrated engine takes the model's name while it is the main one; a new one starts from its file", () => {
