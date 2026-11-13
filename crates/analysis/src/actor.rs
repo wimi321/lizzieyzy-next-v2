@@ -248,6 +248,13 @@ impl Actor {
                 Ok(())
             }
             Input::SetLiveSettings(settings) => {
+                if self.config.live.query_rules != settings.query_rules
+                    || self.config.live.query_komi != settings.query_komi
+                {
+                    return Err(AnalysisError::InvalidSettings(
+                        "query overrides require a new coordinator and cache identity",
+                    ));
+                }
                 if self.config.live == settings {
                     return Ok(());
                 }

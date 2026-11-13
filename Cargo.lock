@@ -89,6 +89,7 @@ dependencies = [
  "fox-kifu",
  "go-core",
  "katago-protocol",
+ "proptest",
  "readboard",
  "serde",
  "serde_json",

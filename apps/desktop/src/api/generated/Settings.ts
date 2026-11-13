@@ -2,9 +2,11 @@
 import type { AnalysisLimitSettings } from "./AnalysisLimitSettings";
 import type { BenchmarkResult } from "./BenchmarkResult";
 import type { DisplaySettings } from "./DisplaySettings";
+import type { EngineEntry } from "./EngineEntry";
 import type { EngineProfile } from "./EngineProfile";
+import type { EngineSettings } from "./EngineSettings";
 import type { FoxAccount } from "./FoxAccount";
 import type { MoveRankSettings } from "./MoveRankSettings";
 import type { TsumegoOptions } from "./TsumegoOptions";
 
-export type Settings = { version: number, engine: EngineProfile | null, pondering: boolean, cache_enabled?: boolean, display?: DisplaySettings, analysis_limits?: AnalysisLimitSettings, auto_quick_analyze_on_load?: boolean, fox_history: Array<FoxAccount>, recent_files?: Array<string>, move_rank: MoveRankSettings, tsumego: TsumegoOptions, benchmarks?: { [key in string]?: BenchmarkResult }, };
+export type Settings = { version: number, engine: EngineProfile | null, engines?: Array<EngineEntry>, main_engine_id?: string | null, engine_settings?: EngineSettings, pondering: boolean, cache_enabled?: boolean, display?: DisplaySettings, analysis_limits?: AnalysisLimitSettings, auto_quick_analyze_on_load?: boolean, fox_history: Array<FoxAccount>, recent_files?: Array<string>, move_rank: MoveRankSettings, tsumego: TsumegoOptions, benchmarks?: { [key in string]?: BenchmarkResult }, };

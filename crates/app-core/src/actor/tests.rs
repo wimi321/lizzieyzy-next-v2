@@ -42,6 +42,8 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             config: AppConfig::default(),
             running: None,
             trial: None,
+            pending_java_import: None,
+            java_import_sequence: 0,
             auto_setup: Default::default(),
             auto_curve: Default::default(),
             board_sync: Default::default(),

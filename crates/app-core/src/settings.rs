@@ -12,7 +12,7 @@ use ts_rs::TS;
 
 pub const SETTINGS_VERSION: u32 = 1;
 
-/// P1 persists one active engine profile. Empty paths remain editable settings;
+/// A reusable engine profile. Empty paths remain editable settings;
 /// they become readable engine failures when the profile is started.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default)]
@@ -31,7 +31,14 @@ pub struct EngineProfile {
 #[serde(default)]
 pub struct Settings {
     pub version: u32,
+    // Compatibility projection: the selected profile while enabled.
     pub engine: Option<EngineProfile>,
+    #[ts(as = "Option<Vec<crate::EngineEntry>>", optional)]
+    pub engines: Vec<crate::EngineEntry>,
+    #[ts(optional = nullable)]
+    pub main_engine_id: Option<String>,
+    #[ts(as = "Option<crate::EngineSettings>", optional)]
+    pub engine_settings: crate::EngineSettings,
     pub pondering: bool,
     #[ts(as = "Option<bool>", optional)]
     pub cache_enabled: bool,
@@ -55,6 +62,9 @@ impl Default for Settings {
         Self {
             version: SETTINGS_VERSION,
             engine: None,
+            engines: Vec::new(),
+            main_engine_id: None,
+            engine_settings: crate::EngineSettings::default(),
             pondering: true,
             cache_enabled: true,
             display: crate::DisplaySettings::default(),
@@ -131,11 +141,13 @@ impl Settings {
             })
     }
 
-    fn normalized(mut self) -> Result<Self, SettingsError> {
+    pub(crate) fn normalized(mut self) -> Result<Self, SettingsError> {
         if self.version > SETTINGS_VERSION {
             return Err(SettingsError::FutureVersion(self.version));
         }
         self.version = SETTINGS_VERSION;
+        self.normalize_engines()?;
+        self.engine_settings.validate()?;
         crate::fox::normalize_history(&mut self.fox_history);
         crate::edit::normalize_recent_files(&mut self.recent_files);
         self.move_rank.validate()?;

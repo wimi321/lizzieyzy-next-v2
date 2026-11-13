@@ -11,11 +11,14 @@ mod delivery;
 mod display;
 mod edit;
 mod engine_display_name;
+mod engine_settings;
 pub mod engine_setup;
 mod engine_trial;
+mod engines;
 pub mod fox;
 mod graph;
 mod inspection;
+mod java_import;
 mod move_editing;
 mod move_rank;
 mod problem_moves;
@@ -40,11 +43,14 @@ pub use display::{
 };
 pub use edit::{GameInfoEdit, NewGameOptions};
 pub use engine_display_name::{EngineDisplayName, engine_display_name};
+pub use engine_settings::{EngineCustomRules, EngineRules, EngineSettings};
 pub use engine_trial::{EngineSetupError, EngineSetupProfile};
+pub use engines::EngineEntry;
 pub use graph::{AnalysisSummary, GraphPointView, GraphView};
 pub use inspection::{
     GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
 };
+pub use java_import::{JavaImportPreview, JavaImportedEngine};
 pub use move_editing::{StoneOriginView, TrialError};
 pub use move_rank::*;
 pub use problem_moves::*;

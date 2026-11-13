@@ -163,7 +163,9 @@ impl Actor {
         if !line.iter().any(|(_, position)| !position.moves.is_empty())
             || line.iter().all(|(id, position)| {
                 self.review.results.get(id).is_some_and(|stored| {
-                    stored.key == position.analysis_key() && stored.response.root_info.visits > 0
+                    stored.key == position.analysis_key()
+                        && (stored.saved.is_none() || self.can_reuse_saved_analysis())
+                        && stored.response.root_info.visits > 0
                 })
             })
         {

@@ -98,6 +98,7 @@ fn rectangular_handicap_replays_from_initial_white_not_current_black() {
         report_interval: Duration::from_millis(10),
         include_ownership: false,
         include_policy: true,
+        ..LiveSettings::default()
     };
     let request = build(&position, &settings).unwrap();
     assert_eq!(request.initial_player, Some(Player::White));
@@ -212,4 +213,23 @@ fn malformed_public_position_fields_return_typed_errors() {
             CoordinateError::OutOfBounds { .. }
         ))
     ));
+}
+
+#[test]
+fn query_overrides_preserve_the_document_and_complete_custom_rules() {
+    let document = document::GameDocument::new();
+    let position = document.position_at(document.root()).unwrap();
+    let original_key = position.analysis_key();
+    let fields = serde_json::from_str(r#"{"ko":"SIMPLE","scoring":"TERRITORY","tax":"SEKI","suicide":false,"hasButton":false,"whiteHandicapBonus":"0","friendlyPassOk":false}"#).unwrap();
+    let rules = Rules::Custom(fields);
+    let settings = LiveSettings {
+        query_rules: Some(rules.clone()),
+        query_komi: Some(-0.5),
+        ..LiveSettings::default()
+    };
+    let query = build(&position, &settings).unwrap();
+    assert_eq!(query.rules, rules);
+    assert_eq!(query.komi, Some(-0.5));
+    assert_eq!(position.komi, 7.5);
+    assert_eq!(position.analysis_key(), original_key);
 }

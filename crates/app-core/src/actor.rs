@@ -17,9 +17,12 @@ mod board_sync;
 mod clear_analysis;
 mod display;
 mod editing;
+mod engine_settings;
+mod engines;
 mod fox;
 mod game_files;
 mod graph_analysis;
+mod java_import;
 mod move_editing;
 mod problem_moves;
 mod review;
@@ -54,6 +57,15 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    SetEngineSettings(
+        crate::EngineSettings,
+        oneshot::Sender<Result<crate::EngineSettings, AppError>>,
+    ),
+    JavaImport(crate::java_import::Request),
+    Engines(
+        crate::engines::Request,
+        oneshot::Sender<Result<Settings, AppError>>,
+    ),
     SetDisplaySettings(
         crate::DisplaySettings,
         oneshot::Sender<Result<crate::DisplaySettings, AppError>>,
@@ -153,6 +165,8 @@ struct Actor {
     directory: PathBuf,
     cache: Option<analysis::persistent_cache::PersistentCache>,
     settings: Settings,
+    pending_java_import: Option<crate::java_import::PendingJavaImport>,
+    java_import_sequence: u64,
     config: AppConfig,
     running: Option<Running>,
     trial: Option<PendingTrial>,
@@ -197,6 +211,8 @@ pub(crate) async fn run(
         directory,
         cache: Some(cache),
         settings,
+        pending_java_import: None,
+        java_import_sequence: 0,
         config,
         running: None,
         trial: None,
@@ -216,6 +232,14 @@ pub(crate) async fn run(
     loop {
         tokio::select! {
             command = commands.recv() => match command {
+                Some(Command::Engines(request, reply)) => actor.engine_command(request, reply).await,
+                Some(Command::JavaImport(request)) => {
+                    match request {
+                        crate::java_import::Request::Preview(directory, reply) => { let _ = reply.send(actor.preview_java_import(directory).await); }
+                        crate::java_import::Request::Confirm(id, reply) => { let _ = reply.send(actor.confirm_java_import(id).await); }
+                    }
+                }
+                Some(Command::SetEngineSettings(settings, reply)) => { let _ = reply.send(actor.set_engine_settings(settings).await); }
                 Some(Command::SetDisplaySettings(display, reply)) => { let _ = reply.send(actor.set_display_settings(display).await); }
                 Some(Command::AnalysisLimit(request)) => {
                     use crate::analysis_limit::Request;
@@ -436,39 +460,7 @@ impl Actor {
             Input::SetAutoQuickAnalyzeOnLoad(enabled) => {
                 self.set_auto_quick_analyze_on_load(enabled).await?;
             }
-            Input::ConfigureEngine(profile) => {
-                self.ensure_no_benchmark()?;
-                self.auto_setup.cancel();
-                self.cancel_trial().await;
-                // Validate argument conflicts before changing the saved configuration.
-                if let Some(profile) = &profile {
-                    profile.transport()?;
-                }
-                let mut settings = self.settings.clone();
-                settings.engine = profile;
-                settings.save(&self.directory).await?;
-                let changed = settings.engine != self.settings.engine;
-                self.settings = settings;
-                let healthy = self.running.as_ref().is_some_and(|running| {
-                    !matches!(
-                        *running.engine_status.borrow(),
-                        engine_session::EngineStatus::Failed { .. }
-                            | engine_session::EngineStatus::Stopped
-                    )
-                });
-                let unchanged_files = if let (Some(profile), Some(running)) =
-                    (&self.settings.engine, &self.running)
-                {
-                    profile.fingerprint().await.ok().as_ref() == Some(&running.fingerprint)
-                } else {
-                    false
-                };
-                // Reapplying a profile also detects replaced model/config files.
-                if changed || !healthy || !unchanged_files {
-                    self.stop_engine().await?;
-                    self.start_engine().await;
-                }
-            }
+            Input::ConfigureEngine(profile) => self.configure_engine(profile).await?,
             Input::Shutdown => {}
         }
         Ok(self.revision)
@@ -632,7 +624,8 @@ impl Actor {
         fingerprint: &str,
     ) -> Result<(AnalysisHandle, AnalysisSubscription), AppError> {
         let mut config = self.config.analysis.clone();
-        config.engine_fingerprint = fingerprint.to_owned();
+        config.engine_fingerprint = self.evaluation_fingerprint(fingerprint)?;
+        config.live = self.live_settings();
         config.pondering = self.pondering();
         config.cache_enabled = self.settings.cache_enabled;
         config.limits = self.settings.analysis_limits.into();
@@ -663,7 +656,7 @@ impl Actor {
             }
         };
         self.set_summary_fingerprint(Some(fingerprint.clone()));
-        let engine = engine_session::spawn(transport, self.config.session.clone());
+        let engine = engine_session::spawn(transport, self.session_config());
         match self.coordinator(&engine, &fingerprint) {
             Ok((coordinator, snapshots)) => {
                 let engine_status = engine.status();
@@ -688,6 +681,16 @@ impl Actor {
     }
 
     fn set_summary_fingerprint(&mut self, fingerprint: Option<String>) {
+        let fingerprint = match fingerprint
+            .map(|value| self.evaluation_fingerprint(&value))
+            .transpose()
+        {
+            Ok(fingerprint) => fingerprint,
+            Err(error) => {
+                self.failed(error.to_string());
+                return;
+            }
+        };
         if self.summary_fingerprint != fingerprint {
             self.summary_fingerprint = fingerprint;
             let saved = self

@@ -30,6 +30,7 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     VariationPreviewView::export_all_to(directory)?;
     app_core::StoneOriginView::export_all_to(directory)?;
     Settings::export_all_to(directory)?;
+    app_core::JavaImportPreview::export_all_to(directory)?;
     EngineSetupProfile::export_all_to(directory)?;
     app_core::EngineDisplayName::export_all_to(directory)?;
     EngineDiscovery::export_all_to(directory)?;

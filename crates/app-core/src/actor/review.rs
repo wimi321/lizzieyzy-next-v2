@@ -287,7 +287,9 @@ impl Actor {
                 return Err(WholeGameError::ChangedPosition.into());
             }
             if !self.review.results.get(id).is_some_and(|result| {
-                result.key == position.analysis_key() && result.response.root_info.visits >= visits
+                result.key == position.analysis_key()
+                    && (result.saved.is_none() || self.can_reuse_saved_analysis())
+                    && result.response.root_info.visits >= visits
             }) {
                 remaining.push((*id, position.clone()));
             }
@@ -307,7 +309,17 @@ impl Actor {
     }
 
     async fn submit_review_batch(&mut self) -> Result<(), AppError> {
-        if let Some(batch) = self.review.batches.pop_front() {
+        if let Some(mut batch) = self.review.batches.pop_front() {
+            let settings = self.live_settings();
+            if let Some(rules) = settings.query_rules {
+                batch.request.rules = rules;
+            }
+            if let Some(komi) = settings.query_komi {
+                batch.request.komi = Some(komi);
+            }
+            let interval = settings.report_interval.as_secs_f64();
+            batch.request.report_during_search_every = Some(interval);
+            batch.request.first_report_during_search_after = Some(interval);
             let running = self.running.as_ref().ok_or(WholeGameError::NoEngine)?;
             self.review.active = Some(batch.submit(&running.engine).await?);
         }
@@ -385,6 +397,7 @@ impl Actor {
         }
         // Graph events never change the focused board or document revision.
         self.publish_document()?;
+        let can_reuse_saved = self.can_reuse_saved_analysis();
         if let Some(progress) = &mut self.review.progress {
             progress.completed = self
                 .review
@@ -393,6 +406,7 @@ impl Actor {
                 .filter(|(id, position)| {
                     self.review.results.get(id).is_some_and(|result| {
                         result.key == position.analysis_key()
+                            && (result.saved.is_none() || can_reuse_saved)
                             && result.response.root_info.visits >= progress.visits
                     })
                 })
