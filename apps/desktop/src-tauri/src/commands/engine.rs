@@ -4,8 +4,11 @@ use tauri::State;
 use crate::{DesktopState, engine_setup::SetupEnvironment, error::CommandError};
 
 #[tauri::command]
-pub fn engine_display_name(profile: EngineProfile) -> app_core::EngineDisplayName {
-    app_core::engine_display_name(&profile)
+pub async fn engine_display_name(
+    state: State<'_, DesktopState>,
+    profile: EngineProfile,
+) -> Result<app_core::EngineDisplayName, CommandError> {
+    Ok(state.core.localized_engine_display_name(&profile).await?)
 }
 
 #[tauri::command]

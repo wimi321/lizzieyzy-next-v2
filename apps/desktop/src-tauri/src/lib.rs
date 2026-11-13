@@ -7,8 +7,11 @@ pub mod engine_setup;
 pub mod error;
 pub mod events;
 pub mod fox_error;
+mod release_startup;
+mod reveal;
 pub mod startup;
 mod system_open;
+pub mod updater;
 
 use app_core::{AppCore, AppSubscription};
 use tauri::{Manager, Runtime};
@@ -29,7 +32,7 @@ impl DesktopState {
 
 /// Shared command registration for the desktop and the Tauri mock runtime.
 pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
-    builder
+    updater::register(builder)
         .plugin(tauri_plugin_dialog::init())
         .on_window_event(drag_drop::on_window_event)
         .invoke_handler(tauri::generate_handler![
@@ -121,6 +124,19 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::fox::fox_open_game,
             commands::fox::fox_clear_history,
             commands::settings::settings,
+            commands::release::set_language,
+            commands::release::set_auto_check_updates,
+            commands::release::check_update,
+            commands::release::download_update,
+            commands::release::cancel_update_download,
+            commands::release::update_download_status,
+            commands::release::install_update,
+            commands::release::full_log_status,
+            commands::release::start_full_log,
+            commands::release::stop_full_log,
+            commands::release::export_diagnostics,
+            commands::support::log_directory,
+            commands::support::reveal_in_folder,
             commands::settings::set_display_settings,
             commands::cache::cache_enabled,
             commands::cache::set_cache_enabled,
@@ -141,6 +157,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let builder = system_open::single_instance(tauri::Builder::default().manage(opener));
     let app = commands(builder)
         .setup(move |app| {
+            app.manage(reveal::RevealService::default());
             app.manage(engine_setup::SetupEnvironment::for_app(app.handle())?);
             app.manage(board_sync::BoardSyncEnvironment::for_app(app.handle())?);
             let default_dir = match &options.config_dir {
@@ -154,6 +171,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             let (core, subscription) = tauri::async_runtime::block_on(
                 startup::start_with_data_directory(options, default_dir, data_dir),
             )?;
+            tauri::async_runtime::block_on(release_startup::initialize(app.handle(), &core))?;
             app.manage(DesktopState::new(core.clone(), subscription));
             tauri::async_runtime::spawn(system_open::serve(core, incoming));
             Ok(())

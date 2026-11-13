@@ -68,5 +68,17 @@
     "resources": {
       "../../../resources/katago/analysis.cfg": "katago/analysis.cfg"
     }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/wimi321/lizzieyzy-next-v2/releases/latest/download/latest.json"
+      ],
+      "pubkey": "",
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

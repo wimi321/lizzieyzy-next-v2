@@ -6,4 +6,4 @@ import type { FoxFailure } from "./FoxFailure";
 /**
  * Serializable IPC failures. Domain errors are rendered only at this boundary.
  */
-export type CommandError = { "type": "App", "data": string } | { "type": "Fox", "data": FoxFailure } | { "type": "AutoSetup", "data": AutoSetupError } | { "type": "BoardSync", "data": BoardSyncError } | { "type": "StreamClosed" } | { "type": "SubscriptionLimit" } | { "type": "Channel", "data": string };
+export type CommandError = { "type": "UpdateSigningNotConfigured" } | { "type": "RevealOutsideDataDirectory" } | { "type": "RevealUnavailable", "data": string } | { "type": "App", "data": string } | { "type": "Fox", "data": FoxFailure } | { "type": "AutoSetup", "data": AutoSetupError } | { "type": "BoardSync", "data": BoardSyncError } | { "type": "StreamClosed" } | { "type": "SubscriptionLimit" } | { "type": "Channel", "data": string };
