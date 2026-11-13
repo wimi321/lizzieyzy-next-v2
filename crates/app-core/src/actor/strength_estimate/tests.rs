@@ -172,3 +172,96 @@ fn malformed_last_move_still_reaches_the_next_phase_on_the_displayed_line() {
     assert!(!middle.black_ranked && !middle.white_ranked);
     assert!(!estimate.phases.phases[2].played);
 }
+
+#[test]
+fn retained_long_game_covers_all_default_and_custom_phase_boundaries() {
+    // Phase grouping needs a long timeline, not 169 engine responses or disk
+    // writes. Inject valid retained results and exercise the actual actor query.
+    let (mut actor, _) = actor();
+    let text = format!("(;SZ[9]{})", ";B[];W[]".repeat(84));
+    let games = sgf::parse(text.as_bytes()).unwrap();
+    actor.document = document::GameDocument::from_sgf(&games.games[0]).unwrap();
+    actor.revision = 10;
+    actor.publish_document().unwrap();
+    let empty = actor.strength_estimate(None).unwrap();
+    assert_eq!((empty.total_moves, empty.analyzed_moves), (168, 0));
+    assert!(empty.phases.phases.iter().all(|phase| phase.played));
+    assert!(
+        empty
+            .phases
+            .phases
+            .iter()
+            .all(|phase| !phase.black_ranked && !phase.white_ranked)
+    );
+
+    for node in 0..=168 {
+        let id = NodeId(node);
+        let position = actor.document.position_at(id).unwrap();
+        let response = serde_json::from_value(json!({
+            "id": "phase-fixture", "turnNumber": position.analysis_moves.len(), "isDuringSearch": false,
+            "rootInfo": {"visits": 1, "winrate": 0.5, "scoreLead": 0.0, "utility": 0.0,
+                "currentPlayer": if position.board.to_play() == go_core::Color::Black {"B"} else {"W"}},
+            "moveInfos": [{"move": "pass", "visits": 1, "winrate": 0.5, "scoreLead": 0.0,
+                "prior": 1.0, "order": 0, "pv": ["pass"]}]
+        })).unwrap();
+        actor.review.results.insert(
+            id,
+            StoredAnalysis {
+                saved: None,
+                node_id: id,
+                key: position.analysis_key(),
+                response,
+            },
+        );
+    }
+
+    let document = actor.document.snapshot();
+    let retained = actor.review.results.clone();
+    let default = actor.strength_estimate(None).unwrap();
+    assert_eq!((default.total_moves, default.analyzed_moves), (168, 168));
+    assert_eq!(
+        (
+            default.report.black.sample_count,
+            default.report.white.sample_count
+        ),
+        (84, 84)
+    );
+    assert_eq!(default.phases.bounds, [60, 150]);
+    let custom = actor.strength_estimate(Some([24, 100])).unwrap();
+    assert_eq!(custom.phases.bounds, [24, 100]);
+    assert_eq!(custom.report, default.report);
+    let estimator = strength::Estimator::bundled().unwrap();
+    for (report, ranges) in [
+        (&default, [(1, 60, 30), (61, 150, 45), (151, 168, 9)]),
+        (&custom, [(1, 24, 12), (25, 100, 38), (101, 168, 34)]),
+    ] {
+        for (phase, (first, last, count)) in report.phases.phases.iter().zip(ranges) {
+            assert_eq!((phase.first, phase.last), (first, last));
+            assert!(phase.played && phase.black_ranked && phase.white_ranked);
+            assert_eq!(
+                (phase.black.sample_count, phase.white.sample_count),
+                (count, count)
+            );
+            for (side, whole) in [
+                (&phase.black, &report.report.black),
+                (&phase.white, &report.report.white),
+            ] {
+                let samples: Vec<_> = whole
+                    .samples
+                    .iter()
+                    .filter(|sample| (first..=last).contains(&sample.move_number))
+                    .cloned()
+                    .collect();
+                assert_eq!(*side, estimator.summarize(&samples));
+            }
+        }
+    }
+    let normalized = actor.strength_estimate(Some([80, 75])).unwrap();
+    assert_eq!(normalized.phases.bounds, [80, 90]);
+    assert_eq!(normalized.report, default.report);
+    assert_eq!(actor.strength_estimate(None).unwrap(), default);
+    assert_eq!(actor.document.snapshot(), document);
+    assert_eq!(actor.review.results, retained);
+    actor.review.results.clear();
+    assert_eq!(actor.strength_estimate(None).unwrap(), empty);
+}

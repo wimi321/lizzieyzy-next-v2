@@ -7,6 +7,7 @@ mod transport;
 
 pub use delivery::QuerySubscription;
 pub use request::AnalysisRequest;
+pub use transport::spawn_process;
 
 use katago_protocol::AnalysisResponse;
 use std::{collections::BTreeMap, ffi::OsString, path::PathBuf, time::Duration};

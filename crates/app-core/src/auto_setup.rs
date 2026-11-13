@@ -13,7 +13,7 @@ use tokio::{
 };
 use ts_rs::TS;
 
-mod version;
+pub(crate) mod version;
 
 pub(crate) const MAX_ATTEMPTS: usize = 6;
 pub(crate) const TOTAL_TIMEOUT: Duration = Duration::from_secs(120);

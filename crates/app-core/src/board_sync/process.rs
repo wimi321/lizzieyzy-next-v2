@@ -51,7 +51,9 @@ impl Process {
         if let Some(directory) = program.parent() {
             command.current_dir(directory);
         }
-        let mut child = command.spawn().map_err(io_error)?;
+        let mut child = engine_session::spawn_process(&mut command)
+            .await
+            .map_err(io_error)?;
         let input = child.stdin.take();
         let Some(output) = child.stdout.take() else {
             return Err(io_error("missing stdout pipe"));
