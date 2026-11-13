@@ -7,6 +7,14 @@ use crate::fox_error::FoxFailure;
 #[derive(Debug, thiserror::Error, Serialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum CommandError {
+    #[error("{0}")]
+    Clipboard(app_core::ClipboardError),
+    #[error("{0}")]
+    Png(app_core::PngError),
+    #[error("{0}")]
+    PngRequest(#[from] PngRequestError),
+    #[error("cannot apply main window preference: {0}")]
+    WindowUnavailable(String),
     #[error("this build has no update signing key configured")]
     UpdateSigningNotConfigured,
     #[error("only paths inside the application data directory may be revealed")]
@@ -29,9 +37,24 @@ pub enum CommandError {
     Channel(String),
 }
 
+/// The binary PNG transport must be valid before any file or clipboard action.
+#[derive(Debug, thiserror::Error, Serialize, TS)]
+pub enum PngRequestError {
+    #[error("PNG commands require a raw binary request body")]
+    RawBodyRequired,
+    #[error("PNG save request is missing its path header")]
+    MissingPath,
+    #[error("PNG save path must not be empty")]
+    EmptyPath,
+    #[error("PNG save path header is not valid percent-encoded UTF-8")]
+    InvalidPathEncoding,
+}
+
 impl From<app_core::AppError> for CommandError {
     fn from(error: app_core::AppError) -> Self {
         match error {
+            app_core::AppError::Clipboard(error) => Self::Clipboard(error),
+            app_core::AppError::Png(error) => Self::Png(error),
             app_core::AppError::Update(app_core::updates::UpdateError::SigningNotConfigured) => {
                 Self::UpdateSigningNotConfigured
             }

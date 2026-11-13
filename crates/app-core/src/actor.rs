@@ -19,6 +19,7 @@ mod display;
 mod editing;
 mod engine_settings;
 mod engines;
+mod everyday;
 mod fox;
 mod game_files;
 mod graph_analysis;
@@ -374,6 +375,13 @@ impl Actor {
             }
             Input::OpenBytes(bytes) => self.open(bytes, None).await?,
             Input::Save(path) => self.save_document(path).await?,
+            Input::CopySgf => self.copy_sgf().await?,
+            Input::PasteSgf => self.paste_sgf().await?,
+            Input::SaveCleanSgf(path, comments, branch) => {
+                self.save_clean_sgf(path, comments, branch).await?
+            }
+            Input::SavePng(path, bytes) => self.save_png(path, bytes).await?,
+            Input::CopyPng(bytes) => self.copy_png(bytes).await?,
             Input::NewGame(options) => self.new_game(options).await?,
             Input::ConvertToStartPosition => self.convert_to_start_position().await?,
             Input::ClearRecentFiles => self.set_recent_files(Vec::new()).await?,
@@ -388,11 +396,20 @@ impl Actor {
                     command,
                     document::Command::Step(_) | document::Command::GoTo(_)
                 );
+                let transformed_saved = matches!(command, document::Command::Transform(_))
+                    .then(|| self.valid_saved_nodes());
                 let before = self.document.revision();
                 let before_content = self.document.content_revision();
                 self.document.apply(command)?;
                 if self.document.content_revision() != before_content {
-                    self.file_state.analysis_edits.document_edit();
+                    if let Some(nodes) = &transformed_saved {
+                        self.file_state
+                            .analysis_edits
+                            .document_transform(nodes.clone());
+                        self.import_selected_saved_analysis(Some(nodes))?;
+                    } else {
+                        self.file_state.analysis_edits.document_edit();
+                    }
                 }
                 if self.document.revision() != before {
                     let resume_limited = !self.sync_active()
@@ -407,6 +424,9 @@ impl Actor {
             Input::SetCacheEnabled(enabled) => self.set_cache_enabled(enabled).await?,
             Input::ClearCache(all) => self.clear_cache(all).await?,
             Input::SetLanguage(language) => self.set_language(language).await?,
+            Input::SetAlwaysOnTop(enabled) => self.set_always_on_top(enabled).await?,
+            Input::SetUiScale(scale) => self.set_ui_scale(scale).await?,
+            Input::SetPlaySound(enabled) => self.set_play_sound(enabled).await?,
             Input::SetAutoCheckUpdates(enabled) => self.set_auto_check_updates(enabled).await?,
             Input::SetPondering(enabled) => {
                 self.set_pondering(enabled).await?;

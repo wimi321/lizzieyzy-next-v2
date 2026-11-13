@@ -22,8 +22,10 @@ mod display_settings;
 mod edit;
 mod engine_auto_setup;
 mod engines;
+mod everyday;
 mod frame;
 mod move_editing;
+mod preferences;
 mod problem_moves;
 mod release;
 mod review;
@@ -196,6 +198,23 @@ async fn request(
     arguments: Value,
     url: &str,
 ) -> Result<Value, Value> {
+    request_with_body(
+        window,
+        command,
+        InvokeBody::Json(arguments),
+        Default::default(),
+        url,
+    )
+    .await
+}
+
+async fn request_with_body(
+    window: &WebviewWindow<MockRuntime>,
+    command: &str,
+    body: InvokeBody,
+    headers: tauri::http::HeaderMap,
+    url: &str,
+) -> Result<Value, Value> {
     let (send, receive) = oneshot::channel();
     window.as_ref().clone().on_message(
         InvokeRequest {
@@ -203,8 +222,8 @@ async fn request(
             callback: CallbackFn(0),
             error: CallbackFn(1),
             url: url.parse().unwrap(),
-            body: InvokeBody::Json(arguments),
-            headers: Default::default(),
+            body,
+            headers,
             invoke_key: INVOKE_KEY.to_owned(),
         },
         Box::new(move |_window, _command, response, _callback, _error| {

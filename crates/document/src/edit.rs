@@ -33,6 +33,7 @@ pub(crate) enum Change {
     },
     MainPath(Vec<(NodeId, usize)>),
     Nodes(Vec<crate::move_editing::NodePatch>),
+    PropertiesMany(Vec<crate::everyday::PropertyPatch>),
 }
 
 enum PreparedPlay {
@@ -152,6 +153,7 @@ impl GameDocument {
             }
             Command::ClearMarkup => self.property_edit(before, self.cleared_markup()?)?,
             Command::ToggleToPlay => self.prepare_toggle_to_play()?,
+            Command::Transform(transform) => self.prepare_transform(transform)?,
             Command::DeleteNode(id) => Some(self.prepare_delete(id)?),
             Command::PromoteVariation(id) => {
                 let (parent, index) = self.sibling_index(id)?;
@@ -343,6 +345,12 @@ impl GameDocument {
     fn execute(&mut self, edit: &Edit, forward: bool) {
         match &edit.change {
             Change::Nodes(patches) => self.execute_node_patches(patches, forward),
+            Change::PropertiesMany(patches) => {
+                for patch in patches {
+                    self.arena[patch.id.0 as usize].properties =
+                        if forward { &patch.after } else { &patch.before }.clone();
+                }
+            }
             Change::Add { id, parent } => {
                 if forward {
                     self.arena[parent.0 as usize].children.push(*id);

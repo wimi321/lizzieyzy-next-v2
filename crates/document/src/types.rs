@@ -72,10 +72,14 @@ pub enum Command {
     },
     ClearMarkup,
     ToggleToPlay,
+    /// Transforms all coordinates in the live tree as one reversible edit.
+    Transform(crate::BoardTransform),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DocError {
+    #[error("board rotations require a square board, got {0:?}")]
+    TransformRequiresSquare(BoardSize),
     #[error("there is no surviving played stone at {0:?}")]
     NoMoveAtPoint(Point),
     #[error("starting position edits require a root snapshot with no children")]

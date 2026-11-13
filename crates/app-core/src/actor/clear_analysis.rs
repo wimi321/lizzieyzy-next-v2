@@ -17,6 +17,7 @@ pub(super) struct Edits {
 #[derive(Clone)]
 enum Entry {
     Document,
+    Transform(Vec<NodeId>),
     Clear(Change),
 }
 
@@ -37,6 +38,12 @@ struct Before {
 }
 
 impl Edits {
+    pub fn document_transform(&mut self, nodes: Vec<NodeId>) {
+        self.managed = true;
+        self.undo.push(Entry::Transform(nodes));
+        self.redo.clear();
+    }
+
     pub fn document_edit(&mut self) {
         self.managed = true;
         self.undo.push(Entry::Document);
@@ -226,6 +233,16 @@ impl Actor {
                 self.move_history_entry(undo);
                 self.graph_analysis.clear();
                 self.analysis_edit_changed().await?;
+            }
+            Some(Entry::Transform(nodes)) => {
+                if undo {
+                    self.document.undo()?;
+                } else {
+                    self.document.redo()?;
+                }
+                self.import_selected_saved_analysis(Some(&nodes))?;
+                self.move_history_entry(undo);
+                self.document_changed().await?;
             }
             Some(Entry::Document) => {
                 if undo {
