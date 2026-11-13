@@ -8,7 +8,8 @@ mod runtime;
 mod runtime_archive;
 #[cfg(test)]
 mod runtime_test_support;
-#[cfg(test)]
+// Only the Unix runtime tests use it; elsewhere it would be an unused import.
+#[cfg(all(test, unix))]
 pub(crate) use runtime_test_support::test_runtime_catalog;
 mod transfer;
 mod types;
