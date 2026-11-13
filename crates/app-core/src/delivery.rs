@@ -66,6 +66,22 @@ impl Delivery {
     pub fn clear_analysis(&self) {
         self.0.send_modify(|mailbox| mailbox.analysis = None);
     }
+
+    /// A coalesced document can otherwise overtake its unread focus result.
+    /// Replay the original frame after it, preserving Live/Cache/Saved and speed.
+    pub fn republish_analysis(&self, revision: u64, node_id: u32) {
+        self.0.send_if_modified(|mailbox| {
+            let Some((serial, AppEvent::AnalysisUpdated(view))) = &mut mailbox.analysis else {
+                return false;
+            };
+            if (view.revision, view.node_id) != (revision, node_id) {
+                return false;
+            }
+            mailbox.serial = mailbox.serial.wrapping_add(1);
+            *serial = mailbox.serial;
+            true
+        });
+    }
 }
 
 impl AppSubscription {
