@@ -3018,7 +3018,7 @@ button.fox-row[aria-busy="true"] {
 
 .engine-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
@@ -3079,6 +3079,17 @@ button.fox-row[aria-busy="true"] {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.engine-main-slot {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 86px;
+}
+
+.engine-list-dialog .dialog-footer,
+.edit-dialog .dialog-footer {
+  gap: 8px;
 }
 
 .engine-actions .secondary-button {

@@ -1052,6 +1052,7 @@
     "cancel": "Cancel",
     "progress": "{done} / {total} MB",
     "installing": "Installing…",
+    "downloading": "Downloading…",
     "failed": "Download failed",
     "accelerationIntro": "On Windows with an NVIDIA graphics card, these components let KataGo run faster with CUDA/TensorRT.",
     "reasons": {

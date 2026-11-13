@@ -20,6 +20,7 @@ export interface ToolsLabels {
   cancel: string;
   progress: string;
   installing: string;
+  downloading: string;
   failed: string;
   accelerationIntro: string;
   reasons: Record<string, string>;
@@ -130,7 +131,7 @@ export function WeightsPanel({ tools, labels, currentModel }: { tools: EngineToo
           </button>
         ) : (
           <button type="button" className="primary-button" data-testid="tools-download" disabled={tools.busy || tools.downloading} onClick={() => weight.id && tools.startDownload(weight.id)}>
-            {active ? labels.installing : labels.download}
+            {active ? (tools.download?.phase === "Installing" ? labels.installing : labels.downloading) : labels.download}
           </button>
         )}
       </li>

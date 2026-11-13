@@ -68,13 +68,17 @@ export function EngineList({ engines, main, nameOf, busy, labels, onSetMain, onE
                     {`${fileName(engine.profile.program)} · ${fileName(engine.profile.model)}`}
                   </span>
                 </span>
-                {isMain ? <span className="engine-main-tag">{labels.main}</span> : null}
                 <span className="engine-actions">
-                  {isMain ? null : (
-                    <button type="button" className="secondary-button" disabled={busy} data-testid="engine-set-main" onClick={() => onSetMain(engine.id)}>
-                      {labels.setMain}
-                    </button>
-                  )}
+                  {/* The main engine's tag holds the place of 设为主引擎, so every row's buttons line up. */}
+                  <span className="engine-main-slot">
+                    {isMain ? (
+                      <span className="engine-main-tag">{labels.main}</span>
+                    ) : (
+                      <button type="button" className="secondary-button" disabled={busy} data-testid="engine-set-main" onClick={() => onSetMain(engine.id)}>
+                        {labels.setMain}
+                      </button>
+                    )}
+                  </span>
                   <button type="button" className="secondary-button" disabled={busy} data-testid="engine-edit" onClick={() => onEdit(engine.id)}>
                     {labels.edit}
                   </button>

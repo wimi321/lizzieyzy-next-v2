@@ -1052,6 +1052,7 @@
     "cancel": "取消",
     "progress": "已下载 {done} / {total} MB",
     "installing": "正在安装…",
+    "downloading": "下载中…",
     "failed": "下载失败",
     "accelerationIntro": "Windows 上用英伟达显卡时，装上提速组件可以让 KataGo 用 CUDA/TensorRT 跑得更快。",
     "reasons": {
