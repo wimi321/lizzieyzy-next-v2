@@ -550,7 +550,9 @@ export const setDisplaySettings: Backend["setDisplaySettings"] = (display) =>
   command("setDisplaySettings", [display]);
 export const pickOpenPath: Backend["pickOpenPath"] = () => command("pickOpenPath", []);
 export const pickDirectory: Backend["pickDirectory"] = () => command("pickDirectory", []);
-export const pickSavePath: Backend["pickSavePath"] = () => command("pickSavePath", []);
+export const pickSavePath: Backend["pickSavePath"] = (defaultName?: string) =>
+  command("pickSavePath", defaultName === undefined ? [] : [defaultName]);
+export const pickImagePath: Backend["pickImagePath"] = (defaultName: string) => command("pickImagePath", [defaultName]);
 export const pickEngineFile: Backend["pickEngineFile"] = (kind) => command("pickEngineFile", [kind]);
 export const quit: Backend["quit"] = () => command("quit", []);
 /** The title is presentation, not a command: tests read `document.title` instead. */

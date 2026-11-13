@@ -37,6 +37,7 @@ import { useClearing } from "./analysis/useClearing";
 import { ToolsPanel, ToolsTabs } from "./engines/EngineTools";
 import { useEngines } from "./engines/useEngines";
 import { useRelease } from "./release/useRelease";
+import { useEveryday } from "./everyday/useEveryday";
 import { type ToolsTab, useEngineTools } from "./engines/useEngineTools";
 import { BenchmarkChip } from "./benchmark/BenchmarkChip";
 import { BenchmarkDialog } from "./benchmark/BenchmarkDialog";
@@ -113,6 +114,12 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const engines = useEngines(backend, engine, messages.frame.engineNames, messages.engines, messages.setup, (settings) => display.load(settings.display));
   const loadEngines = engines.load;
   const shown = display.display;
+  const everyday = useEveryday(
+    backend,
+    { board: document?.board ?? null, fileName: document?.file_name ?? null, subBoard: shown.show_sub_board, graph: shown.show_winrate_graph },
+    { value: engines.options.read_komi, set: (read_komi) => void engines.saveOptions({ ...engines.options, read_komi }).catch(report) },
+  );
+  const loadEveryday = everyday.load;
   const wheel = useRef(0);
   const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
   const [boardHover, setBoardHover] = useState<PointView | null>(null);
@@ -169,6 +176,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         setTsumegoOptions(settings.tsumego);
         loadDisplay(settings.display);
         loadRelease(settings);
+        loadEveryday(settings);
         await loadEngines(settings, () => active);
       })
       .catch(report);
@@ -176,7 +184,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       active = false;
     };
     // A state setter: the settings are read once.
-  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease]);
+  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease, loadEveryday]);
 
   // A comment being edited is saved before the app moves to another move by itself.
   const comment = useCommentEdit(backend, document);
@@ -368,13 +376,14 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...engines.bindings,
     ...clearing.bindings,
     ...release.bindings,
+    ...everyday.bindings,
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
     hawkEye2: { run: toggleHawkEye, enabled: document !== null },
   };
   useShortcuts(
     bindings,
-    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen),
   );
   const frame = messages.frame;
   const engineLabel = engines.label === "" ? null : engines.label;
@@ -649,6 +658,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {display.dialog}
       {clearing.dialog}
       {release.dialogs(messages.release)}
+      {everyday.dialogs(messages.everyday, messages.display)}
       {modes.dialog}
       {boardMenu.menu}
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}

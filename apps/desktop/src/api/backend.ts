@@ -124,7 +124,10 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   pickOpenPath(): Promise<string | null>;
   /** A folder, e.g. the Java app's, for importing its configuration. */
   pickDirectory(): Promise<string | null>;
-  pickSavePath(): Promise<string | null>;
+  /** `defaultName` pre-fills the file name, e.g. 「对局-raw.sgf」 for 保存纯净棋谱. */
+  pickSavePath(defaultName?: string): Promise<string | null>;
+  /** 保存棋盘截图 / 保存胜率图截图: a PNG file. */
+  pickImagePath(defaultName: string): Promise<string | null>;
   pickEngineFile(kind: EngineFileKind): Promise<string | null>;
   /** 文件 → 退出: closing the only window ends the app. */
   quit(): Promise<void>;
@@ -174,6 +177,7 @@ export const foxClearHistory: Backend["foxClearHistory"] = () => invoke("fox_cle
 export const settings: Backend["settings"] = () => invoke("settings");
 
 const SGF_FILTERS = [{ name: "SGF", extensions: ["sgf"] }];
+const PNG_FILTERS = [{ name: "PNG", extensions: ["png"] }];
 const GAME_FILTERS = [{ name: "SGF / GIB", extensions: ["sgf", "gib"] }];
 
 export const pickOpenPath: Backend["pickOpenPath"] = async () => {
@@ -186,8 +190,11 @@ export const pickDirectory: Backend["pickDirectory"] = async () => {
   return typeof path === "string" ? path : null;
 };
 
-export const pickSavePath: Backend["pickSavePath"] = async () =>
-  (await saveDialog({ filters: SGF_FILTERS })) ?? null;
+export const pickSavePath: Backend["pickSavePath"] = async (defaultName) =>
+  (await saveDialog({ filters: SGF_FILTERS, defaultPath: defaultName })) ?? null;
+
+export const pickImagePath: Backend["pickImagePath"] = async (defaultName) =>
+  (await saveDialog({ filters: PNG_FILTERS, defaultPath: defaultName })) ?? null;
 
 export const quit: Backend["quit"] = () => getCurrentWindow().close();
 export const setWindowTitle: Backend["setWindowTitle"] = (title) => {

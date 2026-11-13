@@ -41,12 +41,14 @@ describe("the menu matches LizzieYzy Next's", () => {
     const english: Record<string, string> = legacyEn;
     const menuZh: Record<string, string> = zhCN.menu;
     const menuEn: Record<string, string> = en.menu;
+    // Java's misspelt key names ("Crtl+", "Shif+") are corrected; nothing else differs.
+    const java = (text: string | undefined) => text?.replace("(Crtl+", "(Ctrl+").replace("(Shif+", "(Shift+");
     let count = 0;
     walk([...ALL, engineMenu(null)], (entry) => {
       if (entry.kind === "separator" || entry.key === null) return;
       count += 1;
-      expect(menuZh[entry.key], entry.key).toBe(zh[entry.key]);
-      expect(menuEn[entry.key], entry.key).toBe(english[entry.key]);
+      expect(menuZh[entry.key], entry.key).toBe(java(zh[entry.key]));
+      expect(menuEn[entry.key], entry.key).toBe(java(english[entry.key]));
     });
     expect(count).toBeGreaterThan(250);
   });

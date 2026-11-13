@@ -354,7 +354,7 @@
     "Menu.clearThisLizzieBestmoves": "分析をクリア (現局面のみ)",
     "Menu.clearThisLizzieCache": "Lizzie キャッシュをクリア (現局面のみ)",
     "Menu.commitPane": "コメント/問題手パネル (Alt+T)",
-    "Menu.comprehensiveSettings": "詳細設定 (Shif+X)",
+    "Menu.comprehensiveSettings": "詳細設定 (Shift+X)",
     "Menu.continueAnalyzeGameAsBlack": "AIが白番 (分析モード) (Alt+Enter)",
     "Menu.continueAnalyzeGameAsWhite": "AIが黒番 (分析モード) (Alt+Enter)",
     "Menu.continueGameAgainstAi": "現在の局面からAIと対局",
@@ -500,11 +500,11 @@
     "Menu.save": "上書き保存 (Ctrl+S)",
     "Menu.saveAndLoad": "保存・読み込み (簡易版)",
     "Menu.saveAs": "名前を付けて保存 (S)",
-    "Menu.saveBranchRaw": "分析結果を除外してメインの分岐だけ保存 (Crtl+Alt+S)",
+    "Menu.saveBranchRaw": "分析結果を除外してメインの分岐だけ保存 (Ctrl+Alt+S)",
     "Menu.saveCommentRaw": "コメント欄の内容だけ残して保存",
     "Menu.saveMainBoardScreen": "メイン碁盤の画像を保存 (Alt+S)",
     "Menu.saveMore": "保存 (その他)",
-    "Menu.saveRaw": "分析結果を除外して保存 (Crtl+Shift+S)",
+    "Menu.saveRaw": "分析結果を除外して保存 (Ctrl+Shift+S)",
     "Menu.saveSubBoardScreen": "サブ碁盤の画像を保存 (Shift+S)",
     "Menu.saveWinrate": "勝率グラフの画像を保存 (Shift+Alt+S)",
     "Menu.scoreGame": "地合い計算 (Ctrl+Q)",
@@ -1107,5 +1107,19 @@
       "close": "閉じる"
     },
     "newVersion": "バージョン {version}"
+  },
+  "everyday": {
+    "failedTitle": "完了できませんでした",
+    "copySgf": "棋譜をクリップボードにコピーできませんでした。",
+    "paste": "クリップボードに開ける棋譜がありません。",
+    "pasteEmpty": "クリップボードにテキストがありません。",
+    "saveSgf": "棋譜を保存できませんでした。",
+    "saveImage": "画像を保存できませんでした。",
+    "copyImage": "画像をクリップボードにコピーできませんでした。",
+    "transform": "盤面を回転・反転できませんでした。",
+    "setting": "設定を変更できませんでした。",
+    "ok": "OK",
+    "fontTitle": "画面の文字サイズ",
+    "fontPrompt": "画面の大きさ（%）"
   }
 }

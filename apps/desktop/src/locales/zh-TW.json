@@ -354,7 +354,7 @@
     "Menu.clearThisLizzieBestmoves": "清除分析資訊(此手)",
     "Menu.clearThisLizzieCache": "清除Lizzie快取(此手)",
     "Menu.commitPane": "評論/問題手面板(Alt+T)",
-    "Menu.comprehensiveSettings": "綜合設定(Shif+X)",
+    "Menu.comprehensiveSettings": "綜合設定(Shift+X)",
     "Menu.continueAnalyzeGameAsBlack": "續弈[AI執白](分析模式)(Alt+Enter)",
     "Menu.continueAnalyzeGameAsWhite": "續弈[AI執黑](分析模式)(Alt+Enter)",
     "Menu.continueGameAgainstAi": "與 AI 續弈",
@@ -500,11 +500,11 @@
     "Menu.save": "儲存(Ctrl+S)",
     "Menu.saveAndLoad": "存檔與讀檔",
     "Menu.saveAs": "另存為(S)",
-    "Menu.saveBranchRaw": "儲存純淨分支(Crtl+Alt+S)",
+    "Menu.saveBranchRaw": "儲存純淨分支(Ctrl+Alt+S)",
     "Menu.saveCommentRaw": "儲存純淨棋譜(帶評論)",
     "Menu.saveMainBoardScreen": "儲存主棋盤截圖(Alt+S)",
     "Menu.saveMore": "更多儲存",
-    "Menu.saveRaw": "儲存純淨棋譜(Crtl+Shift+S)",
+    "Menu.saveRaw": "儲存純淨棋譜(Ctrl+Shift+S)",
     "Menu.saveSubBoardScreen": "儲存小棋盤截圖(Shift+S)",
     "Menu.saveWinrate": "儲存勝率圖截圖(Shift+Alt+S)",
     "Menu.scoreGame": "終局點目(Ctrl+Q)",
@@ -1107,5 +1107,19 @@
       "close": "關閉"
     },
     "newVersion": "新版本 {version}"
+  },
+  "everyday": {
+    "failedTitle": "未能完成",
+    "copySgf": "棋譜未能複製到剪貼簿。",
+    "paste": "剪貼簿裡沒有可以開啟的棋譜。",
+    "pasteEmpty": "剪貼簿裡沒有文字。",
+    "saveSgf": "棋譜未能儲存。",
+    "saveImage": "圖片未能儲存。",
+    "copyImage": "圖片未能複製到剪貼簿。",
+    "transform": "棋盤未能旋轉或翻轉。",
+    "setting": "這項設定未能變更。",
+    "ok": "確定",
+    "fontTitle": "介面字型大小",
+    "fontPrompt": "介面大小（百分比）"
   }
 }

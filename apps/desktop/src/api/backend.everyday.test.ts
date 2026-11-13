@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import type { EverydayCommands, Settings } from "./backend";
+import type { Settings } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, Channel: class {} }));
@@ -9,9 +9,7 @@ beforeEach(() => {
   ipc.invoke.mockReset();
 });
 
-test("daily commands are optional for old callers and forward exact IPC arguments", async () => {
-  const compatible: EverydayCommands = {};
-  expect(compatible.copySgf).toBeUndefined();
+test("daily commands forward exact IPC arguments", async () => {
   const api = await import("./backend");
   for (const [name, args, command, payload, result] of [
     ["copySgf", [], "copy_sgf", undefined, undefined],

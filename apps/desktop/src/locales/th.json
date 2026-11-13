@@ -354,7 +354,7 @@
     "Menu.clearThisLizzieBestmoves": "ล้างผลวิเคราะห์(ตานี้)",
     "Menu.clearThisLizzieCache": "ล้างแคช Lizzie (ตานี้)",
     "Menu.commitPane": "แผงความคิดเห็น/ข้อผิดพลาด (Alt+T)",
-    "Menu.comprehensiveSettings": "กำหนดค่า (Shif+X)",
+    "Menu.comprehensiveSettings": "กำหนดค่า (Shift+X)",
     "Menu.continueAnalyzeGameAsBlack": "เล่นเกมต่อ(AI ขาว)(โหมดวิเคราะห์)(Alt+Enter)",
     "Menu.continueAnalyzeGameAsWhite": "เล่นเกมต่อ(AI ดำ)(โหมดวิเคราะห์)(Alt+Enter)",
     "Menu.continueGameAgainstAi": "เล่นเกมต่อกับ AI",
@@ -500,11 +500,11 @@
     "Menu.save": "บันทึก (Ctrl+S)",
     "Menu.saveAndLoad": "บันทึกและโหลด",
     "Menu.saveAs": "บันทึกเป็น (S)",
-    "Menu.saveBranchRaw": "บันทึกสายแปรไม่มีผลวิเคราะห์ (Crtl+Alt+S)",
+    "Menu.saveBranchRaw": "บันทึกสายแปรไม่มีผลวิเคราะห์ (Ctrl+Alt+S)",
     "Menu.saveCommentRaw": "บันทึกเกมและความคิดเห็นโดยไม่มีผลวิเคราะห์",
     "Menu.saveMainBoardScreen": "บันทึกภาพกระดานหลัก (Alt+S)",
     "Menu.saveMore": "การบันทึกเพิ่มเติม",
-    "Menu.saveRaw": "บันทึกเกมไม่มีผลวิเคราะห์ (Crtl+Shift+S)",
+    "Menu.saveRaw": "บันทึกเกมไม่มีผลวิเคราะห์ (Ctrl+Shift+S)",
     "Menu.saveSubBoardScreen": "บันทึกภาพกระดานย่อย (Shift+S)",
     "Menu.saveWinrate": "บันทึกภาพกราฟอัตราชนะ (Shift+Alt+S)",
     "Menu.scoreGame": "คะแนนสุดท้าย (Ctrl+Q)",
@@ -1107,5 +1107,19 @@
       "close": "ปิด"
     },
     "newVersion": "เวอร์ชัน {version}"
+  },
+  "everyday": {
+    "failedTitle": "ทำไม่สำเร็จ",
+    "copySgf": "คัดลอกเกมไปยังคลิปบอร์ดไม่ได้",
+    "paste": "คลิปบอร์ดไม่มีเกมที่เปิดได้",
+    "pasteEmpty": "คลิปบอร์ดไม่มีข้อความ",
+    "saveSgf": "บันทึกเกมไม่ได้",
+    "saveImage": "บันทึกรูปภาพไม่ได้",
+    "copyImage": "คัดลอกรูปภาพไปยังคลิปบอร์ดไม่ได้",
+    "transform": "หมุนหรือพลิกกระดานไม่ได้",
+    "setting": "เปลี่ยนการตั้งค่านี้ไม่ได้",
+    "ok": "ตกลง",
+    "fontTitle": "ขนาดตัวอักษรของหน้าจอ",
+    "fontPrompt": "ขนาดหน้าจอ (%)"
   }
 }

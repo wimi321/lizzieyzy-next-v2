@@ -500,11 +500,11 @@
     "Menu.save": "保存(Ctrl+S)",
     "Menu.saveAndLoad": "存档与读档",
     "Menu.saveAs": "另存为(S)",
-    "Menu.saveBranchRaw": "保存纯净分支(Crtl+Alt+S)",
+    "Menu.saveBranchRaw": "保存纯净分支(Ctrl+Alt+S)",
     "Menu.saveCommentRaw": "保存纯净棋谱(带评论)",
     "Menu.saveMainBoardScreen": "保存主棋盘截图(Alt+S)",
     "Menu.saveMore": "更多保存",
-    "Menu.saveRaw": "保存纯净棋谱(Crtl+Shift+S)",
+    "Menu.saveRaw": "保存纯净棋谱(Ctrl+Shift+S)",
     "Menu.saveSubBoardScreen": "保存小棋盘截图(Shift+S)",
     "Menu.saveWinrate": "保存胜率图截图(Shift+Alt+S)",
     "Menu.scoreGame": "终局点目(Ctrl+Q)",
@@ -1107,5 +1107,19 @@
       "close": "关闭"
     },
     "newVersion": "新版本 {version}"
+  },
+  "everyday": {
+    "failedTitle": "未能完成",
+    "copySgf": "棋谱没能复制到剪贴板。",
+    "paste": "剪贴板里没有可以打开的棋谱。",
+    "pasteEmpty": "剪贴板里没有文字。",
+    "saveSgf": "棋谱没能保存。",
+    "saveImage": "图片没能保存。",
+    "copyImage": "图片没能复制到剪贴板。",
+    "transform": "棋盘没能旋转或翻转。",
+    "setting": "这项设置没能更改。",
+    "ok": "确定",
+    "fontTitle": "界面字号",
+    "fontPrompt": "界面大小（百分比）"
   }
 }

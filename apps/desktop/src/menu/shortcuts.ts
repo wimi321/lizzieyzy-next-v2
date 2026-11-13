@@ -48,6 +48,18 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "nextMove", code: "ArrowDown", repeat: true },
   { id: "back10", code: "ArrowUp", control: true, repeat: true },
   { id: "forward10", code: "ArrowDown", control: true, repeat: true },
+  { id: "copySgf", code: "KeyC", control: true },
+  { id: "pasteSgf", code: "KeyV", control: true },
+  { id: "copyBoardScreen", code: "KeyC", shift: true },
+  { id: "copySubBoardScreen", code: "KeyC", alt: true },
+  { id: "saveRaw", code: "KeyS", control: true, shift: true },
+  { id: "saveBranchRaw", code: "KeyS", control: true, alt: true },
+  { id: "saveWinrate", code: "KeyS", shift: true, alt: true },
+  { id: "alwaysOnTop", code: "KeyZ", control: true },
+  { id: "spinRight", code: "ArrowRight", control: true, alt: true },
+  { id: "spinLeft", code: "ArrowLeft", control: true, alt: true },
+  { id: "mirrorVertical", code: "ArrowUp", control: true, alt: true },
+  { id: "mirrorHorizon", code: "ArrowDown", control: true, alt: true },
 ];
 
 type KeyPress = Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey" | "repeat">;
@@ -93,6 +105,8 @@ export function useShortcuts(bindings: MenuBindings, active: boolean) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!latest.current.active || event.defaultPrevented || event.isComposing || ownsKeys(event.target)) return;
       const id = matchShortcut(event);
+      // Ctrl+C on selected text (a comment, a dialog's message) copies the text, not the game.
+      if (id === "copySgf" && window.getSelection()?.isCollapsed === false) return;
       const binding = id === null ? undefined : latest.current.bindings[id];
       if (!isEnabled(binding)) return;
       event.preventDefault();
