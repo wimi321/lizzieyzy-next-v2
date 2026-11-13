@@ -12,6 +12,8 @@ import tempfile
 import time
 import zipfile
 
+import native_signing
+
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "resources/katago/katago-assets.json"
 PINS = ROOT / "resources/katago/bundle-pins.json"
@@ -139,13 +141,18 @@ def macho(path):
         )
 
 
-def sign_macos(directory):
+def sign_macos(directory, identity="-", keychain=None):
     if os.uname().sysname != "Darwin":
         raise BundleError("macOS resources must be prepared and signed on macOS")
     binaries = [p for p in directory.rglob("*") if p.is_file() and macho(p)]
     executable = directory / "katago"
     for binary in sorted(binaries, key=lambda p: p == executable):
-        subprocess.run(["codesign", "--force", "--sign", "-", str(binary)], check=True)
+        command = ["codesign", "--force", "--sign", identity]
+        if identity != "-":
+            command.extend(["--options", "runtime", "--timestamp"])
+        if keychain:
+            command.extend(["--keychain", keychain])
+        subprocess.run([*command, str(binary)], check=True)
         subprocess.run(["codesign", "--verify", "--strict", str(binary)], check=True)
         linked = subprocess.check_output(["otool", "-L", str(binary)], text=True)
         for line in linked.splitlines()[1:]:
@@ -172,7 +179,7 @@ def inventory(directory):
     }
 
 
-def prepare(platform, cache, output, catalog=None, pins=None):
+def prepare(platform, cache, output, catalog=None, pins=None, release_signing=None):
     started = time.monotonic()
     catalog = catalog if catalog is not None else json.loads(CATALOG.read_text())
     pins = pins if pins is not None else json.loads(PINS.read_text())
@@ -186,6 +193,9 @@ def prepare(platform, cache, output, catalog=None, pins=None):
     model = dict(model, url=model["downloadUrl"])
     downloads = []
     transformations = {}
+    signing = native_signing.load_state(release_signing) if release_signing else None
+    if signing and signing["platform"] != platform:
+        raise BundleError("Publisher-signing state platform does not match resource platform")
 
     def download(spec):
         before = time.monotonic()
@@ -214,7 +224,10 @@ def prepare(platform, cache, output, catalog=None, pins=None):
         shutil.copytree(source, destination)
         (destination / executable_name).chmod(0o755)
         if platform.startswith("macos-"):
-            sign_macos(destination)
+            if signing and signing.get("identity"):
+                sign_macos(destination, signing["identity"], signing["keychain"])
+            else:
+                sign_macos(destination)
         weights = staged / "weights"
         weights.mkdir()
         shutil.copyfile(download(model), weights / "default.bin.gz")
@@ -228,6 +241,8 @@ def prepare(platform, cache, output, catalog=None, pins=None):
             if readboard.get("elevationPatch", True):
                 transformations["readboard/readboard.exe"] = patch_readboard(
                     staged / "readboard/readboard.exe", readboard)
+            if signing:
+                native_signing.sign_windows_resources(staged, signing)
         for license_spec in [*pins["licenses"], *APP_LICENSES]:
             if platform not in license_spec.get("platforms", PLATFORMS):
                 continue
@@ -264,10 +279,15 @@ def main():
     parser.add_argument("--platform", choices=PLATFORMS, required=True)
     parser.add_argument("--cache", type=Path, default=ROOT / "target/packaging-cache")
     parser.add_argument("--output", type=Path, default=ROOT / "target/bundled-resources")
+    parser.add_argument("--release-signing", type=Path, nargs="?",
+                        const=native_signing.DEFAULT_DIRECTORY,
+                        help="Opt into the publisher-signing state from native_signing.py setup")
     args = parser.parse_args()
     try:
-        prepare(args.platform, args.cache.resolve(), args.output.absolute())
-    except (BundleError, OSError, subprocess.CalledProcessError, zipfile.BadZipFile) as error:
+        prepare(args.platform, args.cache.resolve(), args.output.absolute(),
+                release_signing=args.release_signing)
+    except (BundleError, native_signing.SigningError, OSError,
+            subprocess.CalledProcessError, zipfile.BadZipFile) as error:
         parser.exit(1, f"bundle: FAILED: {error}\n")
 
 

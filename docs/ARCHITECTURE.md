@@ -354,7 +354,7 @@ pub enum EngineStatus {
 - 设置版本仍为 1；新增 `language: UiLanguage::{System, ZhCn, En}`（默认 System）、`auto_check_updates: bool`（默认 true）和 `last_update_check_unix_ms: Option<u64>`。缺省旧设置补默认，生成 TS 全部可选。`set_language` / `set_auto_check_updates` 先原子保存再生效，失败保留旧值，不重配引擎或改变分析意图。系统语言由 sys-locale 取得，中文地区映射 ZhCn，其他地区回退 En；既有引擎名称查询的 System 模式保留 Catalog/Text 契约，由现有界面翻译目录标签，显式语言在 Rust 将三个 Java 目录档位翻译为 Text。文件名、版本、模型身份和上游技术诊断原文不作机器翻译。
 - `updates::UpdateHandle` 为独立 Tokio actor 的句柄，壳层在创建 AppCore 后一次性 `attach_updates`。actor 独占官方插件后端、选中版本和已验证安装字节，无锁、自建线程或用户可指定的下载/安装路径。AppCore 的 `check_update` 返回 `UpdateCheck { available, version, notes, published_at }`；`download_update` 立即回复开始状态，`cancel_update_download` 丢弃 HTTP future 和内存数据后回复；`install_update` 只接受已下载且校验通过的包。失败/取消后显式重试从零下载，不假装断点续传。下载期间重复下载幂等，检查和安装返回 Busy；重新检查清掉旧包，即使新清单不可用，也不能安装上次的旧包。
 - 壳使用官方 `tauri-plugin-updater`，固定 `https://github.com/wimi321/lizzieyzy-next-v2/releases/latest/download/latest.json`。正式公钥只从编译时环境变量 `LIZZIE_UPDATER_PUBKEY` 通过 `option_env!` 嵌入；其值为 Tauri 生成的 `.pub` 文件中的完整 base64 公钥文本（不是文件路径或私钥），P2-15 在打包构建前注入，变更公钥须重新构建。`tauri.conf.json` 的 `pubkey` 保持空串，仅满足官方配置的必需字段要求；Rust 注册插件时显式传入构建公钥，不读取运行时环境、不回退到配置或内置公钥。缺失或全空白时不注册 updater、不创建更新后端，检查/下载/安装通过 IPC 返回类型化 `UpdateSigningNotConfigured`，供界面本地化说明；不发 HTTP 请求、不启动安装器。上游测试公钥仅存在于 `#[cfg(test)]` 测试向量及注入的测试配置中，生产构建不含测试公钥，仓库不包含私钥。每个平台条目除官方 version/url/signature 字段外必须有 64 位十六进制 `sha256`，下载后核对 SHA-256；官方插件在下载和安装入口都验证 minisign 签名，`requireSignedVersion=true` 要求签名可信注释绑定清单版本（正式签名使用 `tauri signer sign --app-version <version>`）。安装 URL 只接受 HTTPS，HTTP 只在编译测试中的 loopback fixture 开启。客户端连接/读取空闲限制分别 20/30 秒，总请求限制 30 秒，不自动紧密重试。插件整包缓冲，应用限制包大小为 1 GiB。
-- 安装采用官方 Windows 安装器、macOS app 替换及 Linux AppImage 路径。进入安装器前主 actor 停止候选进程、资源下载、测速、同步和分析，刷新缓存及日志；不删除或覆写设置、棋谱和缓存目录。安装提交期间拒绝新的修改命令，状态查询与关闭仍可用；调用方断开也会由独立 Tokio future 完成安装或恢复，失败进度在恢复完成后才发布。安装失败恢复原设置的分析引擎；成功后 Windows 插件自行退出，其他平台由命令层在 updater actor 回复后请求重启，避免退出处理等待自身。真实安装包/系统重启仍属平台发布验收，普通测试从不运行真实安装器。
+- 安装采用官方 Windows 安装器、macOS app 替换及 Linux AppImage/deb 路径（按已安装 bundle 类型选择）。进入安装器前主 actor 停止候选进程、资源下载、测速、同步和分析，刷新缓存及日志；不删除或覆写设置、棋谱和缓存目录。安装提交期间拒绝新的修改命令，状态查询与关闭仍可用；调用方断开也会由独立 Tokio future 完成安装或恢复，失败进度在恢复完成后才发布。安装失败恢复原设置的分析引擎；成功后 Windows 插件自行退出，其他平台由命令层在 updater actor 回复后请求重启，避免退出处理等待自身。真实安装包/系统重启仍属平台发布验收，普通测试从不运行真实安装器。
 - `automatic_update_check() -> Option<UpdateCheck>` 是供 P2-16 界面启动后调用一次的入口；Tauri 壳只初始化更新后端，不另行抢先检查或消耗 claim。AppCore 先确认更新后端可用：未配置构建公钥直接返回 null，不写检查时间、不联网；已配置时调用 `claim_daily_update_check(now_unix_ms)`，由主 actor 检查开关和时间窗口，并在联网前原子保存 claim。开关关闭或 claim 返回 false 时返回 null；检查仅在发现新版本时返回与手动 `check_update` 相同的 DTO，没有新版本返回 null。时间读取、claim 保存、联网和清单解析等失败只记一条 tracing 日志并返回 null，不向界面传播错误；已保存的 claim 不回滚，失败当日也不重试。沿用 24 小时窗口，时钟回拨时保守跳过，并发调用仅一个取得 claim。手动检查不受窗口限制，应用关闭可以取消等待中的检查。自动检查不暂停分析、不下载/安装、不弹窗；界面启动接线归 P2-16，本卡不在 API 导入或订阅时暗中触发检查。
 - `UpdateDownloadProgress(UpdateDownloadStatus)` 带阶段、已收/总字节、版本及错误，进入独立有界最新槽；AppSubscription 共十槽，壳重连回放新增状态，仍通过同一个有序 IPC Channel。DTO 全部字段与 Backend 新方法可选，旧 subscribe 排除此事件，新增 subscribeUpdateDownloadProgress 单独分流。mock 手动更新命令是脚本化 command，`automaticUpdateCheck?(): Promise<UpdateCheck | null>` 使用默认返回 null 的 query，脚本可覆盖且缺省调用不消耗其他命令；进度可脚本化。设置缺省值按非枚举属性补入，保持旧界面构造及序列化对象的内容。
 - `support::SupportHandle` 是独立 Tokio actor，生产壳通过其 tracing Layer 安装全局 subscriber，无壳测试使用局部 dispatcher。默认 INFO，`start_full_log` 开 TRACE 30 分钟，重复启动续期，`stop_full_log` 可提前关闭；Tokio deadline 到时恢复 INFO，`full_log_status` 返回 enabled/remaining_seconds。512 槽非阻塞日志通道拥塞时丢弃新记录，不阻塞分析；单条最多 16 KiB。日志目录按需创建于应用数据目录 `logs/`（显式 --config-dir 时一并隔离），滚动保留 `app.log` 及三个旧文件，每个最多 1 MiB；应用退出刷新。
@@ -438,6 +438,56 @@ UI  ◀──Channel──    重绘候选点
 - macOS 捆绑配置的最低系统版本为 15.0，与固定引擎来源构建一致；在准备阶段对归档内 Mach-O 动态库及 katago 逐个 ad-hoc 签名、验证签名和库引用，拒绝 Homebrew 等外部路径；签名后生成 `bundle-manifest.json` 的逐文件 SHA-256、大小及可执行位。因此归档/原始引擎的来源哈希与签名后的安装文件哈希分开校验。解开 DMG 后再次核对逐文件哈希、签名并运行 `katago version`；干净环境的完整 Metal 分析仍须维护者手动验收。
 - Windows readboard 固定为 `qiyi71w/readboard` v3.2.0（`readboard-webview2-v3.2.0.zip`，源码提交 b82039d），与 P1-33 协议实现参照的提交 a292eea 只差 3 个界面提交；钉选信息存于 `resources/katago/bundle-pins.json`。完整工具目录位于 `readboard/`，供 P1-33 在 `<resource_dir>/readboard/readboard.exe` 查找。v3.2.0 自身清单为 `asInvoker`，exe 原样打包；`elevationPatch` 为真时（旧版）才做 Java 的同长度 `requireAdministrator` → `asInvoker` 替换并记录前后哈希。上游归档内第三方许可证全部保留；readboard 经作者同意随新版分发，来源说明由 `resources/licenses/` 校验后打包。
 - `scripts/packaging/acceptance.py` 实际解包 DMG/AppImage/deb 或静默安装 NSIS，逐文件对比暂存清单，检查安装路径、权限、安装包大小及 SHA-256。Windows/Linux 的 `smoke.py` 使用生产应用、全新 `--config-dir` 和真实捆绑 CPU/B11，通过原生 WebDriver 检查无设置窗口、保存的引擎/模型路径和 B11 规范名称、Ready 及当前棋盘的非零分析 visits；不注入假后端、不预填引擎配置。Windows 调试策略只由 CI 的 `smoke-windows.ps1` 临时设置，finally 和 always 步骤恢复。引擎/分析单元测试仍只用 fake-katago，离线打包脚本测试只用微型归档。所有产物校验结果、失败日志、下载/构建/总耗时写入 `target/` 或 CI artifacts/step summary，不提交证据文件。
+
+### P2 发布打包（P2-15）
+
+- `.github/workflows/release.yml` 接收 `v<SemVer>` 标签推送或手动触发，调用同一 `preview.yml` 下载、构建、验包和 Windows/Linux 干净配置 smoke。正式矩阵为 Windows x64 NSIS + portable ZIP、macOS 15 ARM64 / Intel 各一份 DMG 和更新用 `.app.tar.gz`、Ubuntu 24.04 x64 AppImage + deb。预览手动入口仍使用原来的三个 runner、未签名 Windows/Linux 和 macOS ad-hoc，不读取发布凭据；`ci.yml` 不变。发布流程不另跑 Rust 测试，Rust 验收仍由现有 CI 执行（Windows 保持 `RUST_TEST_THREADS=2`）。
+- 手动输入 `tag` 可为空：此时从源码版本生成 `v<主.次.补丁>-preview.<run_id>.<run_attempt>`，可直接在无 secrets 的分支验证。标签版本经 SemVer / Windows 数值范围校验后，仅写入 `target/release-version.json`，作为 Tauri 构建配置覆盖；不改 Cargo/package.json 或工作区版本文件。指定已有标签时，草稿上传前要求该标签（含 annotated tag）解析到本次构建的精确提交，避免给旧标签挂新代码。
+- 原生证书组不完整时明确跳过发布者签名，继续产出预览包；macOS 保留必需的 ad-hoc 签名。有 Developer ID 时先对捆绑 KataGo 和所有 Mach-O 库加硬化运行时、安全时间戳并验证，再生成资源 SHA-256 清单；Windows 对捆绑 exe/dll（包括 readboard）签名并验证后生成清单。Tauri 随后签应用、NSIS（含卸载器）或 DMG，不另行重签已通过验证的资源。没有额外 entitlements，保留最小权限。
+- macOS 公证凭据齐全且证书已导入时，由 Tauri 使用 `notarytool` 公证并 staple app，之后才封装 DMG；后置 helper 验证 app 票据，再对 DMG 公证、staple、验证。缺公证凭据时保留已签名但未公证的包，并明确记录。空或部分 Apple 环境变量会在构建包装器中真正移除，避免 Tauri 把空字符串当成凭据。配置齐全但导入、签名、公证或验证失败时流程失败，不悄悄降级。
+- `native_signing.py setup/build/notarize/cleanup` 管理临时 keychain / Windows 当前用户证书存储；P12/PFX 导入后立即删除临时文件，密码不写入配置、状态或 `GITHUB_ENV`，always 步骤恢复原 keychain 列表并移除本次导入的证书和私钥。上传仅白名单安装资产与诊断文件，不上传签名状态目录。`bundle.py prepare --release-signing` 是显式发布选项，未指定时沿用原行为。
+- `release_assets.py collect` 从验包后的安装目录生成 portable ZIP / macOS 更新归档，再核对资源和安装包哈希；Windows ZIP 排除卸载器，保留已安装的主程序及全部资源。便携版指免安装解压运行，配置仍使用正常应用数据目录；WebView2 Runtime 仍需系统提供。macOS tar 保留 app 布局、权限和内部 framework 链接。Linux 继续直接使用通过原验包流程的 AppImage/deb。
+- 聚合 job 只接受四个平台的完整八个资产，统一名称含版本、平台和架构。在所有原生签名、公证及 staple 完成后，用锁定的 Tauri CLI `signer sign --app-version <版本>` 给八个文件各生成 `.sig`；有公钥时再以 Node 内置 Ed25519 验证实际字节、可信注释和公私钥匹配。`latest.json` 含 version、notes、RFC3339 pub_date 和 URL/signature/sha256；平台键包含 Windows NSIS、macOS app、Linux AppImage/deb 的 bundle 类型键及四个兼容回退键。已锁定的 updater 2.14.1 支持 deb 按类型安装，因此 deb 不会收到 AppImage。所有可更新文件强制不超过 P2-14 的 1 GiB 上限。`SHA256SUMS` 总会生成；有签名时也覆盖 `.sig` 和 `latest.json`。
+- updater 私钥或非空密码缺失时跳过全部更新签名和 `latest.json`，继续上传安装包及 SHA256SUMS；公钥缺失时日志明确写「本次构建的程序不会检查更新」，即使独立的签名组齐全仍可为既有客户端生成签名。公钥只通过构建环境嵌入，`tauri.conf.json` 的空 `pubkey` 保持不变。
+- 只创建 GitHub Release **草稿**，权限仅聚合上传 job 为 `contents: write`。允许重跑更新同一提交的草稿；已发布 release、提交不一致或草稿多出旧资产（例如此前有 latest.json、本次缺私钥）均拒绝修改，交维护者审查。不会自动公开、自动删除旧资产或推送本地 git。发布说明可由手动 `notes` 输入，空时用版本和提交说明；若维护者修改说明，需要同时更新清单中的 notes。含预发布版本的草稿默认 prerelease；固定 `/releases/latest/download/latest.json` 不会跟随 GitHub prerelease，只有维护者发布可成为 latest 的正式 release 后才能完整验收自动更新。
+
+维护者在仓库 Actions secrets 中配置以下条目（所有用户配置 secrets 都是可选；凭据组齐全时发生的导入、签名或公证错误会使流程失败）：
+
+| Secret | 格式与生成方式 | 缺失时 |
+|---|---|---|
+| `LIZZIE_UPDATER_PUBKEY` | `pnpm -C apps/desktop tauri signer generate -w <安全目录>/updater.key` 生成的 `updater.key.pub` **完整 base64 文本**，不是路径；与下两项为同一密钥对 | 构建照常，程序不检查更新并记录原因 |
+| `TAURI_SIGNING_PRIVATE_KEY` | 上述 `updater.key` 文件的完整 base64 文本；生成时设置非空密码，离线备份，不提交仓库 | 跳过全部 `.sig` 和 latest.json |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 生成 updater 私钥时使用的非空密码原文 | 同上；本流程不使用无密码私钥 |
+| `APPLE_CERTIFICATE` | Apple Developer 的 **Developer ID Application** 证书及私钥，从 Keychain Access 导出为带密码 `.p12` 后 base64 编码（如 `base64 -i developer-id.p12`） | macOS 跳过发布者签名与公证，保留 ad-hoc |
+| `APPLE_CERTIFICATE_PASSWORD` | 导出上述 `.p12` 时设置的非空密码原文 | 同上 |
+| `APPLE_SIGNING_IDENTITY` | `security find-identity -v -p codesigning` 输出中的完整 `Developer ID Application: 姓名 (TEAMID)` 身份文本 | 同上 |
+| `APPLE_ID` | 有权公证该应用的 Apple Developer 账号邮箱 | macOS 有证书则仍签名，跳过公证/staple |
+| `APPLE_PASSWORD` | 在 account.apple.com 创建的 app-specific password，非 Apple 登录密码 | 同上 |
+| `APPLE_TEAM_ID` | Apple Developer Membership 中的 Team ID 原文 | 同上 |
+| `WINDOWS_CERTIFICATE` | 代码签名 CA 颁发且包含私钥的带密码 `.pfx` / `.p12` 的 base64 文本；PowerShell 可用 `[Convert]::ToBase64String([IO.File]::ReadAllBytes('codesign.pfx'))` | Windows 跳过 Authenticode，仍产出 NSIS 和 ZIP |
+| `WINDOWS_CERTIFICATE_PASSWORD` | 上述 PFX 的非空密码原文 | 同上 |
+| `GITHUB_TOKEN` | GitHub 自动提供，工作流以 `github.token` 使用；无需手工创建或保存 PAT，仓库策略须允许该 job 的 `contents: write` | 写权限被策略禁用时无法创建草稿，已构建安装包仍在 Actions artifacts |
+
+Windows 当前实现接受可导出的 PFX；硬件令牌/HSM/云签名服务不在本卡范围，只有这些证书时保守留空，不伪造软件私钥。代码签名证书和 updater 密钥用途不同，不能互换。Apple 生成/导出步骤参见 [Tauri macOS 签名文档](https://v2.tauri.app/distribute/sign/macos/)，updater 密钥参见 [Tauri updater 文档](https://v2.tauri.app/plugin/updater/)。
+
+维护者本地验证签过名的最终包（下面占位文件替换为实际路径，使用可信的公钥）：
+
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+# Linux 用 sha256sum -c SHA256SUMS；macOS 用 shasum -a 256 -c SHA256SUMS。
+shasum -a 256 -c SHA256SUMS
+# LIZZIE_UPDATER_PUBKEY 已设置为 .pub 的完整文本，不需要私钥。
+node scripts/packaging/verify_release_signature.mjs '<asset>' '<asset>.sig' '<裸版本>'
+# macOS 挂载 DMG 后验证里面的 app，以及下载的 DMG 自身。
+codesign --verify --deep --strict --verbose=2 '/Volumes/<卷>/LizzieYzy Next 2.app'
+codesign -dv --verbose=4 '/Volumes/<卷>/LizzieYzy Next 2.app'
+spctl --assess --type execute --verbose=2 '/Volumes/<卷>/LizzieYzy Next 2.app'
+xcrun stapler validate '/Volumes/<卷>/LizzieYzy Next 2.app'
+codesign --verify --strict '<installer>.dmg'
+xcrun stapler validate '<installer>.dmg'
+```
+
+Windows PowerShell 使用 `Get-AuthenticodeSignature '<installer>.exe'` 和 `signtool verify /pa /all '<installer>.exe'`，再对安装后/ZIP 内的主 exe、KataGo、readboard 及 DLL 执行同样检查。核对期望签发者，不能只看文件存在。新配置目录启动、真实 CPU/Metal 分析、文件关联、保留旧设置、完整下载更新到新版本及重启，仍需维护者在各平台验收。无 secrets 的四 runner 手动构建、完整 secrets 的签名/公证与草稿资产上传必须在 GitHub 上实际触发；本地 `actionlint` 和 `python3 -m unittest discover -s scripts/packaging -p 'test_*.py' -v` 只证明语法与脚本行为，测试签名密钥在临时目录随机生成并清理，不声称真实证书或安装器已验收。
 
 ## 9. 暂不做
 
