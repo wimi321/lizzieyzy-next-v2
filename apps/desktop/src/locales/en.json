@@ -354,7 +354,7 @@
     "Menu.clearThisLizzieBestmoves": "Clear analysis(This move)",
     "Menu.clearThisLizzieCache": "Clear Lizzie cache (This move)",
     "Menu.commitPane": "Comment/blunder panel (Alt+T)",
-    "Menu.comprehensiveSettings": "Config (Shif+X)",
+    "Menu.comprehensiveSettings": "Config (Shift+X)",
     "Menu.continueAnalyzeGameAsBlack": "Continue game(AI plays white)(AnalyzeMode)(Alt+Enter)",
     "Menu.continueAnalyzeGameAsWhite": "Continue game(AI plays black)(AnalyzeMode)(Alt+Enter)",
     "Menu.continueGameAgainstAi": "Continue game against AI",
@@ -500,11 +500,11 @@
     "Menu.save": "Save (Ctrl+S)",
     "Menu.saveAndLoad": "Save and load",
     "Menu.saveAs": "Save as (S)",
-    "Menu.saveBranchRaw": "Save raw branch (Crtl+Alt+S)",
+    "Menu.saveBranchRaw": "Save raw branch (Ctrl+Alt+S)",
     "Menu.saveCommentRaw": "Save raw game record with comment",
     "Menu.saveMainBoardScreen": "Save main board screen shot (Alt+S)",
     "Menu.saveMore": "More save",
-    "Menu.saveRaw": "Save raw game record (Crtl+Shift+S)",
+    "Menu.saveRaw": "Save raw game record (Ctrl+Shift+S)",
     "Menu.saveSubBoardScreen": "Save sub board screen shot (Shift+S)",
     "Menu.saveWinrate": "Save winRatePane screen shot (Shift+Alt+S)",
     "Menu.scoreGame": "Final score (Ctrl+Q)",
@@ -1107,5 +1107,19 @@
       "close": "Close"
     },
     "newVersion": "Version {version}"
+  },
+  "everyday": {
+    "failedTitle": "Could not finish that",
+    "copySgf": "The game could not be copied to the clipboard.",
+    "paste": "The clipboard does not hold a game that can be opened.",
+    "pasteEmpty": "The clipboard holds no text.",
+    "saveSgf": "The game could not be saved.",
+    "saveImage": "The picture could not be saved.",
+    "copyImage": "The picture could not be copied to the clipboard.",
+    "transform": "The board could not be turned or flipped.",
+    "setting": "The setting could not be changed.",
+    "ok": "OK",
+    "fontTitle": "Interface size",
+    "fontPrompt": "Interface size, in percent"
   }
 }

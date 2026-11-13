@@ -26,7 +26,36 @@
   padding: 3px 8px 5px;
   padding-block: 3cqh 5cqh;
   font-size: 14px;
-  font-size: clamp(11px, 14.5cqh, 15px);
+  /* Sized by the box's height as before; only a narrow column (a small window, a large
+     界面字号) takes it below 11px, down to 9px, before anything overflows. */
+  font-size: max(9px, min(clamp(11px, 14.5cqh, 15px), 6.2cqw));
+}
+
+.captured-box > span {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container (max-width: 150px) {
+  .captured-box {
+    column-gap: 3px;
+    padding-inline: 2px;
+  }
+
+  /* A long label (Thai's หมากที่จับ) breaks at its space rather than hide the number. */
+  .captured-box > span {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.1;
+  }
+
+  .captured-box .cap-rules,
+  .captured-box .cap-turn {
+    padding: 0;
+  }
 }
 
 .cap-stone {

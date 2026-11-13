@@ -38,6 +38,10 @@ function report(error: unknown) {
 /** The interface language to show: the saved choice, or the system's. */
 export function localeOf(language: UiLanguage, system: string): string {
   if (language === "ZhCn") return "zh-CN";
+  if (language === "ZhTw") return "zh-TW";
+  if (language === "Ja") return "ja";
+  if (language === "Ko") return "ko";
+  if (language === "Th") return "th";
   if (language === "En") return "en";
   return system;
 }
@@ -100,6 +104,10 @@ export function useRelease(backend: ReleaseBackend) {
     languageDefault: { run: () => chooseLanguage("System"), checked: language === "System" },
     languageZH: { run: () => chooseLanguage("ZhCn"), checked: language === "ZhCn" },
     languageEN: { run: () => chooseLanguage("En"), checked: language === "En" },
+    languageTW: { run: () => chooseLanguage("ZhTw"), checked: language === "ZhTw" },
+    languageJP: { run: () => chooseLanguage("Ja"), checked: language === "Ja" },
+    languageKR: { run: () => chooseLanguage("Ko"), checked: language === "Ko" },
+    languageTH: { run: () => chooseLanguage("Th"), checked: language === "Th" },
   };
 
   const tray = (labels: ReleaseLabels) =>
