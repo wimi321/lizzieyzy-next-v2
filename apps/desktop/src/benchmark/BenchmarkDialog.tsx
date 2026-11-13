@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { type ReactNode, useEffect } from "react";
 import type { BenchmarkMeasurement, BenchmarkStatus } from "@/api/backend";
 
 export interface BenchmarkLabels {
@@ -40,6 +40,11 @@ export interface BenchmarkDialogProps {
   onStop(): void;
   onReset(): void;
   onClose(): void;
+  /** The 引擎一键设置 tabs, under the title; with them, another tab's `panel` replaces the benchmark. */
+  tabs?: ReactNode;
+  panel?: ReactNode;
+  /** The dialog's title when it holds the tabs. */
+  title?: string;
 }
 
 function speed(value: number | null | undefined): string {
@@ -51,7 +56,7 @@ function speed(value: number | null | undefined): string {
  * LizzieYzy Next's 性能优化 page: KataGo's own benchmark, started by the user, picks the
  * search threads (and the batch size it recommends); the window shows what it measured.
  */
-export function BenchmarkDialog({ status, model, labels, onStart, onStop, onReset, onClose }: BenchmarkDialogProps) {
+export function BenchmarkDialog({ status, model, labels, onStart, onStop, onReset, onClose, tabs, panel, title }: BenchmarkDialogProps) {
   const running = status?.phase === "Running";
   // Closing never stops a run: the menu strip's tray keeps showing it.
   useEffect(() => {
@@ -86,13 +91,16 @@ export function BenchmarkDialog({ status, model, labels, onStart, onStop, onRese
       <section className="dialog benchmark-dialog" role="dialog" aria-modal="true" aria-labelledby="benchmark-title" data-testid="benchmark-dialog">
         <header className="dialog-header">
           <div>
-            <h2 id="benchmark-title">{labels.title}</h2>
-            <p className="benchmark-subtitle">{labels.subtitle}</p>
+            <h2 id="benchmark-title">{title ?? labels.title}</h2>
+            {tabs ? null : <p className="benchmark-subtitle">{labels.subtitle}</p>}
           </div>
           <button type="button" className="dialog-close" aria-label={labels.close} data-testid="benchmark-close" onClick={onClose}>
             ×
           </button>
         </header>
+        {tabs}
+        {panel ?? (
+          <>
 
         <p className="benchmark-model">
           <span>{labels.model}</span>
@@ -201,6 +209,8 @@ export function BenchmarkDialog({ status, model, labels, onStart, onStop, onRese
             </button>
           )}
         </footer>
+          </>
+        )}
       </section>
     </div>
   );

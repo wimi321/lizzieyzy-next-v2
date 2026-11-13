@@ -25,6 +25,9 @@ test("设置 → 引擎一键设置 tunes KataGo when asked, shows what it measu
   await page.getByTestId("menubar").getByRole("menuitem", { name: "Settings" }).click();
   await page.locator('.menu-row[data-menu-id="autoSetup"]').click();
   const dialog = page.getByTestId("benchmark-dialog");
+  // Java's 一键设置 opens on its overview; 性能优化 is the benchmark.
+  await expect(dialog.getByTestId("tools-overview")).toBeVisible();
+  await dialog.getByTestId("tools-tab-benchmark").click();
   await expect(dialog.getByTestId("benchmark-state")).toHaveText("Not tuned yet");
 
   await dialog.getByTestId("benchmark-start").click();

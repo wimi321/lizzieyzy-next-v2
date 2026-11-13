@@ -24,7 +24,6 @@ export interface MenuState {
   wholeGameActive: boolean;
   /** The engine's first choice for the displayed position, if it has one. */
   hasBestMove: boolean;
-  engineFailed: boolean;
   /** An engine profile is saved, so KataGo can be tuned. */
   engineConfigured: boolean;
   /** Java offers readboard, the board synchronization tool, on Windows only. */
@@ -89,8 +88,6 @@ export interface MenuActions {
   openTsumego(): void;
   openBenchmark(): void;
   openSettings(): void;
-  openEngineSetup(): void;
-  restartEngine(): void;
   openAbout(): void;
 }
 
@@ -187,10 +184,7 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     alwaysKeepBoardStatSync: { run: () => actions.toggleSyncOption("always_sync"), checked: state.syncOptions.always_sync },
     alwaysGoToLastMove: { run: () => actions.toggleSyncOption("always_goto_last"), checked: state.syncOptions.always_goto_last },
     about: when(true, actions.openAbout),
-    engineConfig: when(true, actions.openEngineSetup),
     languageDefault: always,
-    engine0: always,
-    // Configuring the same engine again restarts it only once it has failed.
-    restartCurrentEngine: when(state.engineFailed, actions.restartEngine),
+    // The engine entries (the list, 设置 → 引擎, restart, shut down) are bound by `useEngines`.
   };
 }

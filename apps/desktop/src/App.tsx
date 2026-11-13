@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
-import type { AnalysisLimitSettings, AutoSetupError, ColorView, EngineProfile, EngineStatus, FoxAccount, MoveRank, PointView, ProblemMoveSort, ProblemMovesQuery } from "@/api/backend";
+import type { AnalysisLimitSettings, ColorView, EngineStatus, FoxAccount, MoveRank, PointView, ProblemMoveSort, ProblemMovesQuery } from "@/api/backend";
 import { Board } from "./board/Board";
 import type { NextMove } from "./board/draw";
 import { SubBoard } from "./board/SubBoard";
@@ -34,6 +34,9 @@ import { StrengthDialog } from "./review/StrengthDialog";
 import { LimitDialog } from "./analysis/LimitDialog";
 import { useAnalysisRun } from "./analysis/useAnalysisRun";
 import { useClearing } from "./analysis/useClearing";
+import { ToolsPanel, ToolsTabs } from "./engines/EngineTools";
+import { useEngines } from "./engines/useEngines";
+import { type ToolsTab, useEngineTools } from "./engines/useEngineTools";
 import { BenchmarkChip } from "./benchmark/BenchmarkChip";
 import { BenchmarkDialog } from "./benchmark/BenchmarkDialog";
 import { useBenchmark } from "./benchmark/useBenchmark";
@@ -46,7 +49,6 @@ import { TIER_ORDER } from "./review/strength";
 import { useProblemMoves } from "./review/useProblemMoves";
 import { useStrength } from "./review/useStrength";
 import { useWholeGame } from "./review/useWholeGame";
-import { EngineSetup } from "./settings/EngineSetup";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { BottomToolbar, JUMP } from "./frame/BottomToolbar";
@@ -57,7 +59,6 @@ import { StatusLine } from "./frame/StatusLine";
 import { statusLine } from "./frame/status";
 import { ToolButton } from "./frame/ToolButton";
 import { TopToolbar } from "./frame/TopToolbar";
-import { useEngineName } from "./frame/useEngineName";
 import { useOpenFailed } from "./frame/useOpenFailed";
 import { useWindowTitle } from "./frame/useWindowTitle";
 
@@ -77,21 +78,6 @@ function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
-/** Why automatic setup gave up, for the setup dialog it opens instead. */
-function autoSetupFailure(error: unknown, labels: { autoNoPrograms: string; autoNoModels: string; autoAllFailed: string }): string {
-  const failure =
-    typeof error === "object" && error !== null && "type" in error && error.type === "AutoSetup" && "data" in error
-      ? (error.data as AutoSetupError)
-      : null;
-  if (failure?.type === "NoPrograms") return labels.autoNoPrograms;
-  if (failure?.type === "NoModels") return labels.autoNoModels;
-  if (failure?.type === "AllFailed") {
-    const tried = failure.data.attempts.map((attempt) => `${fileName(attempt.program)} + ${fileName(attempt.model)}: ${attempt.reason}`);
-    return [labels.autoAllFailed.replace("{n}", String(failure.data.attempts.length)), ...tried, failure.data.reason].join("\n");
-  }
-  if (typeof error === "object" && error !== null && "data" in error && typeof error.data === "string") return error.data;
-  return error instanceof Error ? error.message : String(error);
-}
 
 /** LizzieYzy Next's window: info and graph left, board centre, the game tree right. */
 export default function App({ store: provided }: { store?: Store } = {}) {
@@ -106,11 +92,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const chinese = navigator.language.toLowerCase().startsWith("zh");
   const [ownership, setOwnership] = useState(false);
   const [pondering, setPondering] = useState(true);
-  const [profile, setProfile] = useState<EngineProfile | null>(null);
-  const [setupOpen, setSetupOpen] = useState(false);
-  // First run picks an engine by itself; setup opens only when that fails, saying why.
-  const [autoSetup, setAutoSetup] = useState(false);
-  const [autoSetupFailed, setAutoSetupFailed] = useState<{ error: unknown } | null>(null);
   const [foxOpen, setFoxOpen] = useState(false);
   // Mounted on first use and then only hidden, so a minimized window keeps its list.
   const [foxUsed, setFoxUsed] = useState(false);
@@ -124,6 +105,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   // 显示: saved in the settings, read with them at start.
   const display = useDisplay(backend, messages.display);
   const loadDisplay = display.load;
+  // The engines and the main one; a first run without one picks it by itself.
+  const engines = useEngines(backend, engine, messages.frame.engineNames, messages.engines, messages.setup, (settings) => display.load(settings.display));
+  const loadEngines = engines.load;
   const shown = display.display;
   const wheel = useRef(0);
   const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
@@ -139,7 +123,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const quickRunning = quickPass !== null && (quickPass.status.type === "Running" || quickPass.status.type === "Paused");
   const sync = useBoardSync(backend);
   const tuning = useBenchmark(backend);
-  const [tuningOpen, setTuningOpen] = useState(false);
+  // 引擎一键设置, by the tab shown; null while closed.
+  const [toolsTab, setToolsTab] = useState<ToolsTab | null>(null);
+  const tuningOpen = toolsTab !== null;
+  const tools = useEngineTools(backend, tuningOpen, engines.apply);
   // Live analysis as it runs now: paused by the user, or stopped at a time or visit limit.
   const run = useAnalysisRun(backend);
   const [limits, setLimits] = useState<AnalysisLimitSettings | null>(null);
@@ -174,29 +161,17 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         setPondering(settings.pondering);
         setAutoCurve(settings.auto_quick_analyze_on_load ?? true);
         setCacheOn(settings.cache_enabled ?? true);
-        setProfile(settings.engine);
         setFoxHistory(settings.fox_history);
         setTsumegoOptions(settings.tsumego);
         loadDisplay(settings.display);
-        if (settings.engine) return;
-        setAutoSetup(true);
-        try {
-          const configured = await backend.autoConfigureEngine();
-          if (active) setProfile(configured);
-        } catch (error) {
-          if (!active) return;
-          setAutoSetupFailed({ error });
-          setSetupOpen(true);
-        } finally {
-          if (active) setAutoSetup(false);
-        }
+        await loadEngines(settings, () => active);
       })
       .catch(report);
     return () => {
       active = false;
     };
     // A state setter: the settings are read once.
-  }, [setTsumegoOptions, loadDisplay]);
+  }, [setTsumegoOptions, loadDisplay, loadEngines]);
 
   // A comment being edited is saved before the app moves to another move by itself.
   const comment = useCommentEdit(backend, document);
@@ -324,8 +299,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         ownership,
         wholeGameActive: wholeGameStatus === "Running" || wholeGameStatus === "Paused",
         hasBestMove: board !== null && best !== undefined,
-        engineFailed: engine.type === "Failed" && profile !== null,
-        engineConfigured: profile !== null,
+        engineConfigured: engines.profile !== null,
         windows: WINDOWS,
         syncPhase: sync.status?.phase ?? "Stopped",
         syncOptions,
@@ -380,16 +354,13 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         startBoardSync: () => sync.start({ ...syncOptions, language: chinese ? "Cn" : "En" }),
         toggleSyncOption: (key) => setSyncOptions((options) => ({ ...options, [key]: !options[key] })),
         openTsumego: () => tsumego.setOpen(true),
-        openBenchmark: () => setTuningOpen(true),
+        openBenchmark: () => setToolsTab("overview"),
         openSettings: () => setSettingsOpen(true),
-        openEngineSetup: () => setSetupOpen(true),
-        restartEngine: () => {
-          if (profile) backend.configureEngine(profile).catch(report);
-        },
         openAbout: () => setAboutOpen(true),
       },
     ),
     ...display.bindings,
+    ...engines.bindings,
     ...clearing.bindings,
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
@@ -397,12 +368,12 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   };
   useShortcuts(
     bindings,
-    !(setupOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen),
   );
   const frame = messages.frame;
-  const engineLabel = useEngineName(backend, profile, frame.engineNames);
+  const engineLabel = engines.label === "" ? null : engines.label;
   // "No engine" is for no engine: one that Rust has not named yet shows without a name.
-  const menus = useMenus(WINDOWS, editing.recent, messages.edit, engineLabel ?? (profile ? "" : null), shown.last_move_rank_marks, shown.next_move_min_visits);
+  const menus = useMenus(WINDOWS, editing.recent, messages.edit, engines.label, shown.last_move_rank_marks, shown.next_move_min_visits, { names: engines.menuNames, main: engines.mainIndex }, messages.engines.importMenu);
   const autoAnalyzing = quickRunning || wholeGameStatus === "Running";
   useWindowTitle(backend, {
     app: messages.app.title,
@@ -419,11 +390,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const reviewStatus = reviewStatusOf(reviewing ? wholeGame.progress : null, analysedCount, points.length, messages.notes);
   const summaryLines = board ? analysisSummary(points, currentIndex, board.last_move, engineLabel, info?.komi ?? 0, messages.notes) : [];
   // First-run setup reads as starting.
-  const shownEngine: EngineStatus = autoSetup && engine.type === "Stopped" ? { type: "Starting" } : engine;
+  const shownEngine: EngineStatus = engines.autoSetup && engine.type === "Stopped" ? { type: "Starting" } : engine;
   const status = statusLine({
     engine: shownEngine,
     name: engineLabel,
-    configured: profile !== null,
+    configured: engines.profile !== null,
     autoAnalyzing,
     pondering: livePondering,
     saved: analysis?.source === "Saved" && analysis.node_id === current,
@@ -452,7 +423,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             {tsumego.status ? <TsumegoChip status={tsumego.status} labels={messages.tsumego} onExit={tsumego.exit} /> : null}
             {sync.status && sync.status.phase !== "Stopped" ? <BoardSyncChip status={sync.status} labels={messages.sync} onStop={sync.stop} /> : null}
             {tuning.status && !tuningOpen ? (
-              <BenchmarkChip status={tuning.status} labels={messages.benchmark} onOpen={() => setTuningOpen(true)} onStop={tuning.cancel} />
+              <BenchmarkChip status={tuning.status} labels={messages.benchmark} onOpen={() => setToolsTab("benchmark")} onStop={tuning.cancel} />
             ) : null}
           </>
         }
@@ -483,7 +454,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onSave={editing.save}
           onFox={openFox}
           onStrength={() => setStrengthOpen(true)}
-          onAutoSetup={() => setTuningOpen(true)}
+          onAutoSetup={() => setToolsTab("overview")}
           onFlash={() => wholeGame.start(1)}
           onBackMain={() => bindings.backToMainBranch?.run?.()}
           onPass={pass}
@@ -710,49 +681,36 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {aboutOpen ? <AboutDialog name={messages.app.title} labels={messages.about} onClose={() => setAboutOpen(false)} /> : null}
       {settingsOpen && limits ? (
         <SettingsDialog
-          values={{ limits, autoCurve, cache: cacheOn }}
+          values={{ limits, autoCurve, cache: cacheOn, engine: engines.options }}
           labels={messages.prefs}
           onSave={async (values) => {
             setLimits(await backend.setAnalysisLimits(values.limits));
             if (values.autoCurve !== autoCurve) setAutoCurve(await backend.setAutoQuickAnalyzeOnLoad(values.autoCurve));
             if (values.cache !== cacheOn) setCacheOn(await backend.setCacheEnabled(values.cache));
+            if (values.engine && JSON.stringify(values.engine) !== JSON.stringify(engines.options)) await engines.saveOptions(values.engine);
             setSettingsOpen(false);
           }}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}
-      {tuningOpen ? (
+      {toolsTab ? (
         <BenchmarkDialog
+          title={messages.tools.title}
+          tabs={<ToolsTabs tab={toolsTab} labels={messages.tools} onTab={setToolsTab} />}
+          panel={toolsTab === "benchmark" ? undefined : <ToolsPanel tab={toolsTab} tools={tools} labels={messages.tools} currentModel={engines.profile?.model ?? null} />}
           status={tuning.status}
           model={engineLabel}
           labels={messages.benchmark}
           onStart={tuning.start}
           onStop={tuning.cancel}
           onReset={tuning.reset}
-          onClose={() => setTuningOpen(false)}
+          onClose={() => setToolsTab(null)}
         />
       ) : null}
       {tsumego.open ? (
         <TsumegoDialog options={tsumego.options} labels={messages.tsumego} onConfirm={tsumego.generate} onClose={() => tsumego.setOpen(false)} />
       ) : null}
-      {setupOpen ? (
-        <EngineSetup
-          backend={backend}
-          labels={messages.setup}
-          current={profile}
-          notice={autoSetupFailed ? autoSetupFailure(autoSetupFailed.error, messages.setup) : null}
-          engineRunning={engine.type === "Starting" || engine.type === "Ready" || engine.type === "Restarting"}
-          onConfigured={(configured) => {
-            setProfile({ ...configured, config: configured.config ?? "" });
-            setAutoSetupFailed(null);
-            setSetupOpen(false);
-          }}
-          onClose={() => {
-            setAutoSetupFailed(null);
-            setSetupOpen(false);
-          }}
-        />
-      ) : null}
+      {engines.dialogs}
     </main>
   );
 }

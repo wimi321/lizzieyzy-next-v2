@@ -710,6 +710,15 @@
     "autoCurveHint": "每手只算 1 次，几秒钟画出整盘曲线，不影响实时分析。",
     "cache": "启用缓存",
     "cacheHint": "分析过的局面存在本机，再次打开或翻到时直接显示，引擎接着往上算。",
+    "engine": "引擎",
+    "readKomi": "读取棋谱贴目",
+    "readKomiHint": "关掉时，打开的棋谱一律用下面的贴目分析。",
+    "defaultKomi": "默认贴目",
+    "checkAlive": "自动检测引擎是否存活",
+    "checkAliveHint": "引擎长时间没有回应时自动重启。",
+    "interval": "本地分析刷新间隔",
+    "intervalHint": "引擎多久报告一次分析结果。越短越及时，也越占资源。",
+    "milliseconds": "毫秒",
     "invalid": "请填写大于 0 的整数。",
     "save": "保存",
     "cancel": "取消",
@@ -944,5 +953,115 @@
     "cacheAll": "清除本机保存的所有分析缓存？此操作不能撤销。",
     "confirm": "清除",
     "cancel": "取消"
+  },
+  "engines": {
+    "list": {
+      "title": "引擎",
+      "intro": "可以配置多个引擎，在菜单栏的引擎菜单里随时切换。主引擎就是正在用来分析的那个。",
+      "main": "主引擎",
+      "setMain": "设为主引擎",
+      "edit": "编辑",
+      "remove": "删除",
+      "up": "上移",
+      "down": "下移",
+      "add": "添加引擎",
+      "empty": "还没有配置引擎。",
+      "close": "关闭"
+    },
+    "rules": {
+      "title": "引擎规则",
+      "intro": "KataGo 按这里的规则判断胜负和目数，改了立即生效。",
+      "names": {
+        "FollowSgf": "跟随棋谱",
+        "Chinese": "中国规则",
+        "Japanese": "日本规则",
+        "Korean": "韩国规则",
+        "Aga": "AGA 规则",
+        "TrompTaylor": "Tromp-Taylor 规则",
+        "NewZealand": "新西兰规则",
+        "ChineseOgs": "中国规则（OGS）",
+        "ChineseKgs": "中国规则（KGS）",
+        "StoneScoring": "数子规则",
+        "Bga": "英国规则",
+        "AgaButton": "AGA 规则（贴子）",
+        "Goe": "应氏规则",
+        "AncientTerritory": "古代数目规则"
+      },
+      "custom": "自定义规则（导入的）",
+      "save": "应用",
+      "cancel": "取消",
+      "close": "关闭"
+    },
+    "javaImport": {
+      "title": "导入 Java 版配置",
+      "intro": "从 {dir} 读到下面这些配置。Java 版的文件不会被改动。",
+      "engines": "引擎",
+      "main": "主引擎",
+      "noEngines": "没有找到引擎。",
+      "issues": "需要注意",
+      "confirm": "导入",
+      "cancel": "取消",
+      "close": "关闭"
+    },
+    "nameLabel": "名称",
+    "addTitle": "添加引擎",
+    "editTitle": "编辑引擎",
+    "failedTitle": "引擎",
+    "ok": "确定",
+    "importMenu": "导入 Java 版配置..."
+  },
+  "tools": {
+    "title": "引擎一键设置",
+    "tabs": {
+      "overview": "概览",
+      "weights": "权重管理",
+      "acceleration": "英伟达显卡提速组件",
+      "benchmark": "性能优化"
+    },
+    "overviewIntro": "逐项检查主引擎能否正常运行；有问题的项可以一键修复，修好后自动重新检查。",
+    "kinds": {
+      "RuntimeComponents": "显卡提速组件",
+      "ProgramExists": "引擎程序存在",
+      "ProgramExecutable": "引擎程序可执行",
+      "ProgramVersion": "引擎版本",
+      "ModelExists": "权重文件存在",
+      "ModelReadable": "权重文件可读",
+      "ConfigExists": "分析配置存在",
+      "ConfigValid": "分析配置有效"
+    },
+    "statuses": {
+      "Ok": "正常",
+      "Error": "有问题",
+      "Skipped": "跳过"
+    },
+    "repairs": {
+      "InstallRuntime": "下载安装组件",
+      "RegenerateConfig": "重新生成配置",
+      "UseBundledProgram": "改用自带引擎",
+      "UseBundledModel": "改用自带权重"
+    },
+    "recheck": "重新检查",
+    "noEngine": "还没有配置主引擎。",
+    "weightsIntro": "官方权重下载后会校验，可以一键设为主引擎的权重；换权重失败时会回到原来的。",
+    "size": "{n} MB",
+    "published": "发布于 {date}",
+    "downloaded": "已下载",
+    "download": "下载",
+    "use": "使用",
+    "inUse": "使用中",
+    "cancel": "取消",
+    "progress": "已下载 {done} / {total} MB",
+    "installing": "正在安装…",
+    "downloading": "下载中…",
+    "failed": "下载失败",
+    "accelerationIntro": "Windows 上用英伟达显卡时，装上提速组件可以让 KataGo 用 CUDA/TensorRT 跑得更快。",
+    "reasons": {
+      "UnsupportedPlatform": "这个系统不需要提速组件。",
+      "NoNvidiaGpu": "没有检测到英伟达显卡，不需要提速组件。",
+      "NvidiaDetected": "检测到英伟达显卡，建议安装提速组件。",
+      "DetectionFailed": "没能检测显卡。"
+    },
+    "install": "下载并安装",
+    "loading": "正在读取…"
   }
 }
