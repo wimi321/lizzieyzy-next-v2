@@ -274,6 +274,63 @@ class BundleTests(unittest.TestCase):
                 bundle.sign_macos(self.root)
         self.assertEqual(run.call_count, 2)
 
+    def test_publisher_macos_signing_enables_hardened_runtime_and_timestamp(self):
+        binary = self.root / "katago"
+        binary.write_bytes(b"\xcf\xfa\xed\xfecode")
+        with patch("bundle.os.uname", create=True) as uname, \
+                patch("bundle.subprocess.run") as run, \
+                patch("bundle.subprocess.check_output", return_value="katago:\n\t/usr/lib/libc.dylib (version 1)\n"):
+            uname.return_value.sysname = "Darwin"
+            bundle.sign_macos(self.root, "Developer ID Application: Test", "/tmp/test.keychain-db")
+        self.assertEqual(run.call_args_list[0].args[0], [
+            "codesign", "--force", "--sign", "Developer ID Application: Test", "--options",
+            "runtime", "--timestamp", "--keychain", "/tmp/test.keychain-db", str(binary)])
+        self.assertEqual(run.call_args_list[1].args[0], ["codesign", "--verify", "--strict", str(binary)])
+
+    def test_release_resource_signatures_are_created_before_final_inventory(self):
+        model = dict(pin(b"model"), downloadUrl="https://example.invalid/model")
+        model_path = self.root / "model"
+        model_path.write_bytes(b"model")
+        readboard_zip = self.root / "readboard.zip"
+        with zipfile.ZipFile(readboard_zip, "w") as zipped:
+            zipped.writestr("readboard.exe", b"readboard")
+        pins = {"licenses": [], "readboard": dict(pin(readboard_zip.read_bytes()), elevationPatch=False)}
+        for platform in ("macos-arm64", "windows-x64"):
+            executable = "katago.exe" if platform == "windows-x64" else "katago"
+            archive = self.archive([(executable, b"engine")])
+            engine = dict(pin(archive.read_bytes()), assetName="engine.zip",
+                          executableSha256=pin(b"engine")["sha256"])
+            catalog = {"assets": {bundle.PLATFORMS[platform]: engine}, "engineReleaseRepository": "owner/repo",
+                       "engineReleaseTag": "fixed", "models": {"b11": model}, "defaultModelId": "b11"}
+            signing_dir = self.root / f"signing-{platform}"
+            signing_dir.mkdir()
+            signing = {"schema": "lizzie-native-signing-v1", "platform": platform,
+                       "identity": "Developer ID Application: Test", "keychain": "test.keychain",
+                       "thumbprint": "AB" * 20}
+            bundle.native_signing.save_state(signing_dir, signing)
+
+            def sign_macos(directory, identity, keychain):
+                self.assertEqual(identity, signing["identity"])
+                self.assertEqual(keychain, signing["keychain"])
+                (directory / "katago").write_bytes(b"signed engine")
+
+            def sign_windows(directory, state):
+                self.assertEqual(state["thumbprint"], signing["thumbprint"])
+                (directory / "engines/katago/windows-x64/katago.exe").write_bytes(b"signed engine")
+                (directory / "readboard/readboard.exe").write_bytes(b"signed readboard")
+
+            downloads = [archive, model_path] + ([readboard_zip] if platform == "windows-x64" else [])
+            output = self.root / platform
+            with patch("bundle.fetch", side_effect=downloads), \
+                    patch("bundle.sign_macos", side_effect=sign_macos), \
+                    patch("bundle.native_signing.sign_windows_resources", side_effect=sign_windows):
+                receipt = bundle.prepare(platform, self.root / "cache", output, catalog, pins, signing_dir)
+            self.assertEqual(receipt["files"][f"engines/katago/{platform}/{executable}"]["sha256"],
+                             pin(b"signed engine")["sha256"])
+            if platform == "windows-x64":
+                self.assertEqual(receipt["files"]["readboard/readboard.exe"]["sha256"],
+                                 pin(b"signed readboard")["sha256"])
+
 
 if __name__ == "__main__":
     unittest.main()

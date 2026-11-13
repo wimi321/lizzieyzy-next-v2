@@ -12,12 +12,39 @@ on:
       retention_days:
         type: number
         default: 14
+      release_version:
+        description: Nonempty only for the release caller; preview behavior is unchanged.
+        type: string
+        default: ''
+      build_matrix:
+        description: Optional release matrix, including the Intel macOS runner.
+        type: string
+        default: ''
+    secrets:
+      LIZZIE_UPDATER_PUBKEY:
+        required: false
+      APPLE_CERTIFICATE:
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_SIGNING_IDENTITY:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_PASSWORD:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
+      WINDOWS_CERTIFICATE:
+        required: false
+      WINDOWS_CERTIFICATE_PASSWORD:
+        required: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: preview-${{ github.ref }}
+  group: ${{ inputs.release_version && 'release-packaging' || 'preview' }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -27,31 +54,14 @@ jobs:
     timeout-minutes: 90
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            platform: windows
-            python: python
-            bundles: nsis
-            artifacts: target/release/bundle/nsis/*.exe
-          - os: macos-latest
-            platform: macos
-            python: python3
-            bundles: dmg
-            artifacts: target/release/bundle/dmg/*.dmg
-          - os: ubuntu-24.04
-            platform: linux
-            python: python3
-            bundles: appimage,deb
-            artifacts: |
-              target/release/bundle/appimage/*.AppImage
-              target/release/bundle/deb/*.deb
+      matrix: ${{ fromJSON(inputs.build_matrix || '{"include":[{"os":"windows-latest","platform":"windows","python":"python","bundles":"nsis","artifacts":"target/release/bundle/nsis/*.exe"},{"os":"macos-latest","platform":"macos","python":"python3","bundles":"dmg","artifacts":"target/release/bundle/dmg/*.dmg"},{"os":"ubuntu-24.04","platform":"linux","python":"python3","bundles":"appimage,deb","artifacts":"target/release/bundle/appimage/*.AppImage\ntarget/release/bundle/deb/*.deb"}]}') }}
     defaults:
       run:
         shell: bash
     env:
       CARGO_TERM_COLOR: always
       PYTHON: ${{ matrix.python }}
+      PYTHONIOENCODING: utf-8
       WEBKIT_DISABLE_DMABUF_RENDERER: '1'
     steps:
       - uses: actions/checkout@v7
@@ -118,30 +128,84 @@ jobs:
           path: target/packaging-cache
           key: bundled-v1-${{ steps.platform.outputs.engine }}-${{ hashFiles('resources/katago/*.json', 'scripts/packaging/*.py') }}
 
+      - name: Configure optional release signing
+        if: inputs.release_version != ''
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          LIZZIE_UPDATER_PUBKEY: ${{ secrets.LIZZIE_UPDATER_PUBKEY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          "$PYTHON" scripts/packaging/release_workflow.py configure --output target/release-version.json
+          "$PYTHON" scripts/packaging/native_signing.py setup \
+            --platform "${{ steps.platform.outputs.engine }}" \
+            --directory target/native-signing --config target/native-signing/tauri.conf.json
+
       - name: Prepare and verify bundled resources
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           started_at=$(date +%s)
-          "$PYTHON" scripts/packaging/bundle.py prepare \
+          release_args=()
+          if [ -n "$RELEASE_VERSION" ]; then release_args=(--release-signing); fi
+          "$PYTHON" scripts/packaging/bundle.py prepare "${release_args[@]}" \
             --platform "${{ steps.platform.outputs.engine }}" \
             --cache target/packaging-cache --output target/bundled-resources
           printf 'Resource download, SHA-256 verification and staging: %s seconds.\n' \
             "$(( $(date +%s) - started_at ))" >> "$GITHUB_STEP_SUMMARY"
 
-      # No publisher credentials. macOS still needs ad-hoc signing of the app
+      # Previews have no publisher credentials. macOS needs ad-hoc signing
       # after Tauri patches its executable; signingIdentity is "-" in the override.
       # The engine and dylibs were individually signed before their hash receipt.
-      - name: Build preview installers
+      - name: Build installers
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          LIZZIE_UPDATER_PUBKEY: ${{ inputs.release_version != '' && secrets.LIZZIE_UPDATER_PUBKEY || '' }}
+          APPLE_ID: ${{ inputs.release_version != '' && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ inputs.release_version != '' && secrets.APPLE_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ inputs.release_version != '' && secrets.APPLE_TEAM_ID || '' }}
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           started_at=$(date +%s)
+          wrapper=()
+          release_config=()
           signing_args=(--no-sign)
           if [ "$RUNNER_OS" = macOS ]; then signing_args=(); fi
-          pnpm -C apps/desktop tauri build --ci "${signing_args[@]}" \
+          if [ -n "$RELEASE_VERSION" ]; then
+            wrapper=("$PYTHON" scripts/packaging/native_signing.py build --directory target/native-signing --)
+            release_config=(--config "$GITHUB_WORKSPACE/target/native-signing/tauri.conf.json"
+              --config "$GITHUB_WORKSPACE/target/release-version.json")
+            signing_args=()
+          else
+            # Tauri treats even an empty Apple environment variable as configured.
+            unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID LIZZIE_UPDATER_PUBKEY
+          fi
+          "${wrapper[@]}" pnpm -C apps/desktop tauri build --ci "${signing_args[@]}" \
             --config src-tauri/tauri.bundled.conf.json \
+            "${release_config[@]}" \
             --bundles "${{ matrix.bundles }}" -- --locked --no-default-features
           printf 'Installer compilation and packaging: %s seconds.\n' \
             "$(( $(date +%s) - started_at ))" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify app notarization and notarize the DMG
+        if: inputs.release_version != '' && runner.os == 'macOS'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          shopt -s nullglob
+          apps=(target/release/bundle/macos/*.app)
+          dmgs=(target/release/bundle/dmg/*.dmg)
+          test "${#apps[@]}" -eq 1 && test "${#dmgs[@]}" -eq 1
+          "$PYTHON" scripts/packaging/native_signing.py notarize --directory target/native-signing \
+            --app "${apps[0]}" --dmg "${dmgs[0]}"
 
       - name: Extract installers and compare bundled hashes
         run: |
@@ -228,13 +292,45 @@ jobs:
           $env:PATH = "$HOME/.cargo/bin;$env:PATH"
           & ./scripts/packaging/smoke-windows.ps1 -Action Restore -AcceptanceDir target/packaging-acceptance/nsis -Driver $env:BUNDLED_SMOKE_DRIVER
 
+      - name: Collect release installers and portable archives
+        if: inputs.release_version != ''
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          acceptance_args=()
+          case "$RUNNER_OS" in
+            Windows) acceptance_args=(--acceptance-dir target/packaging-acceptance/nsis) ;;
+            macOS) acceptance_args=(--acceptance-dir target/packaging-acceptance/dmg) ;;
+          esac
+          "$PYTHON" scripts/packaging/release_assets.py collect \
+            --platform "${{ steps.platform.outputs.engine }}" --version "$RELEASE_VERSION" \
+            --bundle-dir target/release/bundle --staged target/bundled-resources \
+            "${acceptance_args[@]}" --output target/release-assets
+
+      - name: Upload release assets
+        if: inputs.release_version != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-assets-${{ steps.platform.outputs.engine }}-${{ github.run_id }}
+          path: target/release-assets/*
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention_days || 14 }}
+
       - name: Upload preview installers
+        if: inputs.release_version == ''
         uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.artifact_prefix || 'preview' }}-${{ matrix.platform }}-${{ runner.arch }}-${{ github.run_id }}
           path: ${{ matrix.artifacts }}
           if-no-files-found: error
           retention-days: ${{ inputs.retention_days || 14 }}
+
+      - name: Remove temporary signing credentials
+        if: always() && inputs.release_version != ''
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          "$PYTHON" scripts/packaging/native_signing.py cleanup --directory target/native-signing
 
       - name: Upload packaging diagnostics
         if: always()

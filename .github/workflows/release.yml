@@ -1,0 +1,130 @@
+name: Draft release installers
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Optional vSemVer tag; blank creates a unique preview version from this branch.
+        type: string
+        default: ''
+      notes:
+        description: Release notes for the draft and update manifest (maintainer can edit before publishing).
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Select and validate release version
+        id: release
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          python3 scripts/packaging/release_workflow.py metadata
+
+  installers:
+    needs: metadata
+    uses: ./.github/workflows/preview.yml
+    with:
+      artifact_prefix: release
+      retention_days: 14
+      release_version: ${{ needs.metadata.outputs.version }}
+      build_matrix: >-
+        {"include":[
+          {"os":"windows-latest","platform":"windows","python":"python","bundles":"nsis"},
+          {"os":"macos-15","platform":"macos","python":"python3","bundles":"dmg"},
+          {"os":"macos-15-intel","platform":"macos","python":"python3","bundles":"dmg"},
+          {"os":"ubuntu-24.04","platform":"linux","python":"python3","bundles":"appimage,deb"}
+        ]}
+    secrets:
+      LIZZIE_UPDATER_PUBKEY: ${{ secrets.LIZZIE_UPDATER_PUBKEY }}
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+
+  draft:
+    needs: [metadata, installers]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/desktop/package.json
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+      - name: Install the pinned Tauri signer
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          pnpm -C apps/desktop install --frozen-lockfile
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: release-assets-*-${{ github.run_id }}
+          path: target/release-assets
+          merge-multiple: true
+      - name: Write release notes
+        env:
+          RELEASE_NOTES: ${{ inputs.notes }}
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          notes = os.environ.get('RELEASE_NOTES') or (
+              f"LizzieYzy Next 2 {os.environ['RELEASE_VERSION']}\n\n"
+              f"Build commit: {os.environ['GITHUB_SHA']}\n\n"
+              "维护者验收后发布；签名与公证状态见本次 Actions 日志。"
+          )
+          Path('target/release-notes.md').write_text(notes + '\n', encoding='utf-8')
+          PY
+      - name: Sign final bytes and generate the update manifest
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          LIZZIE_UPDATER_PUBKEY: ${{ secrets.LIZZIE_UPDATER_PUBKEY }}
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          python3 scripts/packaging/release_assets.py manifest \
+            --assets target/release-assets --version "$RELEASE_VERSION" \
+            --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY" \
+            --notes-file target/release-notes.md
+      - name: Create or refresh a draft only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          python3 scripts/packaging/release_workflow.py draft \
+            --assets target/release-assets --notes target/release-notes.md
