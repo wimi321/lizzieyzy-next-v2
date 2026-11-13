@@ -84,6 +84,7 @@ impl Actor {
             if enabled {
                 self.continue_review().await;
             }
+            self.publish_saved_focus();
         }
         Ok(())
     }

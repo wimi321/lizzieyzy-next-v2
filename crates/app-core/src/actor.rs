@@ -341,6 +341,11 @@ impl Actor {
             revision: self.revision,
             view,
         });
+        // Document events coalesce in the mailbox. Keep the matching result
+        // after the document so a slow consumer can establish its revision.
+        self.output
+            .republish_analysis(self.revision, self.document.current().0);
+        self.publish_saved_focus();
         Ok(())
     }
 

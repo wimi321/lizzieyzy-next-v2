@@ -29,7 +29,9 @@ async function firstRun(page: Page, commands: MockCommand[], auto: MockCommand =
     commands: [
       { command: "settings", result: { version: 1, engine: null, pondering: true } },
       auto,
-      ...(opens ? [{ command: "detectEngines", result: FOUND } as const] : []),
+      ...(opens
+        ? [{ command: "detectEngines", result: FOUND } as const]
+        : [{ command: "settings", result: { version: 1, engine: B11_PROFILE, pondering: true } } as const]),
       ...commands,
     ],
   };
@@ -45,16 +47,17 @@ async function calls(page: Page) {
 }
 
 
-/** 设置 → 引擎设置, where Java opens the engine settings. */
+/** 设置 → 引擎, where Java opens the engine settings: the list of engines. */
 async function openSetup(page: Page) {
   await page.getByTestId("menubar").getByRole("menuitem", { name: "Settings" }).click();
   await page.locator('.menu-row[data-menu-id="engineConfig"]').click();
+  await expect(page.getByTestId("engine-list")).toBeVisible();
 }
 test("first run sets the engine up by itself, B11 named from the catalog, without opening setup", async ({ page }) => {
   await firstRun(page, [], { command: "autoConfigureEngine", result: B11_PROFILE });
   await expect(page.getByTestId("menubar").getByRole("menuitem").last()).toHaveText("[1]: kata1-tf3-b11c768");
   await expect(page.getByTestId("engine-setup")).toHaveCount(0);
-  await expect.poll(async () => (await calls(page)).map((call) => call.command)).toEqual(["settings", "autoConfigureEngine"]);
+  await expect.poll(async () => (await calls(page)).map((call) => call.command)).toEqual(["settings", "autoConfigureEngine", "settings"]);
 });
 
 test("when automatic setup fails, setup opens, says why and preselects the recommended files", async ({ page }) => {
@@ -78,13 +81,19 @@ test("browsing replaces a detected file with the chosen one", async ({ page }) =
 });
 
 test("a successful start saves through try-then-save and closes setup", async ({ page }) => {
-  const dialog = await firstRun(page, [{ command: "tryConfigureEngine", result: undefined }]);
+  const configured = { program: KATAGO, model: KATA1, config: "", extra_args: [] };
+  const dialog = await firstRun(page, [
+    { command: "tryConfigureEngine", result: undefined },
+    // The saved engine is read back as the main entry of the list.
+    { command: "settings", result: { version: 1, engine: configured, pondering: true } },
+  ]);
   await page.getByTestId("setup-start").click();
   await expect(dialog).toBeHidden();
-  await expect.poll(async () => (await calls(page)).at(-1)).toEqual({
-    command: "tryConfigureEngine",
-    args: [{ program: KATAGO, model: KATA1, config: null, extra_args: [] }],
-  });
+  await expect.poll(async () => (await calls(page)).slice(-2)).toEqual([
+    { command: "tryConfigureEngine", args: [{ program: KATAGO, model: KATA1, config: null, extra_args: [] }] },
+    { command: "settings", args: [] },
+  ]);
+  await expect(page.getByTestId("menubar").getByRole("menuitem").last()).toHaveText(/^\[1\]: /);
 });
 
 test("a failed start explains why and keeps the dialog open", async ({ page }) => {
@@ -117,8 +126,10 @@ test("reopening working settings offers Apply only after a change", async ({ pag
   await expect(page.getByTestId("engine-setup")).toBeHidden();
 
   await openSetup(page);
+  await page.getByTestId("engine-edit").click();
   const apply = page.getByTestId("setup-start");
-  await expect(page.getByTestId("engine-setup").getByRole("heading")).toHaveText("Engine settings");
+  await expect(page.getByTestId("engine-setup").getByRole("heading")).toHaveText("Edit engine");
+  await expect(page.getByTestId("setup-name")).toHaveValue("KataGo");
   await expect(page.getByTestId("setup-config")).toHaveValue(saved.config);
   await expect(apply).toHaveText("Apply");
   await expect(apply).toBeDisabled();
@@ -126,14 +137,17 @@ test("reopening working settings offers Apply only after a change", async ({ pag
   await expect(apply).toBeEnabled();
 });
 
-test("setup can be reopened from the 设置 menu and closed again", async ({ page }) => {
+test("an engine can be added from the 设置 menu's list, or the form closed again", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(
     (commands) => window.__mockBackend?.setScript({ initialEvents: [], commands }),
     [{ command: "detectEngines", result: FOUND }] satisfies MockCommand[],
   );
   await openSetup(page);
-  await expect(page.getByTestId("engine-setup")).toBeVisible();
+  await page.getByTestId("engine-add").click();
+  await expect(page.getByTestId("engine-setup").getByRole("heading")).toHaveText("Add engine");
   await page.getByTestId("setup-close").click();
   await expect(page.getByTestId("engine-setup")).toBeHidden();
+  // Back on the list, which closes in turn.
+  await expect(page.getByTestId("engine-list")).toBeVisible();
 });

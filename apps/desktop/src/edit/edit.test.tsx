@@ -287,7 +287,7 @@ describe("the menu's editing entries", () => {
     ],
   };
   const state = (change: Partial<MenuState>): MenuState => ({
-    hasDocument: true, hasBoard: true, ownership: false, wholeGameActive: false, hasBestMove: false, engineFailed: false,
+    hasDocument: true, hasBoard: true, ownership: false, wholeGameActive: false, hasBestMove: false,
     engineConfigured: true, windows: false, syncPhase: "Stopped", syncOptions: { always_sync: true, always_goto_last: false },
     tree, current: 0, canUndo: false, canRedo: false, recent: [], setupTool: null, setupEditable: false, trial: false, playColor: null, insertColor: null, ...change,
   });

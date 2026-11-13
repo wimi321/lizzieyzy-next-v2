@@ -120,6 +120,8 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   setAutoQuickAnalyzeOnLoad(enabled: boolean): Promise<boolean>;
   /** Native file dialogs; null when the user cancels. */
   pickOpenPath(): Promise<string | null>;
+  /** A folder, e.g. the Java app's, for importing its configuration. */
+  pickDirectory(): Promise<string | null>;
   pickSavePath(): Promise<string | null>;
   pickEngineFile(kind: EngineFileKind): Promise<string | null>;
   /** 文件 → 退出: closing the only window ends the app. */
@@ -132,7 +134,7 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   subscribeBoardSyncStatus(listener: BoardSyncStatusListener): Promise<number>;
   subscribeBenchmarkProgress(listener: BenchmarkProgressListener): Promise<number>;
   subscribeAnalysisState(listener: AnalysisStateListener): Promise<number>;
-  subscribeAssetDownloadProgress?(listener: AssetDownloadProgressListener): Promise<number>;
+  subscribeAssetDownloadProgress(listener: AssetDownloadProgressListener): Promise<number>;
   subscribeUpdateDownloadProgress?(listener: UpdateDownloadProgressListener): Promise<number>;
   unsubscribe(id: number): Promise<void>;
 }
@@ -174,6 +176,11 @@ const GAME_FILTERS = [{ name: "SGF / GIB", extensions: ["sgf", "gib"] }];
 
 export const pickOpenPath: Backend["pickOpenPath"] = async () => {
   const path = await openDialog({ multiple: false, directory: false, filters: GAME_FILTERS });
+  return typeof path === "string" ? path : null;
+};
+
+export const pickDirectory: Backend["pickDirectory"] = async () => {
+  const path = await openDialog({ multiple: false, directory: true });
   return typeof path === "string" ? path : null;
 };
 
@@ -278,7 +285,7 @@ export const subscribeAnalysisState: Backend["subscribeAnalysisState"] =
   });
 
 /** Subscribe before reading assetDownloadStatus(); use unsubscribe() for this ID. */
-export const subscribeAssetDownloadProgress: NonNullable<Backend["subscribeAssetDownloadProgress"]> =
+export const subscribeAssetDownloadProgress: Backend["subscribeAssetDownloadProgress"] =
   (listener) => subscribeWire((event) => {
     if (event.type === "AssetDownloadProgress") listener(event.data);
   });

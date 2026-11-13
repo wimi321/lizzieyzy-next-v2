@@ -77,7 +77,7 @@ async fn java_file_populates_graph_information_candidates_and_problem_moves_with
 }
 
 #[tokio::test]
-async fn saved_data_survives_engine_changes_but_first_fresh_result_replaces_depth() {
+async fn saved_data_survives_engine_changes_and_only_strictly_deeper_results_replace_it() {
     let (mut actor, mut output) = crate::actor::tests::actor();
     actor.open(JAVA.to_vec(), None).await.unwrap();
     actor.set_summary_fingerprint(Some("new-engine".into()));
@@ -93,18 +93,70 @@ async fn saved_data_survives_engine_changes_but_first_fresh_result_replaces_dept
         size: position.board.size(),
         to_play: position.board.to_play(),
     });
-    let snapshot = crate::actor::tests::snapshot(&actor, 1, 0.8);
+    let saved = actor.stored_analysis(0).unwrap();
+    for visits in [1, 12345] {
+        actor.publish_saved_focus();
+        let snapshot = crate::actor::tests::snapshot(&actor, visits, 0.8);
+        actor.signal(Signal::Snapshot(Box::new(snapshot)));
+        let retained = analysis_event(&mut output).await;
+        assert_eq!(retained.source, AnalysisSource::Saved);
+        assert_eq!(retained.visits, 12345);
+        assert_eq!(retained.summary.visits, 12345);
+        assert_eq!(retained.candidates[0].coordinate, "C3");
+        assert_eq!(retained.score_lead, 2.5);
+        assert!((retained.winrate - 0.55).abs() < 1e-12);
+        assert_eq!(actor.stored_analysis(0).unwrap(), saved);
+    }
+    let snapshot = crate::actor::tests::snapshot(&actor, 12346, 0.8);
     actor.signal(Signal::Snapshot(Box::new(snapshot)));
     let live = analysis_event(&mut output).await;
     assert_eq!(live.source, AnalysisSource::Live);
-    assert_eq!(live.visits, 1);
-    assert_eq!(live.summary.visits, 1);
+    assert_eq!(live.visits, 12346);
+    assert_eq!(live.summary.visits, 12346);
     assert_eq!(live.summary.winrate, 0.8);
     assert!(actor.stored_analysis(0).unwrap().saved.is_none());
     // The other imported node is independent from the active engine namespace.
     actor.set_summary_fingerprint(None);
     assert!(actor.stored_analysis(0).is_none());
     assert!(actor.stored_analysis(1).unwrap().saved.is_some());
+}
+
+#[tokio::test]
+async fn importing_saved_analysis_only_yields_to_strictly_deeper_restored_engine_results() {
+    for visits in [1, 12345, 12346] {
+        let (mut actor, _) = crate::actor::tests::actor();
+        actor.open(JAVA.to_vec(), None).await.unwrap();
+        let saved = actor.stored_analysis(0).unwrap();
+        let mut cached = saved.clone();
+        cached.saved = None;
+        cached.response.id = "restored-engine".into();
+        cached.response.root_info.visits = visits;
+        cached.response.root_info.winrate = 0.8;
+        cached.response.root_info.score_lead = -3.5;
+        // Reopening clears the old summaries before restoring engine cache and
+        // importing file analysis. Exercise that complete replacement path.
+        actor
+            .document_replaced_with_cache(
+                std::collections::HashMap::from([(cached.key, cached.clone())]),
+                true,
+            )
+            .await
+            .unwrap();
+        let restored = actor.stored_analysis(0).unwrap();
+        let view = actor.review_view(0).unwrap().unwrap();
+        if visits > saved.response.root_info.visits {
+            assert_eq!(restored, cached);
+            assert_eq!(view.source, AnalysisSource::Cache);
+            assert_eq!(view.summary.visits, visits);
+            assert_eq!(view.winrate, 0.8);
+        } else {
+            assert_eq!(restored, saved);
+            assert_eq!(view.source, AnalysisSource::Saved);
+            assert_eq!(view.summary.visits, 12345);
+            assert!((view.winrate - 0.55).abs() < 1e-12);
+            assert_eq!(view.candidates[0].coordinate, "C3");
+        }
+    }
 }
 
 #[tokio::test]
@@ -220,7 +272,7 @@ async fn legacy_winrate_only_has_explicit_score_availability_and_no_fake_score_l
 }
 
 #[tokio::test]
-async fn fake_engine_first_visit_replaces_deep_file_data_without_waiting_for_its_depth() {
+async fn fake_engine_strictly_deeper_result_replaces_file_data_and_is_saved() {
     // Resolve/build the test executable outside the operation's safety timeout.
     let program = fake_katago::binary_path().unwrap();
     let temp = tempfile::tempdir().unwrap();
@@ -229,7 +281,8 @@ async fn fake_engine_first_visit_replaces_deep_file_data_without_waiting_for_its
     std::fs::write(&model, "fake model").unwrap();
     std::fs::write(&config_path, "fake config").unwrap();
     let mut config = crate::AppConfig::default();
-    config.analysis.live.max_visits = 1;
+    config.analysis.live.max_visits = 12346;
+    config.analysis.live.report_interval = Duration::from_secs(60);
     let (core, mut output) = crate::spawn_with_config(temp.path(), config).await.unwrap();
     core.set_auto_quick_analyze_on_load(false).await.unwrap();
     core.open_bytes(JAVA.to_vec()).await.unwrap();
@@ -241,7 +294,7 @@ async fn fake_engine_first_visit_replaces_deep_file_data_without_waiting_for_its
         program,
         model,
         config: config_path,
-        extra_args: Vec::new(),
+        extra_args: vec!["--visits-per-sec".into(), "100000".into()],
         canonical_model_name: None,
     }))
     .await
@@ -257,8 +310,8 @@ async fn fake_engine_first_visit_replaces_deep_file_data_without_waiting_for_its
     })
     .await
     .unwrap();
-    assert_eq!(live.visits, 1);
-    assert_eq!(live.summary.visits, 1);
+    assert_eq!(live.visits, 12346);
+    assert_eq!(live.summary.visits, 12346);
     let path = temp.path().join("engine.sgf");
     core.save(&path).await.unwrap();
     let collection = sgf::parse(&tokio::fs::read(path).await.unwrap()).unwrap();

@@ -12,6 +12,10 @@ impl Actor {
                     && (focus.revision, focus.node_id, focus.key)
                         == (snapshot.revision, snapshot.node_id.0, snapshot.key)
                 {
+                    if self.preserves_saved_analysis(&snapshot) {
+                        self.publish_saved_focus();
+                        return;
+                    }
                     match AnalysisView::from_snapshot(*snapshot.clone(), focus.size, focus.to_play)
                     {
                         Ok(mut view) => {

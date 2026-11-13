@@ -526,6 +526,20 @@ export function withDisplayValues(menus: readonly MenuSubmenu[], values: { rankM
   );
 }
 
+/** 设置 gains an entry Java has no need of: importing the Java app's own configuration. */
+export function withJavaImport(menus: readonly MenuSubmenu[], label: string): MenuSubmenu[] {
+  return menus.map((menu) =>
+    menu.id !== "settings"
+      ? menu
+      : {
+          ...menu,
+          items: menu.items.flatMap((entry) =>
+            entry.kind !== "separator" && entry.id === "comprehensiveSettings" ? [entry, item("importJavaConfig", null, undefined, label)] : [entry],
+          ),
+        },
+  );
+}
+
 /** The menus as Java builds them on this platform. */
 export function menusFor(windows: boolean): readonly MenuSubmenu[] {
   return windows ? MENUS : MENUS.map((menu) => without(menu, WINDOWS_ONLY));
@@ -535,7 +549,7 @@ export function menusFor(windows: boolean): readonly MenuSubmenu[] {
  * The engine menu follows the others. Java titles it with the current engine's name and
  * lists the configured engines ("[1] name") above the restart and shutdown entries.
  */
-export function engineMenu(engine: string | null): MenuSubmenu {
+export function engineMenu(engine: string | null, names: readonly string[] = engine === null ? [] : [engine], main = 0): MenuSubmenu {
   const close = sub("shutdownEngine", "Menu.shutdownEngine", [
     item("shutdownCurrentEngine", "Menu.shutdownCurrentEngine"),
     item("shutdownOtherEngine", "Menu.shutdownOtherEngine"),
@@ -547,8 +561,8 @@ export function engineMenu(engine: string | null): MenuSubmenu {
     kind: "submenu",
     id: "engineMenu",
     key: null,
-    // Java captions the strip's engine menu "[1]: name", the engine's place in its list.
-    text: `[1]: ${engine}`,
-    items: [check("engine0", null, undefined, `[1] ${engine}`), SEP, ...actions],
+    // Java captions the strip's engine menu "[n]: name", the main engine's place in its list.
+    text: `[${main + 1}]: ${engine}`,
+    items: [...names.map((name, index) => check(`engine${index}`, null, undefined, `[${index + 1}] ${name}`)), SEP, ...actions],
   };
 }
