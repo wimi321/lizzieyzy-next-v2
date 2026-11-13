@@ -54,6 +54,10 @@ impl Actor {
     }
 
     async fn prepare_update_resources(&mut self) -> Result<(), AppError> {
+        if self.batch_active() {
+            self.stop_batch(Some("application update is installing".into()))
+                .await;
+        }
         self.auto_setup.cancel();
         self.cancel_trial().await;
         if let Some(assets) = &self.assets.handle {
@@ -143,6 +147,7 @@ impl Actor {
             Command::BoardSync(crate::board_sync::Request::Status, _) => Some(command),
             Command::BoardSync(_, reply) => reject!(reply),
             Command::Review(_, reply) => reject!(reply),
+            Command::Batch(_, reply) => reject!(reply),
             Command::SetDisplaySettings(_, reply) => reject!(reply),
             Command::SetMoveRankSettings(_, reply) => reject!(reply),
             Command::ClaimUpdateCheck(_, reply) => reject!(reply),

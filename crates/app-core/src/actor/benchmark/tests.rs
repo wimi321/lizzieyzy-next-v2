@@ -46,9 +46,12 @@ async fn benchmark_resume_preserves_completed_review_nodes_and_original_pause() 
         .unwrap()
         .analysis_key();
     actor.retain_analysis(&completed);
-    within(actor.review_command(ReviewInput::Start(WholeGameOptions { visits: 1_000_000 })))
-        .await
-        .unwrap();
+    within(actor.review_command(ReviewInput::Start(WholeGameOptions {
+        visits: 1_000_000,
+        ..Default::default()
+    })))
+    .await
+    .unwrap();
     assert_eq!(actor.review.progress.as_ref().unwrap().completed, 1);
     within(actor.begin_benchmark()).await.unwrap();
     assert!(actor.running.is_none());

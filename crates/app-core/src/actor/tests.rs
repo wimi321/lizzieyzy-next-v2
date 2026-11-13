@@ -33,6 +33,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             summaries: HashMap::new(),
             graph_analysis: Default::default(),
             review: Default::default(),
+            batch: Default::default(),
             strength: None,
             summary_fingerprint: None,
             revision: 0,
@@ -279,6 +280,7 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                 | AppEvent::OpenFailed { .. }
                 | AppEvent::WholeGameProgress(_)
                 | AppEvent::BoardSyncStatusChanged(_)
+                | AppEvent::BatchAnalysisProgress(_)
                 | AppEvent::BenchmarkProgress(_)
                 | AppEvent::UpdateDownloadProgress(_)
                 | AppEvent::AssetDownloadProgress(_)

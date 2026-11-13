@@ -36,6 +36,7 @@ impl AppCore {
 
     /// Downloads an SGF then uses exactly the local-SGF open transaction.
     pub async fn fox_open_game(&self, game_id: String) -> Result<u64, AppError> {
+        self.send(actor::Input::EnsureNoBatch).await?;
         let client = self.fox_request(Request::Client).await?;
         let text = client.download(&game_id).await?;
         self.open_bytes(text.into_bytes()).await

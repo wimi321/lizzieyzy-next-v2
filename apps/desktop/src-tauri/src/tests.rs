@@ -15,6 +15,7 @@ use tokio::sync::{mpsc, oneshot};
 
 mod analysis_limits;
 mod auto_curve;
+mod batch_analysis;
 mod benchmark;
 mod board_sync;
 mod cache;
@@ -167,6 +168,7 @@ impl Harness {
                     }
                     AppEvent::OpenFailed { .. }
                     | AppEvent::EngineStatusChanged(_)
+                    | AppEvent::BatchAnalysisProgress(_)
                     | AppEvent::WholeGameProgress(_)
                     | AppEvent::BenchmarkProgress(_)
                     | AppEvent::UpdateDownloadProgress(_)

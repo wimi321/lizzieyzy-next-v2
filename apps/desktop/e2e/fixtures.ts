@@ -1,5 +1,7 @@
 import type {
   AnalysisView,
+  BatchAnalysisStatus,
+  FlashAnalysisSettings,
   AppEvent,
   BoardView,
   CandidateView,
@@ -551,3 +553,9 @@ export function emptyStrengthEstimate(revision = 0): StrengthEstimateView {
     },
   };
 }
+
+/** Fixed DTO defaults for old scripts, never a simulation of queue scheduling. */
+export const defaultBatchAnalysisStatus: BatchAnalysisStatus = {
+  phase: "Idle", items: [], current_index: null, reason: null,
+};
+export const defaultFlashAnalysisSettings: FlashAnalysisSettings = { visits: 1, always_override: false };

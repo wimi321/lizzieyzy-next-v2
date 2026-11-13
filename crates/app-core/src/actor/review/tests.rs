@@ -58,10 +58,12 @@ async fn live_results_completing_review_terminate_the_still_pending_batch() {
     let parsed = sgf::parse(b"(;SZ[9];B[];W[])").unwrap();
     actor.document = document::GameDocument::from_sgf(&parsed.games[0]).unwrap();
     within(actor.start_engine()).await;
-    let started =
-        within(actor.review_command(ReviewInput::Start(WholeGameOptions { visits: 1_000_000 })))
-            .await
-            .unwrap();
+    let started = within(actor.review_command(ReviewInput::Start(WholeGameOptions {
+        visits: 1_000_000,
+        ..Default::default()
+    })))
+    .await
+    .unwrap();
     assert_eq!((started.completed, started.total), (0, 3));
     let request = logged(&log, |query| query["maxVisits"] == 1_000_000).await;
     assert_eq!(request["analyzeTurns"].as_array().unwrap().len(), 3);
@@ -219,4 +221,155 @@ fn invalidation_clears_finished_task_line_and_prevents_stale_completed_status() 
         actor.review.progress.unwrap().status,
         WholeGameStatus::Cancelled
     );
+}
+
+#[test]
+fn scopes_capture_move_endpoints_and_depth_first_order_without_navigating() {
+    let (mut actor, _) = actor();
+    let parsed = sgf::parse(b"(;SZ[9]C[root];B[]C[one];C[empty](;W[]C[two];B[]C[three])(;W[aa]C[branch](;B[bb]C[child])(;B[cc]C[sibling])))").unwrap();
+    actor.document = document::GameDocument::from_sgf(&parsed.games[0]).unwrap();
+    let initial = actor.document.current();
+    let names = |scope| {
+        actor
+            .review_positions(scope)
+            .unwrap()
+            .into_iter()
+            .map(|(id, _)| {
+                actor
+                    .document
+                    .node(id)
+                    .unwrap()
+                    .comment()
+                    .unwrap_or_default()
+                    .to_owned()
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        names(WholeGameScope::AllBranches),
+        [
+            "root", "one", "empty", "two", "three", "branch", "child", "sibling"
+        ]
+    );
+    assert_eq!(
+        names(WholeGameScope::Line),
+        ["root", "one", "empty", "two", "three"]
+    );
+    assert_eq!(
+        names(WholeGameScope::Range {
+            first_move: None,
+            last_move: None
+        }),
+        ["root", "one", "empty", "two", "three"]
+    );
+    assert_eq!(
+        names(WholeGameScope::Range {
+            first_move: Some(2),
+            last_move: None
+        }),
+        ["empty", "two", "three"]
+    );
+    assert_eq!(
+        names(WholeGameScope::Range {
+            first_move: None,
+            last_move: Some(1)
+        }),
+        ["root", "one", "empty"]
+    );
+    assert_eq!(
+        names(WholeGameScope::Range {
+            first_move: Some(2),
+            last_move: Some(2)
+        }),
+        ["empty", "two"]
+    );
+    for (first_move, last_move) in [
+        (Some(0), None),
+        (None, Some(0)),
+        (Some(4), None),
+        (None, Some(4)),
+        (Some(3), Some(2)),
+    ] {
+        assert!(matches!(
+            actor.review_positions(WholeGameScope::Range {
+                first_move,
+                last_move
+            }),
+            Err(AppError::WholeGame(WholeGameError::InvalidRange { .. }))
+        ));
+    }
+    assert_eq!(actor.document.current(), initial);
+}
+
+#[test]
+fn empty_game_range_is_invalid_but_all_branches_includes_root() {
+    let (actor, _) = actor();
+    assert!(matches!(
+        actor.review_positions(WholeGameScope::Range {
+            first_move: None,
+            last_move: None
+        }),
+        Err(AppError::WholeGame(WholeGameError::InvalidRange {
+            last_available: 0,
+            ..
+        }))
+    ));
+    assert_eq!(
+        actor
+            .review_positions(WholeGameScope::AllBranches)
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn forced_review_resume_only_skips_finals_from_this_run() {
+    let directory = tempfile::tempdir().unwrap();
+    let program = fake_katago::binary_path().unwrap();
+    let (mut actor, _) = actor();
+    actor.directory = directory.path().to_owned();
+    actor.settings.pondering = false;
+    actor.settings.cache_enabled = false;
+    actor.settings.engine = Some(EngineProfile {
+        canonical_model_name: None,
+        model: program.clone(),
+        config: program.clone(),
+        program,
+        extra_args: Vec::new(),
+    });
+    let parsed = sgf::parse(b"(;SZ[9];B[];W[])").unwrap();
+    actor.document = document::GameDocument::from_sgf(&parsed.games[0]).unwrap();
+    let line = capture_line(&actor);
+    actor.start_engine().await;
+    for (node, position) in &line {
+        retain_node(&mut actor, *node, position, 1_000_000);
+    }
+    let options = WholeGameOptions {
+        visits: 1_000_000,
+        force: true,
+        ..Default::default()
+    };
+    let started = actor
+        .review_command(ReviewInput::Start(options))
+        .await
+        .unwrap();
+    assert_eq!(started.completed, 0);
+    // Inject the already validated Final while the real fake search is pending.
+    // Completion is driven by events, never by assumed elapsed process time.
+    let root = actor.stored_analysis(actor.document.root().0).unwrap();
+    actor
+        .accept_review_results(vec![ReviewResult {
+            node_id: root.node_id,
+            key: root.key,
+            response: root.response,
+        }])
+        .unwrap();
+    assert_eq!(actor.review.progress.as_ref().unwrap().completed, 1);
+    actor.pause_review().await.unwrap();
+    let resumed = actor.resume_review().await.unwrap();
+    assert_eq!((resumed.completed, resumed.total), (1, 3));
+    assert_eq!(resumed.status, WholeGameStatus::Running);
+    assert!(actor.review.active.is_some());
+    actor.stop_engine().await.unwrap();
 }

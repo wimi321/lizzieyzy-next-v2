@@ -183,9 +183,12 @@ async fn selected_line_including_root_empty_and_setup_nodes_has_full_results_and
     assert_eq!(nodes.len(), 7);
     assert_eq!(nodes[0], reference.root().0);
     within(handle.configure_engine(Some(engine))).await.unwrap();
-    let started = within(handle.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    let started = within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     assert_eq!((started.completed, started.total), (0, nodes.len()));
     completed(&mut output, &started).await;
 
@@ -280,10 +283,13 @@ async fn selected_line_including_root_empty_and_setup_nodes_has_full_results_and
 async fn invalid_visits_and_missing_engine_leave_task_state_unchanged() {
     let directory = TempDir::new().unwrap();
     let (handle, _output) = app(directory.path(), 10_000).await;
-    for visits in [0, 499, 1_000_001, u64::MAX] {
-        let error = within(handle.start_whole_game_analysis(WholeGameOptions { visits }))
-            .await
-            .unwrap_err();
+    for visits in [0, 1_000_001, u64::MAX] {
+        let error = within(handle.start_whole_game_analysis(WholeGameOptions {
+            visits,
+            ..Default::default()
+        }))
+        .await
+        .unwrap_err();
         assert!(matches!(
             error,
             AppError::WholeGame(WholeGameError::InvalidVisits)
@@ -295,10 +301,13 @@ async fn invalid_visits_and_missing_engine_leave_task_state_unchanged() {
                 .is_none()
         );
     }
-    for visits in [500, 1_000, 1_000_000] {
-        let error = within(handle.start_whole_game_analysis(WholeGameOptions { visits }))
-            .await
-            .unwrap_err();
+    for visits in [1, 2, 499, 500, 1_000, 1_000_000] {
+        let error = within(handle.start_whole_game_analysis(WholeGameOptions {
+            visits,
+            ..Default::default()
+        }))
+        .await
+        .unwrap_err();
         assert!(matches!(
             error,
             AppError::WholeGame(WholeGameError::NoEngine)
@@ -313,15 +322,21 @@ async fn invalid_visits_and_missing_engine_leave_task_state_unchanged() {
     let engine = profile(directory.path(), 100_000, &[]);
     within(handle.set_pondering(false)).await.unwrap();
     within(handle.configure_engine(Some(engine))).await.unwrap();
-    within(handle.start_whole_game_analysis(WholeGameOptions { visits: 1_000_000 }))
-        .await
-        .unwrap();
+    within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 1_000_000,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     let active = logged(directory.path(), |query| query["maxVisits"] == 1_000_000).await;
     let paused = within(handle.pause_whole_game_analysis()).await.unwrap();
     assert!(
-        within(handle.start_whole_game_analysis(WholeGameOptions { visits: 499 }))
-            .await
-            .is_err()
+        within(handle.start_whole_game_analysis(WholeGameOptions {
+            visits: 0,
+            ..Default::default()
+        }))
+        .await
+        .is_err()
     );
     assert_eq!(
         within(handle.whole_game_progress()).await.unwrap(),
@@ -343,9 +358,12 @@ async fn deleting_a_captured_node_while_paused_reports_error_on_resume() {
     let revision = within(handle.open_bytes(pass_game(3))).await.unwrap();
     let initial = document(&mut output, revision).await;
     within(handle.configure_engine(Some(engine))).await.unwrap();
-    within(handle.start_whole_game_analysis(WholeGameOptions { visits: 1_000_000 }))
-        .await
-        .unwrap();
+    within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 1_000_000,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     let active = logged(directory.path(), |query| query["maxVisits"] == 1_000_000).await;
     let paused = within(handle.pause_whole_game_analysis()).await.unwrap();
     assert_eq!(paused.status, WholeGameStatus::Paused);
@@ -385,9 +403,12 @@ async fn live_analysis_keeps_producing_results_during_review_and_after_navigatio
     let revision = within(handle.open_bytes(pass_game(12))).await.unwrap();
     let initial = document(&mut output, revision).await;
     within(handle.configure_engine(Some(engine))).await.unwrap();
-    let started = within(handle.start_whole_game_analysis(WholeGameOptions { visits: 5_000 }))
-        .await
-        .unwrap();
+    let started = within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 5_000,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     within(async {
         let mut live_visits = Vec::new();
         loop {
@@ -438,9 +459,12 @@ async fn pause_resume_submits_only_missing_turns_and_cancel_reaches_engine() {
     let revision = within(handle.open_bytes(pass_game(20))).await.unwrap();
     let initial = document(&mut output, revision).await;
     within(handle.configure_engine(Some(engine))).await.unwrap();
-    within(handle.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     within(async {
         loop {
             if let AppEvent::WholeGameProgress(progress) = output.recv().await.unwrap()
@@ -482,9 +506,12 @@ async fn pause_resume_submits_only_missing_turns_and_cancel_reaches_engine() {
     }
 
     // A higher target starts actual work, so cancellation must reach the engine.
-    within(handle.start_whole_game_analysis(WholeGameOptions { visits: 1_000_000 }))
-        .await
-        .unwrap();
+    within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 1_000_000,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     let active = logged(directory.path(), |query| query["maxVisits"] == 1_000_000).await;
     let cancelled = within(handle.cancel_whole_game_analysis()).await.unwrap();
     assert_eq!(cancelled.status, WholeGameStatus::Cancelled);
@@ -524,18 +551,24 @@ async fn enough_visits_are_skipped_and_persistent_result_precedes_live_after_lru
     let revision = within(handle.open_bytes(pass_game(3))).await.unwrap();
     let initial = document(&mut output, revision).await;
     within(handle.configure_engine(Some(engine))).await.unwrap();
-    let started = within(handle.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    let started = within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     completed(&mut output, &started).await;
     let root = within(handle.whole_game_result(initial.tree.root))
         .await
         .unwrap()
         .unwrap();
     let wire_count = review_requests(directory.path()).len();
-    let skipped = within(handle.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    let skipped = within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     assert_eq!(skipped.status, WholeGameStatus::Completed);
     assert_eq!((skipped.completed, skipped.total), (4, 4));
 
@@ -584,9 +617,12 @@ async fn failed_open_retains_results_successful_open_cancels_and_clears_them() {
     let revision = within(handle.open_bytes(pass_game(3))).await.unwrap();
     let initial = document(&mut output, revision).await;
     within(handle.configure_engine(Some(engine))).await.unwrap();
-    let started = within(handle.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    let started = within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     completed(&mut output, &started).await;
     let root = within(handle.whole_game_result(initial.tree.root))
         .await
@@ -604,9 +640,12 @@ async fn failed_open_retains_results_successful_open_cancels_and_clears_them() {
             .unwrap(),
         root
     );
-    within(handle.start_whole_game_analysis(WholeGameOptions { visits: 1_000_000 }))
-        .await
-        .unwrap();
+    within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 1_000_000,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     let active = logged(directory.path(), |query| query["maxVisits"] == 1_000_000).await;
     let revision = within(handle.open_bytes(b"(;SZ[13];B[aa])".to_vec()))
         .await
@@ -647,9 +686,12 @@ async fn same_fingerprint_preserves_results_metadata_change_and_disable_clear_th
     within(handle.configure_engine(Some(engine.clone())))
         .await
         .unwrap();
-    let started = within(handle.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    let started = within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     completed(&mut output, &started).await;
     let root = within(handle.whole_game_result(0)).await.unwrap().unwrap();
     within(handle.configure_engine(Some(engine.clone())))
@@ -662,9 +704,12 @@ async fn same_fingerprint_preserves_results_metadata_change_and_disable_clear_th
     std::fs::write(&engine.model, "replacement model of a different size").unwrap();
     within(handle.configure_engine(Some(engine))).await.unwrap();
     assert!(within(handle.whole_game_result(0)).await.unwrap().is_none());
-    let started = within(handle.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    let started = within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     completed(&mut output, &started).await;
     within(handle.configure_engine(None)).await.unwrap();
     assert!(within(handle.whole_game_result(0)).await.unwrap().is_none());
@@ -689,9 +734,12 @@ async fn injected_engine_exit_finishes_review_or_reports_explicit_error() {
     within(handle.set_pondering(false)).await.unwrap();
     within(handle.open_bytes(pass_game(3))).await.unwrap();
     within(handle.configure_engine(Some(engine))).await.unwrap();
-    let started = within(handle.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    let started = within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     let terminal = within(async {
         loop {
             if let AppEvent::WholeGameProgress(progress) = output.recv().await.unwrap() {

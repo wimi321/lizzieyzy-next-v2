@@ -230,9 +230,12 @@ async fn whole_game_final_results_are_reused_after_restart() {
     let directory = tempfile::tempdir().unwrap();
     let (app, mut events) = initialize(directory.path(), 1).await;
     app.open_bytes(GAME.to_vec()).await.unwrap();
-    app.start_whole_game_analysis(WholeGameOptions { visits: 500 })
-        .await
-        .unwrap();
+    app.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
     within(async {
         loop {
             if let AppEvent::WholeGameProgress(progress) = events.recv().await.unwrap()
@@ -247,7 +250,10 @@ async fn whole_game_final_results_are_reused_after_restart() {
     let (app, _) = start(directory.path(), 1).await;
     app.open_bytes(GAME.to_vec()).await.unwrap();
     let progress = app
-        .start_whole_game_analysis(WholeGameOptions { visits: 500 })
+        .start_whole_game_analysis(WholeGameOptions {
+            visits: 500,
+            ..Default::default()
+        })
         .await
         .unwrap();
     assert_eq!(progress.status, WholeGameStatus::Completed);

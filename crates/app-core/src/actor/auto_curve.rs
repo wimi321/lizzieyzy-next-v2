@@ -135,7 +135,7 @@ impl Actor {
     }
 
     pub(super) async fn maybe_start_auto_curve(&mut self) {
-        if !self.auto_curve.pending {
+        if !self.auto_curve.pending || self.batch_active() {
             return;
         }
         if !self.settings.auto_quick_analyze_on_load || self.manual_review_active() {
@@ -174,7 +174,7 @@ impl Actor {
         // Automatic work never changes pondering and uses the normal low-priority
         // review plan. Invalid imported lines stay inspectable without auto work.
         let _ = self
-            .start_review(line, 1, WholeGameSource::AutomaticQuick)
+            .start_review(line, 1, WholeGameSource::AutomaticQuick, false)
             .await;
     }
 

@@ -128,9 +128,12 @@ async fn reviewed(
     let revision = within(handle.open_bytes(source)).await.unwrap();
     let initial = document(&mut output, revision).await;
     within(handle.configure_engine(Some(engine))).await.unwrap();
-    within(handle.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     completed(&mut output).await;
     (handle, output, initial, revision)
 }
@@ -337,9 +340,12 @@ async fn progress_refreshes_partial_losses_and_resume_fills_the_bar() {
     assert!(empty.entries.is_empty());
     assert!(empty.error_bar.iter().all(|point| point.loss.is_none()));
     within(handle.configure_engine(Some(engine))).await.unwrap();
-    within(handle.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    within(handle.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     within(async {
         loop {
             if let AppEvent::WholeGameProgress(progress) = output.recv().await.unwrap()

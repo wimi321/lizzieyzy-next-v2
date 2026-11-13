@@ -45,7 +45,7 @@ impl FileState {
         self.unsaved_import = true;
     }
 
-    fn mark_saved(&mut self, document: &GameDocument, path: PathBuf) {
+    pub(super) fn mark_saved(&mut self, document: &GameDocument, path: PathBuf) {
         self.path = Some(path);
         self.saved = self.analysis_edits.effective_tree(document);
         self.saved_clears = self.analysis_edits.active_clears(document);
@@ -125,12 +125,16 @@ impl Actor {
             .map_err(|source| AppError::RecentFilesAfterSave { path, source })
     }
 
+    pub(super) async fn open_path_for_batch(&mut self, path: PathBuf) -> Result<(), AppError> {
+        let (absolute, document) = read_game_file(&path).await?;
+        self.open_auto_curve_document(document, Some(absolute), true)
+            .await
+    }
+
     pub(super) async fn open_path(&mut self, path: PathBuf) -> Result<(), AppError> {
         let result = async {
             self.ensure_no_move_trial()?;
-            let absolute = std::path::absolute(&path)?;
-            let bytes = tokio::fs::read(&absolute).await?;
-            let document = parse_document(&bytes, super::game_files::is_gib(&absolute))?;
+            let (absolute, document) = read_game_file(&path).await?;
             self.next_revision()?;
             self.remember_recent_file(&absolute).await?;
             self.stop_board_sync().await?;
@@ -196,6 +200,13 @@ impl Actor {
         }
         Ok(())
     }
+}
+
+async fn read_game_file(path: &std::path::Path) -> Result<(PathBuf, GameDocument), AppError> {
+    let absolute = std::path::absolute(path)?;
+    let bytes = tokio::fs::read(&absolute).await?;
+    let document = parse_document(&bytes, super::game_files::is_gib(&absolute))?;
+    Ok((absolute, document))
 }
 
 fn parse_document(bytes: &[u8], gib: bool) -> Result<GameDocument, AppError> {

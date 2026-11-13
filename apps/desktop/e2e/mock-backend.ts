@@ -1,5 +1,5 @@
-import type { AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
-import { defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
+import type { BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import { defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
@@ -11,7 +11,8 @@ export type {
   AutoSetupError, AutoSetupAttempt, EngineDisplayName, OpenFailed, OpenFailedListener,
   GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
   WireAppEvent, WholeGameOptions, WholeGamePreset, WholeGameProgress, WholeGameStatus, WholeGameSource,
-  WholeGameProgressListener,
+  WholeGameProgressListener, WholeGameScope, FlashAnalysisSettings,
+  BatchAnalysisCommands, BatchAnalysisProgressListener, BatchAnalysisStatus, BatchOptions, BatchOutput, BatchPhase, BatchItem, BatchItemState, BatchMove, BatchError,
   BoardSyncCommands, BoardSyncOptions, BoardSyncStatus, BoardSyncPhase, BoardSyncError,
   BoardSyncLanguage, BoardSyncStatusListener,
   BenchmarkCommands, BenchmarkStatus, BenchmarkPhase, BenchmarkProgress,
@@ -36,7 +37,7 @@ export type {
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
+type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -85,6 +86,8 @@ let dispatching = false;
 /** The newest document delivered to the app, for answering unscripted read-only queries. */
 let lastDocument: { revision: number; view: DocumentView } | null = null;
 let lastProgress: WholeGameProgress | null = null;
+let lastBatchStatus = structuredClone(defaultBatchAnalysisStatus);
+let lastFlashSettings = structuredClone(defaultFlashAnalysisSettings);
 let lastAutoQuickAnalyzeOnLoad = true;
 let lastCacheEnabled = defaultCacheEnabled;
 let lastAnalysisLimits = structuredClone(defaultAnalysisLimits);
@@ -112,6 +115,8 @@ export function setStrengthEstimate(view: StrengthEstimateView | null): void {
 
 /** Install deterministic replies and events. No Go or analysis logic is simulated. */
 export function setScript(script: MockScript): void {
+  lastBatchStatus = structuredClone(defaultBatchAnalysisStatus);
+  lastFlashSettings = structuredClone(defaultFlashAnalysisSettings);
   lastAutoQuickAnalyzeOnLoad = true;
   lastCacheEnabled = defaultCacheEnabled;
   lastAnalysisLimits = structuredClone(defaultAnalysisLimits);
@@ -147,6 +152,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
         lastDocument = structuredClone(event.data);
         fillDocumentDefaults(lastDocument.view);
       }
+      if (event.type === "BatchAnalysisProgress") lastBatchStatus = { ...defaultBatchAnalysisStatus, ...event.data };
       if (event.type === "WholeGameProgress") lastProgress = structuredClone(event.data);
       if (event.type === "BoardSyncStatusChanged") lastBoardSyncStatus = structuredClone(event.data);
       if (event.type === "BenchmarkProgress") lastBenchmarkStatus = structuredClone(event.data);
@@ -158,6 +164,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       for (const listener of [...listeners.values()]) {
         try {
           const cloned = structuredClone(event);
+          if (cloned.type === "BatchAnalysisProgress") fillBatchDefaults(cloned.data);
           if (cloned.type === "DocumentChanged") fillDocumentDefaults(cloned.data.view);
           if (cloned.type === "AnalysisUpdated") fillAnalysisDefaults(cloned.data);
           if (cloned.type === "AssetDownloadProgress") fillDownloadDefaults(cloned.data);
@@ -258,6 +265,9 @@ async function command<K extends CommandName>(
   }
   if (next.command === "settings") {
     const settings = cloned as Settings;
+    defaultField(settings, "flash_analysis", structuredClone(defaultFlashAnalysisSettings));
+    fillFlashDefaults(settings.flash_analysis!);
+    lastFlashSettings = { ...defaultFlashAnalysisSettings, ...settings.flash_analysis };
     defaultField(settings, "recent_files", []);
     // As Rust's normalize_engines: an old single engine is a one-item list, and the main one.
     const legacy = settings.engine ? [{ id: "legacy-engine", name: "KataGo", profile: settings.engine }] : [];
@@ -277,6 +287,14 @@ async function command<K extends CommandName>(
     defaultField(engine, "auto_check_alive", true);
     defaultField(engine, "report_interval_ms", 100);
   }
+  if (next.command === "flashAnalysis" || next.command === "setFlashAnalysis") {
+    fillFlashDefaults(cloned as FlashAnalysisSettings);
+    lastFlashSettings = { ...defaultFlashAnalysisSettings, ...cloned as FlashAnalysisSettings };
+  }
+  if (["startBatchAnalysis", "pauseBatchAnalysis", "resumeBatchAnalysis", "stopBatchAnalysis", "addBatchAnalysisFiles", "removeBatchAnalysisItem", "moveBatchAnalysisItem", "clearBatchAnalysis", "batchAnalysisStatus"].includes(next.command)) {
+    fillBatchDefaults(cloned as BatchAnalysisStatus);
+    lastBatchStatus = { ...defaultBatchAnalysisStatus, ...cloned as BatchAnalysisStatus };
+  }
   return cloned as Awaited<ReturnType<NonNullable<Backend[K]>>>;
 }
 
@@ -288,6 +306,20 @@ function defaultField<T extends object, K extends keyof T>(target: T, key: K, va
   if (target[key] === undefined) {
     Object.defineProperty(target, key, { value, writable: true, configurable: true });
   }
+}
+
+function fillBatchDefaults(status: BatchAnalysisStatus): void {
+  for (const key of Object.keys(defaultBatchAnalysisStatus) as (keyof BatchAnalysisStatus)[]) defaultField(status, key, defaultBatchAnalysisStatus[key]);
+  for (const item of status.items ?? []) {
+    defaultField(item, "id", 0); defaultField(item, "path", ""); defaultField(item, "state", { type: "Waiting" });
+    if (item.state?.type === "Running") defaultField(item.state.data, "progress", null);
+    if (item.state?.type === "Completed") defaultField(item.state.data, "output", "");
+    if (item.state?.type === "Failed") defaultField(item.state.data, "reason", "");
+  }
+}
+
+function fillFlashDefaults(settings: FlashAnalysisSettings): void {
+  defaultField(settings, "visits", 1); defaultField(settings, "always_override", false);
 }
 
 function fillDownloadDefaults(status: AssetDownloadStatus): void {
@@ -336,6 +368,18 @@ function fillTreeDefaults(tree: VariationTreeView): void {
   for (const node of tree.nodes) defaultField(node, "has_comment", false);
 }
 
+export const startBatchAnalysis: NonNullable<Backend["startBatchAnalysis"]> = (options) => command("startBatchAnalysis", [options]);
+export const pauseBatchAnalysis: NonNullable<Backend["pauseBatchAnalysis"]> = () => command("pauseBatchAnalysis", []);
+export const resumeBatchAnalysis: NonNullable<Backend["resumeBatchAnalysis"]> = () => command("resumeBatchAnalysis", []);
+export const stopBatchAnalysis: NonNullable<Backend["stopBatchAnalysis"]> = () => command("stopBatchAnalysis", []);
+export const addBatchAnalysisFiles: NonNullable<Backend["addBatchAnalysisFiles"]> = (files) => command("addBatchAnalysisFiles", [files]);
+export const removeBatchAnalysisItem: NonNullable<Backend["removeBatchAnalysisItem"]> = (id) => command("removeBatchAnalysisItem", [id]);
+export const moveBatchAnalysisItem: NonNullable<Backend["moveBatchAnalysisItem"]> = (id, direction) => command("moveBatchAnalysisItem", [id, direction]);
+export const clearBatchAnalysis: NonNullable<Backend["clearBatchAnalysis"]> = () => command("clearBatchAnalysis", []);
+export const batchAnalysisStatus: NonNullable<Backend["batchAnalysisStatus"]> = () => query("batchAnalysisStatus", [], () => lastBatchStatus);
+export const flashAnalysis: NonNullable<Backend["flashAnalysis"]> = () => query("flashAnalysis", [], () => lastFlashSettings);
+export const setFlashAnalysis: NonNullable<Backend["setFlashAnalysis"]> = (settings) => command("setFlashAnalysis", [settings]);
+
 export const openBytes: Backend["openBytes"] = (bytes) => command("openBytes", [bytes]);
 export const openPath: Backend["openPath"] = (path) => command("openPath", [path]);
 export const save: Backend["save"] = (path) => command("save", [path]);
@@ -375,13 +419,15 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound">(
+function query<K extends "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
 ): Promise<Awaited<ReturnType<NonNullable<Backend[K]>>>> {
   if (commands[0]?.command === name) return command(name, args);
   const cloned = structuredClone(fallback());
+  if (name === "batchAnalysisStatus") fillBatchDefaults(cloned as BatchAnalysisStatus);
+  if (name === "flashAnalysis") fillFlashDefaults(cloned as FlashAnalysisSettings);
   if (name === "problemMoves") fillLossDefaults(cloned as ProblemMovesView);
   return Promise.resolve(cloned);
 }
@@ -563,7 +609,7 @@ export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+    if (event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
   });
   pushEvents([]);
   return id;
@@ -574,6 +620,13 @@ export const subscribeOpenFailed: Backend["subscribeOpenFailed"] = async (listen
   listeners.set(id, (event) => {
     if (event.type === "OpenFailed") listener(event.data);
   });
+  pushEvents([]);
+  return id;
+};
+
+export const subscribeBatchAnalysisProgress: NonNullable<Backend["subscribeBatchAnalysisProgress"]> = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => { if (event.type === "BatchAnalysisProgress") listener(event.data); });
   pushEvents([]);
   return id;
 };

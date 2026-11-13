@@ -2,6 +2,18 @@ use super::Actor;
 use crate::{AppError, UiLanguage};
 
 impl Actor {
+    pub(super) async fn set_flash_analysis(
+        &mut self,
+        flash_analysis: crate::FlashAnalysisSettings,
+    ) -> Result<(), AppError> {
+        flash_analysis.validate()?;
+        let mut settings = self.settings.clone();
+        settings.flash_analysis = flash_analysis;
+        settings.save(&self.directory).await?;
+        self.settings = settings;
+        Ok(())
+    }
+
     pub(super) async fn set_always_on_top(&mut self, enabled: bool) -> Result<(), AppError> {
         let mut settings = self.settings.clone();
         settings.always_on_top = enabled;

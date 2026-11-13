@@ -6,6 +6,7 @@ mod analysis_cache;
 mod analysis_limit;
 pub mod assets;
 mod auto_setup;
+mod batch;
 mod benchmark;
 mod board_sync;
 mod delivery;
@@ -18,6 +19,7 @@ pub mod engine_setup;
 mod engine_trial;
 mod engines;
 mod everyday;
+mod flash_analysis;
 pub mod fox;
 mod graph;
 mod inspection;
@@ -45,6 +47,7 @@ pub use assets::{
     OfficialWeight,
 };
 pub use auto_setup::{AutoSetupAttempt, AutoSetupError};
+pub use batch::*;
 pub use benchmark::*;
 pub use board_sync::{
     BoardSyncError, BoardSyncLanguage, BoardSyncOptions, BoardSyncPhase, BoardSyncStatus,
@@ -67,6 +70,7 @@ pub use everyday::{
     BoardTransform, Clipboard, ClipboardError, ClipboardFuture, ClipboardImage, MAX_PNG_BYTES,
     PngError,
 };
+pub use flash_analysis::FlashAnalysisSettings;
 pub use graph::{AnalysisSummary, GraphPointView, GraphView};
 pub use inspection::{
     GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
@@ -90,6 +94,10 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error("batch analysis is running or paused")]
+    BatchAnalysisRunning,
+    #[error(transparent)]
+    Batch(#[from] BatchError),
     #[error(transparent)]
     Clipboard(#[from] ClipboardError),
     #[error(transparent)]
@@ -154,6 +162,7 @@ pub enum AppError {
 /// coordinator/session defaults, including the long first-start deadline.
 #[derive(Clone, Debug)]
 pub struct AppConfig {
+    pub batch_clock: std::sync::Arc<dyn BatchClock>,
     /// Native host adapter; headless callers and tests never access the system clipboard.
     pub clipboard: Option<std::sync::Arc<dyn Clipboard>>,
     #[cfg(test)]
@@ -174,6 +183,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            batch_clock: std::sync::Arc::new(LocalBatchClock),
             clipboard: None,
             #[cfg(test)]
             runtime_platform: runtime::supported(),

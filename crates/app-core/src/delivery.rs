@@ -10,6 +10,7 @@ struct Mailbox {
     analysis: Option<(u64, AppEvent)>,
     engine: Option<(u64, AppEvent)>,
     review: Option<(u64, AppEvent)>,
+    batch: Option<(u64, AppEvent)>,
     board_sync: Option<(u64, AppEvent)>,
     benchmark: Option<(u64, AppEvent)>,
     analysis_state: Option<(u64, AppEvent)>,
@@ -22,7 +23,7 @@ pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 10],
+    read: [Option<u64>; 11],
 }
 
 pub(crate) fn channel() -> (Delivery, AppSubscription) {
@@ -31,7 +32,7 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 10],
+            read: [None; 11],
         },
     )
 }
@@ -55,6 +56,7 @@ impl Delivery {
                 AppEvent::AnalysisUpdated(_) => &mut mailbox.analysis,
                 AppEvent::EngineStatusChanged(_) => &mut mailbox.engine,
                 AppEvent::WholeGameProgress(_) => &mut mailbox.review,
+                AppEvent::BatchAnalysisProgress(_) => &mut mailbox.batch,
                 AppEvent::BoardSyncStatusChanged(_) => &mut mailbox.board_sync,
                 AppEvent::BenchmarkProgress(_) => &mut mailbox.benchmark,
                 AppEvent::AnalysisStateChanged(_) => &mut mailbox.analysis_state,
@@ -105,6 +107,7 @@ impl AppSubscription {
                     &mailbox.open_failed,
                     &mailbox.asset_download,
                     &mailbox.update_download,
+                    &mailbox.batch,
                 ]
                 .into_iter()
                 .enumerate()

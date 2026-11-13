@@ -1,4 +1,4 @@
-use app_core::{AnalysisLimitSettings, DisplaySettings, Settings};
+use app_core::{AnalysisLimitSettings, DisplaySettings, FlashAnalysisSettings, Settings};
 use tauri::State;
 
 use crate::{DesktopState, error::CommandError};
@@ -44,4 +44,19 @@ pub async fn set_auto_quick_analyze_on_load(
     enabled: bool,
 ) -> Result<bool, CommandError> {
     Ok(state.core.set_auto_quick_analyze_on_load(enabled).await?)
+}
+
+#[tauri::command]
+pub async fn flash_analysis(
+    state: State<'_, DesktopState>,
+) -> Result<FlashAnalysisSettings, CommandError> {
+    Ok(state.core.flash_analysis().await?)
+}
+
+#[tauri::command]
+pub async fn set_flash_analysis(
+    state: State<'_, DesktopState>,
+    settings: FlashAnalysisSettings,
+) -> Result<FlashAnalysisSettings, CommandError> {
+    Ok(state.core.set_flash_analysis(settings).await?)
 }

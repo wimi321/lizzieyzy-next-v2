@@ -438,6 +438,7 @@ impl From<engine_session::EngineStatus> for EngineStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum AppEvent {
+    BatchAnalysisProgress(crate::BatchAnalysisStatus),
     UpdateDownloadProgress(crate::updates::UpdateDownloadStatus),
     AssetDownloadProgress(crate::AssetDownloadStatus),
     OpenFailed {

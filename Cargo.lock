@@ -83,6 +83,7 @@ version = "0.1.0"
 dependencies = [
  "analysis",
  "blake3",
+ "chrono",
  "document",
  "engine-session",
  "fake-katago",

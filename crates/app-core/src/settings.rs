@@ -58,6 +58,8 @@ pub struct Settings {
     pub display: crate::DisplaySettings,
     #[ts(as = "Option<crate::AnalysisLimitSettings>", optional)]
     pub analysis_limits: crate::AnalysisLimitSettings,
+    #[ts(as = "Option<crate::FlashAnalysisSettings>", optional)]
+    pub flash_analysis: crate::FlashAnalysisSettings,
     #[ts(as = "Option<bool>", optional)]
     pub auto_quick_analyze_on_load: bool,
     pub fox_history: Vec<crate::fox::FoxAccount>,
@@ -87,6 +89,7 @@ impl Default for Settings {
             cache_enabled: true,
             display: crate::DisplaySettings::default(),
             analysis_limits: crate::AnalysisLimitSettings::default(),
+            flash_analysis: crate::FlashAnalysisSettings::default(),
             auto_quick_analyze_on_load: true,
             fox_history: Vec::new(),
             recent_files: Vec::new(),
@@ -112,6 +115,8 @@ pub enum SettingsError {
     FutureVersion(u32),
     #[error("UI scale must be finite and within 0.5..=3.0")]
     InvalidUiScale,
+    #[error(transparent)]
+    FlashAnalysis(#[from] crate::WholeGameError),
     #[error("invalid engine profile: {0}")]
     InvalidProfile(String),
     #[error(transparent)]
@@ -176,6 +181,7 @@ impl Settings {
         self.move_rank.validate()?;
         self.tsumego.validate()?;
         self.analysis_limits.validate()?;
+        self.flash_analysis.validate()?;
         self.display.validate()?;
         if self
             .benchmarks

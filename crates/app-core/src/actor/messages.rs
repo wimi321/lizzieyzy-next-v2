@@ -23,6 +23,8 @@ pub(crate) enum Input {
     SetAlwaysOnTop(bool),
     SetUiScale(f64),
     SetPlaySound(bool),
+    SetFlashAnalysis(crate::FlashAnalysisSettings),
+    EnsureNoBatch,
     SetAutoCheckUpdates(bool),
     SetCacheEnabled(bool),
     ClearCache(bool),
@@ -37,6 +39,11 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    Batch(
+        crate::batch::Request,
+        oneshot::Sender<Result<crate::BatchAnalysisStatus, AppError>>,
+    ),
+    BatchStatus(oneshot::Sender<crate::BatchAnalysisStatus>),
     ClaimUpdateCheck(u64, oneshot::Sender<Result<bool, AppError>>),
     Support(oneshot::Sender<Result<crate::support::SupportHandle, AppError>>),
     Updates(oneshot::Sender<Result<crate::updates::UpdateHandle, AppError>>),

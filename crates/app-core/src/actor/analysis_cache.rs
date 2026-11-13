@@ -58,7 +58,7 @@ impl Actor {
         node: NodeId,
         position: &GamePosition,
     ) -> Option<AnalysisResponse> {
-        if !self.settings.cache_enabled {
+        if !self.settings.cache_enabled || self.force_review_pending(node) {
             return None;
         }
         let key = position.analysis_key();

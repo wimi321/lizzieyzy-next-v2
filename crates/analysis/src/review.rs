@@ -51,9 +51,9 @@ impl ReviewPlan {
         positions: Vec<(NodeId, GamePosition)>,
         target_visits: u64,
     ) -> Result<Self, AnalysisError> {
-        if target_visits != 1 && !(500..=1_000_000).contains(&target_visits) {
+        if !(1..=1_000_000).contains(&target_visits) {
             return Err(AnalysisError::InvalidSettings(
-                "whole-game visits must be 1 or between 500 and 1000000",
+                "whole-game visits must be between 1 and 1000000",
             ));
         }
         let settings = LiveSettings {

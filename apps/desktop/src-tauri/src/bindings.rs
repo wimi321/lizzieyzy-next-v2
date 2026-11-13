@@ -45,6 +45,8 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     FoxSearchResult::export_all_to(directory)?;
     FoxPage::export_all_to(directory)?;
     crate::error::CommandError::export_all_to(directory)?;
+    app_core::BatchOptions::export_all_to(directory)?;
+    app_core::BatchMove::export_all_to(directory)?;
     WholeGameOptions::export_all_to(directory)?;
     WholeGamePreset::export_all_to(directory)?;
     ProblemMovesQuery::export_all_to(directory)?;

@@ -8,6 +8,6 @@ export type WholeGameProgress = {
  */
 completed: number, 
 /**
- * Number of nodes in the captured displayed line, including the root.
+ * Number of nodes in the captured scope.
  */
 total: number, visits: number, status: WholeGameStatus, source?: WholeGameSource, };
