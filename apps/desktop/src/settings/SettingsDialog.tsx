@@ -24,6 +24,9 @@ export interface SettingsLabels {
   interval: string;
   intervalHint: string;
   milliseconds: string;
+  updates: string;
+  autoCheckUpdates: string;
+  autoCheckUpdatesHint: string;
   invalid: string;
   save: string;
   cancel: string;
@@ -37,6 +40,8 @@ export interface SettingsValues {
   cache: boolean;
   /** 读取棋谱贴目, 自动检测引擎是否存活, 本地分析刷新间隔 (P2-11). */
   engine?: EngineOptions;
+  /** 启动时自动检查更新 (P2-14); absent where the dialog is shown without it. */
+  autoCheckUpdates?: boolean;
 }
 
 export interface SettingsDialogProps {
@@ -77,6 +82,7 @@ export function SettingsDialog({ values, labels, onSave, onClose }: SettingsDial
   const [komi, setKomi] = useState(String(engine.default_komi));
   const [checkAlive, setCheckAlive] = useState(engine.auto_check_alive);
   const [interval, setInterval] = useState(String(engine.report_interval_ms));
+  const [autoCheckUpdates, setAutoCheckUpdates] = useState(values.autoCheckUpdates);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -116,6 +122,7 @@ export function SettingsDialog({ values, labels, onSave, onClose }: SettingsDial
         auto_check_alive: checkAlive,
         report_interval_ms: intervalValue ?? engine.report_interval_ms,
       },
+      autoCheckUpdates,
     }).catch((reason: unknown) => {
       setBusy(false);
       setError(typeof reason === "object" && reason !== null && "data" in reason ? String((reason as { data: unknown }).data) : String(reason));
@@ -230,6 +237,18 @@ export function SettingsDialog({ values, labels, onSave, onClose }: SettingsDial
             </span>
             <p className="settings-hint">{labels.intervalHint}</p>
           </div>
+          {autoCheckUpdates !== undefined ? (
+            <>
+              <h3 className="settings-section">{labels.updates}</h3>
+              <div className="settings-row">
+                <label className="settings-check">
+                  <input type="checkbox" data-testid="settings-auto-check-updates" checked={autoCheckUpdates} onChange={(event) => setAutoCheckUpdates(event.target.checked)} />
+                  <span>{labels.autoCheckUpdates}</span>
+                </label>
+                <p className="settings-hint">{labels.autoCheckUpdatesHint}</p>
+              </div>
+            </>
+          ) : null}
           {!valid ? (
             <p className="settings-invalid" role="alert" data-testid="settings-invalid">
               {labels.invalid}

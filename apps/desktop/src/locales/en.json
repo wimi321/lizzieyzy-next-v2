@@ -719,6 +719,9 @@
     "interval": "Analysis refresh interval",
     "intervalHint": "How often the engine reports its analysis. Shorter is more responsive and uses more.",
     "milliseconds": "ms",
+    "updates": "Updates",
+    "autoCheckUpdates": "Check for updates at start",
+    "autoCheckUpdatesHint": "At most once a day; a new version is shown quietly in the menu bar.",
     "invalid": "Enter a whole number above 0.",
     "save": "Save",
     "cancel": "Cancel",
@@ -1063,5 +1066,46 @@
     },
     "install": "Download and install",
     "loading": "Reading…"
+  },
+  "release": {
+    "update": {
+      "title": "Check for updates",
+      "checking": "Checking for updates…",
+      "latest": "You have the latest version.",
+      "available": "Version {version} is available",
+      "published": "Released {date}",
+      "notes": "What's new",
+      "notConfigured": "This build has no update signing key and cannot update itself. Download new versions from GitHub Releases.",
+      "failed": "Checking for updates failed: {reason}",
+      "download": "Download",
+      "cancel": "Cancel",
+      "progress": "{done} / {total} MB",
+      "install": "Install and restart",
+      "installing": "Installing…",
+      "autoCheck": "Check for updates at start",
+      "autoCheckHint": "At most once a day; a new version is shown quietly at the right of the menu bar.",
+      "close": "Close"
+    },
+    "diagnostics": {
+      "title": "Diagnostics and logs",
+      "intro": "When something goes wrong, export a diagnostic bundle and send it to the maintainers.",
+      "logs": "Logs",
+      "open": "Open",
+      "fullLog": "Full log",
+      "fullLogHint": "Records the most detailed log for 30 minutes. Turn it on, reproduce the problem, then export the bundle.",
+      "fullLogOn": "On, {time} left",
+      "fullLogOff": "Off",
+      "start": "Start full log",
+      "stop": "Stop full log",
+      "bundle": "Diagnostic bundle",
+      "bundleHint": "Recent logs, settings without accounts or passwords, the engine checks and version details; no game records.",
+      "export": "Export diagnostic bundle",
+      "exporting": "Exporting…",
+      "exported": "Exported {file}",
+      "reveal": "Show in folder",
+      "failed": "Failed: {reason}",
+      "close": "Close"
+    },
+    "newVersion": "Version {version}"
   }
 }

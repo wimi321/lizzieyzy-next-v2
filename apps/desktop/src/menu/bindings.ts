@@ -109,7 +109,6 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     if (node !== null) actions.goTo(node);
   };
   const step = (steps: number) => when(state.hasDocument, () => actions.step(steps));
-  const always: MenuBinding = { checked: true };
   // The root is the game itself; it is cleared, not deleted.
   const deletable = navigable && current !== tree.root;
   // A trial is a copy of the game: what would replace the game waits until it ends.
@@ -184,7 +183,6 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     alwaysKeepBoardStatSync: { run: () => actions.toggleSyncOption("always_sync"), checked: state.syncOptions.always_sync },
     alwaysGoToLastMove: { run: () => actions.toggleSyncOption("always_goto_last"), checked: state.syncOptions.always_goto_last },
     about: when(true, actions.openAbout),
-    languageDefault: always,
     // The engine entries (the list, 设置 → 引擎, restart, shut down) are bound by `useEngines`.
   };
 }

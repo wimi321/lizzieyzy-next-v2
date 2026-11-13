@@ -371,7 +371,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled">(
+function query<K extends "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
@@ -515,13 +515,18 @@ export const setAutoCheckUpdates: NonNullable<Backend["setAutoCheckUpdates"]> = 
 export const checkUpdate: NonNullable<Backend["checkUpdate"]> = () => command("checkUpdate", []);
 export const downloadUpdate: NonNullable<Backend["downloadUpdate"]> = () => command("downloadUpdate", []);
 export const cancelUpdateDownload: NonNullable<Backend["cancelUpdateDownload"]> = () => command("cancelUpdateDownload", []);
-export const updateDownloadStatus: NonNullable<Backend["updateDownloadStatus"]> = () => command("updateDownloadStatus", []);
+// Read-only: answered from a default unless a script sets it, so opening the window needs no script.
+export const updateDownloadStatus: NonNullable<Backend["updateDownloadStatus"]> = () =>
+  query("updateDownloadStatus", [], () => structuredClone(defaultUpdateDownloadStatus)).then((status) => {
+    fillUpdateDownloadDefaults(status);
+    return status;
+  });
 export const installUpdate: NonNullable<Backend["installUpdate"]> = () => command("installUpdate", []);
-export const fullLogStatus: NonNullable<Backend["fullLogStatus"]> = () => command("fullLogStatus", []);
+export const fullLogStatus: NonNullable<Backend["fullLogStatus"]> = () => query("fullLogStatus", [], () => structuredClone(defaultFullLogStatus));
 export const startFullLog: NonNullable<Backend["startFullLog"]> = () => command("startFullLog", []);
 export const stopFullLog: NonNullable<Backend["stopFullLog"]> = () => command("stopFullLog", []);
 export const exportDiagnostics: NonNullable<Backend["exportDiagnostics"]> = () => command("exportDiagnostics", []);
-export const logDirectory: NonNullable<Backend["logDirectory"]> = () => command("logDirectory", []);
+export const logDirectory: NonNullable<Backend["logDirectory"]> = () => query("logDirectory", [], () => "/Users/me/Library/Logs/LizzieYzy Next 2");
 export const revealInFolder: NonNullable<Backend["revealInFolder"]> = (path) => command("revealInFolder", [path]);
 export const setDisplaySettings: Backend["setDisplaySettings"] = (display) =>
   command("setDisplaySettings", [display]);

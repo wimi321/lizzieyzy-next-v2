@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import type { CommandError, UpdateCommands, UpdateDownloadStatus, WireAppEvent } from "./backend";
+import type { CommandError, UpdateDownloadStatus, WireAppEvent } from "./backend";
 
 interface FakeChannel { onmessage: (event: WireAppEvent) => void }
 const ipc = vi.hoisted(() => ({ invoke: vi.fn(), channels: [] as FakeChannel[] }));
@@ -32,8 +32,6 @@ test("unsigned builds expose the typed reason unchanged for all update operation
 
 test("update IPC forwards replies and signature errors while new methods remain optional", async () => {
   const api = await import("./backend");
-  const legacy: UpdateCommands = {};
-  expect(legacy.installUpdate).toBeUndefined();
   const check = { available: true, version: "0.2.0", notes: "Release notes", published_at: "2026-11-12T00:00:00Z" };
   ipc.invoke.mockResolvedValueOnce(check);
   expect(await api.checkUpdate()).toBe(check);
@@ -118,7 +116,9 @@ test("mock updates and progress only replay scripts, including cancellation and 
   ]);
   await mock.unsubscribe(updateId);
   await mock.unsubscribe(uiId);
-  for (const call of [mock.checkUpdate, mock.downloadUpdate, mock.cancelUpdateDownload, mock.updateDownloadStatus, mock.installUpdate]) {
+  // The status is a read-only query: unscripted, it answers idle.
+  expect((await mock.updateDownloadStatus()).phase).toBe("Idle");
+  for (const call of [mock.checkUpdate, mock.downloadUpdate, mock.cancelUpdateDownload, mock.installUpdate]) {
     await expect(call()).rejects.toThrow("Expected mock command (none)");
   }
 });

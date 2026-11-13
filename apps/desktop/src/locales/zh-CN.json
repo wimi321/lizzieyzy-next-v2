@@ -719,6 +719,9 @@
     "interval": "本地分析刷新间隔",
     "intervalHint": "引擎多久报告一次分析结果。越短越及时，也越占资源。",
     "milliseconds": "毫秒",
+    "updates": "更新",
+    "autoCheckUpdates": "启动时自动检查更新",
+    "autoCheckUpdatesHint": "每天最多检查一次，有新版本时只在菜单栏右侧提示。",
     "invalid": "请填写大于 0 的整数。",
     "save": "保存",
     "cancel": "取消",
@@ -1063,5 +1066,46 @@
     },
     "install": "下载并安装",
     "loading": "正在读取…"
+  },
+  "release": {
+    "update": {
+      "title": "检查更新",
+      "checking": "正在检查更新…",
+      "latest": "已经是最新版本。",
+      "available": "有新版本 {version}",
+      "published": "发布于 {date}",
+      "notes": "更新内容",
+      "notConfigured": "这个版本没有配置更新签名，不能在程序里更新。请到 GitHub Releases 下载新版本。",
+      "failed": "检查更新失败：{reason}",
+      "download": "下载",
+      "cancel": "取消",
+      "progress": "已下载 {done} / {total} MB",
+      "install": "安装并重启",
+      "installing": "正在安装…",
+      "autoCheck": "启动时自动检查更新",
+      "autoCheckHint": "每天最多检查一次，有新版本时只在菜单栏右侧提示，不打断分析。",
+      "close": "关闭"
+    },
+    "diagnostics": {
+      "title": "诊断与日志",
+      "intro": "遇到问题时，可以导出诊断包发给维护者。",
+      "logs": "日志位置",
+      "open": "打开",
+      "fullLog": "完整日志",
+      "fullLogHint": "临时记录最详细的日志，30 分钟后自动恢复。复现问题前打开，复现后导出诊断包。",
+      "fullLogOn": "已开启，剩余 {time}",
+      "fullLogOff": "未开启",
+      "start": "开始完整日志",
+      "stop": "停止完整日志",
+      "bundle": "诊断包",
+      "bundleHint": "包含近期日志、去掉了账号和密码的设置、引擎检查结果和版本信息；不包含棋谱内容。",
+      "export": "导出诊断包",
+      "exporting": "正在导出…",
+      "exported": "已导出 {file}",
+      "reveal": "在文件夹中显示",
+      "failed": "操作失败：{reason}",
+      "close": "关闭"
+    },
+    "newVersion": "新版本 {version}"
   }
 }
