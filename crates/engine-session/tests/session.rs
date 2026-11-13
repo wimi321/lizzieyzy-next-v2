@@ -20,6 +20,7 @@ const NON_TARGET_TIMEOUT: Duration = Duration::from_secs(60);
 
 fn configuration() -> SessionConfig {
     SessionConfig {
+        auto_check_alive: true,
         startup_timeout: NON_TARGET_TIMEOUT,
         response_timeout: NON_TARGET_TIMEOUT,
         restart_backoff: Duration::from_millis(40),
@@ -699,5 +700,38 @@ async fn terminating_during_restart_backoff_prevents_replay() {
     let expected_id = barrier.id().to_owned();
     assert_eq!(final_result(&mut barrier).await.id, expected_id);
     assert!(within(interrupted.recv()).await.is_none());
+    stop(engine, &mut status).await;
+}
+
+#[tokio::test]
+async fn disabled_watchdog_preserves_a_hung_session_until_reenabled() {
+    let mut config = configuration();
+    config.auto_check_alive = false;
+    config.write_timeout = Duration::from_secs(3600);
+    config.shutdown_timeout = Duration::from_millis(100);
+    let response_timeout = config.response_timeout;
+    let marker = TestFile::new();
+    let engine = engine(
+        &[
+            "--hang-after-queries",
+            "1",
+            "--fault-once-file",
+            marker.argument(),
+        ],
+        config,
+    );
+    let mut status = engine.status();
+    ready(&mut status).await;
+    let mut hung = engine.submit(streaming(60)).await.unwrap();
+    marker.wait_created().await;
+    advance_clock(response_timeout * 2).await;
+    // A command acknowledgement proves the actor processed the advanced clock.
+    engine.set_auto_check_alive(false).await.unwrap();
+    assert!(matches!(*status.borrow(), EngineStatus::Ready { .. }));
+    engine.set_auto_check_alive(true).await.unwrap();
+    advance_clock(response_timeout + Duration::from_secs(1)).await;
+    assert!(matches!(event(&mut hung).await, QueryEvent::Restarted));
+    ready(&mut status).await;
+    assert_eq!(final_result(&mut hung).await.root_info.visits, 60);
     stop(engine, &mut status).await;
 }

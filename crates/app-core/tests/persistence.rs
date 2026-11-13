@@ -26,6 +26,9 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                 AppEvent::EngineStatusChanged(_) => {}
                 AppEvent::BoardSyncStatusChanged(_) => {}
                 AppEvent::AnalysisStateChanged(_) => {}
+                AppEvent::AssetDownloadProgress(_) => {
+                    panic!("unexpected download without starting a task")
+                }
                 AppEvent::BenchmarkProgress(_) => {
                     panic!("unexpected benchmark without starting a task")
                 }
@@ -242,9 +245,15 @@ async fn configured_profile_and_pause_setting_survive_application_restart() {
     within(reopened.configure_engine(None)).await.unwrap();
     within(reopened.set_pondering(true)).await.unwrap();
     within(reopened.shutdown()).await.unwrap();
+    // Closing the current engine now retains its named profile and selection
+    // for an explicit restart; it does not delete the configured list.
     assert_eq!(
         within(Settings::load(directory.path())).await.unwrap(),
-        Settings::default()
+        Settings {
+            engine: None,
+            pondering: true,
+            ..expected
+        }
     );
 }
 

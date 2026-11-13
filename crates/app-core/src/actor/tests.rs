@@ -42,10 +42,13 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             config: AppConfig::default(),
             running: None,
             trial: None,
+            pending_java_import: None,
+            java_import_sequence: 0,
             auto_setup: Default::default(),
             auto_curve: Default::default(),
             board_sync: Default::default(),
             benchmark: Default::default(),
+            assets: Default::default(),
             focus: Some(focus),
             output,
         },
@@ -275,6 +278,7 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                 | AppEvent::WholeGameProgress(_)
                 | AppEvent::BoardSyncStatusChanged(_)
                 | AppEvent::BenchmarkProgress(_)
+                | AppEvent::AssetDownloadProgress(_)
                 | AppEvent::AnalysisStateChanged(_) => {}
             }
         }

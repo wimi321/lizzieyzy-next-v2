@@ -28,8 +28,11 @@ pub struct Focus {
     pub key: AnalysisKey,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LiveSettings {
+    /// Overrides are part of the caller-provided immutable engine fingerprint.
+    pub query_rules: Option<katago_protocol::Rules>,
+    pub query_komi: Option<f64>,
     pub max_visits: u64,
     pub report_interval: Duration,
     pub include_ownership: bool,
@@ -39,6 +42,8 @@ pub struct LiveSettings {
 impl Default for LiveSettings {
     fn default() -> Self {
         Self {
+            query_rules: None,
+            query_komi: None,
             max_visits: u64::from(u32::MAX),
             report_interval: Duration::from_millis(150),
             include_ownership: true,
@@ -49,6 +54,14 @@ impl Default for LiveSettings {
 
 impl LiveSettings {
     fn validate(&self) -> Result<(), AnalysisError> {
+        if self
+            .query_komi
+            .is_some_and(|komi| !komi.is_finite() || komi.abs() > 400.0)
+        {
+            return Err(AnalysisError::InvalidSettings(
+                "komi override must be within -400..400",
+            ));
+        }
         if self.max_visits == 0 {
             return Err(AnalysisError::InvalidSettings(
                 "max_visits must be positive",

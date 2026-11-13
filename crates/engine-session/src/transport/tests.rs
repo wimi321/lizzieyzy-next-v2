@@ -59,7 +59,7 @@ async fn drain(incoming: &mut mpsc::Receiver<Output>) -> Vec<String> {
 
 #[tokio::test]
 async fn graceful_stop_waits_for_successful_exit_and_closes_channels() {
-    let transport = start(&spec(&[]), &config()).unwrap();
+    let transport = start(&spec(&[]), &config()).await.unwrap();
     timeout(SAFETY_TIMEOUT, async move {
         let Transport {
             outgoing,
@@ -94,7 +94,9 @@ async fn hung_process_is_killed_and_reaped_after_shutdown_deadline() {
         shutdown_timeout: Duration::from_millis(100),
         ..config()
     };
-    let transport = start(&spec(&["--hang-after-queries", "0"]), &cfg).unwrap();
+    let transport = start(&spec(&["--hang-after-queries", "0"]), &cfg)
+        .await
+        .unwrap();
     timeout(SAFETY_TIMEOUT, async move {
         let Transport {
             outgoing: _,
@@ -119,7 +121,7 @@ async fn hung_process_is_killed_and_reaped_after_shutdown_deadline() {
 
 #[tokio::test]
 async fn startup_failure_drains_stderr_before_publishing_exit() {
-    let transport = start(&spec(&["--fail-startup"]), &config()).unwrap();
+    let transport = start(&spec(&["--fail-startup"]), &config()).await.unwrap();
     timeout(SAFETY_TIMEOUT, async move {
         let Transport {
             outgoing: _,
@@ -142,7 +144,7 @@ async fn startup_failure_drains_stderr_before_publishing_exit() {
 
 #[tokio::test]
 async fn closing_input_drains_the_last_analysis_before_exit() {
-    let transport = start(&spec(&[]), &config()).unwrap();
+    let transport = start(&spec(&[]), &config()).await.unwrap();
     timeout(SAFETY_TIMEOUT, async move {
         let Transport {
             outgoing,
@@ -182,7 +184,7 @@ async fn closing_input_drains_the_last_analysis_before_exit() {
 
 #[tokio::test]
 async fn outgoing_queue_has_fixed_capacity_and_can_shutdown_while_full() {
-    let transport = start(&spec(&[]), &config()).unwrap();
+    let transport = start(&spec(&[]), &config()).await.unwrap();
     timeout(SAFETY_TIMEOUT, async move {
         let Transport {
             outgoing,
@@ -222,11 +224,10 @@ fn nonexistent_working_directory_is_a_spawn_error() {
         .enable_all()
         .build()
         .unwrap();
-    let _entered = runtime.enter();
     // Windows and Unix classify an invalid working directory differently.
     // The transport contract is that the spawn fails, independent of OS errno.
     assert!(
-        start(&transport, &config()).is_err(),
+        runtime.block_on(start(&transport, &config())).is_err(),
         "invalid cwd must fail"
     );
 }

@@ -32,12 +32,15 @@ pub(crate) fn build(
     let report_interval = settings.report_interval.as_secs_f64();
     Ok(AnalysisRequest {
         moves,
-        rules: Rules::Named(position.rules.as_katago_str().to_owned()),
+        rules: settings
+            .query_rules
+            .clone()
+            .unwrap_or_else(|| Rules::Named(position.rules.as_katago_str().to_owned())),
         board_x_size: size.width,
         board_y_size: size.height,
         initial_stones: Some(initial_stones),
         initial_player: Some(player(position.initial_player)),
-        komi: Some(position.komi),
+        komi: Some(settings.query_komi.unwrap_or(position.komi)),
         analyze_turns: None,
         max_visits: Some(settings.max_visits),
         include_ownership: Some(settings.include_ownership),

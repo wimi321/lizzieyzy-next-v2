@@ -1,0 +1,1 @@
+Handwritten non-user sample from ../lizzieyzy-next Config.java config.txt leelaz/ui defaults, Utils.getEngineData/engineDataToJson and gui/ConfigDialog2.java; paths and engine names are synthetic.

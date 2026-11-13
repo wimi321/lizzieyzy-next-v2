@@ -12,6 +12,26 @@ pub struct SetupEnvironment {
 }
 
 impl SetupEnvironment {
+    /// Only bundled locations are eligible repair sources. Discovery's PATH,
+    /// Homebrew and Java roots are deliberately excluded from automatic repair.
+    pub fn repair_resources(&self) -> app_core::RepairResources {
+        let root = self.roots.resource_dirs.first();
+        let platform = self.roots.platform_dirs.first();
+        app_core::RepairResources {
+            program: root.zip(platform).map(|(root, platform)| {
+                root.join("engines/katago")
+                    .join(platform)
+                    .join(if platform == "windows-x64" {
+                        "katago.exe"
+                    } else {
+                        "katago"
+                    })
+            }),
+            model: root.map(|root| root.join("weights/default.bin.gz")),
+            config_template: Some(self.default_config_source.clone()),
+        }
+    }
+
     pub fn for_app<R: Runtime>(
         app: &tauri::AppHandle<R>,
     ) -> Result<Self, Box<dyn std::error::Error>> {

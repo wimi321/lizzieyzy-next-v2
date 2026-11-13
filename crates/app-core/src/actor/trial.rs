@@ -1,5 +1,7 @@
 use super::{Actor, Running};
-use crate::{AppError, AppEvent, EngineProfile, EngineSetupError, EngineSetupProfile};
+use crate::{
+    AppError, AppEvent, EngineEntry, EngineProfile, EngineSetupError, EngineSetupProfile, Settings,
+};
 use engine_session::{EngineHandle, EngineStatus};
 use std::{future::pending, path::PathBuf, time::Duration};
 use tokio::{
@@ -15,11 +17,13 @@ pub(super) struct PendingTrial {
     deadline: Instant,
     timeout: Duration,
     reply: Reply,
+    list_edit: Option<(Vec<EngineEntry>, String)>,
 }
 
 pub(super) enum Reply {
     Manual(oneshot::Sender<Result<(), AppError>>),
     Auto(oneshot::Sender<Result<EngineProfile, AppError>>),
+    Settings(oneshot::Sender<Result<crate::Settings, AppError>>),
 }
 
 impl Reply {
@@ -27,6 +31,7 @@ impl Reply {
         match self {
             Self::Manual(reply) => reply.is_closed(),
             Self::Auto(reply) => reply.is_closed(),
+            Self::Settings(reply) => reply.is_closed(),
         }
     }
 
@@ -34,16 +39,20 @@ impl Reply {
         match self {
             Self::Manual(reply) => reply.closed().await,
             Self::Auto(reply) => reply.closed().await,
+            Self::Settings(reply) => reply.closed().await,
         }
     }
 
-    fn send(self, result: Result<EngineProfile, AppError>) {
+    fn send(self, result: Result<(EngineProfile, Settings), AppError>) {
         match self {
             Self::Manual(reply) => {
                 let _ = reply.send(result.map(|_| ()));
             }
             Self::Auto(reply) => {
-                let _ = reply.send(result);
+                let _ = reply.send(result.map(|(profile, _)| profile));
+            }
+            Self::Settings(reply) => {
+                let _ = reply.send(result.map(|(_, settings)| settings));
             }
         }
     }
@@ -123,7 +132,9 @@ impl Actor {
             // and cache identity. The candidate never owns the old engine.
             let fingerprint = profile.fingerprint().await?;
             let benchmark = self.settings.benchmarks.get(&fingerprint);
-            let transport = profile.transport_with_benchmark(benchmark)?;
+            let mut transport = profile.transport_with_benchmark(benchmark)?;
+            self.with_runtime_environment(&profile, &mut transport)
+                .await?;
             Ok((profile, transport, fingerprint, timeout))
         };
         let prepared = if let Some((_, deadline)) = &auto {
@@ -137,7 +148,7 @@ impl Actor {
         };
         match prepared {
             Ok((profile, transport, fingerprint, timeout)) => {
-                let mut session = self.config.session.clone();
+                let mut session = self.session_config();
                 if auto.is_some() {
                     session.max_restarts = 0;
                     session.shutdown_timeout = session.shutdown_timeout.min(Duration::from_secs(2));
@@ -160,11 +171,53 @@ impl Actor {
                     deadline,
                     timeout,
                     reply,
+                    list_edit: None,
                 });
             }
             Err(error) => {
                 reply.send(Err(error));
             }
+        }
+    }
+
+    pub(super) async fn begin_list_trial(
+        &mut self,
+        engines: Vec<EngineEntry>,
+        id: String,
+        profile: EngineProfile,
+        reply: Reply,
+    ) {
+        let prepared = async {
+            let timeout = self.config.engine_setup_timeout;
+            if timeout.is_zero() || timeout > Duration::from_secs(86400) {
+                return Err(AppError::from(EngineSetupError::InvalidTimeout));
+            }
+            let fingerprint = profile.fingerprint().await?;
+            let mut transport =
+                profile.transport_with_benchmark(self.settings.benchmarks.get(&fingerprint))?;
+            self.with_runtime_environment(&profile, &mut transport)
+                .await?;
+            Ok((fingerprint, transport, timeout))
+        }
+        .await;
+        match prepared {
+            Ok((fingerprint, transport, timeout)) => {
+                if reply.is_closed() {
+                    return;
+                }
+                let engine = engine_session::spawn(transport, self.session_config());
+                self.trial = Some(PendingTrial {
+                    status: engine.status(),
+                    engine,
+                    profile,
+                    fingerprint,
+                    deadline: Instant::now() + timeout,
+                    timeout,
+                    reply,
+                    list_edit: Some((engines, id)),
+                });
+            }
+            Err(error) => reply.send(Err(error)),
         }
     }
 
@@ -190,7 +243,9 @@ impl Actor {
             // coordinator; UI errors belong to this command's response.
             let _ = trial.engine.shutdown().await;
         }
-        trial.reply.send(result.map(|()| trial.profile));
+        trial
+            .reply
+            .send(result.map(|()| (trial.profile, self.settings.clone())));
     }
 
     async fn commit_trial(&mut self, trial: &PendingTrial) -> Result<(), AppError> {
@@ -236,7 +291,13 @@ impl Actor {
         }
         let (coordinator, snapshots) = self.coordinator(&trial.engine, &trial.fingerprint)?;
         let mut settings = self.settings.clone();
-        settings.engine = Some(trial.profile.clone());
+        if let Some((engines, id)) = &trial.list_edit {
+            settings.engines = engines.clone();
+            settings.main_engine_id = Some(id.clone());
+            settings.engine = Some(trial.profile.clone());
+        } else {
+            settings.set_legacy_engine(Some(trial.profile.clone()));
+        }
         // Recheck immediately before beginning the atomic settings write. Once
         // it succeeds, this transaction owns the saved profile and adopts it.
         if trial.reply.is_closed() {

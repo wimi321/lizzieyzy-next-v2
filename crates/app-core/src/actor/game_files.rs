@@ -76,16 +76,20 @@ impl Actor {
     }
 
     /// Saved data belongs to the document, regardless of the cache switch or
-    /// engine identity. Only a strictly deeper result may replace it.
+    /// engine identity: only a strictly deeper result may replace it, and only
+    /// while it still applies. Explicit rules or a komi not read from the file
+    /// make it stale (P2-11), so then any result replaces it.
     pub(super) fn preserves_saved_analysis(&self, snapshot: &analysis::AnalysisSnapshot) -> bool {
-        self.review
-            .results
-            .get(&snapshot.node_id)
-            .is_some_and(|stored| {
-                stored.key == snapshot.key
-                    && stored.saved.is_some()
-                    && stored.response.root_info.visits >= snapshot.response.root_info.visits
-            })
+        self.can_reuse_saved_analysis()
+            && self
+                .review
+                .results
+                .get(&snapshot.node_id)
+                .is_some_and(|stored| {
+                    stored.key == snapshot.key
+                        && stored.saved.is_some()
+                        && stored.response.root_info.visits >= snapshot.response.root_info.visits
+                })
     }
 
     pub(super) fn publish_saved_focus(&self) {
@@ -108,6 +112,14 @@ impl Actor {
         let mut saved = BTreeMap::new();
         for node in self.document.variation_tree()? {
             if let Some(stored) = self.stored_analysis(node.id.0) {
+                // LZ carries no rules/komi identity. Never label overridden
+                // engine evaluations with the unchanged document's RU/KM.
+                // Keep original file results that have not been replaced. By
+                // omitting replaced nodes, the domain writer also removes their
+                // parseable original primary slots instead of reviving them.
+                if stored.saved.is_none() && !self.can_reuse_saved_analysis() {
+                    continue;
+                }
                 saved.insert(
                     node.id,
                     stored

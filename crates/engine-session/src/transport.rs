@@ -15,6 +15,9 @@ use tokio::time::{Instant, sleep_until, timeout};
 
 use crate::{SessionConfig, TransportSpec};
 
+mod spawn;
+pub use spawn::spawn_process;
+
 pub(crate) const CHANNEL_CAPACITY: usize = 64;
 const STDERR_LINES: usize = 200;
 
@@ -39,7 +42,7 @@ pub(crate) struct Transport {
 
 type Writer = Pin<Box<dyn Future<Output = Result<(), String>> + Send>>;
 
-pub(crate) fn start(spec: &TransportSpec, cfg: &SessionConfig) -> io::Result<Transport> {
+pub(crate) async fn start(spec: &TransportSpec, cfg: &SessionConfig) -> io::Result<Transport> {
     let TransportSpec::LocalProcess {
         program,
         args,
@@ -57,7 +60,7 @@ pub(crate) fn start(spec: &TransportSpec, cfg: &SessionConfig) -> io::Result<Tra
     if let Some(cwd) = cwd {
         command.current_dir(cwd);
     }
-    let mut child = command.spawn()?;
+    let mut child = spawn_process(&mut command).await?;
     let input = child
         .stdin
         .take()

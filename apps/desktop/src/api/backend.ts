@@ -13,6 +13,8 @@ import type { EditCommands } from "./edit";
 import type { SetupMarkupCommands } from "./setup-markup";
 import type { MoveEditingCommands } from "./move-editing";
 import type { DisplaySettingsCommands } from "./display-settings";
+import type { EngineCommands } from "./engines";
+import type { WeightCommands, AssetDownloadProgressListener } from "./weights";
 import type { AnalysisCacheCommands } from "./analysis-cache";
 import type { EngineDisplayName } from "./generated/EngineDisplayName";
 import type { EngineProfile } from "./generated/EngineProfile";
@@ -30,7 +32,7 @@ import type { VariationTreeView } from "./generated/VariationTreeView";
 
 /** Domain status subscriptions share one ordered IPC channel while existing
  * document/analysis UI consumers retain their original event set. */
-export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" }>;
+export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" | "AssetDownloadProgress" }>;
 export type OpenFailed = Extract<WireAppEvent, { type: "OpenFailed" }>["data"];
 export type OpenFailedListener = (failure: OpenFailed) => void;
 export type { EngineDisplayName };
@@ -47,6 +49,8 @@ export * from "./setup-markup";
 export * from "./move-editing";
 export * from "./display-settings";
 export * from "./analysis-cache";
+export * from "./engines";
+export * from "./weights";
 export type { AnalysisSource } from "./generated/AnalysisSource";
 export type { AnalysisSummary } from "./generated/AnalysisSummary";
 export type { AnalysisView } from "./generated/AnalysisView";
@@ -81,7 +85,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands {
+export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands {
   openBytes(bytes: number[]): Promise<Revision>;
   openPath(path: string): Promise<Revision>;
   save(path: string): Promise<void>;
@@ -122,6 +126,7 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   subscribeBoardSyncStatus(listener: BoardSyncStatusListener): Promise<number>;
   subscribeBenchmarkProgress(listener: BenchmarkProgressListener): Promise<number>;
   subscribeAnalysisState(listener: AnalysisStateListener): Promise<number>;
+  subscribeAssetDownloadProgress?(listener: AssetDownloadProgressListener): Promise<number>;
   unsubscribe(id: number): Promise<void>;
 }
 
@@ -231,7 +236,7 @@ async function subscribeWire(listener: (event: WireAppEvent) => void): Promise<n
 }
 
 export const subscribe: Backend["subscribe"] = (listener) => subscribeWire((event) => {
-  if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed") listener(event);
+  if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress") listener(event);
 });
 
 export const subscribeOpenFailed: Backend["subscribeOpenFailed"] =
@@ -263,6 +268,12 @@ export const subscribeBenchmarkProgress: Backend["subscribeBenchmarkProgress"] =
 export const subscribeAnalysisState: Backend["subscribeAnalysisState"] =
   (listener) => subscribeWire((event) => {
     if (event.type === "AnalysisStateChanged") listener(event.data);
+  });
+
+/** Subscribe before reading assetDownloadStatus(); use unsubscribe() for this ID. */
+export const subscribeAssetDownloadProgress: NonNullable<Backend["subscribeAssetDownloadProgress"]> =
+  (listener) => subscribeWire((event) => {
+    if (event.type === "AssetDownloadProgress") listener(event.data);
   });
 
 /** Idempotent. Only the final listener detaches the Rust channel. */

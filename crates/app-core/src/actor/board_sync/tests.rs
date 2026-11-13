@@ -361,6 +361,7 @@ async fn synchronization_analyzes_remote_latest_without_overpainting_a_browsed_p
                 | AppEvent::OpenFailed { .. }
                 | AppEvent::WholeGameProgress(_)
                 | AppEvent::AnalysisStateChanged(_)
+                | AppEvent::AssetDownloadProgress(_)
                 | AppEvent::BenchmarkProgress(_) => {}
             }
         }

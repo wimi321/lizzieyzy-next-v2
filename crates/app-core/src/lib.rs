@@ -4,47 +4,65 @@
 mod actor;
 mod analysis_cache;
 mod analysis_limit;
+pub mod assets;
 mod auto_setup;
 mod benchmark;
 mod board_sync;
 mod delivery;
+mod diagnostics;
 mod display;
 mod edit;
 mod engine_display_name;
+mod engine_settings;
 pub mod engine_setup;
 mod engine_trial;
+mod engines;
 pub mod fox;
 mod graph;
 mod inspection;
+mod java_import;
 mod move_editing;
 mod move_rank;
 mod problem_moves;
 mod review;
+mod runtime;
 mod settings;
 mod setup_markup;
 mod storage;
 mod strength_estimate;
 mod tsumego;
 mod view;
+mod weights;
 
 pub use analysis_limit::{AnalysisLimitSettings, AnalysisPauseReason, AnalysisState};
+pub use assets::{
+    AccelerationPlan, AccelerationReason, AssetDownloadStatus, AssetError, DownloadPhase,
+    OfficialWeight,
+};
 pub use auto_setup::{AutoSetupAttempt, AutoSetupError};
 pub use benchmark::*;
 pub use board_sync::{
     BoardSyncError, BoardSyncLanguage, BoardSyncOptions, BoardSyncPhase, BoardSyncStatus,
 };
 pub use delivery::AppSubscription;
+pub use diagnostics::{
+    DiagnosticCheck, DiagnosticKind, DiagnosticRepair, DiagnosticStatus, EngineDiagnostics,
+    RepairResources,
+};
 pub use display::{
     DisplaySettings, DisplaySettingsError, MoveNumberMode, MoveRankMarkMode, NextMoveHint,
     WinrateGraphMode,
 };
 pub use edit::{GameInfoEdit, NewGameOptions};
 pub use engine_display_name::{EngineDisplayName, engine_display_name};
+pub use engine_settings::{EngineCustomRules, EngineRules, EngineSettings};
 pub use engine_trial::{EngineSetupError, EngineSetupProfile};
+pub use engines::EngineEntry;
 pub use graph::{AnalysisSummary, GraphPointView, GraphView};
 pub use inspection::{
     GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
 };
+pub use java_import::{JavaImportPreview, JavaImportedEngine};
 pub use move_editing::{StoneOriginView, TrialError};
 pub use move_rank::*;
 pub use problem_moves::*;
@@ -60,6 +78,8 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    Asset(#[from] AssetError),
     #[error(transparent)]
     Trial(#[from] TrialError),
     #[error(transparent)]
@@ -114,6 +134,10 @@ pub enum AppError {
 /// coordinator/session defaults, including the long first-start deadline.
 #[derive(Clone, Debug)]
 pub struct AppConfig {
+    #[cfg(test)]
+    pub(crate) runtime_platform: bool,
+    #[cfg(test)]
+    pub(crate) asset_catalog: Option<assets::AssetCatalog>,
     pub session: engine_session::SessionConfig,
     pub analysis: analysis::AnalysisConfig,
     /// Defaults to the settings directory for headless callers.
@@ -128,6 +152,10 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            #[cfg(test)]
+            runtime_platform: runtime::supported(),
+            #[cfg(test)]
+            asset_catalog: None,
             session: Default::default(),
             analysis: Default::default(),
             cache_directory: None,
@@ -141,6 +169,8 @@ impl Default for AppConfig {
 #[derive(Clone)]
 pub struct AppCore {
     commands: mpsc::Sender<actor::Command>,
+    #[cfg(test)]
+    runtime_platform: bool,
 }
 
 /// Load settings from the caller's directory and start on the current runtime.
@@ -159,8 +189,17 @@ pub async fn spawn_with_config(
     let settings = Settings::load(&directory).await?;
     let (commands, receiver) = mpsc::channel(64);
     let (output, subscription) = delivery::channel();
+    #[cfg(test)]
+    let runtime_platform = config.runtime_platform;
     tokio::spawn(actor::run(directory, settings, config, receiver, output));
-    Ok((AppCore { commands }, subscription))
+    Ok((
+        AppCore {
+            commands,
+            #[cfg(test)]
+            runtime_platform,
+        },
+        subscription,
+    ))
 }
 
 impl AppCore {
