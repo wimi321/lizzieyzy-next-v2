@@ -100,6 +100,15 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # rust-cache saves target/ and empties the directories it does not know,
+      # so the next run on the branch restores an empty bundled-resources that
+      # bundle.py refuses to replace. Packaging output is always rebuilt here.
+      - name: Remove packaging output restored with the Rust cache
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rm -rf target/bundled-resources target/packaging-acceptance \
+            target/release-assets target/native-signing target/release-version.json
+
       - uses: pnpm/action-setup@v6
         with:
           package_json_file: apps/desktop/package.json
