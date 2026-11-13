@@ -15,13 +15,14 @@ struct Mailbox {
     analysis_state: Option<(u64, AppEvent)>,
     open_failed: Option<(u64, AppEvent)>,
     asset_download: Option<(u64, AppEvent)>,
+    update_download: Option<(u64, AppEvent)>,
 }
 
 pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 9],
+    read: [Option<u64>; 10],
 }
 
 pub(crate) fn channel() -> (Delivery, AppSubscription) {
@@ -30,7 +31,7 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 9],
+            read: [None; 10],
         },
     )
 }
@@ -48,6 +49,7 @@ impl Delivery {
             }
             mailbox.serial = mailbox.serial.wrapping_add(1);
             let slot = match &event {
+                AppEvent::UpdateDownloadProgress(_) => &mut mailbox.update_download,
                 AppEvent::AssetDownloadProgress(_) => &mut mailbox.asset_download,
                 AppEvent::DocumentChanged { .. } => &mut mailbox.document,
                 AppEvent::AnalysisUpdated(_) => &mut mailbox.analysis,
@@ -102,6 +104,7 @@ impl AppSubscription {
                     &mailbox.analysis_state,
                     &mailbox.open_failed,
                     &mailbox.asset_download,
+                    &mailbox.update_download,
                 ]
                 .into_iter()
                 .enumerate()

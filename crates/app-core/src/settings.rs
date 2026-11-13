@@ -31,6 +31,12 @@ pub struct EngineProfile {
 #[serde(default)]
 pub struct Settings {
     pub version: u32,
+    #[ts(as = "Option<crate::UiLanguage>", optional)]
+    pub language: crate::UiLanguage,
+    #[ts(as = "Option<bool>", optional)]
+    pub auto_check_updates: bool,
+    #[ts(type = "number | null", optional = nullable)]
+    pub last_update_check_unix_ms: Option<u64>,
     // Compatibility projection: the selected profile while enabled.
     pub engine: Option<EngineProfile>,
     #[ts(as = "Option<Vec<crate::EngineEntry>>", optional)]
@@ -61,6 +67,9 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             version: SETTINGS_VERSION,
+            language: crate::UiLanguage::System,
+            auto_check_updates: true,
+            last_update_check_unix_ms: None,
             engine: None,
             engines: Vec::new(),
             main_engine_id: None,

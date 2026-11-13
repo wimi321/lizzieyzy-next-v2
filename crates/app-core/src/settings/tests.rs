@@ -165,6 +165,9 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
     };
     let settings = Settings {
         version: 0,
+        language: crate::UiLanguage::System,
+        auto_check_updates: true,
+        last_update_check_unix_ms: None,
         benchmarks: Default::default(),
         display: crate::DisplaySettings::default(),
         pondering: false,

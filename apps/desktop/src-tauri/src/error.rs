@@ -7,6 +7,12 @@ use crate::fox_error::FoxFailure;
 #[derive(Debug, thiserror::Error, Serialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum CommandError {
+    #[error("this build has no update signing key configured")]
+    UpdateSigningNotConfigured,
+    #[error("only paths inside the application data directory may be revealed")]
+    RevealOutsideDataDirectory,
+    #[error("cannot reveal this path: {0}")]
+    RevealUnavailable(String),
     #[error("{0}")]
     App(String),
     #[error("{0}")]
@@ -26,6 +32,12 @@ pub enum CommandError {
 impl From<app_core::AppError> for CommandError {
     fn from(error: app_core::AppError) -> Self {
         match error {
+            app_core::AppError::Update(app_core::updates::UpdateError::SigningNotConfigured) => {
+                Self::UpdateSigningNotConfigured
+            }
+            app_core::AppError::Support(
+                app_core::support::SupportError::RevealOutsideDataDirectory,
+            ) => Self::RevealOutsideDataDirectory,
             app_core::AppError::Fox(error) => Self::Fox(error.into()),
             app_core::AppError::AutoSetup(error) => Self::AutoSetup(error),
             app_core::AppError::BoardSync(error) => Self::BoardSync(error),

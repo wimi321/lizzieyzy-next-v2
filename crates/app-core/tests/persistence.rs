@@ -26,6 +26,9 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                 AppEvent::EngineStatusChanged(_) => {}
                 AppEvent::BoardSyncStatusChanged(_) => {}
                 AppEvent::AnalysisStateChanged(_) => {}
+                AppEvent::UpdateDownloadProgress(_) => {
+                    panic!("unexpected update without an attached updater")
+                }
                 AppEvent::AssetDownloadProgress(_) => {
                     panic!("unexpected download without starting a task")
                 }

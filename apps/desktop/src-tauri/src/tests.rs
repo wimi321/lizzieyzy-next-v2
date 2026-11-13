@@ -25,9 +25,11 @@ mod engines;
 mod frame;
 mod move_editing;
 mod problem_moves;
+mod release;
 mod review;
 mod setup_markup;
 mod strength;
+mod support;
 mod system_open;
 mod tsumego;
 mod variation;
@@ -165,6 +167,7 @@ impl Harness {
                     | AppEvent::EngineStatusChanged(_)
                     | AppEvent::WholeGameProgress(_)
                     | AppEvent::BenchmarkProgress(_)
+                    | AppEvent::UpdateDownloadProgress(_)
                     | AppEvent::AssetDownloadProgress(_)
                     | AppEvent::AnalysisStateChanged(_)
                     | AppEvent::BoardSyncStatusChanged(_) => {}

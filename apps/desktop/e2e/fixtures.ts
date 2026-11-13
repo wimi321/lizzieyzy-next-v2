@@ -19,12 +19,26 @@ import type {
   StrengthEstimateView,
   StrengthPhasesReport,
   SideReport,
+  UpdateCheck,
+  UpdateDownloadStatus,
+  FullLogStatus,
 } from "../src/api/backend";
 
 type Stone = [x: number, y: number, color: ColorView];
 
 /** P2-09 fixture default; cache behavior remains in Rust. */
 export const defaultCacheEnabled = true;
+
+/** P2-14 scripted reply defaults; no update, logging or installation logic. */
+export const defaultUpdateCheck: Required<UpdateCheck> = {
+  available: false, version: null, notes: null, published_at: null,
+};
+export const defaultUpdateDownloadStatus: Required<UpdateDownloadStatus> = {
+  phase: "Idle", downloaded_bytes: 0, total_bytes: null, version: null, error: null,
+};
+export const defaultFullLogStatus: Required<FullLogStatus> = {
+  enabled: false, remaining_seconds: 0,
+};
 
 /** P2-06 fixture defaults; Rust owns validation and persistence. */
 export const defaultDisplaySettings: Required<DisplaySettings> = {

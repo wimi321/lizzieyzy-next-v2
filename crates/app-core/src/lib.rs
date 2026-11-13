@@ -23,14 +23,18 @@ mod inspection;
 mod java_import;
 mod move_editing;
 mod move_rank;
+mod preferences;
 mod problem_moves;
+mod release;
 mod review;
 mod runtime;
 mod settings;
 mod setup_markup;
 mod storage;
 mod strength_estimate;
+pub mod support;
 mod tsumego;
+pub mod updates;
 mod view;
 mod weights;
 
@@ -65,12 +69,15 @@ pub use inspection::{
 pub use java_import::{JavaImportPreview, JavaImportedEngine};
 pub use move_editing::{StoneOriginView, TrialError};
 pub use move_rank::*;
+pub use preferences::UiLanguage;
 pub use problem_moves::*;
 pub use review::*;
 pub use settings::{EngineProfile, Settings, SettingsError};
 pub use setup_markup::{MarkupKindView, MarkupView};
 pub use strength_estimate::*;
+pub use support::FullLogStatus;
 pub use tsumego::*;
+pub use updates::{UpdateCheck, UpdateDownloadStatus};
 pub use view::*;
 
 use std::path::PathBuf;
@@ -78,6 +85,10 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    Support(#[from] support::SupportError),
+    #[error(transparent)]
+    Update(#[from] updates::UpdateError),
     #[error(transparent)]
     Asset(#[from] AssetError),
     #[error(transparent)]
@@ -187,11 +198,20 @@ pub async fn spawn_with_config(
 ) -> Result<(AppCore, AppSubscription), AppError> {
     let directory = settings_directory.into();
     let settings = Settings::load(&directory).await?;
+    let support = support::spawn(
+        config
+            .cache_directory
+            .clone()
+            .unwrap_or_else(|| directory.clone()),
+    )
+    .await?;
     let (commands, receiver) = mpsc::channel(64);
     let (output, subscription) = delivery::channel();
     #[cfg(test)]
     let runtime_platform = config.runtime_platform;
-    tokio::spawn(actor::run(directory, settings, config, receiver, output));
+    tokio::spawn(actor::run(
+        directory, settings, config, receiver, output, support,
+    ));
     Ok((
         AppCore {
             commands,

@@ -22,6 +22,8 @@ pub struct SubscriptionId(pub u32);
 pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     fs::create_dir_all(directory)?;
     AppEvent::export_all_to(directory)?;
+    app_core::FullLogStatus::export_all_to(directory)?;
+    app_core::UpdateCheck::export_all_to(directory)?;
     app_core::BoardSyncOptions::export_all_to(directory)?;
     MoveView::export_all_to(directory)?;
     app_core::NewGameOptions::export_all_to(directory)?;

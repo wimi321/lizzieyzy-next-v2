@@ -49,6 +49,8 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             board_sync: Default::default(),
             benchmark: Default::default(),
             assets: Default::default(),
+            support: None,
+            updates: Default::default(),
             focus: Some(focus),
             output,
         },
@@ -278,6 +280,7 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                 | AppEvent::WholeGameProgress(_)
                 | AppEvent::BoardSyncStatusChanged(_)
                 | AppEvent::BenchmarkProgress(_)
+                | AppEvent::UpdateDownloadProgress(_)
                 | AppEvent::AssetDownloadProgress(_)
                 | AppEvent::AnalysisStateChanged(_) => {}
             }

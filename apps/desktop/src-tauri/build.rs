@@ -1,4 +1,5 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("cargo:rerun-if-env-changed=LIZZIE_UPDATER_PUBKEY");
     let manifest = tauri_build::AppManifest::new().commands(&[
         "open_bytes",
         "open_path",
@@ -86,6 +87,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "fox_open_game",
         "fox_clear_history",
         "settings",
+        "set_language",
+        "set_auto_check_updates",
+        "check_update",
+        "automatic_update_check",
+        "download_update",
+        "cancel_update_download",
+        "update_download_status",
+        "install_update",
+        "full_log_status",
+        "start_full_log",
+        "stop_full_log",
+        "export_diagnostics",
+        "log_directory",
+        "reveal_in_folder",
         "set_display_settings",
         "cache_enabled",
         "set_cache_enabled",

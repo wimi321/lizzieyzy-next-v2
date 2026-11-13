@@ -1,5 +1,5 @@
-import type { AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
-import { defaultCacheEnabled, defaultDisplaySettings, emptyStrengthEstimate } from "./fixtures";
+import type { AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import { defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 
 export type {
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
@@ -29,10 +29,13 @@ export type {
   EngineCommands, EngineEntry, EngineSettings, EngineRules, EngineCustomRules, JavaImportPreview, JavaImportedEngine,
   WeightCommands, OfficialWeight, AssetDownloadStatus, AssetDownloadProgressListener, AccelerationPlan, DiagnosticRepair, EngineDiagnostics,
   AccelerationReason, DownloadPhase, DiagnosticCheck, DiagnosticKind, DiagnosticStatus,
+  PreferenceCommands, UiLanguage,
+  UpdateCommands, UpdateCheck, UpdateDownloadStatus, UpdatePhase, UpdateDownloadProgressListener,
+  SupportCommands, FullLogStatus,
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "unsubscribe" | "setWindowTitle">;
+type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -157,6 +160,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
           if (cloned.type === "DocumentChanged") fillDocumentDefaults(cloned.data.view);
           if (cloned.type === "AnalysisUpdated") fillAnalysisDefaults(cloned.data);
           if (cloned.type === "AssetDownloadProgress") fillDownloadDefaults(cloned.data);
+          if (cloned.type === "UpdateDownloadProgress") fillUpdateDownloadDefaults(cloned.data);
           listener(cloned);
         } catch (error) {
           console.error("Backend event listener failed", error);
@@ -215,6 +219,17 @@ async function command<K extends CommandName>(
   if (["startAssetDownload", "cancelAssetDownload", "assetDownloadStatus"].includes(next.command)) {
     fillDownloadDefaults(cloned as AssetDownloadStatus);
   }
+  if ((next.command === "checkUpdate" || next.command === "automaticUpdateCheck") && cloned) {
+    const check = cloned as UpdateCheck;
+    for (const key of Object.keys(defaultUpdateCheck) as (keyof UpdateCheck)[]) defaultField(check, key, defaultUpdateCheck[key]);
+  }
+  if (["downloadUpdate", "cancelUpdateDownload", "updateDownloadStatus", "installUpdate"].includes(next.command)) {
+    fillUpdateDownloadDefaults(cloned as UpdateDownloadStatus);
+  }
+  if (["fullLogStatus", "startFullLog", "stopFullLog"].includes(next.command)) {
+    const status = cloned as FullLogStatus;
+    for (const key of Object.keys(defaultFullLogStatus) as (keyof FullLogStatus)[]) defaultField(status, key, defaultFullLogStatus[key]);
+  }
   if (next.command === "officialWeights") {
     for (const weight of cloned as OfficialWeight[]) {
       defaultField(weight, "id", "");
@@ -248,6 +263,9 @@ async function command<K extends CommandName>(
     defaultField(settings, "engines", legacy);
     defaultField(settings, "main_engine_id", settings.engine ? "legacy-engine" : null);
     defaultField(settings, "engine_settings", structuredClone(defaultEngineSettings));
+    defaultField(settings, "language", "System");
+    defaultField(settings, "auto_check_updates", true);
+    defaultField(settings, "last_update_check_unix_ms", null);
     const engine = settings.engine_settings!;
     defaultField(engine, "rules", { type: "FollowSgf" });
     defaultField(engine, "read_komi", true);
@@ -270,6 +288,10 @@ function defaultField<T extends object, K extends keyof T>(target: T, key: K, va
 
 function fillDownloadDefaults(status: AssetDownloadStatus): void {
   for (const key of Object.keys(idleDownload) as (keyof AssetDownloadStatus)[]) defaultField(status, key, idleDownload[key]);
+}
+
+function fillUpdateDownloadDefaults(status: UpdateDownloadStatus): void {
+  for (const key of Object.keys(defaultUpdateDownloadStatus) as (keyof UpdateDownloadStatus)[]) defaultField(status, key, defaultUpdateDownloadStatus[key]);
 }
 
 function fillDocumentDefaults(view: DocumentView): void {
@@ -349,7 +371,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled">(
+function query<K extends "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "automaticUpdateCheck">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
@@ -488,6 +510,20 @@ export const setCacheEnabled: Backend["setCacheEnabled"] = (enabled) =>
 export const clearCache: Backend["clearCache"] = (all) => command("clearCache", [all]);
 export const clearAnalysis: Backend["clearAnalysis"] = (all) => command("clearAnalysis", [all]);
 export const settings: Backend["settings"] = () => command("settings", []);
+export const setLanguage: NonNullable<Backend["setLanguage"]> = (language) => command("setLanguage", [language]);
+export const setAutoCheckUpdates: NonNullable<Backend["setAutoCheckUpdates"]> = (enabled) => command("setAutoCheckUpdates", [enabled]);
+export const checkUpdate: NonNullable<Backend["checkUpdate"]> = () => command("checkUpdate", []);
+export const automaticUpdateCheck: NonNullable<Backend["automaticUpdateCheck"]> = () => query("automaticUpdateCheck", [], () => null);
+export const downloadUpdate: NonNullable<Backend["downloadUpdate"]> = () => command("downloadUpdate", []);
+export const cancelUpdateDownload: NonNullable<Backend["cancelUpdateDownload"]> = () => command("cancelUpdateDownload", []);
+export const updateDownloadStatus: NonNullable<Backend["updateDownloadStatus"]> = () => command("updateDownloadStatus", []);
+export const installUpdate: NonNullable<Backend["installUpdate"]> = () => command("installUpdate", []);
+export const fullLogStatus: NonNullable<Backend["fullLogStatus"]> = () => command("fullLogStatus", []);
+export const startFullLog: NonNullable<Backend["startFullLog"]> = () => command("startFullLog", []);
+export const stopFullLog: NonNullable<Backend["stopFullLog"]> = () => command("stopFullLog", []);
+export const exportDiagnostics: NonNullable<Backend["exportDiagnostics"]> = () => command("exportDiagnostics", []);
+export const logDirectory: NonNullable<Backend["logDirectory"]> = () => command("logDirectory", []);
+export const revealInFolder: NonNullable<Backend["revealInFolder"]> = (path) => command("revealInFolder", [path]);
 export const setDisplaySettings: Backend["setDisplaySettings"] = (display) =>
   command("setDisplaySettings", [display]);
 export const pickOpenPath: Backend["pickOpenPath"] = () => command("pickOpenPath", []);
@@ -503,7 +539,7 @@ export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress") listener(event);
+    if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
   });
   pushEvents([]);
   return id;
@@ -558,6 +594,15 @@ export const subscribeAssetDownloadProgress: Backend["subscribeAssetDownloadProg
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
     if (event.type === "AssetDownloadProgress") listener(event.data);
+  });
+  pushEvents([]);
+  return id;
+};
+
+export const subscribeUpdateDownloadProgress: NonNullable<Backend["subscribeUpdateDownloadProgress"]> = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => {
+    if (event.type === "UpdateDownloadProgress") listener(event.data);
   });
   pushEvents([]);
   return id;

@@ -24,7 +24,9 @@ mod game_files;
 mod graph_analysis;
 mod java_import;
 mod move_editing;
+mod preferences;
 mod problem_moves;
+mod release;
 mod review;
 mod signals;
 mod strength_estimate;
@@ -33,105 +35,8 @@ mod tsumego;
 mod weights;
 use trial::PendingTrial;
 
-pub(crate) enum Input {
-    OpenBytes(Vec<u8>),
-    OpenPath(PathBuf),
-    OpenDroppedPaths(Vec<PathBuf>),
-    Save(PathBuf),
-    NewGame(crate::NewGameOptions),
-    ConvertToStartPosition,
-    StartTrial,
-    EndTrial,
-    ClearRecentFiles,
-    Edit(document::Command),
-    Undo,
-    Redo,
-    SetPondering(bool),
-    SetCacheEnabled(bool),
-    ClearCache(bool),
-    ClearAnalysis(bool),
-    SetAutoQuickAnalyzeOnLoad(bool),
-    ConfigureEngine(Option<EngineProfile>),
-    GenerateTsumego(crate::TsumegoOptions),
-    ExitTsumego,
-    Shutdown,
-}
-
-pub(crate) enum Command {
-    Assets(oneshot::Sender<Result<crate::assets::AssetHandle, AppError>>),
-    ReplaceMainEngine(
-        crate::EngineEntry,
-        EngineProfile,
-        bool,
-        oneshot::Sender<Result<Settings, AppError>>,
-    ),
-    DataDirectory(oneshot::Sender<PathBuf>),
-    SetEngineSettings(
-        crate::EngineSettings,
-        oneshot::Sender<Result<crate::EngineSettings, AppError>>,
-    ),
-    JavaImport(crate::java_import::Request),
-    Engines(
-        crate::engines::Request,
-        oneshot::Sender<Result<Settings, AppError>>,
-    ),
-    SetDisplaySettings(
-        crate::DisplaySettings,
-        oneshot::Sender<Result<crate::DisplaySettings, AppError>>,
-    ),
-    AnalysisLimit(crate::analysis_limit::Request),
-    Benchmark(
-        crate::benchmark::Request,
-        oneshot::Sender<Result<crate::BenchmarkStatus, AppError>>,
-    ),
-    BoardSync(
-        crate::board_sync::Request,
-        oneshot::Sender<Result<crate::BoardSyncStatus, AppError>>,
-    ),
-    BeginAutoSetup(oneshot::Sender<Result<crate::auto_setup::Start, AppError>>),
-    TryAutoEngine(
-        crate::auto_setup::Trial,
-        oneshot::Sender<Result<EngineProfile, AppError>>,
-    ),
-    TsumegoStatus(oneshot::Sender<crate::TsumegoStatus>),
-    StrengthEstimate(
-        Option<[i32; 2]>,
-        oneshot::Sender<Result<crate::StrengthEstimateView, AppError>>,
-    ),
-    Fox(crate::fox::Request),
-    ProblemMoves(
-        crate::ProblemMovesQuery,
-        oneshot::Sender<Result<crate::ProblemMovesView, AppError>>,
-    ),
-    SetMoveRankSettings(
-        crate::MoveRankSettings,
-        oneshot::Sender<Result<crate::MoveRankSettings, AppError>>,
-    ),
-    Review(
-        crate::review::ReviewInput,
-        oneshot::Sender<Result<crate::WholeGameProgress, AppError>>,
-    ),
-    ReviewProgress(oneshot::Sender<Option<crate::WholeGameProgress>>),
-    ReviewResult(u32, oneshot::Sender<Result<Option<AnalysisView>, AppError>>),
-    ReviewAnalysis(u32, oneshot::Sender<Option<crate::StoredAnalysis>>),
-    VariationTree(oneshot::Sender<VariationTreeView>),
-    StoneOrigin(
-        go_core::Point,
-        oneshot::Sender<Result<Option<crate::StoneOriginView>, AppError>>,
-    ),
-    PreviewVariation(
-        u32,
-        Vec<go_core::Move>,
-        oneshot::Sender<Result<VariationPreviewView, AppError>>,
-    ),
-    Apply(Input, oneshot::Sender<Result<u64, AppError>>),
-    Settings(oneshot::Sender<Settings>),
-    TryConfigureEngine(
-        crate::EngineSetupProfile,
-        PathBuf,
-        oneshot::Sender<Result<(), AppError>>,
-    ),
-}
+mod messages;
+pub(crate) use messages::{Command, Input};
 
 struct Running {
     engine: EngineHandle,
@@ -184,6 +89,8 @@ struct Actor {
     board_sync: board_sync::State,
     benchmark: benchmark::State,
     assets: weights::State,
+    support: Option<crate::support::SupportHandle>,
+    updates: release::State,
     focus: Option<ViewFocus>,
     output: Delivery,
 }
@@ -194,6 +101,7 @@ pub(crate) async fn run(
     config: AppConfig,
     mut commands: mpsc::Receiver<Command>,
     output: Delivery,
+    support: crate::support::SupportHandle,
 ) {
     let cache_path = config
         .cache_directory
@@ -231,6 +139,8 @@ pub(crate) async fn run(
         board_sync: Default::default(),
         benchmark: Default::default(),
         assets: Default::default(),
+        support: Some(support),
+        updates: Default::default(),
         focus: None,
         output,
     };
@@ -242,7 +152,17 @@ pub(crate) async fn run(
     actor.publish_analysis_state();
     loop {
         tokio::select! {
-            command = commands.recv() => match command {
+            command = commands.recv() => {
+              let command = match command {
+                Some(command) => match actor.update_guard(command) { Some(command) => Some(command), None => continue },
+                None => None,
+              };
+              match command {
+                Some(Command::ClaimUpdateCheck(now, reply)) => { let _ = reply.send(actor.claim_update_check(now).await); }
+                Some(Command::Support(reply)) => { let _ = reply.send(actor.support.clone().ok_or(AppError::Closed)); }
+                Some(Command::Updates(reply)) => { let _ = reply.send(actor.updates.handle.clone().ok_or(crate::updates::UpdateError::SigningNotConfigured.into())); }
+                Some(Command::UpdateStatus(reply)) => { let _ = reply.send(actor.updates.handle.as_ref().map(|handle| handle.status()).ok_or(crate::updates::UpdateError::SigningNotConfigured.into())); }
+                Some(Command::AttachUpdates(handle, reply)) => { let _ = reply.send(actor.attach_updates(handle)); }
                 Some(Command::Assets(reply)) => { let result = actor.asset_handle(); let _ = reply.send(result); }
                 Some(Command::ReplaceMainEngine(expected, profile, restart, reply)) => actor.replace_main_engine(expected, profile, restart, reply).await,
                 Some(Command::DataDirectory(reply)) => { let _ = reply.send(actor.directory.clone()); }
@@ -298,11 +218,13 @@ pub(crate) async fn run(
                 Some(Command::Apply(Input::Shutdown, reply)) => {
                     actor.auto_setup.cancel();
                     actor.cancel_trial().await;
+                    let updates_result = actor.updates.shutdown().await;
                     let assets_result = actor.assets.shutdown().await;
                     let benchmark_result = actor.stop_benchmark_process().await;
                     let sync_result = actor.stop_board_sync().await;
-                    let result = actor.stop_engine().await.and(sync_result).and(benchmark_result).and(assets_result).map(|()| actor.revision);
+                    let result = actor.stop_engine().await.and(sync_result).and(benchmark_result).and(assets_result).and(updates_result).map(|()| actor.revision);
                     if let Some(cache) = actor.cache.take() { cache.shutdown().await; }
+                    if let Some(support) = actor.support.take() { let _ = support.shutdown().await; }
                     let _ = reply.send(result);
                     break;
                 }
@@ -314,16 +236,24 @@ pub(crate) async fn run(
                     actor.begin_trial(profile, source, reply).await;
                 }
                 None => { actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
+              }
             },
             signal = next_signal(&mut actor.running) => actor.cache_signal(signal),
             result = review::receive(&mut actor.review) => actor.review_signal(result).await,
             result = trial::wait(&mut actor.trial) => actor.finish_trial(result).await,
             result = board_sync::receive(&mut actor.board_sync) => actor.board_sync_line(result).await,
             result = benchmark::receive(&mut actor.benchmark) => actor.benchmark_signal(result).await,
+            progress = release::receive(&mut actor.updates) => actor.update_progress(progress).await,
             progress = weights::receive(&mut actor.assets) => actor.output.send(AppEvent::AssetDownloadProgress(progress)),
         }
-        actor.maybe_start_auto_curve().await;
+        if !actor.updates.install_pending {
+            actor.maybe_start_auto_curve().await;
+        }
         actor.publish_analysis_state();
+    }
+    let _ = actor.updates.shutdown().await;
+    if let Some(support) = actor.support.take() {
+        let _ = support.shutdown().await;
     }
     let _ = actor.assets.shutdown().await;
     if let Some(cache) = actor.cache.take() {
@@ -476,6 +406,8 @@ impl Actor {
             Input::ClearAnalysis(all) => self.clear_analysis(all).await?,
             Input::SetCacheEnabled(enabled) => self.set_cache_enabled(enabled).await?,
             Input::ClearCache(all) => self.clear_cache(all).await?,
+            Input::SetLanguage(language) => self.set_language(language).await?,
+            Input::SetAutoCheckUpdates(enabled) => self.set_auto_check_updates(enabled).await?,
             Input::SetPondering(enabled) => {
                 self.set_pondering(enabled).await?;
             }
@@ -483,6 +415,8 @@ impl Actor {
                 self.set_auto_quick_analyze_on_load(enabled).await?;
             }
             Input::ConfigureEngine(profile) => self.configure_engine(profile).await?,
+            Input::PrepareUpdateInstall => self.prepare_update_install().await?,
+            Input::RecoverUpdateInstall => self.recover_update_install().await,
             Input::Shutdown => {}
         }
         Ok(self.revision)
