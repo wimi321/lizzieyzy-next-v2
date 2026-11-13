@@ -58,10 +58,12 @@ only**: read it to learn what users expect, never port its threading, locking or
 - Tests or scripts that read source files to "prove" a feature exists (regex/grep gates). The only
   source scanning allowed is the maintainers' budget checker.
 - Committed evidence: QA JSON, screenshots, claim ledgers, status reports. Evidence goes in the chat
-  report or CI artifacts. Playwright snapshot baselines used by a running test are fine.
+  report or CI artifacts. Playwright snapshot baselines used by a running test are fine, and so are
+  the user guide's pictures in `docs/guide/images/`.
 - Test, smoke or mock code reachable from the production bundle.
-- New docs outside `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/decisions/`, `docs/tasks/` and
-  `docs/inventory/`. Update `ARCHITECTURE.md` when you change an interface it describes.
+- New docs outside `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/decisions/`, `docs/tasks/`,
+  `docs/inventory/` and `docs/guide/` (the user guide, written by the maintainers). Update
+  `ARCHITECTURE.md` when you change an interface it describes.
 - Editing the acceptance gate (`scripts/verify.sh`, `scripts/check_*.py`,
   `scripts/architecture.json`, `docs/ACCEPTANCE.md`, `AGENTS.md`) unless the card says so.
 - New dependencies without a one-line reason in your report.
