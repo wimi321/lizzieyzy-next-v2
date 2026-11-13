@@ -25,6 +25,9 @@ class NativeSigningTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.directory = self.root / "signing"
         self.config = self.directory / "tauri.conf.json"
+        retry = patch.object(signing, "STAPLER_RETRY_SECONDS", 0)
+        retry.start()
+        self.addCleanup(retry.stop)
 
     def state(self, platform="macos-arm64", **values):
         self.directory.mkdir()
@@ -254,15 +257,50 @@ class NativeSigningTests(unittest.TestCase):
                 self.assertFalse(any("submit" in command for command in commands))
                 self.assertEqual(self.mount_points(), [])
 
-    def test_unstapled_app_detaches_and_never_submits(self):
+    def test_unstapled_app_is_retried_then_detaches_and_never_submits(self):
         self.state(identity="Developer ID Application: Test")
         commands, native = self.disk_image(failing=["xcrun", "stapler", "validate"])
         with patch.object(signing, "run", side_effect=native):
             with self.assertRaisesRegex(signing.SigningError, "native tool failed"):
                 signing.notarize(self.directory, self.root / "App.dmg", self.mac_env())
+        validations = [command for command in commands if command[:3] == ["xcrun", "stapler", "validate"]]
+        self.assertEqual(len(validations), signing.STAPLER_ATTEMPTS)
         self.assertEqual(commands[-1][:2], ["hdiutil", "detach"])
         self.assertFalse(any("submit" in command for command in commands))
         self.assertEqual(self.mount_points(), [])
+
+    def test_ticket_that_arrives_late_is_accepted_after_retries(self):
+        self.state(identity="Developer ID Application: Test")
+        dmg = self.root / "App.dmg"
+        commands, native = self.disk_image()
+        pending = {"validate app": 2, "staple": 1}
+
+        def late(command, **kwargs):
+            key = ("validate app" if command[:3] == ["xcrun", "stapler", "validate"] and command[-1].endswith(".app")
+                   else "staple" if command[:3] == ["xcrun", "stapler", "staple"] else None)
+            if key and pending[key]:
+                pending[key] -= 1
+                commands.append(command)
+                raise signing.SigningError("ticket not found (exit 65)")
+            return native(command, **kwargs)
+
+        with patch.object(signing, "run", side_effect=late), patch.object(signing.time, "sleep") as sleep:
+            self.assertTrue(signing.notarize(self.directory, dmg, self.mac_env()))
+        self.assertEqual(sleep.call_count, 3)
+        self.assertEqual(commands[-2:], [["xcrun", "stapler", "staple", str(dmg)],
+                                         ["xcrun", "stapler", "validate", str(dmg)]])
+        self.assertEqual(self.mount_points(), [])
+
+    def test_only_credential_free_commands_show_their_output(self):
+        failure = subprocess.CompletedProcess([], 65, "", "CloudKit query failed: record not found")
+        with patch.object(signing.subprocess, "run", return_value=failure):
+            with self.assertRaises(signing.SigningError) as shown:
+                signing.run(["xcrun", "stapler", "validate", "App.app"], show_output=True)
+            with self.assertRaises(signing.SigningError) as hidden:
+                signing.run(["xcrun", "notarytool", "submit", "--password", "secret"])
+        self.assertIn("record not found", str(shown.exception))
+        self.assertIn("exit 65", str(shown.exception))
+        self.assertNotIn("record not found", str(hidden.exception))
 
     def test_stuck_volume_is_force_detached(self):
         self.state(identity="Developer ID Application: Test")
