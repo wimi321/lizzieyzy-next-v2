@@ -31,14 +31,14 @@ impl Actor {
             ..
         } = self;
         document.visit_saved_analysis::<AppError>(|id, position, saved| {
-            if review
-                .results
-                .get(&id)
-                .is_some_and(|stored| stored.saved.is_none())
-            {
+            let key = position.analysis_key();
+            if review.results.get(&id).is_some_and(|stored| {
+                stored.key == key
+                    && stored.saved.is_none()
+                    && stored.response.root_info.visits > saved.visits
+            }) {
                 return Ok(());
             }
-            let key = position.analysis_key();
             let response = response_from_saved(&saved, position);
             let snapshot = analysis::AnalysisSnapshot {
                 revision: *revision,
@@ -73,6 +73,19 @@ impl Actor {
         // first graph publication of the same content revision.
         graph_analysis.validated_content(document.content_revision());
         Ok(())
+    }
+
+    /// Saved data belongs to the document, regardless of the cache switch or
+    /// engine identity. Only a strictly deeper result may replace it.
+    pub(super) fn preserves_saved_analysis(&self, snapshot: &analysis::AnalysisSnapshot) -> bool {
+        self.review
+            .results
+            .get(&snapshot.node_id)
+            .is_some_and(|stored| {
+                stored.key == snapshot.key
+                    && stored.saved.is_some()
+                    && stored.response.root_info.visits >= snapshot.response.root_info.visits
+            })
     }
 
     pub(super) fn publish_saved_focus(&self) {

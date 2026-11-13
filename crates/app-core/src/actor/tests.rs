@@ -198,15 +198,29 @@ async fn every_analysis_is_forwarded_with_best_summary_and_fresh_values_on_ties(
         let previous = actor.summaries.get(&NodeId(0)).copied();
         let mut incoming = snapshot(&actor, visits, winrate);
         incoming.source = source;
+        let speed = (source == analysis::SnapshotSource::Live).then_some(42.0);
+        incoming.visits_per_second = speed;
         actor.signal(Signal::Snapshot(Box::new(incoming)));
-        // Every result, even a shallower one, must precede this document
-        // barrier. Check live fields and graph history independently.
+        // Even with coalescing, the document must precede its current result.
+        // Replaying it must preserve shallower candidates, source and speed.
         actor.publish_document().unwrap();
+        let Some(AppEvent::DocumentChanged { view: document, .. }) = event(&mut output).await
+        else {
+            panic!("document barrier was not delivered");
+        };
         let Some(AppEvent::AnalysisUpdated(view)) = event(&mut output).await else {
             panic!("analysis was not forwarded");
         };
         assert_eq!((view.visits, view.winrate), (visits, winrate));
         assert_eq!(view.candidates[0].visits, visits);
+        assert_eq!(view.visits_per_second, speed);
+        assert_eq!(
+            view.source,
+            match source {
+                analysis::SnapshotSource::Live => crate::AnalysisSource::Live,
+                analysis::SnapshotSource::Cache => crate::AnalysisSource::Cache,
+            }
+        );
         let expected = if improves {
             AnalysisSummary {
                 score_lead_available: true,
@@ -218,10 +232,7 @@ async fn every_analysis_is_forwarded_with_best_summary_and_fresh_values_on_ties(
             previous.unwrap()
         };
         assert_eq!(view.summary, expected);
-        let Some(AppEvent::DocumentChanged { view, .. }) = event(&mut output).await else {
-            panic!("document barrier was not delivered");
-        };
-        assert_eq!(view.graph.points[0].summary, Some(expected));
+        assert_eq!(document.graph.points[0].summary, Some(expected));
     }
     drop(actor);
     assert_eq!(event(&mut output).await, None);

@@ -1,7 +1,7 @@
 use super::Actor;
 use crate::{
-    AnalysisView, AppError, AppEvent, GraphView, StoredAnalysis, WholeGameError, WholeGameProgress,
-    WholeGameSource, WholeGameStatus, review::ReviewInput,
+    AnalysisSource, AnalysisView, AppError, AppEvent, GraphView, StoredAnalysis, WholeGameError,
+    WholeGameProgress, WholeGameSource, WholeGameStatus, review::ReviewInput,
 };
 use analysis::{
     AnalysisSnapshot, SnapshotSource,
@@ -84,6 +84,9 @@ impl Actor {
 
     /// Called only after coordinates and current document identity are checked.
     pub(super) fn retain_analysis(&mut self, snapshot: &AnalysisSnapshot) {
+        if self.preserves_saved_analysis(snapshot) {
+            return;
+        }
         // Both live and review callers already checked this result against the
         // current document. Publishing its graph point needs no second replay.
         self.graph_analysis.valid_nodes.insert(snapshot.node_id);
@@ -95,8 +98,7 @@ impl Actor {
         {
             self.summaries.remove(&snapshot.node_id);
         }
-        // A file payload is not tied to this engine. Its depth must never keep
-        // the first fresh engine result (live or review) from replacing it.
+        // A deeper engine result replaces the saved payload and its metadata.
         if self
             .review
             .results
@@ -350,6 +352,10 @@ impl Actor {
     }
 
     fn accept_review_results(&mut self, results: Vec<ReviewResult>) -> Result<(), AppError> {
+        let current = self.document.current().0;
+        let had_saved_focus = self
+            .stored_analysis(current)
+            .is_some_and(|stored| stored.saved.is_some());
         for result in results {
             let position = self
                 .document
@@ -366,6 +372,9 @@ impl Actor {
                 source: SnapshotSource::Cache,
                 visits_per_second: None,
             };
+            if self.preserves_saved_analysis(&snapshot) {
+                continue;
+            }
             let view = AnalysisView::from_snapshot(
                 snapshot.clone(),
                 position.board.size(),
@@ -385,6 +394,14 @@ impl Actor {
         }
         // Graph events never change the focused board or document revision.
         self.publish_document()?;
+        // When this batch improves the displayed file result, let its full
+        // candidates replace Saved too. Other review results do not take focus.
+        if had_saved_focus
+            && let Some(view) = self.review_view(current)?
+            && view.source != AnalysisSource::Saved
+        {
+            self.output.send(AppEvent::AnalysisUpdated(view));
+        }
         if let Some(progress) = &mut self.review.progress {
             progress.completed = self
                 .review

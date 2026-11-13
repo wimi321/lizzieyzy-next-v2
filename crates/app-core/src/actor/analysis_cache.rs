@@ -176,6 +176,9 @@ impl Actor {
                     source: SnapshotSource::Cache,
                     visits_per_second: None,
                 };
+                if self.preserves_saved_analysis(&snapshot) {
+                    continue;
+                }
                 let view = AnalysisView::from_snapshot(
                     snapshot.clone(),
                     position.board.size(),
