@@ -1009,5 +1009,58 @@
     "failedTitle": "引擎",
     "ok": "确定",
     "importMenu": "导入 Java 版配置..."
+  },
+  "tools": {
+    "title": "引擎一键设置",
+    "tabs": {
+      "overview": "概览",
+      "weights": "权重管理",
+      "acceleration": "英伟达显卡提速组件",
+      "benchmark": "性能优化"
+    },
+    "overviewIntro": "逐项检查主引擎能否正常运行；有问题的项可以一键修复，修好后自动重新检查。",
+    "kinds": {
+      "RuntimeComponents": "显卡提速组件",
+      "ProgramExists": "引擎程序存在",
+      "ProgramExecutable": "引擎程序可执行",
+      "ProgramVersion": "引擎版本",
+      "ModelExists": "权重文件存在",
+      "ModelReadable": "权重文件可读",
+      "ConfigExists": "分析配置存在",
+      "ConfigValid": "分析配置有效"
+    },
+    "statuses": {
+      "Ok": "正常",
+      "Error": "有问题",
+      "Skipped": "跳过"
+    },
+    "repairs": {
+      "InstallRuntime": "下载安装组件",
+      "RegenerateConfig": "重新生成配置",
+      "UseBundledProgram": "改用自带引擎",
+      "UseBundledModel": "改用自带权重"
+    },
+    "recheck": "重新检查",
+    "noEngine": "还没有配置主引擎。",
+    "weightsIntro": "官方权重下载后会校验，可以一键设为主引擎的权重；换权重失败时会回到原来的。",
+    "size": "{n} MB",
+    "published": "发布于 {date}",
+    "downloaded": "已下载",
+    "download": "下载",
+    "use": "使用",
+    "inUse": "使用中",
+    "cancel": "取消",
+    "progress": "已下载 {done} / {total} MB",
+    "installing": "正在安装…",
+    "failed": "下载失败",
+    "accelerationIntro": "Windows 上用英伟达显卡时，装上提速组件可以让 KataGo 用 CUDA/TensorRT 跑得更快。",
+    "reasons": {
+      "UnsupportedPlatform": "这个系统不需要提速组件。",
+      "NoNvidiaGpu": "没有检测到英伟达显卡，不需要提速组件。",
+      "NvidiaDetected": "检测到英伟达显卡，建议安装提速组件。",
+      "DetectionFailed": "没能检测显卡。"
+    },
+    "install": "下载并安装",
+    "loading": "正在读取…"
   }
 }

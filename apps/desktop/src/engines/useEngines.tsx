@@ -267,6 +267,8 @@ export function useEngines(
     menuNames: engines.map(nameOf),
     options,
     saveOptions,
+    /** Settings a command elsewhere returned, e.g. choosing an official weight. */
+    apply,
     autoSetup,
     load,
     openSetup: () => setSetup(mainEngine ? { kind: "edit", id: mainEngine.id } : { kind: "main" }),

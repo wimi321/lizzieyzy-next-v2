@@ -3002,3 +3002,290 @@ button.fox-row[aria-busy="true"] {
 .board[data-editing] {
   cursor: crosshair;
 }
+
+/* 设置 → 引擎 and the Java import preview: one row per engine, the main one marked. */
+.engine-list-dialog {
+  width: min(42rem, 100%);
+}
+
+.engine-list {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.engine-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-hover);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.engine-row[data-main] {
+  border-color: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.engine-row[data-problem] {
+  box-shadow: inset 3px 0 0 var(--bad);
+}
+
+.engine-index {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.engine-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.engine-name strong {
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.engine-files,
+.engine-issue {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.engine-issue {
+  color: var(--bad);
+}
+
+.engine-main-tag {
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #1a1306;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.engine-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.engine-actions .secondary-button {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.engine-actions .icon-button {
+  width: 26px;
+  height: 26px;
+}
+
+.danger-link {
+  padding: 3px 6px;
+  font-size: 12px;
+  color: var(--bad);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.danger-link:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.engine-list-empty,
+.tools-loading {
+  margin: 12px 0;
+  color: var(--text-3);
+}
+
+.dialog-subhead {
+  margin: 12px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* 引擎规则 */
+.rules-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+  margin: 10px 0 14px;
+}
+
+.rules-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.settings-label {
+  font-size: 13px;
+}
+
+/* 引擎一键设置: Java's tabs above the benchmark and the other panels. */
+.tools-tabs {
+  display: flex;
+  gap: 18px;
+  margin: 2px 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tools-tabs button {
+  position: relative;
+  padding: 4px 1px 9px;
+  font-size: 13px;
+  color: var(--text-2);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.tools-tabs button:hover {
+  color: var(--text-1);
+}
+
+.tools-tabs button[aria-selected="true"] {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.tools-tabs button[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+.tools-checks,
+.tools-weights {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tools-check,
+.tools-weight {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-hover);
+  border-radius: 10px;
+}
+
+.tools-weight {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.tools-check-dot {
+  width: 9px;
+  height: 9px;
+  background: var(--text-3);
+  border-radius: 50%;
+}
+
+.tools-check[data-status="Ok"] .tools-check-dot {
+  background: var(--good);
+}
+
+.tools-check[data-status="Error"] .tools-check-dot {
+  background: var(--bad);
+}
+
+.tools-check-text,
+.tools-weight-text {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+}
+
+.tools-weight-text {
+  grid-template-columns: 1fr;
+}
+
+.tools-check-status,
+.tools-weight-text span {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.tools-check[data-status="Error"] .tools-check-status {
+  color: var(--bad);
+}
+
+.tools-check-detail {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tools-check-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.tools-check-actions .secondary-button,
+.tools-weight .secondary-button,
+.tools-weight .primary-button {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.tools-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.tools-progress-bar {
+  height: 6px;
+  overflow: hidden;
+  background: var(--line-strong);
+  border-radius: 999px;
+}
+
+.tools-progress-bar > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.tools-reason {
+  margin: 10px 0;
+  padding: 10px 12px;
+  background: var(--bg-hover);
+  border-radius: 10px;
+}

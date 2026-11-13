@@ -34,7 +34,9 @@ import { StrengthDialog } from "./review/StrengthDialog";
 import { LimitDialog } from "./analysis/LimitDialog";
 import { useAnalysisRun } from "./analysis/useAnalysisRun";
 import { useClearing } from "./analysis/useClearing";
+import { ToolsPanel, ToolsTabs } from "./engines/EngineTools";
 import { useEngines } from "./engines/useEngines";
+import { type ToolsTab, useEngineTools } from "./engines/useEngineTools";
 import { BenchmarkChip } from "./benchmark/BenchmarkChip";
 import { BenchmarkDialog } from "./benchmark/BenchmarkDialog";
 import { useBenchmark } from "./benchmark/useBenchmark";
@@ -121,7 +123,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const quickRunning = quickPass !== null && (quickPass.status.type === "Running" || quickPass.status.type === "Paused");
   const sync = useBoardSync(backend);
   const tuning = useBenchmark(backend);
-  const [tuningOpen, setTuningOpen] = useState(false);
+  // 引擎一键设置, by the tab shown; null while closed.
+  const [toolsTab, setToolsTab] = useState<ToolsTab | null>(null);
+  const tuningOpen = toolsTab !== null;
+  const tools = useEngineTools(backend, tuningOpen, engines.apply);
   // Live analysis as it runs now: paused by the user, or stopped at a time or visit limit.
   const run = useAnalysisRun(backend);
   const [limits, setLimits] = useState<AnalysisLimitSettings | null>(null);
@@ -349,7 +354,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         startBoardSync: () => sync.start({ ...syncOptions, language: chinese ? "Cn" : "En" }),
         toggleSyncOption: (key) => setSyncOptions((options) => ({ ...options, [key]: !options[key] })),
         openTsumego: () => tsumego.setOpen(true),
-        openBenchmark: () => setTuningOpen(true),
+        openBenchmark: () => setToolsTab("overview"),
         openSettings: () => setSettingsOpen(true),
         openAbout: () => setAboutOpen(true),
       },
@@ -418,7 +423,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             {tsumego.status ? <TsumegoChip status={tsumego.status} labels={messages.tsumego} onExit={tsumego.exit} /> : null}
             {sync.status && sync.status.phase !== "Stopped" ? <BoardSyncChip status={sync.status} labels={messages.sync} onStop={sync.stop} /> : null}
             {tuning.status && !tuningOpen ? (
-              <BenchmarkChip status={tuning.status} labels={messages.benchmark} onOpen={() => setTuningOpen(true)} onStop={tuning.cancel} />
+              <BenchmarkChip status={tuning.status} labels={messages.benchmark} onOpen={() => setToolsTab("benchmark")} onStop={tuning.cancel} />
             ) : null}
           </>
         }
@@ -449,7 +454,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onSave={editing.save}
           onFox={openFox}
           onStrength={() => setStrengthOpen(true)}
-          onAutoSetup={() => setTuningOpen(true)}
+          onAutoSetup={() => setToolsTab("overview")}
           onFlash={() => wholeGame.start(1)}
           onBackMain={() => bindings.backToMainBranch?.run?.()}
           onPass={pass}
@@ -688,15 +693,18 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}
-      {tuningOpen ? (
+      {toolsTab ? (
         <BenchmarkDialog
+          title={messages.tools.title}
+          tabs={<ToolsTabs tab={toolsTab} labels={messages.tools} onTab={setToolsTab} />}
+          panel={toolsTab === "benchmark" ? undefined : <ToolsPanel tab={toolsTab} tools={tools} labels={messages.tools} currentModel={engines.profile?.model ?? null} />}
           status={tuning.status}
           model={engineLabel}
           labels={messages.benchmark}
           onStart={tuning.start}
           onStop={tuning.cancel}
           onReset={tuning.reset}
-          onClose={() => setTuningOpen(false)}
+          onClose={() => setToolsTab(null)}
         />
       ) : null}
       {tsumego.open ? (

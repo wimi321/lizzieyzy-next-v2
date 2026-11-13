@@ -1009,5 +1009,58 @@
     "failedTitle": "Engine",
     "ok": "OK",
     "importMenu": "Import the Java app's configuration..."
+  },
+  "tools": {
+    "title": "Engine setup",
+    "tabs": {
+      "overview": "Overview",
+      "weights": "Weights",
+      "acceleration": "NVIDIA components",
+      "benchmark": "Performance"
+    },
+    "overviewIntro": "Checks, one by one, that the main engine can run. A check with a problem can be repaired; it is checked again afterwards.",
+    "kinds": {
+      "RuntimeComponents": "Acceleration components",
+      "ProgramExists": "Engine program exists",
+      "ProgramExecutable": "Engine program can run",
+      "ProgramVersion": "Engine version",
+      "ModelExists": "Weights file exists",
+      "ModelReadable": "Weights file is readable",
+      "ConfigExists": "Analysis config exists",
+      "ConfigValid": "Analysis config is valid"
+    },
+    "statuses": {
+      "Ok": "OK",
+      "Error": "Problem",
+      "Skipped": "Skipped"
+    },
+    "repairs": {
+      "InstallRuntime": "Download and install",
+      "RegenerateConfig": "Regenerate the config",
+      "UseBundledProgram": "Use the bundled engine",
+      "UseBundledModel": "Use the bundled weights"
+    },
+    "recheck": "Check again",
+    "noEngine": "No main engine is configured yet.",
+    "weightsIntro": "Official weights are verified after download and can become the main engine's weights; if the switch fails, the previous ones come back.",
+    "size": "{n} MB",
+    "published": "published {date}",
+    "downloaded": "downloaded",
+    "download": "Download",
+    "use": "Use",
+    "inUse": "In use",
+    "cancel": "Cancel",
+    "progress": "{done} / {total} MB",
+    "installing": "Installing…",
+    "failed": "Download failed",
+    "accelerationIntro": "On Windows with an NVIDIA graphics card, these components let KataGo run faster with CUDA/TensorRT.",
+    "reasons": {
+      "UnsupportedPlatform": "This system does not need them.",
+      "NoNvidiaGpu": "No NVIDIA graphics card was found; they are not needed.",
+      "NvidiaDetected": "An NVIDIA graphics card was found; installing them is recommended.",
+      "DetectionFailed": "The graphics card could not be detected."
+    },
+    "install": "Download and install",
+    "loading": "Reading…"
   }
 }
