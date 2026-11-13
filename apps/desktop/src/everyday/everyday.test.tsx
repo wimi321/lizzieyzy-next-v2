@@ -208,6 +208,10 @@ test("Java's keys reach the new entries; the four new languages are offered", ()
   expect(key("KeyC", { alt: true })).toBe("copySubBoardScreen");
   expect(key("KeyS", { ctrl: true, shift: true })).toBe("saveRaw");
   expect(key("KeyS", { ctrl: true, alt: true })).toBe("saveBranchRaw");
+  expect(key("KeyS", { alt: true })).toBe("saveMainBoardScreen");
+  expect(key("KeyS", { shift: true })).toBe("saveSubBoardScreen");
+  expect(key("KeyS", { shift: true, alt: true })).toBe("saveWinrate");
+  expect(key("KeyS")).toBe("saveAs");
   expect(key("KeyZ", { ctrl: true })).toBe("alwaysOnTop");
   expect(key("ArrowRight", { ctrl: true, alt: true })).toBe("spinRight");
   expect(key("ArrowDown", { ctrl: true, alt: true })).toBe("mirrorHorizon");

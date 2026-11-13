@@ -54,6 +54,8 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "copySubBoardScreen", code: "KeyC", alt: true },
   { id: "saveRaw", code: "KeyS", control: true, shift: true },
   { id: "saveBranchRaw", code: "KeyS", control: true, alt: true },
+  { id: "saveMainBoardScreen", code: "KeyS", alt: true },
+  { id: "saveSubBoardScreen", code: "KeyS", shift: true },
   { id: "saveWinrate", code: "KeyS", shift: true, alt: true },
   { id: "alwaysOnTop", code: "KeyZ", control: true },
   { id: "spinRight", code: "ArrowRight", control: true, alt: true },

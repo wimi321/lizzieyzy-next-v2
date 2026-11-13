@@ -25,8 +25,18 @@
   height: 100%;
   padding: 3px 8px 5px;
   padding-block: 3cqh 5cqh;
+  column-gap: 6px;
   font-size: 14px;
-  font-size: clamp(11px, 14.5cqh, 15px);
+  /* A narrow column (a small window, a large 界面字号) shrinks the text before it overflows. */
+  font-size: clamp(10px, min(14.5cqh, 6.2cqw), 15px);
+}
+
+.captured-box > span {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cap-stone {
