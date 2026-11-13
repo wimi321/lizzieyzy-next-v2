@@ -3,6 +3,7 @@
 import argparse
 import base64
 import binascii
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DIRECTORY = ROOT / "target/native-signing"
@@ -210,15 +212,37 @@ def sign_windows_resources(directory, state):
             run([tool, "verify", "/pa", "/all", str(path)])
 
 
-def notarize(directory, app, dmg, env=None):
+@contextlib.contextmanager
+def mounted(dmg, directory):
+    # A private, read-only mount: nothing opens in Finder and nothing is written.
+    mount = Path(tempfile.mkdtemp(prefix="dmg-", dir=directory.absolute()))
+    run(["hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen",
+         "-mountpoint", str(mount), str(dmg)])
+    try:
+        yield mount
+    finally:
+        try:
+            run(["hdiutil", "detach", str(mount)])
+        except SigningError:
+            run(["hdiutil", "detach", "-force", str(mount)])
+        mount.rmdir()
+
+
+def notarize(directory, dmg, env=None):
     env = os.environ if env is None else env
     state = load_state(directory)
     if not state.get("identity") or not complete(env, NOTARY_CREDENTIALS):
         print("macOS DMG 公证与 staple 已跳过：发布者签名或公证 secrets 不完整。")
         return False
-    # Tauri must already have stapled the app before putting it in the DMG.
-    run(["codesign", "--verify", "--deep", "--strict", str(app)])
-    run(["xcrun", "stapler", "validate", str(app)])
+    # Tauri notarizes and staples the app, puts it in the DMG, then removes the
+    # standalone .app when only the DMG was requested. Check the copy users get.
+    with mounted(dmg, directory) as volume:
+        apps = [path for path in volume.iterdir()
+                if path.suffix == ".app" and path.is_dir() and not path.is_symlink()]
+        if len(apps) != 1:
+            raise SigningError(f"Expected exactly one app in the DMG, found {len(apps)}")
+        run(["codesign", "--verify", "--deep", "--strict", str(apps[0])])
+        run(["xcrun", "stapler", "validate", str(apps[0])])
     run(["codesign", "--verify", "--strict", str(dmg)])
     response = run(["xcrun", "notarytool", "submit", str(dmg), "--apple-id", env["APPLE_ID"],
                     "--password", env["APPLE_PASSWORD"], "--team-id", env["APPLE_TEAM_ID"],
@@ -273,7 +297,6 @@ def main():
         elif name == "build":
             command.add_argument("build_command", nargs=argparse.REMAINDER)
         elif name == "notarize":
-            command.add_argument("--app", type=Path, required=True)
             command.add_argument("--dmg", type=Path, required=True)
     args = parser.parse_args()
     try:
@@ -282,7 +305,7 @@ def main():
         elif args.command == "build":
             build(args.directory, args.build_command)
         elif args.command == "notarize":
-            notarize(args.directory, args.app, args.dmg)
+            notarize(args.directory, args.dmg)
         else:
             cleanup(args.directory)
     except (SigningError, OSError, ValueError) as error:

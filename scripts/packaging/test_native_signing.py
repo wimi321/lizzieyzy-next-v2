@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -195,28 +196,97 @@ class NativeSigningTests(unittest.TestCase):
             self.assertIn("/td", commands[index])
             self.assertEqual(commands[index + 1][1:4], ["verify", "/pa", "/all"])
 
-    def test_notarize_requires_app_ticket_before_submitting_dmg(self):
-        self.state(identity="Developer ID Application: Test")
-        app, dmg = self.root / "App.app", self.root / "App.dmg"
+    def disk_image(self, apps=("LizzieYzy Next 2.app",), status="Accepted", failing=None):
+        """Fake hdiutil/codesign/notarytool: attach fills the mount point the
+        way a Tauri DMG does (the app, an Applications link, a hidden folder);
+        detach empties it again, as unmounting would."""
         commands = []
 
         def native(command, **kwargs):
             commands.append(command)
-            return '{"status":"Accepted"}' if "submit" in command else ""
+            if command[:2] == ["hdiutil", "attach"]:
+                mount = Path(command[command.index("-mountpoint") + 1])
+                for name in apps:
+                    (mount / name / "Contents").mkdir(parents=True)
+                (mount / "Applications").symlink_to("/Applications")
+                (mount / ".background").mkdir()
+            elif command[:2] == ["hdiutil", "detach"]:
+                mount = Path(command[-1])
+                for path in mount.iterdir():
+                    path.unlink() if path.is_symlink() else shutil.rmtree(path)
+            if failing and command[:len(failing)] == failing:
+                raise signing.SigningError("native tool failed")
+            return json.dumps({"status": status}) if "submit" in command else ""
 
+        return commands, native
+
+    def mount_points(self):
+        return [path for path in self.directory.iterdir() if path.name.startswith("dmg-")]
+
+    def test_notarize_checks_the_stapled_app_inside_the_dmg_before_submitting(self):
+        self.state(identity="Developer ID Application: Test")
+        dmg = self.root / "App.dmg"
+        commands, native = self.disk_image()
         with patch.object(signing, "run", side_effect=native):
-            self.assertTrue(signing.notarize(self.directory, app, dmg, self.mac_env()))
-        self.assertLess(commands.index(["xcrun", "stapler", "validate", str(app)]),
-                        next(i for i, command in enumerate(commands) if "submit" in command))
+            self.assertTrue(signing.notarize(self.directory, dmg, self.mac_env()))
+        attach = commands[0]
+        self.assertEqual(attach[:5], ["hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen"])
+        self.assertEqual(attach[-1], str(dmg))
+        app = str(Path(attach[attach.index("-mountpoint") + 1]) / "LizzieYzy Next 2.app")
+        self.assertEqual(commands[1:4], [["codesign", "--verify", "--deep", "--strict", app],
+                                         ["xcrun", "stapler", "validate", app],
+                                         ["hdiutil", "detach", attach[attach.index("-mountpoint") + 1]]])
+        submit = next(i for i, command in enumerate(commands) if "submit" in command)
+        self.assertEqual(commands[submit - 1], ["codesign", "--verify", "--strict", str(dmg)])
         self.assertEqual(commands[-2:], [["xcrun", "stapler", "staple", str(dmg)],
                                          ["xcrun", "stapler", "validate", str(dmg)]])
+        self.assertEqual(self.mount_points(), [])
+
+    def test_notarize_refuses_a_dmg_without_exactly_one_app_and_still_detaches(self):
+        self.state(identity="Developer ID Application: Test")
+        for apps in ((), ("A.app", "B.app")):
+            with self.subTest(apps=apps):
+                commands, native = self.disk_image(apps=apps)
+                with patch.object(signing, "run", side_effect=native):
+                    with self.assertRaisesRegex(signing.SigningError, "exactly one app"):
+                        signing.notarize(self.directory, self.root / "App.dmg", self.mac_env())
+                self.assertEqual(commands[-1][:2], ["hdiutil", "detach"])
+                self.assertFalse(any("submit" in command for command in commands))
+                self.assertEqual(self.mount_points(), [])
+
+    def test_unstapled_app_detaches_and_never_submits(self):
+        self.state(identity="Developer ID Application: Test")
+        commands, native = self.disk_image(failing=["xcrun", "stapler", "validate"])
+        with patch.object(signing, "run", side_effect=native):
+            with self.assertRaisesRegex(signing.SigningError, "native tool failed"):
+                signing.notarize(self.directory, self.root / "App.dmg", self.mac_env())
+        self.assertEqual(commands[-1][:2], ["hdiutil", "detach"])
+        self.assertFalse(any("submit" in command for command in commands))
+        self.assertEqual(self.mount_points(), [])
+
+    def test_stuck_volume_is_force_detached(self):
+        self.state(identity="Developer ID Application: Test")
+        commands, native = self.disk_image()
+
+        def busy(command, **kwargs):
+            if command[:2] == ["hdiutil", "detach"] and "-force" not in command:
+                commands.append(command)
+                raise signing.SigningError("resource busy")
+            return native(command, **kwargs)
+
+        with patch.object(signing, "run", side_effect=busy):
+            self.assertTrue(signing.notarize(self.directory, self.root / "App.dmg", self.mac_env()))
+        detaches = [command for command in commands if command[:2] == ["hdiutil", "detach"]]
+        self.assertEqual([command[2] for command in detaches], [detaches[0][2], "-force"])
+        self.assertEqual(self.mount_points(), [])
 
     def test_rejected_notarization_never_staples_or_claims_success(self):
         self.state(identity="Developer ID Application: Test")
-        with patch.object(signing, "run", return_value='{"status":"Invalid"}') as run:
+        commands, native = self.disk_image(status="Invalid")
+        with patch.object(signing, "run", side_effect=native):
             with self.assertRaisesRegex(signing.SigningError, "did not accept"):
-                signing.notarize(self.directory, self.root / "App.app", self.root / "App.dmg", self.mac_env())
-        self.assertFalse(any("staple" in call.args[0] for call in run.call_args_list))
+                signing.notarize(self.directory, self.root / "App.dmg", self.mac_env())
+        self.assertFalse(any("staple" in command for command in commands))
 
     def test_missing_notarization_secrets_never_contact_apple(self):
         self.state(identity="Developer ID Application: Test")
@@ -224,7 +294,7 @@ class NativeSigningTests(unittest.TestCase):
             env = self.mac_env()
             env.pop(missing)
             with patch.object(signing, "run") as run:
-                self.assertFalse(signing.notarize(self.directory, self.root / "app", self.root / "dmg", env))
+                self.assertFalse(signing.notarize(self.directory, self.root / "dmg", env))
                 run.assert_not_called()
 
     def test_command_failure_does_not_expose_credentials(self):
