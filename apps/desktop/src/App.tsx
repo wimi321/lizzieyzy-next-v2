@@ -36,6 +36,7 @@ import { useAnalysisRun } from "./analysis/useAnalysisRun";
 import { useClearing } from "./analysis/useClearing";
 import { ToolsPanel, ToolsTabs } from "./engines/EngineTools";
 import { useEngines } from "./engines/useEngines";
+import { useRelease } from "./release/useRelease";
 import { type ToolsTab, useEngineTools } from "./engines/useEngineTools";
 import { BenchmarkChip } from "./benchmark/BenchmarkChip";
 import { BenchmarkDialog } from "./benchmark/BenchmarkDialog";
@@ -88,8 +89,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const analysis = useAppState(store, (state) => state.analysis);
   const engine = useAppState(store, (state) => state.engine);
   const revision = useAppState(store, (state) => state.revision);
-  const messages = getMessages(navigator.language);
-  const chinese = navigator.language.toLowerCase().startsWith("zh");
+  // 设置 → 语言: the saved choice, or the system's language.
+  const release = useRelease(backend);
+  const messages = getMessages(release.locale);
+  const chinese = release.locale.toLowerCase().startsWith("zh");
+  const loadRelease = release.load;
   const [ownership, setOwnership] = useState(false);
   const [pondering, setPondering] = useState(true);
   const [foxOpen, setFoxOpen] = useState(false);
@@ -164,6 +168,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         setFoxHistory(settings.fox_history);
         setTsumegoOptions(settings.tsumego);
         loadDisplay(settings.display);
+        loadRelease(settings);
         await loadEngines(settings, () => active);
       })
       .catch(report);
@@ -171,7 +176,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       active = false;
     };
     // A state setter: the settings are read once.
-  }, [setTsumegoOptions, loadDisplay, loadEngines]);
+  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease]);
 
   // A comment being edited is saved before the app moves to another move by itself.
   const comment = useCommentEdit(backend, document);
@@ -362,13 +367,14 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...display.bindings,
     ...engines.bindings,
     ...clearing.bindings,
+    ...release.bindings,
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
     hawkEye2: { run: toggleHawkEye, enabled: document !== null },
   };
   useShortcuts(
     bindings,
-    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen),
   );
   const frame = messages.frame;
   const engineLabel = engines.label === "" ? null : engines.label;
@@ -418,6 +424,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         }
         tray={
           <>
+            {release.tray(messages.release)}
             {editing.trialChip}
             {modes.chip}
             {tsumego.status ? <TsumegoChip status={tsumego.status} labels={messages.tsumego} onExit={tsumego.exit} /> : null}
@@ -641,6 +648,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {editing.dialogs}
       {display.dialog}
       {clearing.dialog}
+      {release.dialogs(messages.release)}
       {modes.dialog}
       {boardMenu.menu}
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}
@@ -681,13 +689,14 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {aboutOpen ? <AboutDialog name={messages.app.title} labels={messages.about} onClose={() => setAboutOpen(false)} /> : null}
       {settingsOpen && limits ? (
         <SettingsDialog
-          values={{ limits, autoCurve, cache: cacheOn, engine: engines.options }}
+          values={{ limits, autoCurve, cache: cacheOn, engine: engines.options, autoCheckUpdates: release.autoCheck }}
           labels={messages.prefs}
           onSave={async (values) => {
             setLimits(await backend.setAnalysisLimits(values.limits));
             if (values.autoCurve !== autoCurve) setAutoCurve(await backend.setAutoQuickAnalyzeOnLoad(values.autoCurve));
             if (values.cache !== cacheOn) setCacheOn(await backend.setCacheEnabled(values.cache));
             if (values.engine && JSON.stringify(values.engine) !== JSON.stringify(engines.options)) await engines.saveOptions(values.engine);
+            if (values.autoCheckUpdates !== undefined && values.autoCheckUpdates !== release.autoCheck) release.chooseAutoCheck(values.autoCheckUpdates);
             setSettingsOpen(false);
           }}
           onClose={() => setSettingsOpen(false)}

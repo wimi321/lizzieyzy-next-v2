@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import type { PreferenceCommands, Settings } from "./backend";
+import type { Settings } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, Channel: class {} }));
@@ -11,9 +11,6 @@ beforeEach(() => {
 
 test("preference commands remain optional and forward arguments, results and errors", async () => {
   const api = await import("./backend");
-  const legacy: PreferenceCommands = {};
-  expect(legacy.setLanguage).toBeUndefined();
-  expect(legacy.setAutoCheckUpdates).toBeUndefined();
   for (const language of ["System", "ZhCn", "En"] as const) {
     ipc.invoke.mockResolvedValueOnce(language);
     expect(await api.setLanguage(language)).toBe(language);

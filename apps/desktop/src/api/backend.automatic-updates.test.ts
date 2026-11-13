@@ -1,5 +1,4 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import type { UpdateCommands } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, Channel: class {} }));
@@ -9,10 +8,8 @@ beforeEach(() => {
   ipc.invoke.mockReset();
 });
 
-test("automatic update check remains optional and forwards null or release data without arguments", async () => {
+test("automatic update check forwards null or release data without arguments", async () => {
   const api = await import("./backend");
-  const legacy: UpdateCommands = {};
-  expect(legacy.automaticUpdateCheck).toBeUndefined();
   expect(ipc.invoke).not.toHaveBeenCalled();
   ipc.invoke.mockResolvedValueOnce(null);
   expect(await api.automaticUpdateCheck()).toBeNull();

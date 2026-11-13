@@ -8,17 +8,18 @@ export type UpdateDownloadProgressListener = (status: UpdateDownloadStatus) => v
 
 /** The backend owns release selection, signature checks and installation. */
 export interface UpdateCommands {
-  checkUpdate?(): Promise<UpdateCheck>;
-  automaticUpdateCheck?(): Promise<UpdateCheck | null>;
-  downloadUpdate?(): Promise<UpdateDownloadStatus>;
-  cancelUpdateDownload?(): Promise<UpdateDownloadStatus>;
-  updateDownloadStatus?(): Promise<UpdateDownloadStatus>;
-  installUpdate?(): Promise<UpdateDownloadStatus>;
+  checkUpdate(): Promise<UpdateCheck>;
+  /** The daily check at start: a new version, or null (not due, switched off, unsigned build or failed). */
+  automaticUpdateCheck(): Promise<UpdateCheck | null>;
+  downloadUpdate(): Promise<UpdateDownloadStatus>;
+  cancelUpdateDownload(): Promise<UpdateDownloadStatus>;
+  updateDownloadStatus(): Promise<UpdateDownloadStatus>;
+  installUpdate(): Promise<UpdateDownloadStatus>;
 }
 
-export const checkUpdate: NonNullable<UpdateCommands["checkUpdate"]> = () => invoke("check_update");
-export const automaticUpdateCheck: NonNullable<UpdateCommands["automaticUpdateCheck"]> = () => invoke("automatic_update_check");
-export const downloadUpdate: NonNullable<UpdateCommands["downloadUpdate"]> = () => invoke("download_update");
-export const cancelUpdateDownload: NonNullable<UpdateCommands["cancelUpdateDownload"]> = () => invoke("cancel_update_download");
-export const updateDownloadStatus: NonNullable<UpdateCommands["updateDownloadStatus"]> = () => invoke("update_download_status");
-export const installUpdate: NonNullable<UpdateCommands["installUpdate"]> = () => invoke("install_update");
+export const checkUpdate: UpdateCommands["checkUpdate"] = () => invoke("check_update");
+export const automaticUpdateCheck: UpdateCommands["automaticUpdateCheck"] = () => invoke("automatic_update_check");
+export const downloadUpdate: UpdateCommands["downloadUpdate"] = () => invoke("download_update");
+export const cancelUpdateDownload: UpdateCommands["cancelUpdateDownload"] = () => invoke("cancel_update_download");
+export const updateDownloadStatus: UpdateCommands["updateDownloadStatus"] = () => invoke("update_download_status");
+export const installUpdate: UpdateCommands["installUpdate"] = () => invoke("install_update");

@@ -135,7 +135,7 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   subscribeBenchmarkProgress(listener: BenchmarkProgressListener): Promise<number>;
   subscribeAnalysisState(listener: AnalysisStateListener): Promise<number>;
   subscribeAssetDownloadProgress(listener: AssetDownloadProgressListener): Promise<number>;
-  subscribeUpdateDownloadProgress?(listener: UpdateDownloadProgressListener): Promise<number>;
+  subscribeUpdateDownloadProgress(listener: UpdateDownloadProgressListener): Promise<number>;
   unsubscribe(id: number): Promise<void>;
 }
 
@@ -291,7 +291,7 @@ export const subscribeAssetDownloadProgress: Backend["subscribeAssetDownloadProg
   });
 
 /** Update progress shares the ordered channel and the unsubscribe lifecycle. */
-export const subscribeUpdateDownloadProgress: NonNullable<Backend["subscribeUpdateDownloadProgress"]> =
+export const subscribeUpdateDownloadProgress: Backend["subscribeUpdateDownloadProgress"] =
   (listener) => subscribeWire((event) => {
     if (event.type === "UpdateDownloadProgress") listener(event.data);
   });

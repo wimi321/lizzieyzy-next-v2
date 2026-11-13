@@ -2745,12 +2745,28 @@ button.fox-row[aria-busy="true"] {
 
 .settings-dialog {
   width: min(32rem, 100%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .settings-form {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   margin-top: 6px;
+}
+
+/* The list scrolls inside the dialog; the footer stays put. */
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  margin-right: -8px;
+  padding-right: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
 }
 
 .settings-section {
@@ -3299,4 +3315,123 @@ button.fox-row[aria-busy="true"] {
   padding: 10px 12px;
   background: var(--bg-hover);
   border-radius: 10px;
+}
+
+/* 帮助 → 检查更新: a quiet hint in the light menu strip, then the window. */
+.update-chip {
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  font: 600 12px var(--jf-font);
+  color: var(--jf-text);
+  background: #eaf8ef;
+  border-color: #9fd6b3;
+  cursor: pointer;
+}
+
+.update-chip:hover {
+  background: #dcf2e4;
+}
+
+.update-dot {
+  width: 7px;
+  height: 7px;
+  background: #2f9e5b;
+  border-radius: 50%;
+}
+
+.update-dialog,
+.diagnostics-dialog {
+  width: min(32rem, 100%);
+}
+
+.update-state {
+  margin: 6px 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.update-state[data-state="latest"] {
+  color: var(--good);
+}
+
+.update-state[data-state="notConfigured"],
+.update-state[data-state="failed"] {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.update-date {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.update-notes {
+  max-height: 12rem;
+  margin: 6px 0 12px;
+  padding: 10px 12px;
+  overflow: auto;
+  font: 12px/1.55 var(--jf-font);
+  color: var(--text-2);
+  white-space: pre-wrap;
+  background: var(--bg-hover);
+  border-radius: 10px;
+}
+
+.update-auto {
+  margin-top: 6px;
+}
+
+/* 帮助 → 诊断与日志 */
+.diagnostics-dialog .settings-row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.diagnostics-dialog .settings-hint,
+.diagnostics-bundle {
+  grid-column: 1 / -1;
+}
+
+.diagnostics-path {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.diagnostics-state {
+  font-size: 13px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.diagnostics-state[data-on] {
+  color: var(--accent);
+}
+
+.diagnostics-bundle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--good);
+}
+
+.diagnostics-bundle > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.diagnostics-dialog button {
+  white-space: nowrap;
 }

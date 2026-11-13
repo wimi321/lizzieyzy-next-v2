@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import type { CommandError, SupportCommands } from "./backend";
+import type { CommandError } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, Channel: class {} }));
@@ -11,9 +11,6 @@ beforeEach(() => {
 
 test("log directory lookup and reveal are optional APIs that forward the backend path unchanged", async () => {
   const api = await import("./backend");
-  const legacy: SupportCommands = {};
-  expect(legacy.logDirectory).toBeUndefined();
-  expect(legacy.revealInFolder).toBeUndefined();
 
   const directory = "/app data/日志";
   ipc.invoke.mockResolvedValueOnce(directory);
@@ -60,7 +57,8 @@ test("mock directory and reveal only replay scripts and preserve path arguments"
     { command: "logDirectory", args: [] },
     { command: "revealInFolder", args: [path] },
   ]);
-  await expect(mock.logDirectory()).rejects.toThrow("Expected mock command (none)");
+  // A read-only query: unscripted, it answers a stand-in folder.
+  expect(await mock.logDirectory()).toBe("/Users/me/Library/Logs/LizzieYzy Next 2");
   await expect(mock.revealInFolder(path)).rejects.toThrow("Expected mock command (none)");
 });
 

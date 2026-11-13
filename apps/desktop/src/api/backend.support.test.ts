@@ -1,5 +1,4 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import type { SupportCommands } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, Channel: class {} }));
@@ -11,8 +10,6 @@ beforeEach(() => {
 
 test("logging and diagnostics IPC forwards the backend state, export path and errors", async () => {
   const api = await import("./backend");
-  const legacy: SupportCommands = {};
-  expect(legacy.exportDiagnostics).toBeUndefined();
   const status = { enabled: true, remaining_seconds: 1800 };
   const cases: [() => Promise<unknown>, string][] = [
     [api.fullLogStatus, "full_log_status"],
@@ -51,7 +48,9 @@ test("mock logging and exports require scripts and fill optional defaults", asyn
     { command: "fullLogStatus", args: [] }, { command: "startFullLog", args: [] },
     { command: "stopFullLog", args: [] }, { command: "exportDiagnostics", args: [] },
   ]);
-  for (const call of [mock.fullLogStatus, mock.startFullLog, mock.stopFullLog, mock.exportDiagnostics]) {
+  // The status is a read-only query: unscripted, it answers "off".
+  expect(await mock.fullLogStatus()).toEqual({ enabled: false, remaining_seconds: 0 });
+  for (const call of [mock.startFullLog, mock.stopFullLog, mock.exportDiagnostics]) {
     await expect(call()).rejects.toThrow("Expected mock command (none)");
   }
 });
