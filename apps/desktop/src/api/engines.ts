@@ -10,37 +10,36 @@ export type { EngineCustomRules } from "./generated/EngineCustomRules";
 export type { JavaImportedEngine } from "./generated/JavaImportedEngine";
 export type { EngineSettings, JavaImportPreview };
 
-/** Optional until the engine/settings UI moves off configureEngine. */
 export interface EngineCommands {
-  addEngine?(name: string, profile: EngineProfile): Promise<Settings>;
-  updateEngine?(id: string, name: string, profile: EngineProfile): Promise<Settings>;
-  removeEngine?(id: string): Promise<Settings>;
-  reorderEngines?(ids: string[]): Promise<Settings>;
-  selectMainEngine?(id: string): Promise<Settings>;
-  restartEngine?(): Promise<Settings>;
-  closeEngine?(): Promise<Settings>;
-  setEngineSettings?(settings: EngineSettings): Promise<EngineSettings>;
-  previewJavaImport?(directory: string): Promise<JavaImportPreview>;
-  confirmJavaImport?(previewId: string): Promise<Settings>;
+  addEngine(name: string, profile: EngineProfile): Promise<Settings>;
+  updateEngine(id: string, name: string, profile: EngineProfile): Promise<Settings>;
+  removeEngine(id: string): Promise<Settings>;
+  reorderEngines(ids: string[]): Promise<Settings>;
+  selectMainEngine(id: string): Promise<Settings>;
+  restartEngine(): Promise<Settings>;
+  closeEngine(): Promise<Settings>;
+  setEngineSettings(settings: EngineSettings): Promise<EngineSettings>;
+  previewJavaImport(directory: string): Promise<JavaImportPreview>;
+  confirmJavaImport(previewId: string): Promise<Settings>;
 }
 
-export const addEngine: NonNullable<EngineCommands["addEngine"]> = (name, profile) =>
+export const addEngine: EngineCommands["addEngine"] = (name, profile) =>
   invoke("add_engine", { name, profile });
-export const updateEngine: NonNullable<EngineCommands["updateEngine"]> = (id, name, profile) =>
+export const updateEngine: EngineCommands["updateEngine"] = (id, name, profile) =>
   invoke("update_engine", { id, name, profile });
-export const removeEngine: NonNullable<EngineCommands["removeEngine"]> = (id) =>
+export const removeEngine: EngineCommands["removeEngine"] = (id) =>
   invoke("remove_engine", { id });
-export const reorderEngines: NonNullable<EngineCommands["reorderEngines"]> = (ids) =>
+export const reorderEngines: EngineCommands["reorderEngines"] = (ids) =>
   invoke("reorder_engines", { ids });
-export const selectMainEngine: NonNullable<EngineCommands["selectMainEngine"]> = (id) =>
+export const selectMainEngine: EngineCommands["selectMainEngine"] = (id) =>
   invoke("select_main_engine", { id });
-export const restartEngine: NonNullable<EngineCommands["restartEngine"]> = () =>
+export const restartEngine: EngineCommands["restartEngine"] = () =>
   invoke("restart_engine");
-export const closeEngine: NonNullable<EngineCommands["closeEngine"]> = () =>
+export const closeEngine: EngineCommands["closeEngine"] = () =>
   invoke("close_engine");
-export const setEngineSettings: NonNullable<EngineCommands["setEngineSettings"]> = (settings) =>
+export const setEngineSettings: EngineCommands["setEngineSettings"] = (settings) =>
   invoke("set_engine_settings", { settings });
-export const previewJavaImport: NonNullable<EngineCommands["previewJavaImport"]> = (directory) =>
+export const previewJavaImport: EngineCommands["previewJavaImport"] = (directory) =>
   invoke("preview_java_import", { directory });
-export const confirmJavaImport: NonNullable<EngineCommands["confirmJavaImport"]> = (previewId) =>
+export const confirmJavaImport: EngineCommands["confirmJavaImport"] = (previewId) =>
   invoke("confirm_java_import", { previewId });

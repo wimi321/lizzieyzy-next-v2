@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import type { EngineCommands, EngineProfile, Settings } from "./backend";
+import type { EngineProfile, Settings } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, Channel: class {} }));
@@ -13,10 +13,8 @@ const profile: EngineProfile = {
   program: "/fake/katago", model: "/fake/model.bin", config: "/fake/analysis.cfg", extra_args: [],
 };
 
-test("engine API preserves arguments, replies and errors; legacy backends can omit it", async () => {
+test("engine API preserves arguments, replies and errors", async () => {
   const api = await import("./backend");
-  const legacy: EngineCommands = {};
-  expect(legacy.selectMainEngine).toBeUndefined();
   const reply = { accepted: "backend response" };
   const cases: [() => Promise<unknown>, string, object?][] = [
     [() => api.addEngine("CPU", profile), "add_engine", { name: "CPU", profile }],

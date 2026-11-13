@@ -374,24 +374,24 @@ function mainLineTree(): VariationTreeView {
   return { revision: tree.structure_revision, comment_revision: tree.comment_revision ?? 0, root: tree.root, nodes };
 }
 
-export const addEngine: NonNullable<Backend["addEngine"]> = (name, profile) => command("addEngine", [name, profile]);
-export const updateEngine: NonNullable<Backend["updateEngine"]> = (id, name, profile) => command("updateEngine", [id, name, profile]);
-export const removeEngine: NonNullable<Backend["removeEngine"]> = (id) => command("removeEngine", [id]);
-export const reorderEngines: NonNullable<Backend["reorderEngines"]> = (ids) => command("reorderEngines", [ids]);
-export const selectMainEngine: NonNullable<Backend["selectMainEngine"]> = (id) => command("selectMainEngine", [id]);
-export const restartEngine: NonNullable<Backend["restartEngine"]> = () => command("restartEngine", []);
-export const closeEngine: NonNullable<Backend["closeEngine"]> = () => command("closeEngine", []);
-export const setEngineSettings: NonNullable<Backend["setEngineSettings"]> = (settings) => command("setEngineSettings", [settings]);
-export const previewJavaImport: NonNullable<Backend["previewJavaImport"]> = (directory) => command("previewJavaImport", [directory]);
-export const confirmJavaImport: NonNullable<Backend["confirmJavaImport"]> = (previewId) => command("confirmJavaImport", [previewId]);
-export const officialWeights: NonNullable<Backend["officialWeights"]> = () => query("officialWeights", [], () => []);
-export const startAssetDownload: NonNullable<Backend["startAssetDownload"]> = (assetId) => command("startAssetDownload", [assetId]);
-export const cancelAssetDownload: NonNullable<Backend["cancelAssetDownload"]> = () => command("cancelAssetDownload", []);
-export const assetDownloadStatus: NonNullable<Backend["assetDownloadStatus"]> = () => query("assetDownloadStatus", [], () => lastDownloadStatus);
-export const accelerationPlan: NonNullable<Backend["accelerationPlan"]> = () => query("accelerationPlan", [], () => defaultAcceleration);
-export const useOfficialWeight: NonNullable<Backend["useOfficialWeight"]> = (assetId) => command("useOfficialWeight", [assetId]);
-export const diagnoseEngine: NonNullable<Backend["diagnoseEngine"]> = () => query("diagnoseEngine", [], () => emptyDiagnostics);
-export const repairEngine: NonNullable<Backend["repairEngine"]> = (repair) => command("repairEngine", [repair]);
+export const addEngine: Backend["addEngine"] = (name, profile) => command("addEngine", [name, profile]);
+export const updateEngine: Backend["updateEngine"] = (id, name, profile) => command("updateEngine", [id, name, profile]);
+export const removeEngine: Backend["removeEngine"] = (id) => command("removeEngine", [id]);
+export const reorderEngines: Backend["reorderEngines"] = (ids) => command("reorderEngines", [ids]);
+export const selectMainEngine: Backend["selectMainEngine"] = (id) => command("selectMainEngine", [id]);
+export const restartEngine: Backend["restartEngine"] = () => command("restartEngine", []);
+export const closeEngine: Backend["closeEngine"] = () => command("closeEngine", []);
+export const setEngineSettings: Backend["setEngineSettings"] = (settings) => command("setEngineSettings", [settings]);
+export const previewJavaImport: Backend["previewJavaImport"] = (directory) => command("previewJavaImport", [directory]);
+export const confirmJavaImport: Backend["confirmJavaImport"] = (previewId) => command("confirmJavaImport", [previewId]);
+export const officialWeights: Backend["officialWeights"] = () => query("officialWeights", [], () => []);
+export const startAssetDownload: Backend["startAssetDownload"] = (assetId) => command("startAssetDownload", [assetId]);
+export const cancelAssetDownload: Backend["cancelAssetDownload"] = () => command("cancelAssetDownload", []);
+export const assetDownloadStatus: Backend["assetDownloadStatus"] = () => query("assetDownloadStatus", [], () => lastDownloadStatus);
+export const accelerationPlan: Backend["accelerationPlan"] = () => query("accelerationPlan", [], () => defaultAcceleration);
+export const useOfficialWeight: Backend["useOfficialWeight"] = (assetId) => command("useOfficialWeight", [assetId]);
+export const diagnoseEngine: Backend["diagnoseEngine"] = () => query("diagnoseEngine", [], () => emptyDiagnostics);
+export const repairEngine: Backend["repairEngine"] = (repair) => command("repairEngine", [repair]);
 
 export const recentFiles: Backend["recentFiles"] = () => query("recentFiles", [], () => []);
 export const variationTree: Backend["variationTree"] = () => query("variationTree", [], mainLineTree);
@@ -551,7 +551,7 @@ export const subscribeAnalysisState: Backend["subscribeAnalysisState"] = async (
   return id;
 };
 
-export const subscribeAssetDownloadProgress: NonNullable<Backend["subscribeAssetDownloadProgress"]> = async (listener) => {
+export const subscribeAssetDownloadProgress: Backend["subscribeAssetDownloadProgress"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
     if (event.type === "AssetDownloadProgress") listener(event.data);
