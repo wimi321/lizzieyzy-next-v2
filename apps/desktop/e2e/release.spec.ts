@@ -106,3 +106,19 @@ test("a saved English choice applies at start, whatever the system language", as
   await start(page, [], { ...SETTINGS, language: "En" } as Settings);
   await expect(menu(page, "fileMenu")).toHaveText("File");
 });
+
+test("a new version found at start waits quietly in the tray and opens the update window", async ({ page }) => {
+  const found = { available: true, version: "0.3.0", notes: "· 修复", published_at: "2026-11-20T08:00:00Z" };
+  await start(page, [
+    { command: "automaticUpdateCheck", result: found },
+    { command: "checkUpdate", result: found },
+  ]);
+  const chip = page.getByTestId("update-chip");
+  await expect(chip).toHaveText("新版本 0.3.0");
+  // No window opens by itself.
+  await expect(page.getByTestId("update-dialog")).toHaveCount(0);
+  await chip.click();
+  await expect(page.getByTestId("update-dialog").getByTestId("update-state")).toHaveText("有新版本 0.3.0");
+  await expect(chip).toHaveCount(0);
+  expect((await calls(page)).map((call) => call.command)).toEqual(["automaticUpdateCheck", "checkUpdate"]);
+});

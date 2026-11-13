@@ -127,6 +127,7 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::release::set_language,
             commands::release::set_auto_check_updates,
             commands::release::check_update,
+            commands::release::automatic_update_check,
             commands::release::download_update,
             commands::release::cancel_update_download,
             commands::release::update_download_status,

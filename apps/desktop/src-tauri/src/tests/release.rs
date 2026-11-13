@@ -15,6 +15,10 @@ async fn unsigned_build_rejects_update_ipc_with_a_typed_reason() {
             .unwrap_err();
         assert_eq!(error, json!({ "type": "UpdateSigningNotConfigured" }));
     }
+    assert_eq!(
+        harness.invoke("automatic_update_check", json!({})).await,
+        json!(null)
+    );
     assert_eq!(harness.core.settings().await.unwrap(), before);
     assert!(!harness.directory.path().join("settings.json").exists());
     harness.finish().await;
@@ -116,6 +120,42 @@ async fn full_logging_and_diagnostic_export_are_available_through_local_ipc() {
 struct PendingUpdate {
     gate: Option<oneshot::Receiver<()>>,
     calls: mpsc::UnboundedSender<&'static str>,
+}
+
+#[tokio::test]
+async fn automatic_update_check_ipc_returns_one_available_release_then_null() {
+    let harness = Harness::new().await;
+    let (_release_gate, gate) = oneshot::channel();
+    let (calls, mut called) = mpsc::unbounded_channel();
+    harness
+        .core
+        .attach_updates(app_core::updates::spawn(Box::new(PendingUpdate {
+            gate: Some(gate),
+            calls,
+        })))
+        .await
+        .unwrap();
+    assert_eq!(
+        harness.invoke("automatic_update_check", json!({})).await,
+        json!({
+            "available": true, "version": "0.2.0", "notes": "Local test update",
+            "published_at": "2026-11-12T00:00:00Z",
+        })
+    );
+    assert_eq!(called.try_recv().unwrap(), "check");
+    assert_eq!(
+        harness.invoke("automatic_update_check", json!({})).await,
+        json!(null)
+    );
+    assert!(called.try_recv().is_err());
+    assert!(
+        Settings::load(harness.directory.path())
+            .await
+            .unwrap()
+            .last_update_check_unix_ms
+            .is_some()
+    );
+    harness.finish().await;
 }
 
 impl UpdateBackend for PendingUpdate {
@@ -262,6 +302,7 @@ async fn release_commands_are_denied_to_other_windows_and_remote_origins() {
             "set_language",
             "set_auto_check_updates",
             "check_update",
+            "automatic_update_check",
             "download_update",
             "cancel_update_download",
             "update_download_status",

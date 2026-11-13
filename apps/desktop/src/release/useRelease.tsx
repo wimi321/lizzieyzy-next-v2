@@ -16,6 +16,7 @@ type ReleaseBackend = Pick<
   | "setLanguage"
   | "setAutoCheckUpdates"
   | "checkUpdate"
+  | "automaticUpdateCheck"
   | "downloadUpdate"
   | "cancelUpdateDownload"
   | "updateDownloadStatus"
@@ -53,10 +54,20 @@ export function useRelease(backend: ReleaseBackend) {
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [fullLog, setFullLog] = useState<FullLogStatus>({ enabled: false, remaining_seconds: 0 });
 
-  const load = useCallback((settings: Settings) => {
-    setLanguage(settings.language ?? "System");
-    setAutoCheck(settings.auto_check_updates ?? true);
-  }, []);
+  const load = useCallback(
+    (settings: Settings) => {
+      setLanguage(settings.language ?? "System");
+      setAutoCheck(settings.auto_check_updates ?? true);
+      // At most daily, decided by Rust; a new version only shows in the tray, never a window.
+      backend
+        .automaticUpdateCheck()
+        .then((check) => {
+          if (check?.available) setFound(check);
+        })
+        .catch(report);
+    },
+    [backend],
+  );
 
   // Rust ends the full trace on time; the menu follows it.
   const running = fullLog.enabled === true && (fullLog.remaining_seconds ?? 0) > 0;
@@ -123,8 +134,6 @@ export function useRelease(backend: ReleaseBackend) {
     autoCheck,
     chooseAutoCheck,
     load,
-    /** What the startup check found; the tray shows it until the update window opens. */
-    notice: setFound,
     bindings,
     tray,
     dialogs,

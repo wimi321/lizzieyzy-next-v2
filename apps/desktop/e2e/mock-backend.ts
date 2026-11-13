@@ -219,7 +219,7 @@ async function command<K extends CommandName>(
   if (["startAssetDownload", "cancelAssetDownload", "assetDownloadStatus"].includes(next.command)) {
     fillDownloadDefaults(cloned as AssetDownloadStatus);
   }
-  if (next.command === "checkUpdate") {
+  if ((next.command === "checkUpdate" || next.command === "automaticUpdateCheck") && cloned) {
     const check = cloned as UpdateCheck;
     for (const key of Object.keys(defaultUpdateCheck) as (keyof UpdateCheck)[]) defaultField(check, key, defaultUpdateCheck[key]);
   }
@@ -371,7 +371,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory">(
+function query<K extends "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
@@ -513,6 +513,7 @@ export const settings: Backend["settings"] = () => command("settings", []);
 export const setLanguage: NonNullable<Backend["setLanguage"]> = (language) => command("setLanguage", [language]);
 export const setAutoCheckUpdates: NonNullable<Backend["setAutoCheckUpdates"]> = (enabled) => command("setAutoCheckUpdates", [enabled]);
 export const checkUpdate: NonNullable<Backend["checkUpdate"]> = () => command("checkUpdate", []);
+export const automaticUpdateCheck: NonNullable<Backend["automaticUpdateCheck"]> = () => query("automaticUpdateCheck", [], () => null);
 export const downloadUpdate: NonNullable<Backend["downloadUpdate"]> = () => command("downloadUpdate", []);
 export const cancelUpdateDownload: NonNullable<Backend["cancelUpdateDownload"]> = () => command("cancelUpdateDownload", []);
 // Read-only: answered from a default unless a script sets it, so opening the window needs no script.

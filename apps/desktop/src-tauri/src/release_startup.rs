@@ -20,23 +20,7 @@ pub(crate) async fn start_updates(
     };
     core.attach_updates(app_core::updates::spawn(backend))
         .await?;
-    let core = core.clone();
-    tauri::async_runtime::spawn(async move {
-        // A check only performs network I/O on the updater actor. It never
-        // pauses analysis, installs anything, or raises a modal notification.
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .ok()
-            .and_then(|time| u64::try_from(time.as_millis()).ok());
-        if let Some(now) = now {
-            match core.claim_daily_update_check(now).await {
-                Ok(true) => {
-                    let _ = core.check_update().await;
-                }
-                Ok(false) => {}
-                Err(error) => eprintln!("automatic update check: {error}"),
-            }
-        }
-    });
+    // The UI invokes automatic_update_check after startup and receives any
+    // available release. Attaching must not consume its daily claim first.
     Ok(())
 }

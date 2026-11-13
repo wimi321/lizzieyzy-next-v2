@@ -94,6 +94,7 @@
     "allow-set-language",
     "allow-set-auto-check-updates",
     "allow-check-update",
+    "allow-automatic-update-check",
     "allow-download-update",
     "allow-cancel-update-download",
     "allow-update-download-status",

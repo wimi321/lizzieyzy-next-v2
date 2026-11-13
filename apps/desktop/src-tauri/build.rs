@@ -90,6 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "set_language",
         "set_auto_check_updates",
         "check_update",
+        "automatic_update_check",
         "download_update",
         "cancel_update_download",
         "update_download_status",

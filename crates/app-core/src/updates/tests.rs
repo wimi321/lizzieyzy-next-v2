@@ -144,6 +144,11 @@ async fn cancellation_drops_transfer_before_reply_and_retry_starts_from_zero() {
     .await
     .unwrap();
     assert!(matches!(handle.check().await, Err(UpdateError::Busy)));
+    assert!(matches!(
+        handle.check_automatically().await,
+        Err(UpdateError::Busy)
+    ));
+    assert_eq!(handle.status().phase, UpdatePhase::Downloading);
     assert_eq!(handle.cancel().await.unwrap().phase, UpdatePhase::Cancelled);
     assert!(release.is_closed());
     assert!(matches!(
@@ -180,6 +185,69 @@ async fn new_check_and_cancel_invalidate_previously_verified_package() {
         handle.install().await,
         Err(UpdateError::NotDownloaded)
     ));
+    handle.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn automatic_failure_stays_idle_and_invalidates_old_bytes_while_manual_failure_is_reported() {
+    struct ScriptedChecks {
+        checks: std::collections::VecDeque<Result<Option<UpdateRelease>, UpdateError>>,
+        transfer: Backend,
+    }
+    impl UpdateBackend for ScriptedChecks {
+        fn check(&mut self) -> UpdateFuture<'_, Option<UpdateRelease>> {
+            Box::pin(async move { self.checks.pop_front().expect("scripted check") })
+        }
+        fn download(
+            &mut self,
+            progress: watch::Sender<UpdateDownloadStatus>,
+        ) -> UpdateFuture<'_, Vec<u8>> {
+            self.transfer.download(progress)
+        }
+        fn install(&mut self, bytes: Vec<u8>) -> UpdateFuture<'_, ()> {
+            self.transfer.install(bytes)
+        }
+    }
+    let (installed, mut received) = mpsc::unbounded_channel();
+    let hash = Sha256::digest(b"test").into();
+    let handle = spawn(Box::new(ScriptedChecks {
+        checks: [
+            Ok(Some(UpdateRelease {
+                view: UpdateCheck {
+                    available: true,
+                    version: Some("2.0.0".into()),
+                    ..Default::default()
+                },
+                sha256: hash,
+            })),
+            Err(UpdateError::Backend("background failure".into())),
+            Err(UpdateError::Backend("manual failure".into())),
+        ]
+        .into(),
+        transfer: Backend {
+            gate: None,
+            installed,
+            hash,
+            destination: None,
+        },
+    }));
+    handle.check().await.unwrap();
+    handle.download().await.unwrap();
+    phase(&handle, UpdatePhase::Downloaded).await;
+    assert!(handle.check_automatically().await.is_err());
+    assert_eq!(handle.status(), UpdateDownloadStatus::default());
+    assert!(matches!(
+        handle.install().await,
+        Err(UpdateError::NotDownloaded)
+    ));
+    assert!(matches!(
+        handle.download().await,
+        Err(UpdateError::NotAvailable)
+    ));
+    assert!(received.try_recv().is_err());
+    assert!(handle.check().await.is_err());
+    assert_eq!(handle.status().phase, UpdatePhase::Failed);
+    assert!(handle.status().error.unwrap().contains("manual failure"));
     handle.shutdown().await.unwrap();
 }
 
@@ -257,6 +325,10 @@ async fn shutdown_cancels_pending_check_without_waiting_for_its_network_deadline
         .unwrap()
         .unwrap();
     assert!(matches!(handle.download().await, Err(UpdateError::Busy)));
+    assert!(matches!(
+        handle.check_automatically().await,
+        Err(UpdateError::Busy)
+    ));
     tokio::time::timeout(std::time::Duration::from_secs(5), handle.shutdown())
         .await
         .unwrap()
