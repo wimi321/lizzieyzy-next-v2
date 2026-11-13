@@ -203,6 +203,7 @@ export function Board({
       // What the analysis layer was given, so E2E can wait for it before comparing pixels.
       data-last-rank={lastRankShown ?? ""}
       data-next-moves={next.length}
+      data-preview={target ? `${target.x},${target.y}` : ""}
       data-numbers={labels?.filter((label) => label !== null).length ?? 0}
       data-rank-dots={dots.length}
       // Layout for E2E pointer tests: CSS pixels of point (0, 0) and the line spacing.

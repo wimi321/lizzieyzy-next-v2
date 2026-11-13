@@ -119,11 +119,15 @@ export interface StatisticsBoxProps {
 /** LizzieYzy Next's statistics: both winrates around the move number, the bar, then the lead and the last move's change. */
 export function StatisticsBox({ board, points, currentIndex, labels }: StatisticsBoxProps) {
   const summary = points[currentIndex]?.summary ?? null;
-  const change = board ? lastMoveChange(points, currentIndex, board.last_move) : null;
-  const lead = summary ? leadOf(summary) : null;
+  // Java's old LZ data may carry a winrate without a score.
+  const scoreKnown = summary?.score_lead_available !== false && points[currentIndex - 1]?.summary?.score_lead_available !== false;
+  const change = board && scoreKnown ? lastMoveChange(points, currentIndex, board.last_move) : null;
+  const lead = summary && summary.score_lead_available !== false ? leadOf(summary) : null;
   const leadText =
     lead === null
-      ? labels.noAnalysis
+      ? summary
+        ? ""
+        : labels.noAnalysis
       : lead.side === "Even"
         ? labels.even
         : (lead.side === "Black" ? labels.blackLeads : labels.whiteLeads).replace("{score}", lead.points.toFixed(1));

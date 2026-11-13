@@ -80,7 +80,7 @@ export function ProblemList({ view, current, color, sort, analysed, labels, onCo
                 <span className={`stone-icon tiny ${entry.color === "Black" ? "black" : "white"}`} aria-hidden="true" />
                 <span className="problem-coordinate">{entry.coordinate}</span>
                 <span className="problem-loss">−{entry.loss.winrate_loss.toFixed(1)}%</span>
-                <span className="problem-score">{labels.points.replace("{n}", `−${entry.loss.score_loss.toFixed(1)}`)}</span>
+                <span className="problem-score">{entry.loss.score_loss_available === false ? "—" : labels.points.replace("{n}", `−${entry.loss.score_loss.toFixed(1)}`)}</span>
               </button>
             </li>
           ))}

@@ -25,7 +25,7 @@ export type {
   EditCommands, GameInfoEdit, NewGameOptions,
   SetupMarkupCommands, MarkupKindView, MarkupView,
   MoveEditingCommands, StoneOriginView,
-  DisplaySettings, DisplaySettingsPayload, DisplaySettingsCommands, AnalysisCacheCommands,
+  DisplaySettings, DisplaySettingsCommands, AnalysisCacheCommands,
   EngineCommands, EngineEntry, EngineSettings, EngineRules, EngineCustomRules, JavaImportPreview, JavaImportedEngine,
   WeightCommands, OfficialWeight, AssetDownloadStatus, AssetDownloadProgressListener, AccelerationPlan, DiagnosticRepair, EngineDiagnostics,
   AccelerationReason, DownloadPhase, DiagnosticCheck, DiagnosticKind, DiagnosticStatus,
@@ -479,12 +479,12 @@ export const foxSearch: Backend["foxSearch"] = (query) => command("foxSearch", [
 export const foxNextPage: Backend["foxNextPage"] = (uid, cursor) => command("foxNextPage", [uid, cursor]);
 export const foxOpenGame: Backend["foxOpenGame"] = (gameId) => command("foxOpenGame", [gameId]);
 export const foxClearHistory: Backend["foxClearHistory"] = () => command("foxClearHistory", []);
-export const cacheEnabled: NonNullable<Backend["cacheEnabled"]> = () =>
+export const cacheEnabled: Backend["cacheEnabled"] = () =>
   query("cacheEnabled", [], () => lastCacheEnabled);
-export const setCacheEnabled: NonNullable<Backend["setCacheEnabled"]> = (enabled) =>
+export const setCacheEnabled: Backend["setCacheEnabled"] = (enabled) =>
   command("setCacheEnabled", [enabled]);
-export const clearCache: NonNullable<Backend["clearCache"]> = (all) => command("clearCache", [all]);
-export const clearAnalysis: NonNullable<Backend["clearAnalysis"]> = (all) => command("clearAnalysis", [all]);
+export const clearCache: Backend["clearCache"] = (all) => command("clearCache", [all]);
+export const clearAnalysis: Backend["clearAnalysis"] = (all) => command("clearAnalysis", [all]);
 export const settings: Backend["settings"] = () => command("settings", []);
 export const setDisplaySettings: Backend["setDisplaySettings"] = (display) =>
   command("setDisplaySettings", [display]);
