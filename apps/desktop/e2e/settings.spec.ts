@@ -23,6 +23,9 @@ test("设置 → 综合设置 sets the per-move analysis limits", async ({ page 
   const dialog = page.getByTestId("settings-dialog");
   await expect(page.getByTestId("settings-seconds")).toHaveValue("600");
   await expect(page.getByTestId("settings-playouts")).toBeDisabled();
+  // The list is taller than the window: it scrolls, and 取消 and 保存 stay in view.
+  await expect(page.getByTestId("settings-save")).toBeInViewport();
+  await expect(page.getByTestId("settings-auto-check-updates")).not.toBeInViewport();
   await expect(dialog).toHaveScreenshot("settings.png");
 
   for (const bad of ["0", "5000000000"]) {

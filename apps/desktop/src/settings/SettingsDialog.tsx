@@ -139,126 +139,129 @@ export function SettingsDialog({ values, labels, onSave, onClose }: SettingsDial
           </button>
         </header>
         <form className="settings-form" noValidate onSubmit={submit}>
-          <h3 className="settings-section">{labels.analysis}</h3>
-          <div className="settings-row">
-            <label className="settings-check">
-              <input type="checkbox" data-testid="settings-limit-time" checked={limitTime} onChange={(event) => setLimitTime(event.target.checked)} />
-              <span>{labels.limitTime}</span>
-            </label>
-            <span className="settings-field">
-              <input
-                className="text-input"
-                inputMode="numeric"
-                data-testid="settings-seconds"
-                aria-label={labels.limitTime}
-                aria-invalid={limitTime && secondsValue === null}
-                disabled={!limitTime}
-                value={seconds}
-                onChange={(event) => setSeconds(event.target.value)}
-              />
-              <span>{labels.seconds}</span>
-            </span>
-            <p className="settings-hint">{labels.limitTimeHint}</p>
-          </div>
-          <div className="settings-row">
-            <label className="settings-check">
-              <input type="checkbox" data-testid="settings-limit-playout" checked={limitPlayout} onChange={(event) => setLimitPlayout(event.target.checked)} />
-              <span>{labels.limitPlayout}</span>
-            </label>
-            <span className="settings-field">
-              <input
-                className="text-input"
-                inputMode="numeric"
-                data-testid="settings-playouts"
-                aria-label={labels.limitPlayout}
-                aria-invalid={limitPlayout && playoutsValue === null}
-                disabled={!limitPlayout}
-                value={playouts}
-                onChange={(event) => setPlayouts(event.target.value)}
-              />
-              <span>{labels.visits}</span>
-            </span>
-            <p className="settings-hint">{labels.limitPlayoutHint}</p>
-          </div>
-          <div className="settings-row">
-            <label className="settings-check">
-              <input type="checkbox" data-testid="settings-auto-curve" checked={autoCurve} onChange={(event) => setAutoCurve(event.target.checked)} />
-              <span>{labels.autoCurve}</span>
-            </label>
-            <p className="settings-hint">{labels.autoCurveHint}</p>
-          </div>
-          <div className="settings-row">
-            <label className="settings-check">
-              <input type="checkbox" data-testid="settings-cache" checked={cache} onChange={(event) => setCache(event.target.checked)} />
-              <span>{labels.cache}</span>
-            </label>
-            <p className="settings-hint">{labels.cacheHint}</p>
-          </div>
-          <h3 className="settings-section">{labels.engine}</h3>
-          <div className="settings-row">
-            <label className="settings-check">
-              <input type="checkbox" data-testid="settings-read-komi" checked={readKomi} onChange={(event) => setReadKomi(event.target.checked)} />
-              <span>{labels.readKomi}</span>
-            </label>
-            <span className="settings-field">
-              <span>{labels.defaultKomi}</span>
-              <input
-                className="text-input"
-                inputMode="decimal"
-                data-testid="settings-default-komi"
-                aria-label={labels.defaultKomi}
-                aria-invalid={komiValue === null}
-                value={komi}
-                onChange={(event) => setKomi(event.target.value)}
-              />
-            </span>
-            <p className="settings-hint">{labels.readKomiHint}</p>
-          </div>
-          <div className="settings-row">
-            <label className="settings-check">
-              <input type="checkbox" data-testid="settings-check-alive" checked={checkAlive} onChange={(event) => setCheckAlive(event.target.checked)} />
-              <span>{labels.checkAlive}</span>
-            </label>
-            <p className="settings-hint">{labels.checkAliveHint}</p>
-          </div>
-          <div className="settings-row">
-            <span className="settings-label">{labels.interval}</span>
-            <span className="settings-field">
-              <input
-                className="text-input"
-                inputMode="numeric"
-                data-testid="settings-interval"
-                aria-label={labels.interval}
-                aria-invalid={!intervalOk}
-                value={interval}
-                onChange={(event) => setInterval(event.target.value)}
-              />
-              <span>{labels.milliseconds}</span>
-            </span>
-            <p className="settings-hint">{labels.intervalHint}</p>
-          </div>
-          {autoCheckUpdates !== undefined ? (
-            <>
-              <h3 className="settings-section">{labels.updates}</h3>
-              <div className="settings-row">
-                <label className="settings-check">
-                  <input type="checkbox" data-testid="settings-auto-check-updates" checked={autoCheckUpdates} onChange={(event) => setAutoCheckUpdates(event.target.checked)} />
-                  <span>{labels.autoCheckUpdates}</span>
-                </label>
-                <p className="settings-hint">{labels.autoCheckUpdatesHint}</p>
-              </div>
-            </>
-          ) : null}
-          {!valid ? (
-            <p className="settings-invalid" role="alert" data-testid="settings-invalid">
-              {labels.invalid}
-            </p>
-          ) : null}
-          {error ? (
-            <div className="dialog-error" role="alert" data-testid="settings-error">
-              <pre>{error}</pre>
+          {/* Only the settings scroll; 取消 and 保存 stay in view. */}
+          <div className="settings-body" data-testid="settings-body">
+            <h3 className="settings-section">{labels.analysis}</h3>
+            <div className="settings-row">
+              <label className="settings-check">
+                <input type="checkbox" data-testid="settings-limit-time" checked={limitTime} onChange={(event) => setLimitTime(event.target.checked)} />
+                <span>{labels.limitTime}</span>
+              </label>
+              <span className="settings-field">
+                <input
+                  className="text-input"
+                  inputMode="numeric"
+                  data-testid="settings-seconds"
+                  aria-label={labels.limitTime}
+                  aria-invalid={limitTime && secondsValue === null}
+                  disabled={!limitTime}
+                  value={seconds}
+                  onChange={(event) => setSeconds(event.target.value)}
+                />
+                <span>{labels.seconds}</span>
+              </span>
+              <p className="settings-hint">{labels.limitTimeHint}</p>
             </div>
-          ) : null}
+            <div className="settings-row">
+              <label className="settings-check">
+                <input type="checkbox" data-testid="settings-limit-playout" checked={limitPlayout} onChange={(event) => setLimitPlayout(event.target.checked)} />
+                <span>{labels.limitPlayout}</span>
+              </label>
+              <span className="settings-field">
+                <input
+                  className="text-input"
+                  inputMode="numeric"
+                  data-testid="settings-playouts"
+                  aria-label={labels.limitPlayout}
+                  aria-invalid={limitPlayout && playoutsValue === null}
+                  disabled={!limitPlayout}
+                  value={playouts}
+                  onChange={(event) => setPlayouts(event.target.value)}
+                />
+                <span>{labels.visits}</span>
+              </span>
+              <p className="settings-hint">{labels.limitPlayoutHint}</p>
+            </div>
+            <div className="settings-row">
+              <label className="settings-check">
+                <input type="checkbox" data-testid="settings-auto-curve" checked={autoCurve} onChange={(event) => setAutoCurve(event.target.checked)} />
+                <span>{labels.autoCurve}</span>
+              </label>
+              <p className="settings-hint">{labels.autoCurveHint}</p>
+            </div>
+            <div className="settings-row">
+              <label className="settings-check">
+                <input type="checkbox" data-testid="settings-cache" checked={cache} onChange={(event) => setCache(event.target.checked)} />
+                <span>{labels.cache}</span>
+              </label>
+              <p className="settings-hint">{labels.cacheHint}</p>
+            </div>
+            <h3 className="settings-section">{labels.engine}</h3>
+            <div className="settings-row">
+              <label className="settings-check">
+                <input type="checkbox" data-testid="settings-read-komi" checked={readKomi} onChange={(event) => setReadKomi(event.target.checked)} />
+                <span>{labels.readKomi}</span>
+              </label>
+              <span className="settings-field">
+                <span>{labels.defaultKomi}</span>
+                <input
+                  className="text-input"
+                  inputMode="decimal"
+                  data-testid="settings-default-komi"
+                  aria-label={labels.defaultKomi}
+                  aria-invalid={komiValue === null}
+                  value={komi}
+                  onChange={(event) => setKomi(event.target.value)}
+                />
+              </span>
+              <p className="settings-hint">{labels.readKomiHint}</p>
+            </div>
+            <div className="settings-row">
+              <label className="settings-check">
+                <input type="checkbox" data-testid="settings-check-alive" checked={checkAlive} onChange={(event) => setCheckAlive(event.target.checked)} />
+                <span>{labels.checkAlive}</span>
+              </label>
+              <p className="settings-hint">{labels.checkAliveHint}</p>
+            </div>
+            <div className="settings-row">
+              <span className="settings-label">{labels.interval}</span>
+              <span className="settings-field">
+                <input
+                  className="text-input"
+                  inputMode="numeric"
+                  data-testid="settings-interval"
+                  aria-label={labels.interval}
+                  aria-invalid={!intervalOk}
+                  value={interval}
+                  onChange={(event) => setInterval(event.target.value)}
+                />
+                <span>{labels.milliseconds}</span>
+              </span>
+              <p className="settings-hint">{labels.intervalHint}</p>
+            </div>
+            {autoCheckUpdates !== undefined ? (
+              <>
+                <h3 className="settings-section">{labels.updates}</h3>
+                <div className="settings-row">
+                  <label className="settings-check">
+                    <input type="checkbox" data-testid="settings-auto-check-updates" checked={autoCheckUpdates} onChange={(event) => setAutoCheckUpdates(event.target.checked)} />
+                    <span>{labels.autoCheckUpdates}</span>
+                  </label>
+                  <p className="settings-hint">{labels.autoCheckUpdatesHint}</p>
+                </div>
+              </>
+            ) : null}
+            {!valid ? (
+              <p className="settings-invalid" role="alert" data-testid="settings-invalid">
+                {labels.invalid}
+              </p>
+            ) : null}
+            {error ? (
+              <div className="dialog-error" role="alert" data-testid="settings-error">
+                <pre>{error}</pre>
+              </div>
+            ) : null}
+          </div>
           <footer className="dialog-footer settings-footer">
             <button type="button" className="secondary-button" data-testid="settings-cancel" onClick={onClose}>
               {labels.cancel}
