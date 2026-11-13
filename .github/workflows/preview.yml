@@ -107,7 +107,8 @@ jobs:
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           rm -rf target/bundled-resources target/packaging-acceptance \
-            target/release-assets target/native-signing target/release-version.json
+            target/release-assets target/native-signing target/release-version.json \
+            target/release/bundle
 
       - uses: pnpm/action-setup@v6
         with:
@@ -210,11 +211,15 @@ jobs:
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           shopt -s nullglob
-          apps=(target/release/bundle/macos/*.app)
+          # Tauri removes the standalone .app once the DMG exists; the helper
+          # checks the stapled app inside the DMG.
           dmgs=(target/release/bundle/dmg/*.dmg)
-          test "${#apps[@]}" -eq 1 && test "${#dmgs[@]}" -eq 1
+          if [ "${#dmgs[@]}" -ne 1 ]; then
+            echo "Expected exactly one DMG, found ${#dmgs[@]}" >&2
+            exit 1
+          fi
           "$PYTHON" scripts/packaging/native_signing.py notarize --directory target/native-signing \
-            --app "${apps[0]}" --dmg "${dmgs[0]}"
+            --dmg "${dmgs[0]}"
 
       - name: Extract installers and compare bundled hashes
         run: |

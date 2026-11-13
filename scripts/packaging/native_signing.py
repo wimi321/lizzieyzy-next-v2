@@ -3,6 +3,7 @@
 import argparse
 import base64
 import binascii
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,8 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DIRECTORY = ROOT / "target/native-signing"
@@ -25,14 +28,38 @@ class SigningError(RuntimeError):
     pass
 
 
-def run(command, *, env=None):
+STAPLER_ATTEMPTS = 5
+STAPLER_RETRY_SECONDS = 20
+
+
+def run(command, *, env=None, show_output=False):
     # Some commands contain import/notarization passwords. Never print argv, stdout,
-    # stderr or CalledProcessError (which includes argv) on failure.
+    # stderr or CalledProcessError (which includes argv) on failure. Callers set
+    # show_output only for commands that carry no credentials (codesign, stapler,
+    # hdiutil), so their own explanation reaches the log.
     result = subprocess.run(command, env=env, capture_output=True, text=True)
     if result.returncode:
+        detail = ""
+        if show_output:
+            output = "\n".join(part.strip() for part in (result.stdout, result.stderr) if part.strip())
+            detail = f"\n{output[-2000:]}" if output else ""
         raise SigningError(f"{Path(command[0]).name} failed (exit {result.returncode}); "
-                           "publisher signing/notarization was not completed")
+                           f"publisher signing/notarization was not completed{detail}")
     return result.stdout
+
+
+def stapler(action, path):
+    # Right after notarization, Apple's ticket service can take a moment to serve
+    # the new ticket, and stapler exits with 65 meanwhile. Retry before failing.
+    for attempt in range(1, STAPLER_ATTEMPTS + 1):
+        try:
+            return run(["xcrun", "stapler", action, str(path)], show_output=True)
+        except SigningError as error:
+            if attempt == STAPLER_ATTEMPTS:
+                raise
+            print(f"stapler {action} attempt {attempt} failed; retrying in "
+                  f"{STAPLER_RETRY_SECONDS} s.\n{error}", flush=True)
+            time.sleep(STAPLER_RETRY_SECONDS)
 
 
 def complete(env, names):
@@ -210,23 +237,45 @@ def sign_windows_resources(directory, state):
             run([tool, "verify", "/pa", "/all", str(path)])
 
 
-def notarize(directory, app, dmg, env=None):
+@contextlib.contextmanager
+def mounted(dmg, directory):
+    # A private, read-only mount: nothing opens in Finder and nothing is written.
+    mount = Path(tempfile.mkdtemp(prefix="dmg-", dir=directory.absolute()))
+    run(["hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen",
+         "-mountpoint", str(mount), str(dmg)], show_output=True)
+    try:
+        yield mount
+    finally:
+        try:
+            run(["hdiutil", "detach", str(mount)], show_output=True)
+        except SigningError:
+            run(["hdiutil", "detach", "-force", str(mount)], show_output=True)
+        mount.rmdir()
+
+
+def notarize(directory, dmg, env=None):
     env = os.environ if env is None else env
     state = load_state(directory)
     if not state.get("identity") or not complete(env, NOTARY_CREDENTIALS):
         print("macOS DMG 公证与 staple 已跳过：发布者签名或公证 secrets 不完整。")
         return False
-    # Tauri must already have stapled the app before putting it in the DMG.
-    run(["codesign", "--verify", "--deep", "--strict", str(app)])
-    run(["xcrun", "stapler", "validate", str(app)])
-    run(["codesign", "--verify", "--strict", str(dmg)])
+    # Tauri notarizes and staples the app, puts it in the DMG, then removes the
+    # standalone .app when only the DMG was requested. Check the copy users get.
+    with mounted(dmg, directory) as volume:
+        apps = [path for path in volume.iterdir()
+                if path.suffix == ".app" and path.is_dir() and not path.is_symlink()]
+        if len(apps) != 1:
+            raise SigningError(f"Expected exactly one app in the DMG, found {len(apps)}")
+        run(["codesign", "--verify", "--deep", "--strict", str(apps[0])], show_output=True)
+        stapler("validate", apps[0])
+    run(["codesign", "--verify", "--strict", str(dmg)], show_output=True)
     response = run(["xcrun", "notarytool", "submit", str(dmg), "--apple-id", env["APPLE_ID"],
                     "--password", env["APPLE_PASSWORD"], "--team-id", env["APPLE_TEAM_ID"],
                     "--wait", "--timeout", "30m", "--output-format", "json"])
     if json.loads(response).get("status") != "Accepted":
         raise SigningError("Apple notarization did not accept the DMG; no release assets should be uploaded")
-    run(["xcrun", "stapler", "staple", str(dmg)])
-    run(["xcrun", "stapler", "validate", str(dmg)])
+    stapler("staple", dmg)
+    stapler("validate", dmg)
     print("macOS app 与 DMG 公证票据验证通过。")
     return True
 
@@ -273,7 +322,6 @@ def main():
         elif name == "build":
             command.add_argument("build_command", nargs=argparse.REMAINDER)
         elif name == "notarize":
-            command.add_argument("--app", type=Path, required=True)
             command.add_argument("--dmg", type=Path, required=True)
     args = parser.parse_args()
     try:
@@ -282,7 +330,7 @@ def main():
         elif args.command == "build":
             build(args.directory, args.build_command)
         elif args.command == "notarize":
-            notarize(args.directory, args.app, args.dmg)
+            notarize(args.directory, args.dmg)
         else:
             cleanup(args.directory)
     except (SigningError, OSError, ValueError) as error:
