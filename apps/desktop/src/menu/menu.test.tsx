@@ -133,8 +133,6 @@ function actions(): MenuActions {
     openTsumego: vi.fn(),
     openBenchmark: vi.fn(),
     openSettings: vi.fn(),
-    openEngineSetup: vi.fn(),
-    restartEngine: vi.fn(),
     openAbout: vi.fn(),
   };
 }
@@ -145,7 +143,6 @@ const IDLE: MenuState = {
   ownership: false,
   wholeGameActive: false,
   hasBestMove: true,
-  engineFailed: false,
   engineConfigured: true,
   windows: false,
   syncPhase: "Stopped",
@@ -192,7 +189,6 @@ describe("what the menu can do now", () => {
     expect(idle.kataEstimateClose?.checked).toBe(true);
     expect(idle.kataEstimateOnMainBoard?.checked).toBe(false);
     expect(idle.stopAutoAnalyze?.enabled).toBe(false);
-    expect(idle.restartCurrentEngine?.enabled).toBe(false);
     expect(idle.jumpToLeft?.enabled).toBe(false);
     idle.save?.run?.();
     expect(run.save).toHaveBeenCalledTimes(1);
@@ -200,9 +196,8 @@ describe("what the menu can do now", () => {
     idle.kataEstimateOnMainBoard?.run?.();
     expect(run.setOwnership).toHaveBeenCalledWith(true);
 
-    const busy = menuBindings({ ...IDLE, wholeGameActive: true, engineFailed: true, hasDocument: false }, run);
+    const busy = menuBindings({ ...IDLE, wholeGameActive: true, hasDocument: false }, run);
     expect(busy.stopAutoAnalyze?.enabled).toBe(true);
-    expect(busy.restartCurrentEngine?.enabled).toBe(true);
     expect(busy.saveAs?.enabled).toBe(false);
     expect(busy.jumpToLast?.enabled).toBe(false);
   });

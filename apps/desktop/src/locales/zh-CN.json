@@ -944,5 +944,61 @@
     "cacheAll": "清除本机保存的所有分析缓存？此操作不能撤销。",
     "confirm": "清除",
     "cancel": "取消"
+  },
+  "engines": {
+    "list": {
+      "title": "引擎",
+      "intro": "可以配置多个引擎，在菜单栏的引擎菜单里随时切换。主引擎就是正在用来分析的那个。",
+      "main": "主引擎",
+      "setMain": "设为主引擎",
+      "edit": "编辑",
+      "remove": "删除",
+      "up": "上移",
+      "down": "下移",
+      "add": "添加引擎",
+      "empty": "还没有配置引擎。",
+      "close": "关闭"
+    },
+    "rules": {
+      "title": "引擎规则",
+      "intro": "KataGo 按这里的规则判断胜负和目数，改了立即生效。",
+      "names": {
+        "FollowSgf": "跟随棋谱",
+        "Chinese": "中国规则",
+        "Japanese": "日本规则",
+        "Korean": "韩国规则",
+        "Aga": "AGA 规则",
+        "TrompTaylor": "Tromp-Taylor 规则",
+        "NewZealand": "新西兰规则",
+        "ChineseOgs": "中国规则（OGS）",
+        "ChineseKgs": "中国规则（KGS）",
+        "StoneScoring": "数子规则",
+        "Bga": "英国规则",
+        "AgaButton": "AGA 规则（贴子）",
+        "Goe": "应氏规则",
+        "AncientTerritory": "古代数目规则"
+      },
+      "custom": "自定义规则（导入的）",
+      "save": "应用",
+      "cancel": "取消",
+      "close": "关闭"
+    },
+    "javaImport": {
+      "title": "导入 Java 版配置",
+      "intro": "从 {dir} 读到下面这些配置。Java 版的文件不会被改动。",
+      "engines": "引擎",
+      "main": "主引擎",
+      "noEngines": "没有找到引擎。",
+      "issues": "需要注意",
+      "confirm": "导入",
+      "cancel": "取消",
+      "close": "关闭"
+    },
+    "nameLabel": "名称",
+    "addTitle": "添加引擎",
+    "editTitle": "编辑引擎",
+    "failedTitle": "引擎",
+    "ok": "确定",
+    "importMenu": "导入 Java 版配置..."
   }
 }

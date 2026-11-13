@@ -243,8 +243,10 @@ async function command<K extends CommandName>(
   if (next.command === "settings") {
     const settings = cloned as Settings;
     defaultField(settings, "recent_files", []);
-    defaultField(settings, "engines", []);
-    defaultField(settings, "main_engine_id", null);
+    // As Rust's normalize_engines: an old single engine is a one-item list, and the main one.
+    const legacy = settings.engine ? [{ id: "legacy-engine", name: "KataGo", profile: settings.engine }] : [];
+    defaultField(settings, "engines", legacy);
+    defaultField(settings, "main_engine_id", settings.engine ? "legacy-engine" : null);
     defaultField(settings, "engine_settings", structuredClone(defaultEngineSettings));
     const engine = settings.engine_settings!;
     defaultField(engine, "rules", { type: "FollowSgf" });
@@ -489,6 +491,7 @@ export const settings: Backend["settings"] = () => command("settings", []);
 export const setDisplaySettings: Backend["setDisplaySettings"] = (display) =>
   command("setDisplaySettings", [display]);
 export const pickOpenPath: Backend["pickOpenPath"] = () => command("pickOpenPath", []);
+export const pickDirectory: Backend["pickDirectory"] = () => command("pickDirectory", []);
 export const pickSavePath: Backend["pickSavePath"] = () => command("pickSavePath", []);
 export const pickEngineFile: Backend["pickEngineFile"] = (kind) => command("pickEngineFile", [kind]);
 export const quit: Backend["quit"] = () => command("quit", []);

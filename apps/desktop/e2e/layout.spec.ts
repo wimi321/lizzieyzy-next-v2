@@ -63,7 +63,7 @@ test("the window is cut as LizzieYzy Next cuts it: info and graph left, board sq
   await expect(page.locator("[data-testid='tree-node'][data-current='true']")).toHaveAttribute("data-id", "20");
 });
 
-test("a narrow window keeps the working controls clickable and reaches engine setup from the menu", async ({ page }) => {
+test("a narrow window keeps the working controls clickable and reaches the engine list from the menu", async ({ page }) => {
   await page.setViewportSize({ width: 1080, height: 760 });
   await start(page, [documentChanged(analysedGame(), 7)], [
     { command: "step", result: 8 },
@@ -74,7 +74,7 @@ test("a narrow window keeps the working controls clickable and reaches engine se
   await page.getByTestId("toggle-ownership").click();
   await page.getByTestId("menubar").getByRole("menuitem", { name: "Settings" }).click();
   await page.locator('.menu-row[data-menu-id="engineConfig"]').click();
-  await expect(page.getByTestId("engine-setup")).toBeVisible();
+  await expect(page.getByTestId("engine-list")).toBeVisible();
   await expect.poll(() => calls(page)).toEqual(expect.arrayContaining([
     { command: "step", args: [1] },
     { command: "togglePondering", args: [] },

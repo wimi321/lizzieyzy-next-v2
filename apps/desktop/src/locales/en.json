@@ -944,5 +944,61 @@
     "cacheAll": "Clear all analysis cached on this computer? This cannot be undone.",
     "confirm": "Clear",
     "cancel": "Cancel"
+  },
+  "engines": {
+    "list": {
+      "title": "Engines",
+      "intro": "Configure several engines and switch between them from the engine menu. The main engine is the one analysing.",
+      "main": "Main",
+      "setMain": "Make main",
+      "edit": "Edit",
+      "remove": "Delete",
+      "up": "Move up",
+      "down": "Move down",
+      "add": "Add engine",
+      "empty": "No engine is configured yet.",
+      "close": "Close"
+    },
+    "rules": {
+      "title": "Engine rules",
+      "intro": "KataGo scores by these rules; a change applies at once.",
+      "names": {
+        "FollowSgf": "Follow the game record",
+        "Chinese": "Chinese",
+        "Japanese": "Japanese",
+        "Korean": "Korean",
+        "Aga": "AGA",
+        "TrompTaylor": "Tromp-Taylor",
+        "NewZealand": "New Zealand",
+        "ChineseOgs": "Chinese (OGS)",
+        "ChineseKgs": "Chinese (KGS)",
+        "StoneScoring": "Stone scoring",
+        "Bga": "British",
+        "AgaButton": "AGA (button)",
+        "Goe": "Ing (GOE)",
+        "AncientTerritory": "Ancient territory"
+      },
+      "custom": "Custom rules (imported)",
+      "save": "Apply",
+      "cancel": "Cancel",
+      "close": "Close"
+    },
+    "javaImport": {
+      "title": "Import the Java app's configuration",
+      "intro": "Found in {dir}. The Java app's files are not changed.",
+      "engines": "Engines",
+      "main": "Main",
+      "noEngines": "No engine found.",
+      "issues": "Please check",
+      "confirm": "Import",
+      "cancel": "Cancel",
+      "close": "Close"
+    },
+    "nameLabel": "Name",
+    "addTitle": "Add engine",
+    "editTitle": "Edit engine",
+    "failedTitle": "Engine",
+    "ok": "OK",
+    "importMenu": "Import the Java app's configuration..."
   }
 }

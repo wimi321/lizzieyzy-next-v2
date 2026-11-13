@@ -101,8 +101,9 @@ test("mock defaults expose new settings without changing legacy serialization or
   ] });
   const defaults = await mock.settings();
   expect(defaults.engine).toEqual(profile);
-  expect(defaults.engines).toEqual([]);
-  expect(defaults.main_engine_id).toBeNull();
+  // As Rust migrates it: the old single engine is a one-item list, and the main one.
+  expect(defaults.engines).toEqual([{ id: "legacy-engine", name: "KataGo", profile }]);
+  expect(defaults.main_engine_id).toBe("legacy-engine");
   expect(defaults.engine_settings).toEqual({
     rules: { type: "FollowSgf" }, read_komi: true, default_komi: 7.5,
     auto_check_alive: true, report_interval_ms: 100,

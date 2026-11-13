@@ -33,6 +33,11 @@ export interface EngineSetupProps {
   engineRunning: boolean;
   /** Why automatic setup gave up, when it opened this dialog. */
   notice?: string | null;
+  /**
+   * An entry of the engine list: its name is edited too, and `save` replaces the main engine's
+   * try-then-save. Without it, the form configures the main engine itself.
+   */
+  entry?: { name: string; nameLabel: string; title: string; save(profile: EngineSetupProfile, name: string): Promise<void> };
   /** Called after the engine reached Ready and the profile was saved. */
   onConfigured(profile: EngineSetupProfile): void;
   onClose(): void;
@@ -41,13 +46,14 @@ export interface EngineSetupProps {
 type Phase = { kind: "editing" } | { kind: "starting" } | { kind: "failed"; message: string };
 
 /** Picks KataGo files and starts the engine before anything is saved (try-then-save). */
-export function EngineSetup({ backend, labels, current, engineRunning, notice = null, onConfigured, onClose }: EngineSetupProps) {
+export function EngineSetup({ backend, labels, current, engineRunning, notice = null, entry, onConfigured, onClose }: EngineSetupProps) {
   const [discovery, setDiscovery] = useState<EngineDiscovery | null>(null);
   const [program, setProgram] = useState(current?.program ?? "");
   const [model, setModel] = useState(current?.model ?? "");
   const [config, setConfig] = useState(current?.config ?? "");
   const [extras, setExtras] = useState<Record<EngineFileKind, string[]>>({ program: [], model: [], config: [] });
   const [phase, setPhase] = useState<Phase>({ kind: "editing" });
+  const [name, setName] = useState(entry?.name ?? "");
 
   useEffect(() => {
     let active = true;
@@ -82,7 +88,8 @@ export function EngineSetup({ backend, labels, current, engineRunning, notice = 
     setPhase({ kind: "starting" });
     const profile: EngineSetupProfile = { program, model, config: config || null, extra_args: current?.extra_args ?? [] };
     try {
-      await backend.tryConfigureEngine(profile);
+      if (entry) await entry.save(profile, name.trim());
+      else await backend.tryConfigureEngine(profile);
       onConfigured(profile);
     } catch (error) {
       setPhase({ kind: "failed", message: describe(error) });
@@ -93,19 +100,26 @@ export function EngineSetup({ backend, labels, current, engineRunning, notice = 
     unique([...found, ...extras[kind], ...(selected ? [selected] : [])]);
   const busy = phase.kind === "starting";
   const nothingFound = discovery !== null && discovery.programs.length === 0 && discovery.models.length === 0;
-  const unchanged = current !== null && program === current.program && model === current.model && config === current.config;
+  const unchanged =
+    current !== null && program === current.program && model === current.model && config === current.config && (!entry || name.trim() === entry.name);
   const intro = current ? labels.introCurrent : discovery === null ? labels.detecting : nothingFound ? labels.notFound : labels.intro;
 
   return (
     <div className="dialog-backdrop" role="presentation">
       <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="engine-setup-title" data-testid="engine-setup">
         <header className="dialog-header">
-          <h2 id="engine-setup-title">{current ? labels.titleCurrent : labels.title}</h2>
+          <h2 id="engine-setup-title">{entry ? entry.title : current ? labels.titleCurrent : labels.title}</h2>
           <button type="button" className="dialog-close" aria-label={labels.close} data-testid="setup-close" onClick={onClose} disabled={busy}>
             ×
           </button>
         </header>
         <p className="dialog-intro">{intro}</p>
+        {entry ? (
+          <div className="field">
+            <label htmlFor="setup-name">{entry.nameLabel}</label>
+            <input id="setup-name" className="text-input" data-testid="setup-name" value={name} disabled={busy} onChange={(event) => setName(event.target.value)} />
+          </div>
+        ) : null}
         <FileField
           kind="program"
           label={labels.program}
@@ -156,7 +170,7 @@ export function EngineSetup({ backend, labels, current, engineRunning, notice = 
             type="button"
             className="primary-button"
             data-testid="setup-start"
-            disabled={busy || !program || !model || (unchanged && engineRunning)}
+            disabled={busy || !program || !model || (entry !== undefined && !name.trim()) || (unchanged && (engineRunning || entry !== undefined))}
             onClick={() => void start()}
           >
             {busy ? labels.starting : current ? labels.apply : labels.start}

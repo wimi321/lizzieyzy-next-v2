@@ -114,6 +114,8 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   setAutoQuickAnalyzeOnLoad(enabled: boolean): Promise<boolean>;
   /** Native file dialogs; null when the user cancels. */
   pickOpenPath(): Promise<string | null>;
+  /** A folder, e.g. the Java app's, for importing its configuration. */
+  pickDirectory(): Promise<string | null>;
   pickSavePath(): Promise<string | null>;
   pickEngineFile(kind: EngineFileKind): Promise<string | null>;
   /** 文件 → 退出: closing the only window ends the app. */
@@ -167,6 +169,11 @@ const GAME_FILTERS = [{ name: "SGF / GIB", extensions: ["sgf", "gib"] }];
 
 export const pickOpenPath: Backend["pickOpenPath"] = async () => {
   const path = await openDialog({ multiple: false, directory: false, filters: GAME_FILTERS });
+  return typeof path === "string" ? path : null;
+};
+
+export const pickDirectory: Backend["pickDirectory"] = async () => {
+  const path = await openDialog({ multiple: false, directory: true });
   return typeof path === "string" ? path : null;
 };
 
