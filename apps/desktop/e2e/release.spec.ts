@@ -88,7 +88,8 @@ test("设置 → 语言 switches the whole window to English and back, and saves
   await row(page, "languageEN").click();
   await expect(menu(page, "fileMenu")).toHaveText("File");
   await expect(page.locator('[data-region="captured"]').getByTestId("to-play")).toHaveText("Black to play");
-  await expect(page.locator(".menubar-row")).toHaveScreenshot("english-menubar.png");
+  // The menus, the toolbar and the information panel, in English.
+  await expect(page).toHaveScreenshot("english-window.png", { clip: { x: 0, y: 0, width: 1280, height: 300 } });
 
   await menu(page, "settings").click();
   await row(page, "language").hover();
