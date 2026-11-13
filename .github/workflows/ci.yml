@@ -53,6 +53,12 @@ jobs:
           rustup toolchain install 1.96.0 --profile minimal --component rustfmt --component clippy
           rustup show active-toolchain
 
+      # Windows runners are slow: with every fake-engine test at once, some passed their 5 s
+      # safety deadlines (strength, auto-curve, analysis-limit tests). Fewer at a time there.
+      - name: Fewer parallel Rust tests on Windows
+        if: runner.os == 'Windows'
+        run: echo "RUST_TEST_THREADS=2" >> "$GITHUB_ENV"
+
       - uses: Swatinem/rust-cache@v2
 
       - uses: pnpm/action-setup@v6
