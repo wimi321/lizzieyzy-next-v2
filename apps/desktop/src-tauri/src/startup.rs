@@ -135,6 +135,15 @@ pub async fn start_with_data_directory(
     default_dir: PathBuf,
     data_dir: PathBuf,
 ) -> Result<(AppCore, AppSubscription), StartupError> {
+    start_with_clipboard(options, default_dir, data_dir, None).await
+}
+
+pub(crate) async fn start_with_clipboard(
+    options: StartupOptions,
+    default_dir: PathBuf,
+    data_dir: PathBuf,
+    clipboard: Option<std::sync::Arc<dyn app_core::Clipboard>>,
+) -> Result<(AppCore, AppSubscription), StartupError> {
     let cache_directory = options.config_dir.clone().unwrap_or(data_dir);
     let directory = options.config_dir.unwrap_or(default_dir);
     tokio::fs::create_dir_all(&directory)
@@ -145,6 +154,7 @@ pub async fn start_with_data_directory(
         })?;
     let config = app_core::AppConfig {
         cache_directory: Some(cache_directory),
+        clipboard,
         ..Default::default()
     };
     let (core, subscription) = app_core::spawn_with_config(directory, config).await?;

@@ -34,6 +34,12 @@ pub struct Settings {
     #[ts(as = "Option<crate::UiLanguage>", optional)]
     pub language: crate::UiLanguage,
     #[ts(as = "Option<bool>", optional)]
+    pub always_on_top: bool,
+    #[ts(as = "Option<f64>", optional)]
+    pub ui_scale: f64,
+    #[ts(as = "Option<bool>", optional)]
+    pub play_sound: bool,
+    #[ts(as = "Option<bool>", optional)]
     pub auto_check_updates: bool,
     #[ts(type = "number | null", optional = nullable)]
     pub last_update_check_unix_ms: Option<u64>,
@@ -68,6 +74,9 @@ impl Default for Settings {
         Self {
             version: SETTINGS_VERSION,
             language: crate::UiLanguage::System,
+            always_on_top: false,
+            ui_scale: 1.0,
+            play_sound: true,
             auto_check_updates: true,
             last_update_check_unix_ms: None,
             engine: None,
@@ -101,6 +110,8 @@ pub enum SettingsError {
     Json(#[from] serde_json::Error),
     #[error("settings version {0} is newer than supported version {SETTINGS_VERSION}")]
     FutureVersion(u32),
+    #[error("UI scale must be finite and within 0.5..=3.0")]
+    InvalidUiScale,
     #[error("invalid engine profile: {0}")]
     InvalidProfile(String),
     #[error(transparent)]
@@ -155,6 +166,9 @@ impl Settings {
             return Err(SettingsError::FutureVersion(self.version));
         }
         self.version = SETTINGS_VERSION;
+        if !self.ui_scale.is_finite() || !(0.5..=3.0).contains(&self.ui_scale) {
+            return Err(SettingsError::InvalidUiScale);
+        }
         self.normalize_engines()?;
         self.engine_settings.validate()?;
         crate::fox::normalize_history(&mut self.fox_history);

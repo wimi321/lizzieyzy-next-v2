@@ -1,17 +1,20 @@
 //! Desktop adapters; application state and all business decisions live in AppCore.
 pub mod bindings;
 pub mod board_sync;
+mod clipboard;
 pub mod commands;
 mod drag_drop;
 pub mod engine_setup;
 pub mod error;
 pub mod events;
 pub mod fox_error;
+mod png_request;
 mod release_startup;
 mod reveal;
 pub mod startup;
 mod system_open;
 pub mod updater;
+mod window_preferences;
 
 use app_core::{AppCore, AppSubscription};
 use tauri::{Manager, Runtime};
@@ -39,6 +42,12 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::document::open_bytes,
             commands::document::open_path,
             commands::document::save,
+            commands::everyday::copy_sgf,
+            commands::everyday::paste_sgf,
+            commands::everyday::save_clean_sgf,
+            commands::everyday::save_png,
+            commands::everyday::copy_png,
+            commands::everyday::transform_board,
             commands::document::play,
             commands::document::step,
             commands::document::go_to,
@@ -124,6 +133,12 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::fox::fox_open_game,
             commands::fox::fox_clear_history,
             commands::settings::settings,
+            commands::preferences::always_on_top,
+            commands::preferences::set_always_on_top,
+            commands::preferences::ui_scale,
+            commands::preferences::set_ui_scale,
+            commands::preferences::play_sound,
+            commands::preferences::set_play_sound,
             commands::release::set_language,
             commands::release::set_auto_check_updates,
             commands::release::check_update,
@@ -157,6 +172,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (opener, incoming) = system_open::SystemOpener::channel();
     let builder = system_open::single_instance(tauri::Builder::default().manage(opener));
     let app = commands(builder)
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(move |app| {
             app.manage(reveal::RevealService::default());
             app.manage(engine_setup::SetupEnvironment::for_app(app.handle())?);
@@ -169,10 +185,20 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 Some(directory) => directory.clone(),
                 None => app.path().app_data_dir()?,
             };
-            let (core, subscription) = tauri::async_runtime::block_on(
-                startup::start_with_data_directory(options, default_dir, data_dir),
-            )?;
+            let (core, subscription) =
+                tauri::async_runtime::block_on(startup::start_with_clipboard(
+                    options,
+                    default_dir,
+                    data_dir,
+                    Some(std::sync::Arc::new(clipboard::NativeClipboard(
+                        app.handle().clone(),
+                    ))),
+                ))?;
             tauri::async_runtime::block_on(release_startup::initialize(app.handle(), &core))?;
+            let window_preferences =
+                window_preferences::WindowPreferences::for_app(app.handle().clone());
+            tauri::async_runtime::block_on(window_preferences.initialize(&core))?;
+            app.manage(window_preferences);
             app.manage(DesktopState::new(core.clone(), subscription));
             tauri::async_runtime::spawn(system_open::serve(core, incoming));
             Ok(())

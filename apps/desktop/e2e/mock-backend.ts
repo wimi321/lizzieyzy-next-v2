@@ -30,6 +30,7 @@ export type {
   WeightCommands, OfficialWeight, AssetDownloadStatus, AssetDownloadProgressListener, AccelerationPlan, DiagnosticRepair, EngineDiagnostics,
   AccelerationReason, DownloadPhase, DiagnosticCheck, DiagnosticKind, DiagnosticStatus,
   PreferenceCommands, UiLanguage,
+  EverydayCommands, BoardTransform,
   UpdateCommands, UpdateCheck, UpdateDownloadStatus, UpdatePhase, UpdateDownloadProgressListener,
   SupportCommands, FullLogStatus,
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
@@ -264,6 +265,9 @@ async function command<K extends CommandName>(
     defaultField(settings, "main_engine_id", settings.engine ? "legacy-engine" : null);
     defaultField(settings, "engine_settings", structuredClone(defaultEngineSettings));
     defaultField(settings, "language", "System");
+    defaultField(settings, "always_on_top", false);
+    defaultField(settings, "ui_scale", 1);
+    defaultField(settings, "play_sound", true);
     defaultField(settings, "auto_check_updates", true);
     defaultField(settings, "last_update_check_unix_ms", null);
     const engine = settings.engine_settings!;
@@ -371,7 +375,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck">(
+function query<K extends "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
@@ -510,6 +514,19 @@ export const setCacheEnabled: Backend["setCacheEnabled"] = (enabled) =>
 export const clearCache: Backend["clearCache"] = (all) => command("clearCache", [all]);
 export const clearAnalysis: Backend["clearAnalysis"] = (all) => command("clearAnalysis", [all]);
 export const settings: Backend["settings"] = () => command("settings", []);
+export const copySgf: NonNullable<Backend["copySgf"]> = () => command("copySgf", []);
+export const pasteSgf: NonNullable<Backend["pasteSgf"]> = () => command("pasteSgf", []);
+export const saveCleanSgf: NonNullable<Backend["saveCleanSgf"]> = (path, keepComments, currentBranch) => command("saveCleanSgf", [path, keepComments, currentBranch]);
+// Preserve the same binary arguments as production; structuredClone records the bytes without JSON expansion.
+export const savePng: NonNullable<Backend["savePng"]> = (path: string, bytes: Uint8Array) => command("savePng", [path, bytes]);
+export const copyPng: NonNullable<Backend["copyPng"]> = (bytes: Uint8Array) => command("copyPng", [bytes]);
+export const transformBoard: NonNullable<Backend["transformBoard"]> = (transform) => command("transformBoard", [transform]);
+export const alwaysOnTop: NonNullable<Backend["alwaysOnTop"]> = () => query("alwaysOnTop", [], () => false);
+export const setAlwaysOnTop: NonNullable<Backend["setAlwaysOnTop"]> = (enabled) => command("setAlwaysOnTop", [enabled]);
+export const uiScale: NonNullable<Backend["uiScale"]> = () => query("uiScale", [], () => 1);
+export const setUiScale: NonNullable<Backend["setUiScale"]> = (scale) => command("setUiScale", [scale]);
+export const playSound: NonNullable<Backend["playSound"]> = () => query("playSound", [], () => true);
+export const setPlaySound: NonNullable<Backend["setPlaySound"]> = (enabled) => command("setPlaySound", [enabled]);
 export const setLanguage: NonNullable<Backend["setLanguage"]> = (language) => command("setLanguage", [language]);
 export const setAutoCheckUpdates: NonNullable<Backend["setAutoCheckUpdates"]> = (enabled) => command("setAutoCheckUpdates", [enabled]);
 export const checkUpdate: NonNullable<Backend["checkUpdate"]> = () => command("checkUpdate", []);

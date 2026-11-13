@@ -11,7 +11,7 @@ beforeEach(() => {
 
 test("preference commands remain optional and forward arguments, results and errors", async () => {
   const api = await import("./backend");
-  for (const language of ["System", "ZhCn", "En"] as const) {
+  for (const language of ["System", "ZhCn", "En", "ZhTw", "Ja", "Ko", "Th"] as const) {
     ipc.invoke.mockResolvedValueOnce(language);
     expect(await api.setLanguage(language)).toBe(language);
     expect(ipc.invoke).toHaveBeenLastCalledWith("set_language", { language });

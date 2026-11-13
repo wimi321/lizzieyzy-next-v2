@@ -2,6 +2,30 @@ use super::Actor;
 use crate::{AppError, UiLanguage};
 
 impl Actor {
+    pub(super) async fn set_always_on_top(&mut self, enabled: bool) -> Result<(), AppError> {
+        let mut settings = self.settings.clone();
+        settings.always_on_top = enabled;
+        settings.save(&self.directory).await?;
+        self.settings = settings;
+        Ok(())
+    }
+
+    pub(super) async fn set_ui_scale(&mut self, scale: f64) -> Result<(), AppError> {
+        let mut settings = self.settings.clone();
+        settings.ui_scale = scale;
+        settings.save(&self.directory).await?;
+        self.settings = settings;
+        Ok(())
+    }
+
+    pub(super) async fn set_play_sound(&mut self, enabled: bool) -> Result<(), AppError> {
+        let mut settings = self.settings.clone();
+        settings.play_sound = enabled;
+        settings.save(&self.directory).await?;
+        self.settings = settings;
+        Ok(())
+    }
+
     pub(super) async fn set_language(&mut self, language: UiLanguage) -> Result<(), AppError> {
         let mut settings = self.settings.clone();
         settings.language = language;

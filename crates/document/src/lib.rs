@@ -1,6 +1,7 @@
 //! Pure game document tree and editing commands.
 
 mod edit;
+mod everyday;
 mod game;
 mod key;
 pub mod lz;
@@ -14,6 +15,7 @@ mod setup;
 mod tree;
 mod types;
 
+pub use everyday::BoardTransform;
 pub use game::{GameInfoEdit, NewGameOptions};
 pub use key::AnalysisKey;
 pub use lz::{LzError, SavedAnalysis, SavedCandidate};

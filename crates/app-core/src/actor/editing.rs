@@ -15,6 +15,7 @@ pub(super) struct FileState {
     saved: sgf::GameTree,
     checked_revision: u64,
     modified: bool,
+    unsaved_import: bool,
 }
 
 impl FileState {
@@ -28,6 +29,7 @@ impl FileState {
             saved: document.to_sgf(),
             checked_revision: document.content_revision(),
             modified: false,
+            unsaved_import: false,
         }
     }
 
@@ -39,6 +41,10 @@ impl FileState {
         self.saved_clears = self.analysis_edits.active_clears(document);
     }
 
+    pub(super) fn mark_unsaved(&mut self) {
+        self.unsaved_import = true;
+    }
+
     fn mark_saved(&mut self, document: &GameDocument, path: PathBuf) {
         self.path = Some(path);
         self.saved = self.analysis_edits.effective_tree(document);
@@ -46,6 +52,7 @@ impl FileState {
         self.checked_revision = document.content_revision();
         self.checked_analysis_version = self.analysis_edits.version;
         self.modified = false;
+        self.unsaved_import = false;
     }
 
     pub fn modified(&mut self, document: &GameDocument) -> bool {
@@ -60,7 +67,7 @@ impl FileState {
             self.checked_revision = document.content_revision();
             self.checked_analysis_version = self.analysis_edits.version;
         }
-        self.modified
+        self.unsaved_import || self.modified
     }
 }
 

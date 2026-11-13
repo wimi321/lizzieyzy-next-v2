@@ -19,6 +19,7 @@ import type { AnalysisCacheCommands } from "./analysis-cache";
 import type { PreferenceCommands } from "./preferences";
 import type { UpdateCommands, UpdateDownloadProgressListener } from "./updates";
 import type { SupportCommands } from "./support";
+import type { EverydayCommands } from "./everyday";
 import type { EngineDisplayName } from "./generated/EngineDisplayName";
 import type { EngineProfile } from "./generated/EngineProfile";
 import type { EngineSetupProfile } from "./generated/EngineSetupProfile";
@@ -57,6 +58,7 @@ export * from "./weights";
 export * from "./preferences";
 export * from "./updates";
 export * from "./support";
+export * from "./everyday";
 export type { AnalysisSource } from "./generated/AnalysisSource";
 export type { AnalysisSummary } from "./generated/AnalysisSummary";
 export type { AnalysisView } from "./generated/AnalysisView";
@@ -91,7 +93,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands {
+export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
   openBytes(bytes: number[]): Promise<Revision>;
   openPath(path: string): Promise<Revision>;
   save(path: string): Promise<void>;

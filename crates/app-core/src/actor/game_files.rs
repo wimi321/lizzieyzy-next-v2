@@ -22,7 +22,18 @@ pub(super) fn is_game_file(path: &Path) -> bool {
 
 impl Actor {
     pub(super) fn import_saved_analysis(&mut self) -> Result<(), AppError> {
+        self.import_selected_saved_analysis(None)
+    }
+
+    pub(super) fn import_selected_saved_analysis(
+        &mut self,
+        selected: Option<&[document::NodeId]>,
+    ) -> Result<(), AppError> {
+        if selected.is_some() {
+            self.refresh_graph_analysis();
+        }
         let Self {
+            file_state,
             document,
             review,
             summaries,
@@ -31,6 +42,11 @@ impl Actor {
             ..
         } = self;
         document.visit_saved_analysis::<AppError>(|id, position, saved| {
+            if selected.is_some_and(|nodes| !nodes.contains(&id))
+                || file_state.analysis_edits.cleared.contains_key(&id)
+            {
+                return Ok(());
+            }
             let key = position.analysis_key();
             if review.results.get(&id).is_some_and(|stored| {
                 stored.key == key
