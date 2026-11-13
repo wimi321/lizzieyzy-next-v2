@@ -676,12 +676,13 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {aboutOpen ? <AboutDialog name={messages.app.title} labels={messages.about} onClose={() => setAboutOpen(false)} /> : null}
       {settingsOpen && limits ? (
         <SettingsDialog
-          values={{ limits, autoCurve, cache: cacheOn }}
+          values={{ limits, autoCurve, cache: cacheOn, engine: engines.options }}
           labels={messages.prefs}
           onSave={async (values) => {
             setLimits(await backend.setAnalysisLimits(values.limits));
             if (values.autoCurve !== autoCurve) setAutoCurve(await backend.setAutoQuickAnalyzeOnLoad(values.autoCurve));
             if (values.cache !== cacheOn) setCacheOn(await backend.setCacheEnabled(values.cache));
+            if (values.engine && JSON.stringify(values.engine) !== JSON.stringify(engines.options)) await engines.saveOptions(values.engine);
             setSettingsOpen(false);
           }}
           onClose={() => setSettingsOpen(false)}

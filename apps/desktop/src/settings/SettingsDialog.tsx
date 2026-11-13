@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import type { AnalysisLimitSettings } from "@/api/backend";
+import { ENGINE_DEFAULTS, type EngineOptions } from "../engines/model";
 
 export interface SettingsLabels {
   title: string;
@@ -14,6 +15,15 @@ export interface SettingsLabels {
   autoCurveHint: string;
   cache: string;
   cacheHint: string;
+  engine: string;
+  readKomi: string;
+  readKomiHint: string;
+  defaultKomi: string;
+  checkAlive: string;
+  checkAliveHint: string;
+  interval: string;
+  intervalHint: string;
+  milliseconds: string;
   invalid: string;
   save: string;
   cancel: string;
@@ -25,6 +35,8 @@ export interface SettingsValues {
   autoCurve: boolean;
   /** 启用缓存: analysed positions are kept on disk and shown again without recomputing. */
   cache: boolean;
+  /** 读取棋谱贴目, 自动检测引擎是否存活, 本地分析刷新间隔 (P2-11). */
+  engine?: EngineOptions;
 }
 
 export interface SettingsDialogProps {
@@ -37,6 +49,14 @@ export interface SettingsDialogProps {
 
 // The settings file keeps the time limit as a u32; visit limits fit any safe integer.
 const MAX_SECONDS = 0xffff_ffff;
+
+/** Java's refresh interval runs from 10 ms to 10 s. */
+const INTERVAL = { min: 10, max: 10_000 };
+
+function komiOf(text: string): number | null {
+  const value = Number(text.trim());
+  return text.trim() !== "" && Number.isFinite(value) && Math.abs(value) <= 1000 && Number.isInteger(value * 2) ? value : null;
+}
 
 function positive(text: string, max = Number.MAX_SAFE_INTEGER): number | null {
   if (!/^\d+$/.test(text.trim())) return null;
@@ -52,6 +72,11 @@ export function SettingsDialog({ values, labels, onSave, onClose }: SettingsDial
   const [playouts, setPlayouts] = useState(String(values.limits.limit_playouts));
   const [autoCurve, setAutoCurve] = useState(values.autoCurve);
   const [cache, setCache] = useState(values.cache);
+  const engine = values.engine ?? ENGINE_DEFAULTS;
+  const [readKomi, setReadKomi] = useState(engine.read_komi);
+  const [komi, setKomi] = useState(String(engine.default_komi));
+  const [checkAlive, setCheckAlive] = useState(engine.auto_check_alive);
+  const [interval, setInterval] = useState(String(engine.report_interval_ms));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +90,10 @@ export function SettingsDialog({ values, labels, onSave, onClose }: SettingsDial
 
   const secondsValue = positive(seconds, MAX_SECONDS);
   const playoutsValue = positive(playouts);
-  const valid = (!limitTime || secondsValue !== null) && (!limitPlayout || playoutsValue !== null);
+  const komiValue = komiOf(komi);
+  const intervalValue = positive(interval, INTERVAL.max);
+  const intervalOk = intervalValue !== null && intervalValue >= INTERVAL.min;
+  const valid = (!limitTime || secondsValue !== null) && (!limitPlayout || playoutsValue !== null) && komiValue !== null && intervalOk;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -81,6 +109,13 @@ export function SettingsDialog({ values, labels, onSave, onClose }: SettingsDial
       },
       autoCurve,
       cache,
+      engine: {
+        ...engine,
+        read_komi: readKomi,
+        default_komi: komiValue ?? engine.default_komi,
+        auto_check_alive: checkAlive,
+        report_interval_ms: intervalValue ?? engine.report_interval_ms,
+      },
     }).catch((reason: unknown) => {
       setBusy(false);
       setError(typeof reason === "object" && reason !== null && "data" in reason ? String((reason as { data: unknown }).data) : String(reason));
@@ -151,6 +186,49 @@ export function SettingsDialog({ values, labels, onSave, onClose }: SettingsDial
               <span>{labels.cache}</span>
             </label>
             <p className="settings-hint">{labels.cacheHint}</p>
+          </div>
+          <h3 className="settings-section">{labels.engine}</h3>
+          <div className="settings-row">
+            <label className="settings-check">
+              <input type="checkbox" data-testid="settings-read-komi" checked={readKomi} onChange={(event) => setReadKomi(event.target.checked)} />
+              <span>{labels.readKomi}</span>
+            </label>
+            <span className="settings-field">
+              <span>{labels.defaultKomi}</span>
+              <input
+                className="text-input"
+                inputMode="decimal"
+                data-testid="settings-default-komi"
+                aria-label={labels.defaultKomi}
+                aria-invalid={komiValue === null}
+                value={komi}
+                onChange={(event) => setKomi(event.target.value)}
+              />
+            </span>
+            <p className="settings-hint">{labels.readKomiHint}</p>
+          </div>
+          <div className="settings-row">
+            <label className="settings-check">
+              <input type="checkbox" data-testid="settings-check-alive" checked={checkAlive} onChange={(event) => setCheckAlive(event.target.checked)} />
+              <span>{labels.checkAlive}</span>
+            </label>
+            <p className="settings-hint">{labels.checkAliveHint}</p>
+          </div>
+          <div className="settings-row">
+            <span className="settings-label">{labels.interval}</span>
+            <span className="settings-field">
+              <input
+                className="text-input"
+                inputMode="numeric"
+                data-testid="settings-interval"
+                aria-label={labels.interval}
+                aria-invalid={!intervalOk}
+                value={interval}
+                onChange={(event) => setInterval(event.target.value)}
+              />
+              <span>{labels.milliseconds}</span>
+            </span>
+            <p className="settings-hint">{labels.intervalHint}</p>
           </div>
           {!valid ? (
             <p className="settings-invalid" role="alert" data-testid="settings-invalid">
