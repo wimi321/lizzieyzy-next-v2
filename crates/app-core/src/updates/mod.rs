@@ -24,7 +24,10 @@ pub trait UpdateBackend: Send + 'static {
 
 type StatusReply = oneshot::Sender<Result<UpdateDownloadStatus, UpdateError>>;
 enum Command {
-    Check(oneshot::Sender<Result<UpdateCheck, UpdateError>>),
+    Check {
+        reply: oneshot::Sender<Result<UpdateCheck, UpdateError>>,
+        report_failure: bool,
+    },
     Download(StatusReply),
     Cancel(StatusReply),
     Install(StatusReply),
@@ -46,7 +49,21 @@ pub fn spawn(backend: Box<dyn UpdateBackend>) -> UpdateHandle {
 
 impl UpdateHandle {
     pub async fn check(&self) -> Result<UpdateCheck, UpdateError> {
-        self.request(Command::Check).await
+        self.request(|reply| Command::Check {
+            reply,
+            report_failure: true,
+        })
+        .await
+    }
+
+    /// Background failures are returned to AppCore for one tracing warning,
+    /// never published as a user-visible download failure.
+    pub(crate) async fn check_automatically(&self) -> Result<UpdateCheck, UpdateError> {
+        self.request(|reply| Command::Check {
+            reply,
+            report_failure: false,
+        })
+        .await
     }
 
     /// Returns immediately after starting; completion is delivered as progress.
@@ -96,7 +113,10 @@ async fn run(
     let mut downloaded: Option<Vec<u8>> = None;
     while let Some(command) = commands.recv().await {
         match command {
-            Command::Check(reply) => {
+            Command::Check {
+                reply,
+                report_failure,
+            } => {
                 // A new check invalidates bytes from the previous release,
                 // including when the new manifest is invalid or unavailable.
                 downloaded = None;
@@ -121,7 +141,7 @@ async fn run(
                     release = checked;
                     view
                 });
-                if let Err(error) = &result {
+                if report_failure && let Err(error) = &result {
                     fail(&events, error);
                 }
                 let _ = reply.send(result);
@@ -231,7 +251,7 @@ async fn check(
         tokio::select! {
             result = &mut checking => return Checked::Complete(result),
             command = commands.recv() => match command {
-                Some(Command::Check(reply)) => { let _ = reply.send(Err(UpdateError::Busy)); }
+                Some(Command::Check { reply, .. }) => { let _ = reply.send(Err(UpdateError::Busy)); }
                 Some(Command::Download(reply) | Command::Install(reply)) => { let _ = reply.send(Err(UpdateError::Busy)); }
                 Some(Command::Cancel(reply)) => { let _ = reply.send(Ok(events.borrow().clone())); }
                 Some(Command::Shutdown(reply)) => return Checked::Stop(Some(reply)),
@@ -253,7 +273,7 @@ async fn transfer(
             result = &mut downloading => return Transfer::Complete(result),
             command = commands.recv() => match command {
                 Some(Command::Download(reply)) => { let _ = reply.send(Ok(events.borrow().clone())); }
-                Some(Command::Check(reply)) => { let _ = reply.send(Err(UpdateError::Busy)); }
+                Some(Command::Check { reply, .. }) => { let _ = reply.send(Err(UpdateError::Busy)); }
                 Some(Command::Install(reply)) => { let _ = reply.send(Err(UpdateError::Busy)); }
                 Some(Command::Cancel(reply)) => return Transfer::Cancel(reply),
                 Some(Command::Shutdown(reply)) => return Transfer::Stop(Some(reply)),

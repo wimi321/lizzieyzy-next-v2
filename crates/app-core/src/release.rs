@@ -5,6 +5,9 @@ use crate::{
 };
 use tokio::sync::oneshot;
 
+#[cfg(test)]
+mod tests;
+
 impl AppCore {
     pub async fn attach_updates(
         &self,
@@ -38,6 +41,58 @@ impl AppCore {
 
     pub async fn check_update(&self) -> Result<UpdateCheck, AppError> {
         Ok(self.update_handle().await?.check().await?)
+    }
+
+    /// An optional background check: all policy and transport failures are
+    /// contained here, without disturbing the active document or analysis.
+    pub async fn automatic_update_check(&self) -> Option<UpdateCheck> {
+        self.automatic_update_check_with_clock(|| {
+            let elapsed = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|error| error.to_string())?;
+            u64::try_from(elapsed.as_millis()).map_err(|error| error.to_string())
+        })
+        .await
+    }
+
+    #[cfg(test)]
+    async fn automatic_update_check_at(&self, now_unix_ms: u64) -> Option<UpdateCheck> {
+        self.automatic_update_check_with_clock(|| Ok(now_unix_ms))
+            .await
+    }
+
+    async fn automatic_update_check_with_clock(
+        &self,
+        clock: impl FnOnce() -> Result<u64, String> + Send,
+    ) -> Option<UpdateCheck> {
+        let handle = match self.update_handle().await {
+            Ok(handle) => handle,
+            Err(AppError::Update(crate::updates::UpdateError::SigningNotConfigured)) => {
+                return None;
+            }
+            Err(error) => {
+                tracing::warn!(%error, "automatic update check failed");
+                return None;
+            }
+        };
+        let result: Result<Option<UpdateCheck>, AppError> = async {
+            let now = clock().map_err(crate::updates::UpdateError::Backend)?;
+            // Claim persistence precedes the network request. Failures retain
+            // the same rolling 24-hour window; this is not a calendar-day gate.
+            if !self.claim_daily_update_check(now).await? {
+                return Ok(None);
+            }
+            let checked = handle.check_automatically().await?;
+            Ok(checked.available.then_some(checked))
+        }
+        .await;
+        match result {
+            Ok(checked) => checked,
+            Err(error) => {
+                tracing::warn!(%error, "automatic update check failed");
+                None
+            }
+        }
     }
 
     pub async fn download_update(&self) -> Result<UpdateDownloadStatus, AppError> {

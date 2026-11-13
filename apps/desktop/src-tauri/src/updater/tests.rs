@@ -11,6 +11,7 @@ use tokio::{
     sync::mpsc,
 };
 
+mod automatic;
 #[path = "test_vectors.rs"]
 mod vectors;
 
@@ -30,6 +31,16 @@ impl Drop for Server {
 
 impl Server {
     async fn new(edit: impl FnOnce(&mut Value), payload: Vec<u8>, hold: bool) -> Self {
+        Self::with_manifest_response(edit, payload, hold, None, false).await
+    }
+
+    async fn with_manifest_response(
+        edit: impl FnOnce(&mut Value),
+        payload: Vec<u8>,
+        hold: bool,
+        mut manifest_gate: Option<oneshot::Receiver<()>>,
+        disconnect_manifest: bool,
+    ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let mut manifest = json!({
@@ -63,6 +74,14 @@ impl Server {
                     .unwrap_or("")
                     .to_owned();
                 let _ = send.send(path.clone());
+                if path == "/latest.json" {
+                    if let Some(gate) = manifest_gate.take() {
+                        let _ = gate.await;
+                    }
+                    if disconnect_manifest {
+                        continue;
+                    }
+                }
                 let body = if path == "/package" {
                     &payload
                 } else {
@@ -91,6 +110,22 @@ impl Server {
             requests,
             task,
         }
+    }
+
+    async fn assert_no_pending_requests(&mut self) {
+        // The caller first finishes all update operations and shuts their
+        // actor down. This marker drains existing accepts, without measuring
+        // a quiet interval or depending on network scheduling speed.
+        let mut marker = within(tokio::net::TcpStream::connect(
+            self.url.strip_prefix("http://").unwrap(),
+        ))
+        .await
+        .unwrap();
+        marker
+            .write_all(b"GET /test-fence HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            .await
+            .unwrap();
+        assert_eq!(within(self.requests.recv()).await.unwrap(), "/test-fence");
     }
 }
 
@@ -346,6 +381,7 @@ async fn missing_signing_key_disables_plugin_startup_and_commands_without_networ
         crate::release_startup::start_updates(&core, backend)
             .await
             .unwrap();
+        assert_eq!(within(core.automatic_update_check()).await, None);
         for rejected in [
             within(core.check_update()).await.map(|_| ()),
             within(core.download_update()).await.map(|_| ()),

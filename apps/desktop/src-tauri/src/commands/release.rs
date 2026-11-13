@@ -1,7 +1,7 @@
 //! Local-window adapters; updater and diagnostics state remain in AppCore.
 use crate::{DesktopState, engine_setup::SetupEnvironment, error::CommandError};
 use app_core::{FullLogStatus, UiLanguage, UpdateCheck, UpdateDownloadStatus};
-use tauri::{Runtime, State};
+use tauri::{Manager, Runtime, State};
 
 #[tauri::command]
 pub async fn set_language(
@@ -22,6 +22,12 @@ pub async fn set_auto_check_updates(
 #[tauri::command]
 pub async fn check_update(state: State<'_, DesktopState>) -> Result<UpdateCheck, CommandError> {
     Ok(state.core.check_update().await?)
+}
+
+#[tauri::command]
+pub async fn automatic_update_check<R: Runtime>(app: tauri::AppHandle<R>) -> Option<UpdateCheck> {
+    let core = app.state::<DesktopState>().core.clone();
+    core.automatic_update_check().await
 }
 
 #[tauri::command]

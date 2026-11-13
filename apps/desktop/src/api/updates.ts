@@ -9,6 +9,7 @@ export type UpdateDownloadProgressListener = (status: UpdateDownloadStatus) => v
 /** The backend owns release selection, signature checks and installation. */
 export interface UpdateCommands {
   checkUpdate?(): Promise<UpdateCheck>;
+  automaticUpdateCheck?(): Promise<UpdateCheck | null>;
   downloadUpdate?(): Promise<UpdateDownloadStatus>;
   cancelUpdateDownload?(): Promise<UpdateDownloadStatus>;
   updateDownloadStatus?(): Promise<UpdateDownloadStatus>;
@@ -16,6 +17,7 @@ export interface UpdateCommands {
 }
 
 export const checkUpdate: NonNullable<UpdateCommands["checkUpdate"]> = () => invoke("check_update");
+export const automaticUpdateCheck: NonNullable<UpdateCommands["automaticUpdateCheck"]> = () => invoke("automatic_update_check");
 export const downloadUpdate: NonNullable<UpdateCommands["downloadUpdate"]> = () => invoke("download_update");
 export const cancelUpdateDownload: NonNullable<UpdateCommands["cancelUpdateDownload"]> = () => invoke("cancel_update_download");
 export const updateDownloadStatus: NonNullable<UpdateCommands["updateDownloadStatus"]> = () => invoke("update_download_status");
