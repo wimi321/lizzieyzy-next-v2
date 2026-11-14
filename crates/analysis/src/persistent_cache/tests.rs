@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::{collections::BTreeMap, ffi::OsString, future::Future, time::Duration};
+use std::{collections::BTreeMap, ffi::OsString};
 
 use document::{Command, GameDocument};
 use engine_session::{EngineHandle, SessionConfig, TransportSpec};
@@ -10,11 +10,8 @@ use tempfile::TempDir;
 use super::*;
 use crate::{AnalysisConfig, AnalysisSnapshot, Focus, LiveSettings, SnapshotSource};
 
-async fn within<T>(future: impl Future<Output = T>) -> T {
-    tokio::time::timeout(Duration::from_secs(5), future)
-        .await
-        .expect("operation exceeded safety deadline")
-}
+pub(super) mod safety_deadline;
+use safety_deadline::within;
 
 fn engine() -> EngineHandle {
     engine_session::spawn(
