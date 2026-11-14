@@ -82,8 +82,11 @@ export function useEngines(
   const [preview, setPreview] = useState<JavaImportPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // The last settings Rust returned, for the parts of the app that read more than the engines.
+  const [settings, setSettings] = useState<Settings | null>(null);
 
   const apply = useCallback((settings: Settings) => {
+    setSettings(settings);
     const state = engineState(settings);
     setEngines(state.engines);
     setMain(state.main);
@@ -269,6 +272,8 @@ export function useEngines(
     saveOptions,
     /** Settings a command elsewhere returned, e.g. choosing an official weight. */
     apply,
+    /** The settings as last loaded or returned; null before the first load. */
+    settings,
     autoSetup,
     load,
     openSetup: () => setSetup(mainEngine ? { kind: "edit", id: mainEngine.id } : { kind: "main" }),

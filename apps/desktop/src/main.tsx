@@ -6,6 +6,7 @@ import "./styles/app.css";
 import "./styles/frame.css";
 import "./styles/side.css";
 import "./styles/batch.css";
+import "./styles/play.css";
 
 const root = document.getElementById("root");
 if (!root) {

@@ -40,6 +40,7 @@ import { useRelease } from "./release/useRelease";
 import { useEveryday } from "./everyday/useEveryday";
 import { useBatch } from "./batch/useBatch";
 import { useEstimate } from "./estimate/useEstimate";
+import { usePlay } from "./play/usePlay";
 import { BOTTOM_ITEMS, itemFilter, TOP_ITEMS } from "./frame/toolbarItems";
 import { type ToolsTab, useEngineTools } from "./engines/useEngineTools";
 import { BenchmarkChip } from "./benchmark/BenchmarkChip";
@@ -115,7 +116,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   // The engines and the main one; a first run without one picks it by itself.
   const engines = useEngines(backend, engine, messages.frame.engineNames, messages.engines, messages.setup, (settings) => display.load(settings.display));
   const loadEngines = engines.load;
-  const shown = display.display;
+  // 人机对局, 引擎对局 and GTP engines; 对弈模式 hides what the engine thinks during a game.
+  const games = usePlay(backend, engines.settings, engines.apply, { hasDocument: document !== null, hasStones: document?.board?.stones.some(Boolean) ?? false }, messages);
+  const shown = games.shown(display.display);
   // Kata形势, 纯网络 and 策略网络 on both boards.
   const estimate = useEstimate(backend, shown, display.set, analysis);
   const everyday = useEveryday(
@@ -386,18 +389,19 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...everyday.bindings,
     ...batch.bindings,
     ...estimate.bindings,
+    ...games.bindings(analysis, hovered),
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
     hawkEye2: { run: toggleHawkEye, enabled: document !== null },
   });
   useShortcuts(
     bindings,
-    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen),
   );
   const frame = messages.frame;
   const engineLabel = engines.label === "" ? null : engines.label;
   // "No engine" is for no engine: one that Rust has not named yet shows without a name.
-  const menus = useMenus(WINDOWS, editing.recent, messages.edit, engines.label, shown.last_move_rank_marks, shown.next_move_min_visits, { names: engines.menuNames, main: engines.mainIndex }, messages.engines.importMenu);
+  const menus = useMenus(WINDOWS, editing.recent, messages.edit, engines.label, shown.last_move_rank_marks, shown.next_move_min_visits, { names: engines.menuNames, main: engines.mainIndex }, messages.engines.importMenu, messages.gtp.menu);
   const autoAnalyzing = quickRunning || wholeGameStatus === "Running";
   useWindowTitle(backend, {
     app: messages.app.title,
@@ -409,6 +413,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     file: document?.file_name ?? null,
     trial: editing.trial,
     labels: frame.title,
+    match: games.titlePrefix,
   });
   const reviewing = wholeGameStatus === "Running" || wholeGameStatus === "Paused";
   const reviewStatus = reviewStatusOf(reviewing ? wholeGame.progress : null, analysedCount, points.length, messages.notes);
@@ -465,6 +470,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       onSwitchLayout={() => display.set({ top_toolbar_layout: combinedTop ? "Separate" : "Combined" })}
       limits={limits}
       onLimits={(next) => void backend.setAnalysisLimits(next).then(setLimits).catch(report)}
+      game={games.toolbar}
     />
   );
 
@@ -487,6 +493,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           <>
             {release.tray(messages.release)}
             {batch.tray()}
+            {games.tray()}
             {editing.trialChip}
             {modes.chip}
             {tsumego.status ? <TsumegoChip status={tsumego.status} labels={messages.tsumego} onExit={tsumego.exit} /> : null}
@@ -586,7 +593,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               analysis={analysis}
               coordinates={shown.show_coordinates}
               {...estimate.board}
-              maxCandidates={shown.max_suggestions > 0 ? shown.max_suggestions : board.width * board.height}
+              maxCandidates={games.hideCandidates ? 0 : shown.max_suggestions > 0 ? shown.max_suggestions : board.width * board.height}
               label={messages.board.label}
               preview={listHover}
               variation={variation}
@@ -693,6 +700,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {release.dialogs(messages.release)}
       {everyday.dialogs(messages.everyday, messages.display)}
       {batch.dialogs(messages.review)}
+      {games.dialogs()}
       {modes.dialog}
       {boardMenu.menu}
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}

@@ -22,13 +22,15 @@ export interface WindowTitleInput {
   file: string | null;
   trial: boolean;
   labels: WindowTitleLabels;
+  /** An engine match's score, which Java puts first in the title. */
+  match?: string | null;
 }
 
 /** Java's title, "[Black's winrate, lead, visits] engine speed - [黑] A vs [白] B (结果:…)", or 试下中... during a trial. */
-export function titleOf({ app, analysis, current, engine, pondering, info, file, trial, labels }: WindowTitleInput): string {
+export function titleOf({ app, analysis, current, engine, pondering, info, file, trial, labels, match }: WindowTitleInput): string {
   if (trial) return labels.trial;
   const speed = analysis?.visits_per_second ?? null;
-  return windowTitle({
+  const title = windowTitle({
     app,
     evaluation:
       analysis && analysis.node_id === current && analysis.visits > 0 ? evaluationText(analysis.winrate, analysis.score_lead, analysis.visits) : null,
@@ -40,6 +42,7 @@ export function titleOf({ app, analysis, current, engine, pondering, info, file,
     result: info?.result?.trim() ? `(${labels.result}${info.result.trim()})` : null,
     file,
   });
+  return match ? `${match} - ${title}` : title;
 }
 
 /** Keeps the native window's title in step with the game. */

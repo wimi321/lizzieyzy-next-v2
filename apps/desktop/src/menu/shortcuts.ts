@@ -23,6 +23,11 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "clearAllLizzieCache", code: "KeyA", shift: true },
   { id: "playPassMove", code: "KeyP" },
   { id: "playBestMove", code: "Comma" },
+  // Java's game keys: N 人机对局, Alt+N its analysis-mode twin, Alt+E 引擎对局, Enter 人机续弈 for the side to move.
+  { id: "newGenmoveGame", code: "KeyN" },
+  { id: "newAnalyzeModeGame", code: "KeyN", alt: true },
+  { id: "newEngineGame", code: "KeyE", alt: true },
+  { id: "continueGameHere", code: "Enter" },
   { id: "coordsMenu", code: "KeyC" },
   { id: "hawkEye2", code: "KeyY" },
   { id: "toggleMoveNumbers", code: "KeyM" },
