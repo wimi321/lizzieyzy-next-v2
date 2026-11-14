@@ -1,0 +1,407 @@
+/* 腾讯棋谱, 打开在线链接 and AI 解说 (P3-19). */
+
+.secondary-button.small {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+/* 腾讯棋谱: the Fox window's layout with Java's nine columns. */
+
+.tencent-dialog {
+  width: min(62rem, 100%);
+}
+
+.tencent-label {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.tencent-open-hint {
+  margin-left: 12px;
+  color: var(--text-3);
+}
+
+.tencent-table .fox-row {
+  grid-template-columns: 34px 112px minmax(0, 1fr) 46px minmax(0, 1fr) 46px 96px 40px 58px;
+  gap: 8px;
+}
+
+.tencent-row:hover {
+  color: var(--text-1);
+  background: var(--bg-hover);
+}
+
+.tencent-row[aria-busy="true"] {
+  background: var(--accent-soft);
+}
+
+/* Java paints the games the searched account won in red. */
+.tencent-row.won,
+.tencent-row.won .fox-rank {
+  color: var(--bad);
+}
+
+.tencent-row .fox-name {
+  min-width: 0;
+}
+
+/* 打开在线链接 */
+
+.url-dialog {
+  width: min(34rem, 100%);
+}
+
+/* In the column form a growing input would collapse to its text's height. */
+.url-dialog .text-input {
+  flex: none;
+}
+
+.url-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.url-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+/* AI 解说: a window beside the board, like the batch table. */
+
+.commentary-window {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  z-index: 24;
+  display: flex;
+  flex-direction: column;
+  width: min(46rem, calc(100vw - 32px));
+  height: min(40rem, calc(100vh - 96px));
+  overflow: hidden;
+}
+
+.commentary-head {
+  gap: 10px;
+}
+
+.commentary-head h2 {
+  margin-right: auto;
+}
+
+.commentary-head .segmented {
+  grid-template-columns: repeat(3, auto);
+}
+
+.commentary-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 12px 0 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.commentary-context > .primary-button,
+.commentary-context > .secondary-button {
+  margin-left: auto;
+}
+
+.commentary-range {
+  display: inline-flex;
+  gap: 10px;
+}
+
+.commentary-range label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.commentary-range .text-input {
+  width: 4.5rem;
+  height: 28px;
+}
+
+.commentary-positions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.commentary-tabs {
+  border-bottom: 1px solid var(--line);
+}
+
+.commentary-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 2px;
+}
+
+.commentary-empty-title {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.commentary-answer + .commentary-answer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.commentary-question {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.commentary-evidence {
+  margin: 0;
+  font: 11.5px/1.55 var(--mono);
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.commentary-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding-top: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  border-top: 1px solid var(--line);
+}
+
+.commentary-status i {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  background: var(--text-3);
+  border-radius: 50%;
+}
+
+.commentary-status[data-phase="Preparing"] i,
+.commentary-status[data-phase="Generating"] i,
+.commentary-status[data-phase="Verifying"] i {
+  background: var(--accent);
+}
+
+.commentary-status[data-phase="Completed"] i {
+  background: var(--good);
+}
+
+.commentary-status[data-phase="Failed"] i {
+  background: var(--bad);
+}
+
+.commentary-status[data-phase="Failed"] .commentary-status-text {
+  color: var(--bad);
+}
+
+.commentary-model {
+  margin-left: auto;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.commentary-issues {
+  margin: 2px 0 0;
+  padding-left: 1.3em;
+  font-size: 12px;
+  color: var(--bad);
+}
+
+.commentary-ask {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.commentary-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.commentary-write,
+.commentary-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.commentary-write {
+  margin-left: auto;
+}
+
+/* Not a field title: `.field label` would make it a bold block. */
+.field .commentary-check {
+  display: inline-flex;
+  margin: 8px 0 0;
+  font-weight: 400;
+}
+
+.commentary-form .field > .text-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* AI 解说设置 */
+
+.commentary-setup {
+  width: min(40rem, 100%);
+}
+
+.commentary-form h3 {
+  margin: 14px 0 10px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-1);
+}
+
+.commentary-form h3:first-child {
+  margin-top: 8px;
+}
+
+.commentary-form .field-row .text-input {
+  flex: 1;
+}
+
+.commentary-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.commentary-prefs {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.commentary-prefs .segmented {
+  justify-self: start;
+  grid-template-columns: repeat(3, auto);
+}
+
+.commentary-privacy {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+/* Markdown from the AI service, in the window and in the comment panel. */
+
+.markdown {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-1);
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown blockquote,
+.markdown pre {
+  margin: 0 0 0.6em;
+}
+
+.markdown p {
+  white-space: pre-wrap;
+}
+
+.markdown h3,
+.markdown h4,
+.markdown h5 {
+  margin: 0.8em 0 0.4em;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.4em;
+}
+
+.markdown code {
+  padding: 0 4px;
+  font: 12px var(--mono);
+  background: var(--bg-hover);
+  border-radius: 4px;
+}
+
+.markdown pre {
+  padding: 8px 10px;
+  overflow: auto;
+  font: 12px/1.5 var(--mono);
+  background: var(--bg-panel);
+  border-radius: var(--radius);
+}
+
+.markdown blockquote {
+  padding-left: 10px;
+  color: var(--text-2);
+  border-left: 2px solid var(--line-strong);
+}
+
+/* The comment panel's AI 解说 block, apart from the user's own text. */
+
+.notes-ai {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.notes-ai h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--accent);
+}
+
+.notes-ai-meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.notes-ai h4 {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.notes-ai .markdown {
+  font-size: 12px;
+  line-height: 1.6;
+}

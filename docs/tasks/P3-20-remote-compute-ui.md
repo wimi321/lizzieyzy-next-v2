@@ -1,7 +1,7 @@
 ---
 id: P3-20
 title: 远程算力的界面：自建算力、SSH 引擎和智子云算力
-depends_on: [P3-17, P3-18]
+depends_on: [P3-17, P3-18, P3-22]
 paths:
   - apps/desktop/src/**
   - apps/desktop/e2e/**
@@ -29,6 +29,7 @@ paths:
 3. **状态**：
    - 主引擎是远程引擎时，引擎菜单和状态行写明远程类型。
    - 「远程引擎不支持」的功能入口变灰，并说明原因。
+4. **打开在线链接的预填**（P3-19 留下的）：对话框打开时调用 P3-22 的 `clipboard_link()`，有链接就预先填进去（`OpenUrlDialog` 已有 `initial`）。
 
 ## 验收标准
 

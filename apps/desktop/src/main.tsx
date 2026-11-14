@@ -8,6 +8,7 @@ import "./styles/side.css";
 import "./styles/batch.css";
 import "./styles/play.css";
 import "./styles/coach.css";
+import "./styles/online.css";
 
 const root = document.getElementById("root");
 if (!root) {
