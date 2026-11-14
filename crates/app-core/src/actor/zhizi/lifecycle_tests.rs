@@ -47,7 +47,7 @@ async fn attach(actor: &mut Actor, binary: &Path) -> EngineHandle {
         }
     })
     .await;
-    let fingerprint = profile.fingerprint().await.unwrap();
+    let fingerprint = within(profile.fingerprint()).await.unwrap();
     let (coordinator, snapshots) = actor.coordinator(&engine, &fingerprint).unwrap();
     actor.running = Some(Running {
         engine: engine.clone(),
@@ -71,11 +71,11 @@ async fn changed_credentials_stop_cloud_session_without_persisting_engine_or_pon
         pondering: true,
         ..Default::default()
     };
-    actor.settings.save(directory.path()).await.unwrap();
-    let original = tokio::fs::read(directory.path().join("settings.json"))
+    within(actor.settings.save(directory.path())).await.unwrap();
+    let original = within(tokio::fs::read(directory.path().join("settings.json")))
         .await
         .unwrap();
-    let engine = attach(&mut actor, &binary).await;
+    let engine = within(attach(&mut actor, &binary)).await;
     within(actor.zhizi_credentials_changed()).await.unwrap();
     assert!(actor.running.is_none());
     assert_eq!(
@@ -88,7 +88,7 @@ async fn changed_credentials_stop_cloud_session_without_persisting_engine_or_pon
         Some(RemoteEngineConfig::Zhizi { .. })
     ));
     assert_eq!(
-        tokio::fs::read(directory.path().join("settings.json"))
+        within(tokio::fs::read(directory.path().join("settings.json")))
             .await
             .unwrap(),
         original
@@ -106,7 +106,7 @@ async fn changed_credentials_preserve_local_running_sessions_and_temporary_start
             local_profile(&binary)
         });
         actor.startup_local_fallback = fallback;
-        let engine = attach(&mut actor, &binary).await;
+        let engine = within(attach(&mut actor, &binary)).await;
         within(actor.zhizi_credentials_changed()).await.unwrap();
         assert!(actor.running.is_some());
         assert!(matches!(
@@ -124,18 +124,18 @@ struct Http {
 }
 impl Http {
     async fn new() -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener = within(TcpListener::bind("127.0.0.1:0")).await.unwrap();
         let client =
             ZhiziClient::with_base_url(&format!("http://{}", listener.local_addr().unwrap()))
                 .unwrap();
         let (stop, mut stopping) = oneshot::channel();
         let task = tokio::spawn(async move {
             loop {
-                let (mut stream, _) = tokio::select! { _ = &mut stopping => break, result = listener.accept() => result.unwrap() };
+                let (mut stream, _) = tokio::select! { _ = &mut stopping => break, result = within(listener.accept()) => result.unwrap() };
                 let mut request = Vec::new();
                 loop {
                     let mut buffer = [0; 4096];
-                    let read = stream.read(&mut buffer).await.unwrap();
+                    let read = within(stream.read(&mut buffer)).await.unwrap();
                     if read == 0 {
                         break;
                     }
@@ -159,7 +159,7 @@ impl Http {
                     "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
-                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = within(stream.write_all(response.as_bytes())).await;
             }
         });
         Self { client, stop, task }
@@ -173,7 +173,7 @@ impl Http {
 #[tokio::test]
 async fn changed_credentials_cancel_only_pending_zhizi_trial_and_preserve_local_engine() {
     let binary = fake_katago::binary_path().unwrap();
-    let http = Http::new().await;
+    let http = within(Http::new()).await;
     let service = ZhiziService::spawn(Some(http.client.clone()), None);
     within(service.login_password("account@example.test".into(), "password".into(), false))
         .await
@@ -181,7 +181,7 @@ async fn changed_credentials_cancel_only_pending_zhizi_trial_and_preserve_local_
     let (mut actor, _) = crate::actor::tests::actor();
     actor.zhizi = service;
     actor.settings.engine = Some(local_profile(&binary));
-    let engine = attach(&mut actor, &binary).await;
+    let engine = within(attach(&mut actor, &binary)).await;
     for zhizi in [false, true] {
         let profile = if zhizi {
             ZhiziEngineOptions::default().profile()
@@ -220,12 +220,12 @@ async fn changed_credentials_cancel_only_pending_zhizi_trial_and_preserve_local_
         ));
     }
     within(actor.stop_engine()).await.unwrap();
-    http.close().await;
+    within(http.close()).await;
 }
 
 #[tokio::test]
 async fn public_login_code_reset_and_logout_wait_for_session_cleanup_acknowledgement() {
-    let http = Http::new().await;
+    let http = within(Http::new()).await;
     let service = ZhiziService::spawn(Some(http.client.clone()), None);
     let (commands, mut receiver) = mpsc::channel(8);
     let app = AppCore {
@@ -234,7 +234,7 @@ async fn public_login_code_reset_and_logout_wait_for_session_cleanup_acknowledge
     };
     let (cleaned, mut cleanups) = mpsc::unbounded_channel();
     let task = tokio::spawn(async move {
-        while let Some(command) = receiver.recv().await {
+        while let Some(command) = within(receiver.recv()).await {
             match command {
                 Command::ZhiziService(reply) => {
                     let _ = reply.send(service.clone());
@@ -287,5 +287,5 @@ async fn public_login_code_reset_and_logout_wait_for_session_cleanup_acknowledge
     }
     drop(app);
     within(task).await.unwrap();
-    http.close().await;
+    within(http.close()).await;
 }

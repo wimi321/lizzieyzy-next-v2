@@ -50,12 +50,16 @@ pub(super) async fn start(
     connection: ZhiziConnection,
     cfg: &SessionConfig,
 ) -> Result<Transport, Error> {
-    start_inner(connection, cfg)
+    start_inner(connection, cfg, READY_TIMEOUT)
         .with_subscriber(tracing::subscriber::NoSubscriber::default())
         .await
 }
 
-async fn start_inner(connection: ZhiziConnection, cfg: &SessionConfig) -> Result<Transport, Error> {
+async fn start_inner(
+    connection: ZhiziConnection,
+    cfg: &SessionConfig,
+    ready_timeout: Duration,
+) -> Result<Transport, Error> {
     let url = endpoint(&connection)?;
     #[cfg(test)]
     let connector = connection.tls.clone();
@@ -79,7 +83,7 @@ async fn start_inner(connection: ZhiziConnection, cfg: &SessionConfig) -> Result
     let mut parser = Parser::default();
     let mut buffered = Vec::new();
     let mut connected = false;
-    let ready_deadline = Instant::now() + READY_TIMEOUT;
+    let ready_deadline = Instant::now() + ready_timeout;
     loop {
         let packet = timeout_at(
             ready_deadline,
