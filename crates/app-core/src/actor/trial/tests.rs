@@ -3,13 +3,23 @@
 use super::*;
 use crate::{AppConfig, AppSubscription, Settings, delivery};
 use document::GameDocument;
-use std::{collections::HashMap, future::Future, path::Path};
+use std::{collections::HashMap, future::Future, panic::Location, path::Path};
 use tempfile::TempDir;
 
-async fn within<T>(future: impl Future<Output = T>) -> T {
-    tokio::time::timeout(Duration::from_secs(5), future)
-        .await
-        .expect("safety deadline")
+#[track_caller]
+fn within<T>(future: impl Future<Output = T>) -> impl Future<Output = T> {
+    let caller = Location::caller();
+    async move {
+        tokio::time::timeout(Duration::from_secs(5), future)
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "operation exceeded safety deadline (5s) at {}:{}",
+                    caller.file(),
+                    caller.line()
+                )
+            })
+    }
 }
 
 fn actor(directory: &Path) -> (Actor, AppSubscription) {
@@ -247,8 +257,8 @@ async fn timeout_is_driven_by_injected_hang_and_reaps_only_candidate() {
     let directory = TempDir::new().unwrap();
     let good = profile(directory.path(), &[]);
     let (mut actor, mut output) = actor(directory.path());
-    commit(&mut actor, good.clone()).await;
-    final_analysis(&mut actor, &mut output).await;
+    within(commit(&mut actor, good.clone())).await;
+    within(final_analysis(&mut actor, &mut output)).await;
     let saved = std::fs::read(directory.path().join("settings.json")).unwrap();
     let marker = directory.path().join("hung");
     let mut bad = good;
@@ -261,8 +271,8 @@ async fn timeout_is_driven_by_injected_hang_and_reaps_only_candidate() {
     // The running session already has long normal deadlines. Only this
     // deliberately hung candidate needs a short forced-cleanup deadline.
     actor.config.session.shutdown_timeout = Duration::from_millis(20);
-    actor.config.engine_setup_timeout = Duration::from_secs(10);
-    let receiver = begin(&mut actor, bad).await;
+    actor.config.engine_setup_timeout = Duration::from_secs(2);
+    let receiver = within(begin(&mut actor, bad)).await;
     let candidate = actor.trial.as_ref().unwrap().engine.clone();
     within(async {
         while !marker.is_file() {
@@ -270,9 +280,8 @@ async fn timeout_is_driven_by_injected_hang_and_reaps_only_candidate() {
         }
     })
     .await;
-    tokio::time::pause();
-    tokio::time::advance(Duration::from_secs(11)).await;
-    tokio::time::resume();
+    // Both real child processes are alive. Keep the runtime on real time so
+    // its safety deadlines and process I/O cannot diverge from each other.
     let outcome = within(wait(&mut actor.trial)).await;
     assert!(matches!(outcome, Err(EngineSetupError::TimedOut(_))));
     within(actor.finish_trial(outcome)).await;
