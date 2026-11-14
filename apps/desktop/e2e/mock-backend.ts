@@ -1,10 +1,13 @@
+import { fillZhiziDefaults } from "./fixtures";
 import type { CommentaryUpdated, CommentarySettings, CommentaryKeyStatus, CoachView, CoachHint, HumanSlModelStatus, GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
-import { fillCommentaryKeyDefaults, defaultCommentarySettings, fillCommentarySettingsDefaults, fillCommentaryDefaults, defaultCoachSetup, fillCoachSetupDefaults, fillCoachDefaults, fillCoachRatingDefaults, fillCoachSummaryDefaults, fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
+import { fillRemoteProfileDefaults, fillCommentaryKeyDefaults, defaultCommentarySettings, fillCommentarySettingsDefaults, fillCommentaryDefaults, defaultCoachSetup, fillCoachSetupDefaults, fillCoachDefaults, fillCoachRatingDefaults, fillCoachSummaryDefaults, fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 import type { TencentPage } from "../src/api/backend";
 import { fillTencentPageDefaults } from "./fixtures";
 
 export type {
+  ZhiziCommands, ZhiziStatus, ZhiziVerificationPurpose, ZhiziCodeDelivery, ZhiziOverview, ZhiziUsagePage, ZhiziCreditPage, ZhiziEngineOptions, ZhiziPlan, ZhiziWeight, ZhiziError, ZhiziErrorKind,
   TencentCommands, TencentQuery, TencentPage, TencentGame, TencentPlayer, TencentRank, TencentFailure, OpenUrlFailure,
+  RemoteCommands, RemoteEngineInput, RemoteSshAuth, SshAuthConfig, RemoteEngineConfig, RemoteEngineError, RemoteLinkError,
   CommentaryCommands, CommentaryUpdatedListener, CommentaryRequest, CommentarySettings, CommentaryUpdated, CommentaryKeyStatus, CommentaryMode, CommentaryPhase, CommentaryPosition, CommentaryError,
   CommentaryStyle, CommentaryTerminology, CommentaryDetail, CommentaryVariations,
   CoachCommands, CoachUpdatedListener, CoachMoveRatedListener, CoachSummaryListener, CoachSetup, CoachView, CoachDecision, CoachHint, CoachMoveRated, CoachSummary, CoachBestMove, CoachWorstMove, CoachVerdict, CoachRank, CoachMode, CoachColor, CoachPace, CoachError, HumanSlModelStatus, HumanSlPlay,
@@ -307,6 +310,8 @@ async function command<K extends CommandName>(
     // As Rust's normalize_engines: an old single engine is a one-item list, and the main one.
     const legacy = settings.engine ? [{ id: "legacy-engine", name: "KataGo", profile: settings.engine }] : [];
     defaultField(settings, "engines", legacy);
+    if (settings.engine) fillRemoteProfileDefaults(settings.engine);
+    for (const entry of settings.engines ?? []) if (entry.profile) fillRemoteProfileDefaults(entry.profile);
     defaultField(settings, "main_engine_id", settings.engine ? "legacy-engine" : null);
     defaultField(settings, "engine_settings", structuredClone(defaultEngineSettings));
     defaultField(settings, "language", "System");
@@ -321,6 +326,12 @@ async function command<K extends CommandName>(
     defaultField(engine, "default_komi", 7.5);
     defaultField(engine, "auto_check_alive", true);
     defaultField(engine, "report_interval_ms", 100);
+  }
+  fillZhiziDefaults(next.command, cloned);
+  if (["addRemoteEngine", "updateRemoteEngine", "switchToLocalEngine"].includes(next.command)) {
+    const settings = cloned as Settings;
+    if (settings.engine) fillRemoteProfileDefaults(settings.engine);
+    for (const entry of settings.engines ?? []) if (entry.profile) fillRemoteProfileDefaults(entry.profile);
   }
   if (next.command === "flashAnalysis" || next.command === "setFlashAnalysis") {
     fillFlashDefaults(cloned as FlashAnalysisSettings);
@@ -523,6 +534,22 @@ function mainLineTree(): VariationTreeView {
 }
 
 export const addEngine: Backend["addEngine"] = (name, profile) => command("addEngine", [name, profile]);
+export const zhiziStatus: NonNullable<Backend["zhiziStatus"]> = () => command("zhiziStatus", []);
+export const zhiziLoginPassword: NonNullable<Backend["zhiziLoginPassword"]> = (account, password, remember) => command("zhiziLoginPassword", [account, password, remember]);
+export const zhiziLoginCode: NonNullable<Backend["zhiziLoginCode"]> = (account, code, remember) => command("zhiziLoginCode", [account, code, remember]);
+export const zhiziSendCode: NonNullable<Backend["zhiziSendCode"]> = (account, purpose) => command("zhiziSendCode", [account, purpose]);
+export const zhiziResetPassword: NonNullable<Backend["zhiziResetPassword"]> = (account, code, password, remember) => command("zhiziResetPassword", [account, code, password, remember]);
+export const zhiziLogout: NonNullable<Backend["zhiziLogout"]> = () => command("zhiziLogout", []);
+export const zhiziOverview: NonNullable<Backend["zhiziOverview"]> = (force) => command("zhiziOverview", [force]);
+export const zhiziUsages: NonNullable<Backend["zhiziUsages"]> = (page) => command("zhiziUsages", [page]);
+export const zhiziCredits: NonNullable<Backend["zhiziCredits"]> = (page) => command("zhiziCredits", [page]);
+export const zhiziWebsite: NonNullable<Backend["zhiziWebsite"]> = () => command("zhiziWebsite", []);
+export const addRemoteEngine: NonNullable<Backend["addRemoteEngine"]> = (name, entry) => command("addRemoteEngine", [name, entry]);
+export const updateRemoteEngine: NonNullable<Backend["updateRemoteEngine"]> = (id, name, entry) => command("updateRemoteEngine", [id, name, entry]);
+export const testRemoteEngine: NonNullable<Backend["testRemoteEngine"]> = (entry) => command("testRemoteEngine", [entry]);
+export const switchToLocalEngine: NonNullable<Backend["switchToLocalEngine"]> = () => command("switchToLocalEngine", []);
+export const normalizeRemoteLink: NonNullable<Backend["normalizeRemoteLink"]> = (text) => command("normalizeRemoteLink", [text]);
+export const readRemoteLinkQr: NonNullable<Backend["readRemoteLinkQr"]> = (path) => command("readRemoteLinkQr", [path]);
 export const updateEngine: Backend["updateEngine"] = (id, name, profile) => command("updateEngine", [id, name, profile]);
 export const removeEngine: Backend["removeEngine"] = (id) => command("removeEngine", [id]);
 export const reorderEngines: Backend["reorderEngines"] = (ids) => command("reorderEngines", [ids]);

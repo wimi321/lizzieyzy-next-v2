@@ -22,6 +22,13 @@ pub struct SubscriptionId(pub u32);
 pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     fs::create_dir_all(directory)?;
     AppEvent::export_all_to(directory)?;
+    app_core::RemoteEngineInput::export_all_to(directory)?;
+    app_core::zhizi::ZhiziStatus::export_all_to(directory)?;
+    app_core::zhizi::ZhiziVerificationPurpose::export_all_to(directory)?;
+    app_core::zhizi::ZhiziCodeDelivery::export_all_to(directory)?;
+    app_core::zhizi::ZhiziOverview::export_all_to(directory)?;
+    app_core::zhizi::ZhiziUsagePage::export_all_to(directory)?;
+    app_core::zhizi::ZhiziCreditPage::export_all_to(directory)?;
     app_core::CommentaryRequest::export_all_to(directory)?;
     app_core::CommentaryKeyStatus::export_all_to(directory)?;
     app_core::CoachSetup::export_all_to(directory)?;

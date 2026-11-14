@@ -62,6 +62,7 @@ async fn core_with_clock(
     let program = fake_katago::binary_path().unwrap();
     let settings = Settings {
         engine: Some(EngineProfile {
+            remote: None,
             human_model: None,
             model: program.clone(),
             config: program.clone(),
@@ -649,6 +650,7 @@ async fn query_error_marks_only_the_current_item_failed_and_next_review_runs() {
     actor.settings.pondering = false;
     actor.settings.auto_quick_analyze_on_load = false;
     actor.settings.engine = Some(EngineProfile {
+        remote: None,
         human_model: None,
         model: program.clone(),
         config: program.clone(),

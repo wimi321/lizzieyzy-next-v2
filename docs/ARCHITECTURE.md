@@ -161,7 +161,10 @@ pub enum EngineStatus {
 
 - 一个 tokio 任务独占进程、待完成请求表和状态，外部只能发消息。`AnalysisRequest` 是不含 id 的查询，id 由会话分配。
 - `AnalysisRequest` 保留 4.4 中除 `id` 外的全部查询字段；扩展字段不得覆盖协议保留字段（包括 `id` / `action`）。`QuerySubscription::id() -> &str` 是该订阅稳定的取消标识，`recv(&mut self) -> Option<QueryEvent>` 按事件顺序读取，结束后返回 `None`。重发结果中的 wire id 会改变，`terminate` 始终使用订阅的初始 id；对已经结束或未知 id 取消是幂等成功。
-- `TransportSpec::LocalProcess { program, args, cwd, env }`。传输层把进程 I/O 变成"发出行 / 收到行 / 退出"三个 channel；以后的 SSH、WebSocket 只需提供同样的三个 channel。
+- `TransportSpec::LocalProcess { program, args, cwd, env }`、`WebSocket { url }` 和 `Ssh { host, port, user, auth, command, known_hosts }` 共用"发出行 / 收到行 / 退出"三个 channel。远程传输仍由原有会话 actor 驱动，启动 `query_version`、看门狗、取消与未完成查询的退避重发共用原实现；本地把 `ssh` 写为程序名的用法保持原样。
+- WebSocket 接受 ws/wss，连接期限 20 秒；wss 使用 rustls 的可信根和主机名校验，没有跳过证书检查的开关。发出一行对应一个 text 帧，收到一个 text 帧可包含多行；关闭或 I/O 故障携带脱敏原因进入会话退出/重启流程。
+- SSH 使用内置的纯 Rust 客户端，不调用系统 ssh、ssh-agent，也不自动读取用户 `~/.ssh` 下的配置或 known_hosts。认证可用密码或显式私钥文件（可带口令），远端执行用户配置的 analysis 命令，stdout/stderr 分别接原有协议和诊断尾部。主机密钥首次信任并保存在应用数据目录 `ssh/known_hosts`；已记录主机的密钥改变时，在发送认证凭据前拒绝，错误包含已知/新指纹和该应用文件路径。不支持端口转发或跳板机。
+- **远程查询也强制黑方视角**：每次远程 analysis 请求（包括实时、整盘、对局及重发）在 `overrideSettings` 合入 `reportAnalysisWinratesAs: "BLACK"`，覆盖调用方的同名值而保留其他设置。远端配置不归本机管理，因此不能依赖其配置文件默认值；本地查询继续沿用已有启动参数 BLACK 约定，协议响应不按轮走方二次翻转。
 - 本地传输 driver future 由会话 actor 直接轮询，不另起持有进程的任务；参数和环境直接传给子进程，不经过 shell。发出行与收到行各 64 槽，退出为 oneshot；退出报告在 `child.wait()` 和管道排空后产生，包含退出状态及 stderr 尾部。actor 处理退出报告前还会消费已入队的结果，避免遗漏退出前的 Final。关闭先关 stdin，`shutdown_timeout` 后强杀，再等待实际退出；`shutdown()` 成功后状态才为 Stopped。最后一个 handle 被丢弃也会执行清理，status receiver 和查询订阅不会使 actor 永久存活。
 - `engine_session::spawn_process(&mut tokio::process::Command)` 为本地分析、版本探测、测速、readboard 和 NVIDIA 探测共用的进程创建入口。仅 Linux 的准确 errno 26（ETXTBSY）重试，最多 8 次，每次间隔 20ms，250ms 后不再开始重试；其他错误和其他平台立即原样返回。使用 Tokio 时间，无锁或自建线程；不改变 argv/env、不通过 shell 重试。引擎和版本探测的原启动总 deadline 包含重试；预算限制重试调度，不能强行中断操作系统的同步 spawn 系统调用。Linux 并行 fork 暂时继承刚写完脚本的写句柄时，等待该子进程 exec 关闭句柄后即可恢复；持久占用仍明确失败，不无限等待。
 - QueryId 格式为 `<会话实例号>-<序号>`，重启后旧 id 永不复用。
@@ -390,6 +393,27 @@ pub enum EngineStatus {
 - 核对成功且保存开启：下一手写捕获的当前节点，范围写范围第一手的节点，整盘写根。经 document 的 `SetComment` 和现有编辑历史写入一次，保持其他用户文字，导航回原浏览节点，整个块可撤销。追问用冻结的同一依据和上次回答，向同一块追加「追问」；写入前再次核对文档内容版本，生成期间编辑则保守拒绝写入，导航可继续。换谱（包括试下/题目/同步重建）取消请求、清前次对话并发布空 Stopped 快照；退出/最后句柄释放取消任务。活动批量、对局、比赛及更新安装时不开始解说。
 - 测试只用监听 127.0.0.1 的脚本 HTTP 服务、分段信号屏障和 trait 内存存储，不访问真实服务/API key/系统钥匙串。联网测试显式 ignore，环境凭据仅在手动运行该测试时读取。P3-20 才接界面；本卡 mock 所有新命令均需脚本，没有前端解说业务。
 
+### P3-17 自建远程算力与 SSH
+
+- `EngineProfile.remote: Option<RemoteEngineConfig>` 扩展原 `EngineEntry.profile`；缺省为本地。WebSocket 档案只保存 host、port、是否 TLS、完整链接的 BLAKE3 身份和已握手版本，路径及 query 可能带令牌，因此不保存原链接。SSH 档案保存 host、port、user、command、认证方式和可选私钥路径。远程指纹包括传输类型、远程身份及实际 `query_version`，不探测本机的 program/model/config 文件；本地原指纹和参数规则保持。
+- `SecretStore` 是解说和远程引擎共用的存储 trait；`CommentaryKeyStore` 保留兼容别名，`SystemKeyStore` 仍使用原来的系统 service 和解说账户名。远程账户使用 `remote:` 前缀及不含版本的身份摘要，与解说地址账户隔离。完整 WebSocket 链接、SSH 密码、私钥口令只存在于秘密存储和本次运行内存，不进入 Settings。存储不可用时内存继续工作；所有自动测试注入替身，不调用真实系统钥匙串。
+- `add_remote_engine(name, entry)` / `update_remote_engine(id, name, entry)` 接受专用秘密输入 DTO，复用原引擎列表与候选 Ready 后接管的事务。秘密先在内存暂存，档案保存/接管成功后提交存储；失败或取消恢复旧内存凭据。远程初次启动同样先取得版本，再构造分析协调器和缓存身份；连接或钥匙串失败只报告引擎状态，应用和文档操作仍能启动。断线重连版本不变时沿用原查询恢复；版本变化时先隔离旧结果、停止旧整盘任务并重建协调器，不把旧版本结果写入新缓存。
+- `test_remote_engine(entry)` 只握手取得版本后关闭连接，返回版本或类型化连接、认证、私钥、主机密钥、协议及超时错误，不新增或选中档案。`switch_to_local_engine()` 按列表顺序选择程序、模型、配置均为可用文件的第一个本地档案，再走原试启动事务；没有候选返回 `NoLocalEngine`。选中远程引擎时，测速及其线程推荐/恢复、自动配置和 HumanSL 加载入口在本地文件读取、进程启动之前返回 `RemoteEngineError::Unsupported`；原规则/贴目、分析间隔、文档、普通分析等接口保持可用。
+- `normalize_remote_link(text)` 转换全角 ASCII 和空格、剥离外层配对引号、从首个大小写不敏感的 ws/wss 前缀提取到空白、引号或尖括号，验证显式 host，保留签名链接的原拼写；不接受 `完善://` 特例。`read_remote_link_qr(path)` 在 blocking task 内读取 PNG/JPEG、识别二维码后复用规范化；文件限 32 MiB，解码尺寸/内存有界，错误不回显原链接。二维码样例只含测试地址。
+- 六个新命令由 Tauri `commands/remote.rs` 薄转发，仅授权本地 main；TS 由 Rust 导出，新增设置/视图属性及 Backend 方法可选，旧 mock 档案将缺省 `remote` 视为本地，新命令都必须由脚本提供回复。没有远程设置界面、智子云协议或前端业务实现。
+
+### P3-18 智子云算力后端
+
+- 智子沿用 `EngineProfile.remote` / `RemoteEngineConfig::Zhizi { options, version }` 和原引擎列表、Ready 后接管事务及远程功能限制；档案只保存套餐、固定权重和已确认的版本，指纹包括 Zhizi 传输标识、套餐、权重与版本，不读取本地引擎文件。七种套餐是 Vip（默认）、OnDemand1x/3x/6x/12x/24x/1xCuda；权重取 Java `ZhiziEngineCatalog.java:22–33` 的当前内置及兼容名单，默认 `10b512t`，不探测临时账号、OSS、SSH 或 query-server。连接参数按 `RemoteComputeConfig.java:32–46` 固定生成；只有 1xCuda 使用 katago-CUDA，其他为 katago-TENSORRT。
+- `ZhiziService` 是独立的有界 channel actor，持有登录 token、账号内存、验证码冷却和概览缓存，主文档 actor 只传递服务句柄。默认 HTTP 客户端惰性创建，基址 `https://www.zhizigo.com`、JSON、20 秒期限、不跟随重定向、响应上限 1 MiB；测试注入 loopback HTTP。密码和验证码只用于对应请求，账号 trim、密码不 trim；验证码登录类型明确 `may_register_account`，不凭 token 回复推断本次实际新注册。重置密码至少 8 个 Unicode 字符，成功直接采用响应 token 登录。
+- 记住登录默认 false；只有明确开启时在通用 `SecretStore` 的专用 `zhizi:login` 槽保存 token，不保存账号或密码，与 `remote:` 及 AI 解说账户隔离。成功换账号先删除旧 token，退出和任何已观察到的 401 清内存及存储；钥匙串失败降级内存并保留待重试删除，不让启动失败。存储调用最多等待 2 秒，独立 16 槽 worker 串行完成原生操作，确保超时写入之后的删除不会被晚完成的写入覆盖；非智子主引擎的恢复在后台进行。成功登录或退出会关闭实际运行中及待试用的旧智子会话，不关闭本地会话或本次临时本地回退，不改保存的选择和 pondering。启动恢复只读专用 token，不发送 HTTP；保存的主引擎为智子但未登录时，本次启动采用列表中首个可用本地档案，保留原设置和主引擎选择，后续保存其他偏好也不固化此回退。无本地候选仍启动应用、报告“请先登录智子”；显式选择未登录智子返回类型化错误。
+- 错误按 HTTP 状态及 JSON `key` 映射，保留未知 key 和可用的 request-id，不使用 message 子串判断。错误、Debug 和日志不包含账号、密码、token 或原始响应。验证码冷却采用 Retry-After（秒数或 HTTP 日期，上限 600 秒），缺少时 60 秒；账号概览并发取账号、余额及最近 5 条使用记录，缓存 45 秒，任一 401 优先作废凭据。使用/资金明细均零起算分页、每页 20 条。充值与 VIP 命令只返回 `https://www.zhizigo.com/`，由后续界面打开系统浏览器，不在应用内收款。
+- `TransportSpec::Zhizi { connect: ZhiziConnector }` 在每次连接及重启时调用 app-core 提供的异步函数，使用当前登录 token 和固定套餐参数 POST fetch-socketio-token，取得新的临时 token 与连接地址；engine-session 不知道 HTTP 接口。地址只接受 HTTPS/WSS。传输复用已有 tokio-tungstenite/rustls，实现最小 Engine.IO v4 / Socket.IO v5 websocket 子集：`/socket.io.v4`、`EIO=4&transport=websocket&zz-socketio-token=...`，30 秒连接、60 秒等待 ready、ping/pong、connect 和事件/二进制附件；stdin 文本含换行，stdout/stderr 按 UTF-8 分行。关闭先发送 quit，再 Socket.IO disconnect。网络失败沿原看门狗和指数退避，401/403、余额不足及 VIP 失效直接 Failed；暂时无法分配算力保留重试预算，不按错误文字猜测。
+- `TransportSpec::GtpBridge { inner }` / 内部 `bridge::wrap` 在任意三个通道 GTP 传输外提供 analysis JSON；生产仅智子启用，其他 GTP 对局引擎维持原路径。桥接与底层 driver 同由原引擎 actor 轮询，无第二个进程所有者。query_version 查询 name/version/list_commands；查询按 priority 降序、同级提交顺序排队，一次一条，每条 analyzeTurns 逐手串行清盘、尺寸（矩形用 rectangular_boardsize）、贴目、kata-set-rules、set_position（能力缺失且有摆子时类型化拒绝）、play，再 kata-analyze。reportDuringSearchEvery 转 GTP 厘秒，下限 10 厘秒。根 visits 达 maxVisits 或 maxTime 到期发 stop，用最后有效报告发布 Final；运行中取消先 Final 再动作确认，排队取消先 noResults 再确认。无任何有效报告时保守返回 noResults，绝不伪造零 visits 评估。附加 policy 与候选 ownership 不支持时省略字段。智子整盘/批量任务暂时暂停实时搜索，释放单查询通道；导航不重新启动实时查询或整盘任务，暂停、完成、取消后按当前用户意图恢复实时分析，保存的 pondering 设置不变。
+- **GTP 输出按指定轮走方解释并只转黑方一次。** Java `analysis/Leelaz.java:23050–23064` 的 maybeAddPlayer 根据当前显示局面的 blackToPlay 向 kata-analyze 传 B/W，23054 行注释明确颜色控制 winrate 视角；`5585–5596` 将 KataGoAnalysisPayload 的 moves 和 ownership 原样接收。`KataGoAnalysisPayload.java:60–64` 读取概率 winrate 并转显示百分比、原值读取 scoreLead；`gui/BoardRenderer.java:1178–1185` 根据 blackToPlay 解释正 ownership 的执色。故白轮走时桥接使用 `1-winrate`、`-scoreLead`、`-ownership`，黑轮走原样。analysis actor 的远程 BLACK override 保留，但桥接不把该配置发给 GTP，返回的黑方数据也不再翻转。白棋集成测试同时核对根、候选、ownership，覆盖经会话强制 BLACK 的路径。
+- 发给智子的内容仅为登录/验证码/重置所需身份和秘密、HTTP Bearer token、套餐/权重连接参数，以及 GTP 尺寸、规则、贴目、摆子和所需着手历史；不发送棋谱玩家姓名、注释、文件路径或整份 SGF。引擎版本与错误输出在进入诊断前脱敏，GTP stderr 只保留发生诊断的标记。所有账号/Socket.IO/桥接验收仅使用本机 HTTP、TLS Socket.IO 和独立 fake-gtp；联网验收显式 ignore，凭据只读环境变量，默认不运行也不访问真实钥匙串。
+- Tauri `commands/zhizi.rs` 提供十个薄命令，仅授权本地 main；新增设置/视图字段由 Rust 生成可选 TS，API 不做认证、缓存或分析业务，mock 全部为脚本化 command 并给旧快照补默认值。智子配置使用现有 add/update/select_engine 命令和上述 remote 档案；界面属于 P3-20。
+
 ### 4.8 strength（棋力评估）
 
 - `strength::Estimator::bundled()` 从编译时嵌入的模型 JSON 构造纯同步估计器，无网络、文件 I/O 或异步运行时。`estimate(&[MoveInput])` 返回黑、白、整体 `StrengthReport`；每手输入包括手数、颜色、坐标、前后根评估的损失及落子前按 order 排序的候选点；app-core 先通过 P1-24 每手损失入口检查有效性。候选点的胜率由 app-core 从黑方概率转换为落子方百分点，目差同样转换到落子方；这只是计算差值的内部输入，对外局面分析仍为黑方视角。
@@ -603,4 +627,4 @@ Windows PowerShell 使用 `Get-AuthenticodeSignature '<installer>.exe'` 和 `sig
 
 ## 9. 暂不做
 
-人机对局界面、陪练界面、远程算力、弈客、HumanSL 棋力评估、AI 解说界面、死活题屏幕抓取、网页棋盘，见 ROADMAP 的 P3。readboard 本阶段仅实现 4.11 的 Windows 同步后端。
+人机对局界面、陪练界面、智子云算力及远程算力界面、弈客、HumanSL 棋力评估、AI 解说界面、死活题屏幕抓取、网页棋盘，见 ROADMAP 的 P3。readboard 本阶段仅实现 4.11 的 Windows 同步后端。

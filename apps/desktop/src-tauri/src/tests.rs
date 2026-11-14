@@ -34,6 +34,7 @@ mod move_editing;
 mod preferences;
 mod problem_moves;
 mod release;
+mod remote;
 mod review;
 mod setup_markup;
 mod strength;
@@ -285,6 +286,7 @@ fn profile(directory: &Path) -> EngineProfile {
     std::fs::write(&model, b"fake model").unwrap();
     std::fs::write(&config, b"numAnalysisThreads = 1\n").unwrap();
     EngineProfile {
+        remote: None,
         human_model: None,
         program,
         model,

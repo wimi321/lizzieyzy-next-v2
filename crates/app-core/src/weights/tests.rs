@@ -68,6 +68,7 @@ async fn download_events_and_weight_switch_share_the_existing_transaction_and_ro
     let fault = directory.path().join("startup-fault-consumed");
     tokio::fs::write(&fault, b"already consumed").await.unwrap();
     let original = EngineProfile {
+        remote: None,
         human_model: None,
         program: binary.clone(),
         model: binary.clone(),
@@ -155,6 +156,7 @@ async fn stale_preparation_does_not_overwrite_a_new_main_engine() {
         .await
         .unwrap();
     let profile = EngineProfile {
+        remote: None,
         human_model: None,
         program: binary.clone(),
         model: binary.clone(),
@@ -201,6 +203,7 @@ async fn ordinary_startup_tolerates_missing_human_model_and_never_sets_a_human_p
             program: binary.clone(),
             model: binary.clone(),
             config: binary.clone(),
+            remote: None,
             human_model: Some(human.clone()),
             extra_args: vec![
                 "--request-log".into(),

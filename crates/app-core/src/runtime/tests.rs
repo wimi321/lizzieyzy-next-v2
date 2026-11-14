@@ -69,6 +69,7 @@ async fn fake_engine_child_observes_installed_runtime_path_and_parent_is_unchang
     let observed = directory.path().join("child-path.txt");
     let before = std::env::var_os("PATH");
     let profile = crate::EngineProfile {
+        remote: None,
         human_model: None,
         program: binary.clone(),
         model: binary.clone(),
@@ -79,7 +80,10 @@ async fn fake_engine_child_observes_installed_runtime_path_and_parent_is_unchang
     let mut transport = profile.transport().unwrap();
     let engine_session::TransportSpec::LocalProcess {
         program, args, env, ..
-    } = &mut transport;
+    } = &mut transport
+    else {
+        panic!("expected local transport")
+    };
     *program = "/bin/sh".into();
     let mut wrapper = vec![
         OsString::from("-c"),
@@ -159,6 +163,7 @@ async fn runtime_repair_installs_then_switches_the_pinned_engine_and_rediagnoses
     std::fs::write(&model, b"tiny model").unwrap();
     std::fs::write(&config, b"numSearchThreadsPerAnalysisThread = 1\n").unwrap();
     let profile = crate::EngineProfile {
+        remote: None,
         human_model: None,
         program: external.clone(),
         model,

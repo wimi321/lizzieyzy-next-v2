@@ -37,6 +37,13 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             game: None,
             coach: Default::default(),
             commentary: commentary::State::new(None, &Default::default()),
+            remote: Default::default(),
+            zhizi: if tokio::runtime::Handle::try_current().is_ok() {
+                crate::zhizi::ZhiziService::spawn(None, None)
+            } else {
+                crate::zhizi::ZhiziService::inactive_for_test()
+            },
+            startup_local_fallback: false,
             gtp: Default::default(),
             match_session: None,
             strength: None,
@@ -119,6 +126,7 @@ async fn lru_eviction_restores_persistent_analysis_with_the_previous_best_summar
     let directory = tempfile::tempdir().unwrap();
     let program = fake_katago::binary_path().unwrap();
     let profile = EngineProfile {
+        remote: None,
         human_model: None,
         canonical_model_name: None,
         model: program.clone(),

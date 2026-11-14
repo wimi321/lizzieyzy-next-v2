@@ -138,7 +138,11 @@ impl Actor {
         }
     }
 
-    pub(super) fn cache_signal(&mut self, signal: Signal) {
+    pub(super) async fn cache_signal(&mut self, signal: Signal) {
+        let current = self.refresh_remote_identity().await;
+        if !current && matches!(signal, Signal::Snapshot(_)) {
+            return;
+        }
         let snapshot = match &signal {
             Signal::Snapshot(snapshot) if snapshot.source == SnapshotSource::Live => {
                 Some(snapshot.clone())

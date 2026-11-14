@@ -30,6 +30,7 @@ async fn core(directory: &Path, binary: PathBuf) -> (AppCore, EngineProfile) {
     std::fs::write(&model, b"tiny local fake weights").unwrap();
     std::fs::write(&config_path, CONFIG).unwrap();
     let profile = EngineProfile {
+        remote: None,
         human_model: None,
         program: binary,
         model,

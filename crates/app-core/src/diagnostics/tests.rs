@@ -20,6 +20,7 @@ fn profile(directory: &Path, program: PathBuf) -> EngineProfile {
     std::fs::write(&model, b"tiny fake model").unwrap();
     std::fs::write(&config, CONFIG).unwrap();
     EngineProfile {
+        remote: None,
         human_model: None,
         program,
         model,
@@ -113,6 +114,7 @@ async fn missing_engine_is_empty_and_each_missing_path_has_an_error() {
     let directory = directory();
     let missing = directory.path().join("missing");
     let profile = EngineProfile {
+        remote: None,
         human_model: None,
         program: missing.clone(),
         model: missing.clone(),

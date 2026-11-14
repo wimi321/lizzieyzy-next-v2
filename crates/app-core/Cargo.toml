@@ -32,6 +32,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["registry", "std"] }
 sys-locale = "0.3"
 png = "0.18"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+rqrr = "0.10"
+url = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -44,6 +47,8 @@ keyring = { version = "3.6.3", default-features = false, features = ["windows-na
 keyring = { version = "3.6.3", default-features = false, features = ["sync-secret-service", "crypto-rust", "vendored"] }
 
 [dev-dependencies]
+futures-util = { version = "0.3", features = ["sink"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 fake-katago = { path = "../../tools/fake-katago" }
 proptest = { version = "1", default-features = false, features = ["std"] }
 tokio = { version = "1", features = ["test-util", "net", "io-util"] }

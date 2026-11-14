@@ -120,6 +120,7 @@ async fn saved_profile_is_returned_without_discovery_or_reconfiguration() {
     let model = dir.path().join("model.bin.gz");
     std::fs::write(&model, "fake model").unwrap();
     let profile = EngineProfile {
+        remote: None,
         human_model: None,
         program: executable,
         model,

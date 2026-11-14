@@ -93,6 +93,7 @@ impl Actor {
     }
 
     async fn begin_benchmark(&mut self) -> Result<(), AppError> {
+        self.ensure_local_engine()?;
         self.ensure_no_benchmark()?;
         let profile = self
             .settings
@@ -260,6 +261,7 @@ impl Actor {
     }
 
     async fn reset_benchmark(&mut self) -> Result<(), AppError> {
+        self.ensure_local_engine()?;
         self.ensure_no_benchmark()?;
         let profile = self
             .settings

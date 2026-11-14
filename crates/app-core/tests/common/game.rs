@@ -65,6 +65,7 @@ pub async fn harness_in(
     ];
     extra_args.extend(extra);
     within(app.configure_engine(Some(EngineProfile {
+        remote: None,
         human_model: None,
         program,
         model,

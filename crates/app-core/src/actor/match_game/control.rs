@@ -262,12 +262,7 @@ impl Actor {
                                 .ok_or_else(|| MatchError::EngineMissing(engine_id.clone()))?
                                 .profile
                                 .clone();
-                            let fingerprint = profile.fingerprint().await?;
-                            let mut transport = profile.transport_with_benchmark(
-                                self.settings.benchmarks.get(&fingerprint),
-                            )?;
-                            self.with_runtime_environment(&profile, &mut transport)
-                                .await?;
+                            let (transport, _) = self.prepare_engine_transport(&profile).await?;
                             let mut config = self.session_config();
                             config.max_restarts = 0;
                             engine_session::spawn(transport, config)

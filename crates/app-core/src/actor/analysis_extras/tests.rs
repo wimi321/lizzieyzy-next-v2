@@ -23,6 +23,7 @@ async fn prepared(pondering: bool) -> (Actor, AppSubscription, tempfile::TempDir
     let directory = tempfile::tempdir().unwrap();
     let program = fake_katago::binary_path().unwrap();
     let profile = EngineProfile {
+        remote: None,
         human_model: None,
         model: program.clone(),
         config: program.clone(),

@@ -19,8 +19,9 @@ impl State {
 
 impl Actor {
     pub(super) async fn begin_auto_setup(&mut self) -> Result<Start, AppError> {
+        self.ensure_local_engine()?;
         if let Some(profile) = &self.settings.engine {
-            return Ok(Start::Existing(profile.clone()));
+            return Ok(Start::Existing(Box::new(profile.clone())));
         }
         // The existing UI invokes automatic setup whenever the compatibility
         // projection is None. A deliberately closed, saved selection is already
@@ -31,7 +32,7 @@ impl Actor {
             .iter()
             .find(|entry| Some(&entry.id) == self.settings.main_engine_id.as_ref())
         {
-            return Ok(Start::Existing(entry.profile.clone()));
+            return Ok(Start::Existing(Box::new(entry.profile.clone())));
         }
         self.auto_setup.cancel();
         self.cancel_trial().await;

@@ -5,6 +5,7 @@ use crate::{
 
 impl Actor {
     pub(super) async fn prepare_coach(&mut self, setup: CoachSetup) -> Result<Prepared, AppError> {
+        self.ensure_local_engine()?;
         setup.validate()?;
         if self.coach.starting.is_some()
             || self
@@ -90,6 +91,7 @@ impl Actor {
         &mut self,
         setup: CoachSetup,
     ) -> Result<CoachView, AppError> {
+        self.ensure_local_engine()?;
         let profile = self.settings.engine.clone().ok_or(CoachError::NoEngine)?;
         let path = profile
             .human_model

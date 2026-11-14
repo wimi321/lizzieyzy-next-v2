@@ -1,4 +1,5 @@
 import type {
+  EngineProfile,
   CommentarySettings,
   CommentaryUpdated,
   CommentaryKeyStatus,
@@ -38,6 +39,32 @@ import type {
 } from "../src/api/backend";
 
 type Stone = [x: number, y: number, color: ColorView];
+
+/** Optional remote settings are fixture data; connection logic stays in Rust. */
+export function fillRemoteProfileDefaults(profile: EngineProfile): void {
+  gameDefaultField(profile, "remote", undefined);
+  const remote = profile.remote;
+  if (!remote) return;
+  if (remote.type === "Zhizi") {
+    gameDefaultField(remote.data, "version", null);
+    gameDefaultField(remote.data, "options", {});
+    gameDefaultField(remote.data.options!, "plan", "Vip");
+    gameDefaultField(remote.data.options!, "weight", "10b512t");
+    return;
+  }
+  gameDefaultField(remote.data, "host", "");
+  gameDefaultField(remote.data, "port", remote.type === "Ssh" ? 22 : remote.data.secure ? 443 : 80);
+  gameDefaultField(remote.data, "version", null);
+  if (remote.type === "WebSocket") {
+    gameDefaultField(remote.data, "secure", false);
+    gameDefaultField(remote.data, "identity", "");
+  } else {
+    gameDefaultField(remote.data, "user", "");
+    gameDefaultField(remote.data, "command", "");
+    gameDefaultField(remote.data, "auth", { type: "Password" });
+    if (remote.data.auth?.type === "PrivateKey") gameDefaultField(remote.data.auth.data, "path", "");
+  }
+}
 
 /** P2-09 fixture default; cache behavior remains in Rust. */
 export const defaultCacheEnabled = true;
@@ -746,4 +773,31 @@ export function fillCommentaryDefaults(view: CommentaryUpdated): void {
 export const defaultCommentaryKeyStatus: Required<CommentaryKeyStatus> = { has_key: false, stored: false, available: false };
 export function fillCommentaryKeyDefaults(status: CommentaryKeyStatus): void {
   for (const key of Object.keys(defaultCommentaryKeyStatus) as (keyof CommentaryKeyStatus)[]) gameDefaultField(status, key, defaultCommentaryKeyStatus[key]);
+}
+
+/** Fixed scripted snapshot defaults, with no account or network logic. */
+export function fillZhiziDefaults(command: string, value: unknown): void {
+  if (!value || typeof value !== "object") return;
+  const fill = (target: object, defaults: Record<string, unknown>) => {
+    for (const [key, fallback] of Object.entries(defaults)) {
+      if (!(key in target)) Object.defineProperty(target, key, { value: structuredClone(fallback), enumerable: false, configurable: true, writable: true });
+    }
+  };
+  if (["zhiziStatus", "zhiziLoginPassword", "zhiziLoginCode", "zhiziResetPassword", "zhiziLogout"].includes(command)) {
+    fill(value, { logged_in: false, remembered: false, store_available: false, may_register_account: false });
+  } else if (command === "zhiziSendCode") {
+    fill(value, { retry_after_seconds: 60, may_register_account: false });
+  } else if (command === "zhiziUsages" || command === "zhiziCredits") {
+    fill(value, { total: 0, page: 0, page_size: 20, items: [] });
+    const page = value as { items: object[] };
+    for (const item of page.items) fill(item, command === "zhiziUsages"
+      ? { started_at: null, ended_at: null, finished: false, ready: false, duration_seconds: 0, total_cost_yuan: "", gpu_type: "", engine_type: "", vip: false, shared: false }
+      : { credit_type: "", amount_yuan: "", source: "", product_name: "", created_at: null });
+  } else if (command === "zhiziOverview") {
+    fill(value, { account: {}, balance: {}, recent_usage: { page_size: 5 } });
+    const overview = value as { account: object; balance: object; recent_usage: object };
+    fill(overview.account, { phone: "", email: "", membership: false, membership_expires_at: null, membership_auto_renew: null });
+    fill(overview.balance, { remaining_balance_yuan: "", total_cash_amount_yuan: "", yesterday_consumption_yuan: "", total_consumption_yuan: "", total_duration_seconds: 0, last_24_hours_share_duration_seconds: 0, last_24_hours_vip_duration_seconds: 0, current_connections: 0, current_nodes: 0 });
+    fillZhiziDefaults("zhiziUsages", overview.recent_usage);
+  }
 }

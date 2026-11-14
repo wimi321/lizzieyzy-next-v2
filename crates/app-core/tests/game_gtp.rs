@@ -484,6 +484,7 @@ async fn unavailable_final_score_falls_back_to_primary_katago_counting() {
     )
     .unwrap();
     within(h.app.configure_engine(Some(app_core::EngineProfile {
+        remote: None,
         human_model: None,
         program,
         model,

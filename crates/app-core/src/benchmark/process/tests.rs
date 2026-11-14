@@ -12,6 +12,7 @@ async fn within<T>(future: impl Future<Output = T>) -> T {
 fn profile(extra_args: Vec<String>) -> EngineProfile {
     let program = fake_katago::binary_path().unwrap();
     EngineProfile {
+        remote: None,
         human_model: None,
         model: program.clone(),
         config: program.clone(),
@@ -24,6 +25,7 @@ fn profile(extra_args: Vec<String>) -> EngineProfile {
 #[test]
 fn quick_arguments_use_analysis_config_with_gtp_alias_and_product_limits() {
     let profile = EngineProfile {
+        remote: None,
         human_model: None,
         program: "program with spaces".into(),
         model: "model with spaces".into(),
@@ -35,7 +37,10 @@ fn quick_arguments_use_analysis_config_with_gtp_alias_and_product_limits() {
         ],
         canonical_model_name: None,
     };
-    let TransportSpec::LocalProcess { program, args, .. } = benchmark_transport(&profile).unwrap();
+    let TransportSpec::LocalProcess { program, args, .. } = benchmark_transport(&profile).unwrap()
+    else {
+        panic!("expected local transport")
+    };
     assert_eq!(program, profile.program);
     let args: Vec<_> = args.iter().map(|arg| arg.to_str().unwrap()).collect();
     assert_eq!(args[0], "benchmark");

@@ -9,6 +9,12 @@ use crate::tencent_error::{OpenUrlFailure, TencentFailure};
 #[serde(tag = "type", content = "data")]
 pub enum CommandError {
     #[error("{0}")]
+    Zhizi(app_core::zhizi::ZhiziError),
+    #[error("{0}")]
+    Remote(app_core::RemoteEngineError),
+    #[error("{0}")]
+    RemoteLink(app_core::RemoteLinkError),
+    #[error("{0}")]
     Commentary(app_core::CommentaryError),
     #[error("{0}")]
     Coach(app_core::CoachError),
@@ -86,6 +92,9 @@ pub enum PngRequestError {
 impl From<app_core::AppError> for CommandError {
     fn from(error: app_core::AppError) -> Self {
         match error {
+            app_core::AppError::Zhizi(error) => Self::Zhizi(error),
+            app_core::AppError::Remote(error) => Self::Remote(error),
+            app_core::AppError::RemoteLink(error) => Self::RemoteLink(error),
             app_core::AppError::Commentary(error)
             | app_core::AppError::Settings(app_core::SettingsError::Commentary(error)) => {
                 Self::Commentary(error)

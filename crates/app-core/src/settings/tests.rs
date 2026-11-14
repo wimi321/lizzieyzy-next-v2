@@ -5,6 +5,7 @@ use std::{fs, time::Duration};
 
 fn profile(directory: &Path) -> EngineProfile {
     let profile = EngineProfile {
+        remote: None,
         human_model: None,
         canonical_model_name: None,
         program: directory.join("engine"),
@@ -409,6 +410,7 @@ async fn missing_model_and_non_file_config_have_readable_errors() {
 #[test]
 fn local_transport_forces_black_and_preserves_argument_boundaries() {
     let profile = EngineProfile {
+        remote: None,
         human_model: None,
         canonical_model_name: None,
         program: "path with spaces/katago".into(),
@@ -424,7 +426,10 @@ fn local_transport_forces_black_and_preserves_argument_boundaries() {
         args,
         cwd,
         env,
-    } = profile.transport().unwrap();
+    } = profile.transport().unwrap()
+    else {
+        panic!("expected local transport")
+    };
     assert_eq!(program, profile.program);
     assert!(cwd.is_none());
     assert!(env.is_empty());
@@ -462,7 +467,9 @@ fn multiple_override_sources_merge_once_and_keep_other_arguments_in_order() {
         .into(),
         ..EngineProfile::default()
     };
-    let TransportSpec::LocalProcess { args, .. } = profile.transport().unwrap();
+    let TransportSpec::LocalProcess { args, .. } = profile.transport().unwrap() else {
+        panic!("expected local transport")
+    };
     assert_eq!(
         args.iter().filter(|arg| *arg == "-override-config").count(),
         1
@@ -484,7 +491,10 @@ fn multiple_override_sources_merge_once_and_keep_other_arguments_in_order() {
 
 #[test]
 fn transport_without_user_overrides_still_sets_black_once() {
-    let TransportSpec::LocalProcess { args, .. } = EngineProfile::default().transport().unwrap();
+    let TransportSpec::LocalProcess { args, .. } = EngineProfile::default().transport().unwrap()
+    else {
+        panic!("expected local transport")
+    };
     assert_eq!(
         &args[5..],
         [
@@ -582,7 +592,10 @@ fn transport_reserves_two_search_slots_even_with_single_thread_override() {
         extra_args: vec!["-override-config=numAnalysisThreads=1".into()],
         ..EngineProfile::default()
     };
-    let TransportSpec::LocalProcess { args, .. } = profile.transport().expect("valid profile");
+    let TransportSpec::LocalProcess { args, .. } = profile.transport().expect("valid profile")
+    else {
+        panic!("expected local transport")
+    };
     assert_eq!(
         args[6],
         "numAnalysisThreads=2,reportAnalysisWinratesAs=BLACK"
@@ -640,12 +653,16 @@ async fn human_model_transport_fingerprint_and_missing_optional_file() {
     profile.human_model = Some(human.clone());
     let missing = profile.fingerprint().await.unwrap();
     assert_ne!(original, missing);
-    let TransportSpec::LocalProcess { args, .. } = profile.transport().unwrap();
+    let TransportSpec::LocalProcess { args, .. } = profile.transport().unwrap() else {
+        panic!("expected local transport")
+    };
     assert!(!args.iter().any(|arg| arg == "-human-model"));
     fs::write(&human, b"human test model").unwrap();
     let loaded = profile.fingerprint().await.unwrap();
     assert_ne!(loaded, missing);
-    let TransportSpec::LocalProcess { args, .. } = profile.transport().unwrap();
+    let TransportSpec::LocalProcess { args, .. } = profile.transport().unwrap() else {
+        panic!("expected local transport")
+    };
     let index = args.iter().position(|arg| arg == "-human-model").unwrap();
     assert_eq!(args[index + 1], human.as_os_str());
     assert_eq!(args.iter().filter(|arg| *arg == "-human-model").count(), 1);

@@ -216,7 +216,9 @@ async fn outgoing_queue_has_fixed_capacity_and_can_shutdown_while_full() {
 #[test]
 fn nonexistent_working_directory_is_a_spawn_error() {
     let mut transport = spec(&[]);
-    let TransportSpec::LocalProcess { cwd, .. } = &mut transport;
+    let TransportSpec::LocalProcess { cwd, .. } = &mut transport else {
+        panic!("expected local test transport");
+    };
     let missing = std::env::temp_dir().join(format!("missing-{}", uuid::Uuid::new_v4()));
     assert!(!missing.exists(), "test cwd must not exist");
     *cwd = Some(missing);

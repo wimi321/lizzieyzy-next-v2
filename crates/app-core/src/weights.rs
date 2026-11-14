@@ -181,7 +181,10 @@ impl AppCore {
         let (reply, response) = oneshot::channel();
         self.commands
             .send(Command::ReplaceMainEngine(
-                expected, profile, restart, reply,
+                Box::new(expected),
+                profile,
+                restart,
+                reply,
             ))
             .await
             .map_err(|_| AppError::Closed)?;
