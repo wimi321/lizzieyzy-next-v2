@@ -10,10 +10,10 @@ impl Actor {
         &mut self,
         request: Request,
         reply: oneshot::Sender<Result<Settings, AppError>>,
-    ) {
+    ) -> bool {
         if let Err(error) = self.ensure_no_benchmark() {
             let _ = reply.send(Err(error));
-            return;
+            return false;
         }
         self.auto_setup.cancel();
         self.cancel_trial().await;
@@ -22,12 +22,15 @@ impl Actor {
             Ok(Some((entries, id, profile))) => {
                 self.begin_list_trial(entries, id, profile, trial::Reply::Settings(reply))
                     .await;
+                false
             }
             Ok(None) => {
                 let _ = reply.send(Ok(self.settings.clone()));
+                true
             }
             Err(error) => {
                 let _ = reply.send(Err(error));
+                false
             }
         }
     }
@@ -40,7 +43,7 @@ impl Actor {
         let mut stop = false;
         match request {
             Request::Add(name, profile) => {
-                profile.transport()?;
+                profile.validate_transport()?;
                 settings.engines.push(EngineEntry {
                     id: settings.next_engine_id(),
                     name,
@@ -48,7 +51,7 @@ impl Actor {
                 });
             }
             Request::Update(id, name, profile) => {
-                profile.transport()?;
+                profile.validate_transport()?;
                 let entry = settings
                     .engines
                     .iter_mut()
@@ -143,7 +146,7 @@ impl Actor {
         self.cancel_trial().await;
         // Validate argument conflicts before changing the saved configuration.
         if let Some(profile) = &profile {
-            profile.transport()?;
+            profile.validate_transport()?;
         }
         let mut settings = self.settings.clone();
         settings.set_legacy_engine(profile);

@@ -44,6 +44,7 @@ async fn engine_actor(
     actor.directory = directory.to_owned();
     actor.settings.pondering = false;
     actor.settings.engine = Some(EngineProfile {
+        remote: None,
         human_model: None,
         canonical_model_name: None,
         model: program.clone(),

@@ -53,7 +53,7 @@ struct Prepared {
 }
 enum StartupPhase {
     Loading {
-        restore: Option<crate::EngineProfile>,
+        restore: Option<Box<crate::EngineProfile>>,
     },
     Restoring {
         reason: String,

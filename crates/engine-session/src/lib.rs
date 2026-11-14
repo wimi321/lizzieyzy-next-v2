@@ -3,10 +3,12 @@
 mod actor;
 mod delivery;
 pub mod gtp;
+mod remote;
 mod request;
 mod transport;
 
 pub use delivery::QuerySubscription;
+pub use remote::{RemoteTransportError, SshAuth, probe_remote};
 pub use request::AnalysisRequest;
 pub use transport::spawn_process;
 
@@ -17,7 +19,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 pub type QueryId = String;
 
 /// Local executable and arguments are used verbatim, without a shell.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum TransportSpec {
     LocalProcess {
         program: PathBuf,
@@ -25,6 +27,44 @@ pub enum TransportSpec {
         cwd: Option<PathBuf>,
         env: BTreeMap<OsString, OsString>,
     },
+    WebSocket {
+        url: String,
+    },
+    Ssh {
+        host: String,
+        port: u16,
+        user: String,
+        auth: SshAuth,
+        command: String,
+        known_hosts: PathBuf,
+    },
+}
+
+impl TransportSpec {
+    pub fn is_remote(&self) -> bool {
+        !matches!(self, Self::LocalProcess { .. })
+    }
+}
+
+impl std::fmt::Debug for TransportSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LocalProcess {
+                program,
+                args,
+                cwd,
+                env,
+            } => f
+                .debug_struct("LocalProcess")
+                .field("program", program)
+                .field("args", args)
+                .field("cwd", cwd)
+                .field("env", env)
+                .finish(),
+            Self::WebSocket { .. } => f.debug_struct("WebSocket").finish_non_exhaustive(),
+            Self::Ssh { .. } => f.debug_struct("Ssh").finish_non_exhaustive(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

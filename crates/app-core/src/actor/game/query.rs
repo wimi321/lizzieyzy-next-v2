@@ -361,6 +361,9 @@ impl Actor {
         Ok(())
     }
     fn publish_game_analysis(&mut self, response: AnalysisResponse) -> Result<(), AppError> {
+        if !self.remote_identity_current() {
+            return Ok(());
+        }
         if self.coach_hides_analysis() {
             return Ok(());
         }

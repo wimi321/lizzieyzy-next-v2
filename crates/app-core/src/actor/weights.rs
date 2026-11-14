@@ -104,8 +104,9 @@ impl Actor {
         profile: &EngineProfile,
         transport: &mut engine_session::TransportSpec,
     ) -> Result<(), AppError> {
-        let engine_session::TransportSpec::LocalProcess { env, .. } = transport;
-        env.extend(self.runtime_environment(profile).await?);
+        if let engine_session::TransportSpec::LocalProcess { env, .. } = transport {
+            env.extend(self.runtime_environment(profile).await?);
+        }
         Ok(())
     }
 }

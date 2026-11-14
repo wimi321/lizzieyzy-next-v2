@@ -41,7 +41,7 @@ pub enum AutoSetupError {
 }
 
 pub(crate) enum Start {
-    Existing(EngineProfile),
+    Existing(Box<EngineProfile>),
     Pending(Ticket),
 }
 
@@ -93,7 +93,7 @@ impl AppCore {
             .map_err(|_| AppError::Closed)?;
         let start = response.await.map_err(|_| AppError::Closed)??;
         let mut ticket = match start {
-            Start::Existing(profile) => return Ok(profile),
+            Start::Existing(profile) => return Ok(*profile),
             Start::Pending(ticket) => ticket,
         };
         let deadline = Instant::now() + TOTAL_TIMEOUT;

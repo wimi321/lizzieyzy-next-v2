@@ -273,6 +273,7 @@ async fn pasted_setup_is_analyzable_and_transform_never_reuses_old_coordinates()
     std::fs::write(&config, b"config").unwrap();
     Settings {
         engine: Some(EngineProfile {
+            remote: None,
             human_model: None,
             program,
             model,
@@ -422,6 +423,7 @@ async fn pasted_moves_start_the_same_automatic_curve_as_file_open() {
     std::fs::write(&config, b"config").unwrap();
     Settings {
         engine: Some(EngineProfile {
+            remote: None,
             human_model: None,
             program,
             model,

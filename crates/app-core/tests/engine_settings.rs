@@ -20,6 +20,7 @@ fn profile(directory: &Path) -> EngineProfile {
     std::fs::write(&model, "model").unwrap();
     std::fs::write(&config, "").unwrap();
     EngineProfile {
+        remote: None,
         human_model: None,
         program: fake_katago::binary_path().unwrap(),
         model,

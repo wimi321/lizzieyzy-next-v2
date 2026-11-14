@@ -21,6 +21,7 @@ async fn benchmark_resume_preserves_completed_review_nodes_and_original_pause() 
     actor.directory = dir.path().to_owned();
     actor.settings.pondering = false;
     actor.settings.engine = Some(EngineProfile {
+        remote: None,
         human_model: None,
         program: program.clone(),
         model: program.clone(),

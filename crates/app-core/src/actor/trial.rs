@@ -21,6 +21,7 @@ pub(super) struct PendingTrial {
 }
 
 pub(super) enum Reply {
+    Startup,
     Manual(oneshot::Sender<Result<(), AppError>>),
     Auto(oneshot::Sender<Result<EngineProfile, AppError>>),
     Settings(oneshot::Sender<Result<crate::Settings, AppError>>),
@@ -29,6 +30,7 @@ pub(super) enum Reply {
 impl Reply {
     fn is_closed(&self) -> bool {
         match self {
+            Self::Startup => false,
             Self::Manual(reply) => reply.is_closed(),
             Self::Auto(reply) => reply.is_closed(),
             Self::Settings(reply) => reply.is_closed(),
@@ -37,6 +39,7 @@ impl Reply {
 
     async fn closed(&mut self) {
         match self {
+            Self::Startup => pending().await,
             Self::Manual(reply) => reply.closed().await,
             Self::Auto(reply) => reply.closed().await,
             Self::Settings(reply) => reply.closed().await,
@@ -45,6 +48,7 @@ impl Reply {
 
     fn send(self, result: Result<(EngineProfile, Settings), AppError>) {
         match self {
+            Self::Startup => {}
             Self::Manual(reply) => {
                 let _ = reply.send(result.map(|_| ()));
             }
@@ -192,11 +196,7 @@ impl Actor {
             if timeout.is_zero() || timeout > Duration::from_secs(86400) {
                 return Err(AppError::from(EngineSetupError::InvalidTimeout));
             }
-            let fingerprint = profile.fingerprint().await?;
-            let mut transport =
-                profile.transport_with_benchmark(self.settings.benchmarks.get(&fingerprint))?;
-            self.with_runtime_environment(&profile, &mut transport)
-                .await?;
+            let (transport, fingerprint) = self.prepare_engine_transport(&profile).await?;
             Ok((fingerprint, transport, timeout))
         }
         .await;
@@ -217,12 +217,19 @@ impl Actor {
                     list_edit: Some((engines, id)),
                 });
             }
-            Err(error) => reply.send(Err(error)),
+            Err(error) => {
+                if matches!(reply, Reply::Startup) {
+                    self.set_summary_fingerprint(None);
+                    self.failed(error.to_string());
+                }
+                reply.send(Err(error));
+            }
         }
     }
 
     pub(super) async fn cancel_trial(&mut self) {
         if let Some(trial) = self.trial.take() {
+            self.remote.rollback();
             let cleanup = trial.engine.shutdown().await;
             let error =
                 cleanup.map_or_else(AppError::from, |()| EngineSetupError::Cancelled.into());
@@ -231,13 +238,24 @@ impl Actor {
     }
 
     pub(super) async fn finish_trial(&mut self, outcome: Result<(), EngineSetupError>) {
-        let Some(trial) = self.trial.take() else {
+        let Some(mut trial) = self.trial.take() else {
             return;
         };
         let result = match outcome {
-            Ok(()) => self.commit_trial(&trial).await,
+            Ok(()) => self.commit_trial(&mut trial).await,
             Err(error) => Err(error.into()),
         };
+        if let Err(error) = &result
+            && matches!(trial.reply, Reply::Startup)
+        {
+            self.set_summary_fingerprint(None);
+            self.failed(error.to_string());
+        }
+        if result.is_ok() {
+            self.remote.commit().await;
+        } else {
+            self.remote.rollback();
+        }
         if result.is_err() {
             // Failed attempts never publish status events or touch the running
             // coordinator; UI errors belong to this command's response.
@@ -248,7 +266,7 @@ impl Actor {
             .send(result.map(|()| (trial.profile, self.settings.clone())));
     }
 
-    async fn commit_trial(&mut self, trial: &PendingTrial) -> Result<(), AppError> {
+    async fn commit_trial(&mut self, trial: &mut PendingTrial) -> Result<(), AppError> {
         if trial.reply.is_closed() {
             return Err(EngineSetupError::Cancelled.into());
         }
@@ -289,10 +307,20 @@ impl Actor {
                 .into());
             }
         }
+        let ready_status = trial.status.borrow().clone();
+        if trial.profile.remote.is_some()
+            && let EngineStatus::Ready { version } = ready_status
+        {
+            trial.profile = trial.profile.with_remote_version(&version);
+            trial.fingerprint = trial.profile.fingerprint().await?;
+        }
         let (coordinator, snapshots) = self.coordinator(&trial.engine, &trial.fingerprint)?;
         let mut settings = self.settings.clone();
         if let Some((engines, id)) = &trial.list_edit {
             settings.engines = engines.clone();
+            if let Some(entry) = settings.engines.iter_mut().find(|entry| &entry.id == id) {
+                entry.profile = trial.profile.clone();
+            }
             settings.main_engine_id = Some(id.clone());
             settings.engine = Some(trial.profile.clone());
         } else {
