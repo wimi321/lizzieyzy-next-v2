@@ -76,6 +76,7 @@ impl Actor {
     ) -> Result<BatchAnalysisStatus, AppError> {
         match request {
             Request::Start(options) => {
+                self.ensure_no_pure_network()?;
                 self.ensure_no_batch()?;
                 self.ensure_no_benchmark()?;
                 self.ensure_no_move_trial()?;

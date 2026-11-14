@@ -35,3 +35,19 @@ pub async fn subscribe(
 pub async fn unsubscribe(state: State<'_, DesktopState>, id: u32) -> Result<(), CommandError> {
     state.events.unsubscribe(id).await
 }
+
+#[tauri::command]
+pub async fn set_analysis_extras(
+    state: State<'_, DesktopState>,
+    extras: app_core::AnalysisExtras,
+) -> Result<(), CommandError> {
+    Ok(state.core.set_analysis_extras(extras).await?)
+}
+
+#[tauri::command]
+pub async fn set_pure_network(
+    state: State<'_, DesktopState>,
+    enabled: bool,
+) -> Result<(), CommandError> {
+    Ok(state.core.set_pure_network(enabled).await?)
+}

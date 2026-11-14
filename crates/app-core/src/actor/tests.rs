@@ -223,7 +223,9 @@ async fn every_analysis_is_forwarded_with_best_summary_and_fresh_values_on_ties(
         assert_eq!(
             view.source,
             match source {
-                analysis::SnapshotSource::Live => crate::AnalysisSource::Live,
+                analysis::SnapshotSource::Live
+                | analysis::SnapshotSource::Extras
+                | analysis::SnapshotSource::PureNetwork => crate::AnalysisSource::Live,
                 analysis::SnapshotSource::Cache => crate::AnalysisSource::Cache,
             }
         );

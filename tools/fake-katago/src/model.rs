@@ -20,6 +20,7 @@ pub const FIELDS: &[&str] = &[
     "maxVisits",
     "includeOwnership",
     "includePolicy",
+    "includeMovesOwnership",
     "reportDuringSearchEvery",
     "firstReportDuringSearchAfter",
     "priority",
@@ -56,6 +57,7 @@ pub struct Query {
     pub first_report: f64,
     pub ownership: bool,
     pub policy: bool,
+    pub moves_ownership: bool,
     allow_suicide: bool,
 }
 
@@ -138,6 +140,7 @@ impl Query {
         let first_report = first_report.unwrap_or(interval.unwrap_or(0.0));
         let ownership = boolean(v, "includeOwnership")?;
         let policy = boolean(v, "includePolicy")?;
+        let moves_ownership = boolean(v, "includeMovesOwnership")?;
         if v.get("overrideSettings").is_some_and(|x| !x.is_object()) {
             return Err(invalid("overrideSettings"));
         }
@@ -159,6 +162,7 @@ impl Query {
             first_report,
             ownership,
             policy,
+            moves_ownership,
             allow_suicide,
         };
         query.board_at(query.moves.len())?;
@@ -265,7 +269,7 @@ impl Query {
             .enumerate()
             .map(|(order, mv)| {
                 let child_visits = visits / count + u64::from((order as u64) < visits % count);
-                json!({
+                let mut info = json!({
                     "move": mv, "visits": child_visits, "edgeVisits": child_visits,
                     "winrate": winrate, "scoreMean": score, "scoreLead": score,
                     "scoreSelfplay": score, "scoreStdev": 12.0, "utility": utility,
@@ -273,7 +277,15 @@ impl Query {
                     "utilityLcb": utility - 0.1, "weight": child_visits as f64,
                     "edgeWeight": child_visits as f64, "order": order,
                     "playSelectionValue": child_visits as f64, "pv": [mv]
-                })
+                });
+                if self.moves_ownership {
+                    let mut child = board.clone();
+                    if let Some(Some(index)) = child.index(mv) {
+                        child.play(player, index, self.allow_suicide);
+                    }
+                    info["ownership"] = json!(child.ownership(hash));
+                }
+                info
             })
             .collect();
         let mut result = json!({
@@ -290,20 +302,7 @@ impl Query {
             }
         });
         if self.ownership {
-            result["ownership"] = json!(
-                board
-                    .cells
-                    .iter()
-                    .enumerate()
-                    .map(|(i, c)| {
-                        match c {
-                            1 => 1.0,
-                            2 => -1.0,
-                            _ => (mix(hash.wrapping_add(i as u64)) % 201) as f64 / 100.0 - 1.0,
-                        }
-                    })
-                    .collect::<Vec<_>>()
-            );
+            result["ownership"] = json!(board.ownership(hash));
         }
         if self.policy {
             let empty = legal.iter().filter(|&&allowed| allowed).count();
@@ -327,12 +326,8 @@ impl Query {
                     invert_info(info);
                 }
             }
-            if let Some(ownership) = result["ownership"].as_array_mut() {
-                for value in ownership {
-                    if let Some(number) = value.as_f64() {
-                        *value = json!(-number);
-                    }
-                }
+            if let Some(ownership) = result.get_mut("ownership") {
+                invert_ownership(ownership);
             }
         }
         result
@@ -356,6 +351,19 @@ fn invert_info(info: &mut Value) {
     ] {
         if let Some(value) = info[field].as_f64() {
             info[field] = json!(-value);
+        }
+    }
+    if let Some(ownership) = info.get_mut("ownership") {
+        invert_ownership(ownership);
+    }
+}
+
+fn invert_ownership(ownership: &mut Value) {
+    if let Some(values) = ownership.as_array_mut() {
+        for value in values {
+            if let Some(number) = value.as_f64() {
+                *value = json!(-number);
+            }
         }
     }
 }
@@ -443,6 +451,18 @@ pub struct Board {
 }
 
 impl Board {
+    fn ownership(&self, hash: u64) -> Vec<f64> {
+        self.cells
+            .iter()
+            .enumerate()
+            .map(|(i, c)| match c {
+                1 => 1.0,
+                2 => -1.0,
+                _ => (mix(hash.wrapping_add(i as u64)) % 201) as f64 / 100.0 - 1.0,
+            })
+            .collect()
+    }
+
     fn index(&self, point: &str) -> Option<Option<usize>> {
         if point.eq_ignore_ascii_case("pass") {
             return Some(None);

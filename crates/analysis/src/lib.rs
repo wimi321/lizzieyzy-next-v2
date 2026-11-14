@@ -76,6 +76,12 @@ impl LiveSettings {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AnalysisExtras {
+    pub policy: bool,
+    pub moves_ownership: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct AnalysisConfig {
     /// Caller-defined identity of engine version, model and evaluation settings.
@@ -86,6 +92,8 @@ pub struct AnalysisConfig {
     pub live: LiveSettings,
     pub pondering: bool,
     pub limits: AnalysisLimits,
+    pub extras: AnalysisExtras,
+    pub pure_network: bool,
 }
 
 impl Default for AnalysisConfig {
@@ -97,6 +105,8 @@ impl Default for AnalysisConfig {
             live: LiveSettings::default(),
             pondering: true,
             limits: AnalysisLimits::default(),
+            extras: AnalysisExtras::default(),
+            pure_network: false,
         }
     }
 }
@@ -105,6 +115,10 @@ impl Default for AnalysisConfig {
 pub enum SnapshotSource {
     Cache,
     Live,
+    /// A one-visit supplement, merged with the current normal display.
+    Extras,
+    /// Transient raw network output; never a searched/cache result.
+    PureNetwork,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -226,6 +240,12 @@ impl AnalysisHandle {
         .await
     }
 
+    /// Invalidate an unavailable/illegal display position without changing any
+    /// live intent, limit pause or runtime query mode.
+    pub async fn clear_focus(&self) -> Result<(), AnalysisError> {
+        self.send(actor::Input::ClearFocus).await
+    }
+
     pub async fn set_pondering(&self, enabled: bool) -> Result<(), AnalysisError> {
         self.send(actor::Input::SetPondering(enabled)).await
     }
@@ -260,6 +280,18 @@ impl AnalysisHandle {
     pub async fn set_live_settings(&self, settings: LiveSettings) -> Result<(), AnalysisError> {
         settings.validate()?;
         self.send(actor::Input::SetLiveSettings(settings)).await
+    }
+
+    /// Runtime-only query shape. A missing payload is fetched with one visit
+    /// without changing the ordinary live search intent or a limit pause.
+    pub async fn set_analysis_extras(&self, extras: AnalysisExtras) -> Result<(), AnalysisError> {
+        self.send(actor::Input::SetAnalysisExtras(extras)).await
+    }
+
+    /// Temporarily replace the foreground query with raw one-visit output.
+    /// The caller arbitrates whole-game/batch work before enabling this mode.
+    pub async fn set_pure_network(&self, enabled: bool) -> Result<(), AnalysisError> {
+        self.send(actor::Input::SetPureNetwork(enabled)).await
     }
 
     pub fn status(&self) -> watch::Receiver<AnalysisStatus> {

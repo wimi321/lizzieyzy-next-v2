@@ -1,7 +1,7 @@
 use crate::{
-    AnalysisConfig, AnalysisError, AnalysisLimits, AnalysisSnapshot, AnalysisStatus, Focus,
-    LimitReason, LiveSettings, SnapshotSource, cache::Cache, delivery::Delivery, request,
-    speed::SearchSpeed, throttle::Throttle,
+    AnalysisConfig, AnalysisError, AnalysisExtras, AnalysisLimits, AnalysisSnapshot,
+    AnalysisStatus, Focus, LimitReason, LiveSettings, SnapshotSource, cache::Cache,
+    delivery::Delivery, request, speed::SearchSpeed, throttle::Throttle,
 };
 use document::{AnalysisKey, NodeId, Revision};
 use engine_session::{EngineHandle, QueryEvent, QuerySubscription};
@@ -17,12 +17,15 @@ pub(crate) enum Input {
         Option<Box<katago_protocol::AnalysisResponse>>,
         bool,
     ),
+    ClearFocus,
     SetPondering(bool),
     SetCacheEnabled(bool),
     DiscardCachedAnalysis,
     Resume,
     SetLimits(AnalysisLimits),
     SetLiveSettings(LiveSettings),
+    SetAnalysisExtras(AnalysisExtras),
+    SetPureNetwork(bool),
     Shutdown,
 }
 
@@ -48,7 +51,15 @@ impl From<&Focus> for Identity {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum QueryKind {
+    Live,
+    Extras,
+    PureNetwork,
+}
+
 struct Active {
+    kind: QueryKind,
     identity: Identity,
     subscription: QuerySubscription,
     speed: SearchSpeed,
@@ -70,6 +81,10 @@ struct Actor {
     display_floor: Option<u64>,
     status: watch::Sender<AnalysisStatus>,
     output: Delivery,
+    extras_attempted: bool,
+    live_finished: bool,
+    resume_after_extras: bool,
+    ordinary_display: Option<AnalysisSnapshot>,
 }
 
 pub(crate) async fn run(
@@ -94,12 +109,17 @@ pub(crate) async fn run(
         display_floor: None,
         status,
         output,
+        extras_attempted: false,
+        live_finished: false,
+        resume_after_extras: false,
+        ordinary_display: None,
     };
     loop {
         let deadline = actor.throttle.deadline();
         let limit_deadline = actor
             .active
             .as_ref()
+            .filter(|active| active.kind == QueryKind::Live)
             .and_then(|active| actor.config.limits.deadline(active.started));
         tokio::select! {
             command = commands.recv() => {
@@ -116,6 +136,11 @@ pub(crate) async fn run(
             event = receive(&mut actor.active) => {
                 if let Some(reason) = actor.event(event) {
                     actor.stop_by_limit(reason).await;
+                }
+                if std::mem::take(&mut actor.resume_after_extras)
+                    && let Err(error) = actor.start().await
+                {
+                    actor.status.send_replace(AnalysisStatus::Failed(error));
                 }
             }
             () = tick(deadline) => {
@@ -153,8 +178,9 @@ impl Actor {
                 let same_position = self.focus.as_ref().is_some_and(|current| {
                     current.node_id == focus.node_id && current.key == focus.key
                 });
-                let resumed = resume_limited && self.limited.is_some();
+                let resumed = !self.config.pure_network && resume_limited && self.limited.is_some();
                 if resumed {
+                    self.live_finished = false;
                     self.playout_exempt |= same_position
                         && self.limited_on_current
                         && self.limited == Some(LimitReason::Playouts);
@@ -192,6 +218,9 @@ impl Actor {
                 }
                 self.output.clear();
                 self.throttle.reset();
+                self.extras_attempted = false;
+                self.live_finished = false;
+                self.ordinary_display = None;
                 self.last_published = None;
                 self.display_floor = None;
                 self.playout_exempt = false;
@@ -202,11 +231,26 @@ impl Actor {
                 self.offer_cached();
                 self.start().await
             }
+            Input::ClearFocus => {
+                self.cancel().await?;
+                self.output.clear();
+                self.throttle.reset();
+                self.focus = None;
+                self.last_published = None;
+                self.ordinary_display = None;
+                self.display_floor = None;
+                self.extras_attempted = false;
+                self.live_finished = false;
+                self.limited_on_current = false;
+                self.playout_exempt = false;
+                Ok(())
+            }
             Input::SetPondering(enabled) => {
                 if self.config.pondering == enabled {
                     return Ok(());
                 }
                 self.config.pondering = enabled;
+                self.live_finished = false;
                 self.playout_exempt |=
                     self.limited_on_current && self.limited == Some(LimitReason::Playouts);
                 self.limited = None;
@@ -214,7 +258,7 @@ impl Actor {
                 if !enabled {
                     self.output.clear();
                 }
-                self.cancel().await?;
+                self.cancel_preserving_transient().await?;
                 self.start().await
             }
             Input::SetCacheEnabled(enabled) => {
@@ -223,6 +267,9 @@ impl Actor {
             }
             Input::DiscardCachedAnalysis => {
                 self.cache.clear();
+                self.extras_attempted = false;
+                self.live_finished = false;
+                self.ordinary_display = None;
                 self.output.clear();
                 self.throttle.reset();
                 self.last_published = None;
@@ -235,6 +282,7 @@ impl Actor {
                     self.limited_on_current && self.limited == Some(LimitReason::Playouts);
                 self.limited_on_current = false;
                 if self.limited.take().is_some() {
+                    self.live_finished = false;
                     self.status.send_replace(AnalysisStatus::Idle);
                     self.start().await?;
                 }
@@ -259,12 +307,16 @@ impl Actor {
                     return Ok(());
                 }
                 self.config.live = settings;
+                self.extras_attempted = false;
+                self.live_finished = false;
                 self.output.clear();
                 self.last_published = None;
                 self.display_floor = None;
                 self.cancel().await?;
                 self.start().await
             }
+            Input::SetAnalysisExtras(extras) => self.set_extras(extras).await,
+            Input::SetPureNetwork(enabled) => self.set_pure_network(enabled).await,
             Input::Shutdown => {
                 self.output.clear();
                 let result = self.cancel().await;
@@ -275,7 +327,8 @@ impl Actor {
     }
 
     fn offer_cached(&mut self) {
-        if self.config.cache_enabled
+        if !self.config.pure_network
+            && self.config.cache_enabled
             && let Some(focus) = &self.focus
             && let Some(response) = self.cache.get(focus.key, &self.config.engine_fingerprint)
         {
@@ -316,8 +369,20 @@ impl Actor {
     }
 
     async fn cancel(&mut self) -> Result<(), AnalysisError> {
+        if self.throttle.pending().is_some_and(|snapshot| {
+            matches!(
+                snapshot.source,
+                SnapshotSource::Extras | SnapshotSource::PureNetwork
+            )
+        }) {
+            self.extras_attempted = false;
+        }
         self.throttle.clear_pending();
+        self.resume_after_extras = false;
         if let Some(active) = self.active.take() {
+            if active.kind != QueryKind::Live {
+                self.extras_attempted = false;
+            }
             self.engine
                 .terminate(active.subscription.id().to_owned())
                 .await?;
@@ -326,25 +391,6 @@ impl Actor {
             self.limited
                 .map_or(AnalysisStatus::Idle, AnalysisStatus::Limited),
         );
-        Ok(())
-    }
-
-    async fn start(&mut self) -> Result<(), AnalysisError> {
-        if self.config.pondering
-            && self.limited.is_none()
-            && let Some(focus) = &self.focus
-        {
-            let request = request::build(&focus.position, &self.config.live)?;
-            let subscription = self.engine.submit(request).await?;
-            self.active = Some(Active {
-                identity: Identity::from(focus),
-                subscription,
-                speed: SearchSpeed::default(),
-                started: None,
-                visits: None,
-            });
-            self.status.send_replace(AnalysisStatus::Analyzing);
-        }
         Ok(())
     }
 
@@ -359,6 +405,11 @@ impl Actor {
         match event {
             Some(QueryEvent::Partial(response) | QueryEvent::Final(response)) => {
                 let final_result = !response.is_during_search;
+                if active.kind != QueryKind::Live {
+                    let kind = active.kind;
+                    self.supplemental_result(kind, response);
+                    return None;
+                }
                 // Queueing and engine startup are not live search time. The
                 // first result is the protocol's first proof of actual work.
                 active.started.get_or_insert_with(Instant::now);
@@ -389,6 +440,7 @@ impl Actor {
                     visits_per_second,
                 });
                 if final_result {
+                    self.live_finished = true;
                     self.active = None;
                     self.status.send_replace(AnalysisStatus::Idle);
                 } else {
@@ -404,9 +456,15 @@ impl Actor {
                 // Keep the old display until the new process reports progress.
                 self.display_floor = None;
                 // engine-session replays this very subscription; never submit twice.
-                self.status.send_replace(AnalysisStatus::Restarting);
+                self.status.send_replace(
+                    self.limited
+                        .map_or(AnalysisStatus::Restarting, AnalysisStatus::Limited),
+                );
             }
             Some(QueryEvent::Failed(error)) => {
+                if active.kind != QueryKind::Live {
+                    self.extras_attempted = false;
+                }
                 self.active = None;
                 self.throttle.clear_pending();
                 self.status
@@ -440,12 +498,15 @@ impl Actor {
     }
 
     fn limit_reached(&self) -> Option<LimitReason> {
-        self.active.as_ref().and_then(|active| {
-            self.config.limits.reached(
-                active.started,
-                (!self.playout_exempt).then_some(active.visits).flatten(),
-            )
-        })
+        self.active
+            .as_ref()
+            .filter(|active| active.kind == QueryKind::Live)
+            .and_then(|active| {
+                self.config.limits.reached(
+                    active.started,
+                    (!self.playout_exempt).then_some(active.visits).flatten(),
+                )
+            })
     }
 
     fn offer(&mut self, snapshot: AnalysisSnapshot) {
@@ -458,8 +519,10 @@ impl Actor {
     }
 
     fn is_shallower(&self, snapshot: &AnalysisSnapshot) -> bool {
-        self.display_floor
-            .is_some_and(|floor| snapshot.response.root_info.visits < floor)
+        snapshot.source != SnapshotSource::PureNetwork
+            && self
+                .display_floor
+                .is_some_and(|floor| snapshot.response.root_info.visits < floor)
     }
 
     fn publish(&mut self, snapshot: AnalysisSnapshot) {
@@ -476,5 +539,9 @@ impl Actor {
     }
 }
 
+mod extras;
+
+#[cfg(test)]
+mod extras_tests;
 #[cfg(test)]
 mod tests;

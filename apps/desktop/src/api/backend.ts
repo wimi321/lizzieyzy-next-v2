@@ -6,6 +6,7 @@ import type { BatchAnalysisCommands, BatchAnalysisProgressListener } from "./bat
 import type { ReviewCommands, WholeGameProgressListener } from "./review";
 import type { BoardSyncCommands, BoardSyncStatusListener } from "./board-sync";
 import type { BenchmarkCommands, BenchmarkProgressListener } from "./benchmark";
+import type { AnalysisExtrasCommands } from "./analysis-extras";
 import type { AnalysisLimitCommands, AnalysisStateListener } from "./analysis-limits";
 import type { ProblemMoveCommands } from "./problem-moves";
 import type { StrengthCommands } from "./strength";
@@ -47,6 +48,7 @@ export * from "./batch-analysis";
 export * from "./board-sync";
 export * from "./benchmark";
 export * from "./analysis-limits";
+export * from "./analysis-extras";
 export * from "./problem-moves";
 export * from "./strength";
 export * from "./tsumego";
@@ -95,7 +97,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+export interface Backend extends AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
   openBytes(bytes: number[]): Promise<Revision>;
   openPath(path: string): Promise<Revision>;
   save(path: string): Promise<void>;

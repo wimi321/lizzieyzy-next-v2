@@ -16,6 +16,7 @@ fn request() -> Value {
     request["analyzeTurns"] = json!([0, 1, 2, 3]);
     request["includeOwnership"] = json!(true);
     request["includePolicy"] = json!(true);
+    request["includeMovesOwnership"] = json!(true);
     request
 }
 
@@ -33,6 +34,13 @@ fn close(actual: f64, expected: f64) {
 }
 
 fn assert_inverted_info(black: &Value, white: &Value) {
+    if let Some(ownership) = black["ownership"].as_array() {
+        let inverted = white["ownership"].as_array().unwrap();
+        assert_eq!(ownership.len(), inverted.len());
+        for (black, white) in ownership.iter().zip(inverted) {
+            close(white.as_f64().unwrap(), -black.as_f64().unwrap());
+        }
+    }
     for field in ["winrate", "rawWinrate", "lcb"] {
         if let Some(value) = black[field].as_f64() {
             close(white[field].as_f64().unwrap(), 1.0 - value);

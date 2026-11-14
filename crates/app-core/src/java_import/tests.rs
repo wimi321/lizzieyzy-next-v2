@@ -112,6 +112,7 @@ async fn golden_preview_and_confirm_only_write_new_settings_and_do_not_start_imp
             confirm_new_board: false,
             confirm_overwrite: false,
             show_names_below_board: false,
+            ..DisplaySettings::default()
         }
     );
     let saved = app

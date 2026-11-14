@@ -37,6 +37,37 @@ pub enum WinrateGraphMode {
     Both,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub enum EstimateLocation {
+    Off,
+    Hidden,
+    Main,
+    Sub,
+    Both,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub enum EstimateStyle {
+    TransparentSmall,
+    Transparent,
+    TransparentOffStones,
+    BigSquare,
+    BySize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub enum SubBoardHeat {
+    None,
+    Policy,
+    AfterSearch,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub enum TopToolbarLayout {
+    Separate,
+    Combined,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default)]
 pub struct DisplaySettings {
@@ -116,6 +147,30 @@ pub struct DisplaySettings {
     // Java show-list-pane; kept optional for the next interface card.
     #[ts(as = "Option<bool>", optional)]
     pub show_list_pane: bool,
+    #[ts(as = "Option<EstimateLocation>", optional)]
+    pub estimate_location: EstimateLocation,
+    #[ts(as = "Option<EstimateStyle>", optional)]
+    pub estimate_style: EstimateStyle,
+    #[ts(as = "Option<EstimateStyle>", optional)]
+    pub pure_estimate_style: EstimateStyle,
+    #[ts(as = "Option<bool>", optional)]
+    pub remember_estimate: bool,
+    #[ts(as = "Option<bool>", optional)]
+    pub moves_ownership: bool,
+    #[ts(as = "Option<bool>", optional)]
+    pub estimate_shortcut: bool,
+    #[ts(as = "Option<SubBoardHeat>", optional)]
+    pub sub_board_heat: SubBoardHeat,
+    #[ts(as = "Option<bool>", optional)]
+    pub sub_board_raw: bool,
+    #[ts(as = "Option<TopToolbarLayout>", optional)]
+    pub top_toolbar_layout: TopToolbarLayout,
+    #[ts(as = "Option<bool>", optional)]
+    pub top_toolbar_wrap: bool,
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub top_toolbar_hidden: Vec<String>,
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub bottom_toolbar_hidden: Vec<String>,
 }
 
 impl Default for DisplaySettings {
@@ -156,11 +211,25 @@ impl Default for DisplaySettings {
             confirm_new_board: true,
             confirm_overwrite: true,
             show_names_below_board: true,
+            estimate_location: EstimateLocation::Off,
+            estimate_style: EstimateStyle::TransparentSmall,
+            pure_estimate_style: EstimateStyle::BigSquare,
+            remember_estimate: false,
+            moves_ownership: true,
+            estimate_shortcut: false,
+            sub_board_heat: SubBoardHeat::None,
+            sub_board_raw: false,
+            top_toolbar_layout: TopToolbarLayout::Separate,
+            // P3-06 explicitly selects false; Java currently defaults to true.
+            top_toolbar_wrap: false,
+            top_toolbar_hidden: Vec::new(),
+            bottom_toolbar_hidden: Vec::new(),
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error, Serialize, TS)]
+#[serde(tag = "type", content = "data")]
 pub enum DisplaySettingsError {
     #[error("{field} must be in {minimum}..={maximum}")]
     OutOfRange {
@@ -168,6 +237,10 @@ pub enum DisplaySettingsError {
         minimum: u32,
         maximum: u32,
     },
+    #[error("{field} must contain at most 64 toolbar item IDs")]
+    TooManyToolbarItems { field: &'static str },
+    #[error("{field}[{index}] must be 1..=64 ASCII letters, digits, '-' or '_'")]
+    InvalidToolbarItem { field: &'static str, index: usize },
 }
 
 impl DisplaySettings {
@@ -198,7 +271,34 @@ impl DisplaySettings {
                 });
             }
         }
+        for (field, items) in [
+            ("top_toolbar_hidden", &self.top_toolbar_hidden),
+            ("bottom_toolbar_hidden", &self.bottom_toolbar_hidden),
+        ] {
+            if items.len() > 64 {
+                return Err(DisplaySettingsError::TooManyToolbarItems { field });
+            }
+            for (index, id) in items.iter().enumerate() {
+                if !(1..=64).contains(&id.len())
+                    || !id
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+                {
+                    return Err(DisplaySettingsError::InvalidToolbarItem { field, index });
+                }
+            }
+        }
         Ok(())
+    }
+
+    pub(crate) fn normalize_toolbar_items(&mut self) {
+        for items in [
+            &mut self.top_toolbar_hidden,
+            &mut self.bottom_toolbar_hidden,
+        ] {
+            let mut seen = std::collections::BTreeSet::new();
+            items.retain(|id| seen.insert(id.clone()));
+        }
     }
 }
 

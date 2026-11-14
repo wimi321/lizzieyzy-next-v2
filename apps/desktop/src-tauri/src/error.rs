@@ -7,6 +7,12 @@ use crate::fox_error::FoxFailure;
 #[derive(Debug, thiserror::Error, Serialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum CommandError {
+    #[error("{0}")]
+    DisplaySettings(app_core::DisplaySettingsError),
+    #[error("pure network is active")]
+    PureNetworkActive,
+    #[error("whole-game analysis is running or paused")]
+    WholeGameAnalysisActive,
     #[error("review range {first_move}..={last_move} is outside moves 1..={last_available}")]
     InvalidWholeGameRange {
         first_move: usize,
@@ -63,6 +69,11 @@ pub enum PngRequestError {
 impl From<app_core::AppError> for CommandError {
     fn from(error: app_core::AppError) -> Self {
         match error {
+            app_core::AppError::Settings(app_core::SettingsError::Display(error)) => {
+                Self::DisplaySettings(error)
+            }
+            app_core::AppError::PureNetworkActive => Self::PureNetworkActive,
+            app_core::AppError::WholeGameAnalysisActive => Self::WholeGameAnalysisActive,
             app_core::AppError::WholeGame(app_core::WholeGameError::InvalidRange {
                 first_move,
                 last_move,

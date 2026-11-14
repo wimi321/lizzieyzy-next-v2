@@ -238,6 +238,7 @@ impl Actor {
 
     pub(super) async fn resume_review(&mut self) -> Result<WholeGameProgress, AppError> {
         self.ensure_no_benchmark()?;
+        self.ensure_no_pure_network()?;
         let progress = self
             .review
             .progress
@@ -263,6 +264,7 @@ impl Actor {
         source: WholeGameSource,
         force: bool,
     ) -> Result<(), AppError> {
+        self.ensure_no_pure_network()?;
         let running = self.running.as_ref().ok_or(WholeGameError::NoEngine)?;
         if matches!(
             *running.engine_status.borrow(),

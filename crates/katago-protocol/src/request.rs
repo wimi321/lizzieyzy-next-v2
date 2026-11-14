@@ -43,6 +43,8 @@ pub struct AnalysisQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub include_policy: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub include_moves_ownership: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub report_during_search_every: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_report_during_search_after: Option<f64>,

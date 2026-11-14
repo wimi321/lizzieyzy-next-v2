@@ -36,6 +36,8 @@ pub struct MoveInfo {
     pub order: u32,
     pub pv: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ownership: Option<Vec<f64>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub edge_visits: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub edge_weight: Option<f64>,

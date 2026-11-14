@@ -19,6 +19,8 @@ pub(crate) enum Input {
     Undo,
     Redo,
     SetPondering(bool),
+    SetAnalysisExtras(crate::AnalysisExtras),
+    SetPureNetwork(bool),
     SetLanguage(crate::UiLanguage),
     SetAlwaysOnTop(bool),
     SetUiScale(f64),

@@ -12,6 +12,10 @@ coordinate: string,
  */
 point: PointView | null, visits: number, winrate: number, score_lead: number, score_lead_available?: boolean, prior: number, order: number, 
 /**
+ * Black-perspective ownership after this candidate, in board row order.
+ */
+ownership?: Array<number> | null, 
+/**
  * Starts with the current player; colors alternate after every move/pass.
  */
 pv: Array<MoveView>, };

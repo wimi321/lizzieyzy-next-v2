@@ -121,6 +121,7 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
     }))
     .unwrap();
     let expected = AnalysisView {
+        policy: None,
         node_id: 3,
         revision: 12,
         winrate: 0.73,
@@ -135,6 +136,7 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
         },
         candidates: vec![
             CandidateView {
+                ownership: None,
                 score_lead_available: true,
                 coordinate: "C3".into(),
                 point: Some(PointView { x: 2, y: 16 }),
@@ -154,6 +156,7 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
                 ],
             },
             CandidateView {
+                ownership: None,
                 score_lead_available: true,
                 coordinate: "pass".into(),
                 point: None,
@@ -501,4 +504,44 @@ fn document_file_name_serializes_null_and_defaults_old_views_to_none() {
     assert_eq!(json["file_name"], serde_json::Value::Null);
     assert!(json.as_object_mut().unwrap().remove("file_name").is_some());
     assert_eq!(serde_json::from_value::<DocumentView>(json).unwrap(), view);
+}
+
+#[test]
+fn supplemental_arrays_keep_row_order_and_policy_perspective_and_reject_wrong_lengths() {
+    let mut snapshot = rectangular_snapshot();
+    let policy: Vec<_> = (0..118)
+        .map(|index| {
+            if index == 5 {
+                -1.0
+            } else {
+                f64::from(index) / 118.0
+            }
+        })
+        .collect();
+    let ownership: Vec<_> = (0..117)
+        .map(|index| (f64::from(index) - 58.0) / 58.0)
+        .collect();
+    snapshot.response.policy = Some(policy.clone());
+    for candidate in &mut snapshot.response.move_infos {
+        candidate.ownership = Some(ownership.clone());
+    }
+    let size = BoardSize::new(9, 13).unwrap();
+    let view = AnalysisView::from_snapshot(snapshot.clone(), size, Color::White).unwrap();
+    assert_eq!(view.policy, Some(policy));
+    assert!(
+        view.candidates
+            .iter()
+            .all(|candidate| candidate.ownership.as_ref() == Some(&ownership))
+    );
+    snapshot.response.policy.as_mut().unwrap().pop();
+    for candidate in &mut snapshot.response.move_infos {
+        candidate.ownership.as_mut().unwrap().pop();
+    }
+    let view = AnalysisView::from_snapshot(snapshot, size, Color::White).unwrap();
+    assert!(view.policy.is_none());
+    assert!(
+        view.candidates
+            .iter()
+            .all(|candidate| candidate.ownership.is_none())
+    );
 }

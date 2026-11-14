@@ -7,18 +7,49 @@ impl Actor {
     pub(super) fn signal(&mut self, signal: Signal) {
         match signal {
             Signal::Snapshot(snapshot) => {
-                if (self.pondering() || snapshot.source == analysis::SnapshotSource::Cache)
+                let pure = snapshot.source == analysis::SnapshotSource::PureNetwork;
+                let extras = snapshot.source == analysis::SnapshotSource::Extras;
+                if (self.pondering()
+                    || snapshot.source == analysis::SnapshotSource::Cache
+                    || extras
+                    || pure)
+                    && pure == self.config.analysis.pure_network
                     && let Some(focus) = &self.focus
                     && (focus.revision, focus.node_id, focus.key)
                         == (snapshot.revision, snapshot.node_id.0, snapshot.key)
                 {
-                    if self.preserves_saved_analysis(&snapshot) {
+                    if !pure && !extras && self.preserves_saved_analysis(&snapshot) {
                         self.publish_saved_focus();
                         return;
                     }
                     match AnalysisView::from_snapshot(*snapshot.clone(), focus.size, focus.to_play)
                     {
                         Ok(mut view) => {
+                            if pure {
+                                if view.node_id == self.document.current().0 {
+                                    self.output.send(AppEvent::AnalysisUpdated(view));
+                                }
+                                return;
+                            }
+                            if extras && self.preserves_saved_analysis(&snapshot) {
+                                // Keep transient fields alongside the saved response so
+                                // later document refreshes do not erase the overlay.
+                                // Saved metadata, depth and export values stay intact.
+                                if let Some(stored) = self.review.results.get_mut(&snapshot.node_id)
+                                {
+                                    stored.response.policy = snapshot.response.policy.clone();
+                                    for candidate in &mut stored.response.move_infos {
+                                        candidate.ownership = snapshot
+                                            .response
+                                            .move_infos
+                                            .iter()
+                                            .find(|item| item.coordinate == candidate.coordinate)
+                                            .and_then(|item| item.ownership.clone());
+                                    }
+                                }
+                                self.publish_saved_focus();
+                                return;
+                            }
                             self.retain_analysis(&snapshot);
                             // Graph history must not gate current candidates:
                             // a coordinator cache miss can publish a shallower

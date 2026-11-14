@@ -10,7 +10,7 @@ use tokio::time::{advance, pause, resume, timeout};
 use super::*;
 use crate::{AnalysisSubscription, delivery};
 
-fn actor() -> (Actor, AnalysisSubscription) {
+pub(super) fn actor() -> (Actor, AnalysisSubscription) {
     let engine = engine_session::spawn(
         TransportSpec::LocalProcess {
             program: fake_katago::binary_path().expect("build fake KataGo"),
@@ -58,12 +58,16 @@ fn actor() -> (Actor, AnalysisSubscription) {
             display_floor: None,
             status,
             output,
+            extras_attempted: false,
+            live_finished: false,
+            resume_after_extras: false,
+            ordinary_display: None,
         },
         subscription,
     )
 }
 
-fn snapshot(actor: &Actor, visits: u64, source: SnapshotSource) -> AnalysisSnapshot {
+pub(super) fn snapshot(actor: &Actor, visits: u64, source: SnapshotSource) -> AnalysisSnapshot {
     let focus = actor.focus.as_ref().unwrap();
     AnalysisSnapshot {
         revision: focus.revision,
@@ -83,14 +87,14 @@ fn snapshot(actor: &Actor, visits: u64, source: SnapshotSource) -> AnalysisSnaps
     }
 }
 
-fn flush_pending(actor: &mut Actor) {
+pub(super) fn flush_pending(actor: &mut Actor) {
     if let Some(deadline) = actor.throttle.deadline() {
         let snapshot = actor.throttle.flush(deadline).unwrap();
         actor.publish(snapshot);
     }
 }
 
-async fn immediately_available(output: &mut AnalysisSubscription) -> AnalysisSnapshot {
+pub(super) async fn immediately_available(output: &mut AnalysisSubscription) -> AnalysisSnapshot {
     tokio::select! {
         biased;
         value = output.recv() => value.expect("snapshot channel closed"),
@@ -98,7 +102,7 @@ async fn immediately_available(output: &mut AnalysisSubscription) -> AnalysisSna
     }
 }
 
-async fn assert_no_output(output: &mut AnalysisSubscription) {
+pub(super) async fn assert_no_output(output: &mut AnalysisSubscription) {
     tokio::select! {
         biased;
         value = output.recv() => panic!("unexpected output: {value:?}"),
@@ -106,7 +110,7 @@ async fn assert_no_output(output: &mut AnalysisSubscription) {
     }
 }
 
-async fn stop(actor: Actor) {
+pub(super) async fn stop(actor: Actor) {
     let engine = actor.engine.clone();
     drop(actor);
     timeout(Duration::from_secs(5), engine.shutdown())

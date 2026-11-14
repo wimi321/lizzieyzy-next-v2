@@ -36,7 +36,9 @@ impl Delivery {
             mailbox.serial = mailbox.serial.wrapping_add(1);
             let slot = match snapshot.source {
                 SnapshotSource::Cache => &mut mailbox.cached,
-                SnapshotSource::Live => &mut mailbox.live,
+                SnapshotSource::Live | SnapshotSource::Extras | SnapshotSource::PureNetwork => {
+                    &mut mailbox.live
+                }
             };
             *slot = Some((mailbox.serial, snapshot));
         });

@@ -3,6 +3,7 @@
 
 mod actor;
 mod analysis_cache;
+mod analysis_extras;
 mod analysis_limit;
 pub mod assets;
 mod auto_setup;
@@ -41,6 +42,7 @@ pub mod updates;
 mod view;
 mod weights;
 
+pub use analysis_extras::AnalysisExtras;
 pub use analysis_limit::{AnalysisLimitSettings, AnalysisPauseReason, AnalysisState};
 pub use assets::{
     AccelerationPlan, AccelerationReason, AssetDownloadStatus, AssetError, DownloadPhase,
@@ -58,8 +60,8 @@ pub use diagnostics::{
     RepairResources,
 };
 pub use display::{
-    DisplaySettings, DisplaySettingsError, MoveNumberMode, MoveRankMarkMode, NextMoveHint,
-    WinrateGraphMode,
+    DisplaySettings, DisplaySettingsError, EstimateLocation, EstimateStyle, MoveNumberMode,
+    MoveRankMarkMode, NextMoveHint, SubBoardHeat, TopToolbarLayout, WinrateGraphMode,
 };
 pub use edit::{GameInfoEdit, NewGameOptions};
 pub use engine_display_name::{EngineDisplayName, engine_display_name};
@@ -94,6 +96,10 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error("pure network is active")]
+    PureNetworkActive,
+    #[error("whole-game analysis is running or paused")]
+    WholeGameAnalysisActive,
     #[error("batch analysis is running or paused")]
     BatchAnalysisRunning,
     #[error(transparent)]

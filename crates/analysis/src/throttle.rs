@@ -27,6 +27,10 @@ impl Throttle {
         self.pending = None;
     }
 
+    pub(crate) fn pending(&self) -> Option<&AnalysisSnapshot> {
+        self.pending.as_ref()
+    }
+
     pub(crate) fn clear_pending(&mut self) {
         self.pending = None;
     }

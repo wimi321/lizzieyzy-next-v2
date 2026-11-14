@@ -62,6 +62,9 @@ pub enum AnalysisPauseReason {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct AnalysisState {
+    #[serde(default)]
+    #[ts(as = "Option<bool>", optional)]
+    pub pure_network: bool,
     /// Effective permission to ponder, not a guarantee that an engine is ready.
     pub pondering: bool,
     pub pause_reason: Option<AnalysisPauseReason>,

@@ -46,6 +46,8 @@
     "allow-variation-tree",
     "allow-preview-variation",
     "allow-set-pondering",
+    "allow-set-analysis-extras",
+    "allow-set-pure-network",
     "allow-analysis-state",
     "allow-toggle-pondering",
     "allow-analysis-limits",

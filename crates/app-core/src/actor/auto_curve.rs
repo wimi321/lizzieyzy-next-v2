@@ -135,7 +135,7 @@ impl Actor {
     }
 
     pub(super) async fn maybe_start_auto_curve(&mut self) {
-        if !self.auto_curve.pending || self.batch_active() {
+        if !self.auto_curve.pending || self.batch_active() || self.config.analysis.pure_network {
             return;
         }
         if !self.settings.auto_quick_analyze_on_load || self.manual_review_active() {

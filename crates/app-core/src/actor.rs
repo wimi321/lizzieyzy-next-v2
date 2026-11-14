@@ -9,6 +9,7 @@ use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
 mod analysis_cache;
+mod analysis_extras;
 mod analysis_limit;
 mod auto_curve;
 mod auto_setup;
@@ -438,6 +439,8 @@ impl Actor {
             Input::SetUiScale(scale) => self.set_ui_scale(scale).await?,
             Input::SetPlaySound(enabled) => self.set_play_sound(enabled).await?,
             Input::SetAutoCheckUpdates(enabled) => self.set_auto_check_updates(enabled).await?,
+            Input::SetAnalysisExtras(extras) => self.set_analysis_extras(extras).await?,
+            Input::SetPureNetwork(enabled) => self.set_pure_network(enabled).await?,
             Input::SetPondering(enabled) => {
                 self.set_pondering(enabled).await?;
             }
@@ -536,7 +539,7 @@ impl Actor {
         if self.running.is_none() {
             return;
         }
-        let node_id = if self.sync_active() {
+        let node_id = if self.sync_active() && !self.config.analysis.pure_network {
             self.board_sync
                 .resolved_node
                 .filter(|id| self.document.node(*id).is_ok())
@@ -547,9 +550,8 @@ impl Actor {
         let Ok(position) = self.document.position_at(node_id) else {
             self.flush_cached_focus().await;
             self.focus = None;
-            if self.limit_reason().is_none()
-                && let Some(running) = &self.running
-                && let Err(error) = running.coordinator.set_pondering(false).await
+            if let Some(running) = &self.running
+                && let Err(error) = running.coordinator.clear_focus().await
             {
                 self.analysis_failed(error.to_string());
             }
