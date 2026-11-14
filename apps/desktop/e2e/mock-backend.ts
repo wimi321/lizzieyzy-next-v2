@@ -1,7 +1,10 @@
 import type { CoachView, CoachHint, HumanSlModelStatus, GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 import { defaultCoachSetup, fillCoachSetupDefaults, fillCoachDefaults, fillCoachRatingDefaults, fillCoachSummaryDefaults, fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
+import type { TencentPage } from "../src/api/backend";
+import { fillTencentPageDefaults } from "./fixtures";
 
 export type {
+  TencentCommands, TencentQuery, TencentPage, TencentGame, TencentPlayer, TencentRank, TencentFailure, OpenUrlFailure,
   CoachCommands, CoachUpdatedListener, CoachMoveRatedListener, CoachSummaryListener, CoachSetup, CoachView, CoachDecision, CoachHint, CoachMoveRated, CoachSummary, CoachBestMove, CoachWorstMove, CoachVerdict, CoachRank, CoachMode, CoachColor, CoachPace, CoachError, HumanSlModelStatus, HumanSlPlay,
   GtpCommands, GtpConsoleListener, GtpEngineEntry, GtpEngineInfo, GtpConsoleLine, GtpTime, MatchCommands, MatchUpdatedListener, MatchSetup, MatchView, MatchPlayer, MatchSide,
   GameCommands, GameUpdatedListener, GameSetup, GameView, GameStart, GamePhase, GameEndReason, GameError, AiPlayer, Player, KataGoPlay, HumanClock, HumanClockView, RandomOpening, ResignRule, PvPick,
@@ -235,6 +238,7 @@ async function command<K extends CommandName>(
     lastAnalysisState = structuredClone(next.result);
   }
   const cloned = structuredClone(result);
+  if (next.command === "tencentSearch" || next.command === "tencentNextPage") fillTencentPageDefaults(cloned as TencentPage);
   if (next.command === "analysisState" || next.command === "togglePondering") defaultField(cloned as AnalysisState, "pure_network", false);
   if (next.command === "setDisplaySettings") fillDisplayDefaults(cloned as NonNullable<Settings["display"]>);
   if (next.command === "wholeGameResult" && cloned) fillAnalysisDefaults(cloned as AnalysisView);
@@ -293,6 +297,7 @@ async function command<K extends CommandName>(
     fillGameSetupDefaults(settings.game_setup!);
     defaultField(settings, "games_directory", null);
     defaultField(settings, "gtp_engines", []);
+    defaultField(settings, "tencent_history", []);
     defaultField(settings, "recent_files", []);
     // As Rust's normalize_engines: an old single engine is a one-item list, and the main one.
     const legacy = settings.engine ? [{ id: "legacy-engine", name: "KataGo", profile: settings.engine }] : [];
@@ -620,6 +625,11 @@ export const foxSearch: Backend["foxSearch"] = (query) => command("foxSearch", [
 export const foxNextPage: Backend["foxNextPage"] = (uid, cursor) => command("foxNextPage", [uid, cursor]);
 export const foxOpenGame: Backend["foxOpenGame"] = (gameId) => command("foxOpenGame", [gameId]);
 export const foxClearHistory: Backend["foxClearHistory"] = () => command("foxClearHistory", []);
+export const tencentSearch: NonNullable<Backend["tencentSearch"]> = (query) => command("tencentSearch", [query]);
+export const tencentNextPage: NonNullable<Backend["tencentNextPage"]> = (query, cursor) => command("tencentNextPage", [query, cursor]);
+export const tencentOpenGame: NonNullable<Backend["tencentOpenGame"]> = (chessid) => command("tencentOpenGame", [chessid]);
+export const tencentClearHistory: NonNullable<Backend["tencentClearHistory"]> = () => command("tencentClearHistory", []);
+export const openUrl: NonNullable<Backend["openUrl"]> = (url) => command("openUrl", [url]);
 export const cacheEnabled: Backend["cacheEnabled"] = () =>
   query("cacheEnabled", [], () => lastCacheEnabled);
 export const setCacheEnabled: Backend["setCacheEnabled"] = (enabled) =>

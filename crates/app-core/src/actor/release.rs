@@ -174,6 +174,9 @@ impl Actor {
             Command::Fox(
                 crate::fox::Request::Remember(_, reply) | crate::fox::Request::Clear(reply),
             ) => reject!(reply),
+            Command::Tencent(
+                crate::tencent::Request::Remember(_, reply) | crate::tencent::Request::Clear(reply),
+            ) => reject!(reply),
             command => Some(command),
         }
     }

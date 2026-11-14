@@ -38,6 +38,7 @@ mod setup_markup;
 mod strength;
 mod support;
 mod system_open;
+mod tencent;
 mod tsumego;
 mod variation;
 mod weights;

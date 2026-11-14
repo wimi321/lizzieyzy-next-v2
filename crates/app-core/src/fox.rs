@@ -46,7 +46,7 @@ impl AppCore {
         self.fox_request(Request::Clear).await
     }
 
-    async fn fox_request<T>(
+    pub(crate) async fn fox_request<T>(
         &self,
         request: impl FnOnce(oneshot::Sender<Result<T, AppError>>) -> Request,
     ) -> Result<T, AppError> {

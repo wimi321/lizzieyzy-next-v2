@@ -19,6 +19,7 @@ pub mod settings;
 pub mod setup_markup;
 pub mod strength;
 pub mod support;
+pub mod tencent;
 pub mod tsumego;
 pub mod variation;
 pub mod weights;

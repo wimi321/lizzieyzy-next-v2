@@ -1,0 +1,6 @@
+{
+  "result": 0,
+  "resultstr": "",
+  "uin": 0,
+  "chess": "(;GM[1]FF[4]  SZ[19]    DT[2026-05-17]  PB[样本棋手910002]  PW[样本棋手920091]  BR[3段]  WR[3段]  KM[375]HA[0]RU[Chinese]AP[GNU Go:3.8]RN[2]RE[B+0.02]TM[60]TC[3]TT[20]AP[foxwq]RL[0]  ;B[pd];W[qp];B[dd];W[dq];B[do];W[cm];B[cq];W[cp];B[dp];W[co];B[cn];W[bn];B[eq];W[dr];B[dn];W[er];B[bm];W[bo];B[cl];W[qf];B[nc];W[bq];B[op];W[mq];B[qq];W[pp];B[pq];W[oq];B[rp];W[ro];B[oo];W[rq];B[qo];W[sp];B[po];W[rp];B[nq];W[or];B[nr];W[qr];B[mp];W[ld];B[ke];W[nd];B[mc];W[od];B[oc];W[pe];B[qd];W[le];B[kf];W[lc];B[fc];W[cd];B[ce];W[be];B[cc];W[bd];B[cf];W[cb];B[bc];W[dc];B[db];W[ec];B[ed];W[eb];B[bb];W[da];B[bf];W[fd];B[gc];W[fe];B[ef];W[ba];B[ad];W[fb];B[gb];W[fa];B[he])"
+}
