@@ -44,6 +44,33 @@ const SAFETY: Duration = Duration::from_secs(5);
 
 mod fox;
 
+#[test]
+fn default_games_directory_prefers_documents() {
+    let documents = Path::new("user-documents").to_path_buf();
+    let expected = documents.join("LizzieYzy Next 2").join("MyGames");
+    for home in [Some(Path::new("user-home").to_path_buf()), None] {
+        assert_eq!(
+            crate::default_games_directory(Some(documents.clone()), home),
+            Some(expected.clone())
+        );
+    }
+}
+
+#[test]
+fn default_games_directory_falls_back_to_home() {
+    let home = Path::new("user-home").to_path_buf();
+    let expected = home.join("LizzieYzy Next 2").join("MyGames");
+    assert_eq!(
+        crate::default_games_directory(None, Some(home)),
+        Some(expected)
+    );
+}
+
+#[test]
+fn default_games_directory_leaves_fallback_to_app_core() {
+    assert_eq!(crate::default_games_directory(None, None), None);
+}
+
 async fn within<T>(future: impl Future<Output = T>) -> T {
     tokio::time::timeout(SAFETY, future)
         .await
