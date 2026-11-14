@@ -8,6 +8,12 @@ impl Actor {
         player: AiPlayer,
     ) -> Result<Option<GameView>, AppError> {
         player.validate()?;
+        if self.coach.session_active() || matches!(player, AiPlayer::HumanSl(_)) {
+            return Err(crate::CoachError::InvalidSetup(
+                "use start_coach to configure a HumanSL player".into(),
+            )
+            .into());
+        }
         if let Some(game) = &self.game
             && game.view.phase != GamePhase::Finished
             && matches!(game.player(color), Player::Human)
@@ -177,6 +183,7 @@ impl Actor {
             game.low_winrates = [0; 2];
             game.scoring = false;
         }
+        self.coach_took_back();
         self.undo_gtp_players().await?;
         self.document_changed().await?;
         if self.game_playing() {

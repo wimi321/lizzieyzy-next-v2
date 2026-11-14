@@ -36,7 +36,10 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                     panic!("unexpected benchmark without starting a task")
                 }
                 AppEvent::BatchAnalysisProgress(_) => {}
-                AppEvent::MatchUpdated(_)
+                AppEvent::CoachUpdated(_)
+                | AppEvent::CoachMoveRated(_)
+                | AppEvent::CoachSummary(_)
+                | AppEvent::MatchUpdated(_)
                 | AppEvent::GtpConsoleLine(_)
                 | AppEvent::GameUpdated(_) => panic!("unexpected game without starting a session"),
                 AppEvent::WholeGameProgress(_) => {
@@ -239,6 +242,7 @@ async fn configured_profile_and_pause_setting_survive_application_restart() {
     );
     // Missing files are intentionally editable settings, so no process starts.
     let profile = EngineProfile {
+        human_model: None,
         canonical_model_name: None,
         program: directory.path().join("missing-engine"),
         model: directory.path().join("missing-model.bin.gz"),

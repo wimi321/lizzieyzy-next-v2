@@ -12,7 +12,9 @@ Options:\n\
   --launch-log PATH       Append JSON argv for each analysis/benchmark process\n\
   --exit-log PATH         Append a process ID after the engine loop exits\n\
   --play-script PATH      Per-turn JSON evaluations, candidates and injected failures\n\
+  -human-model FILE       Enable deterministic HumanSL responses\n\
   --fail-startup           Report a missing model and exit with code 1\n\
+  --fail-human-model       Fail startup only when -human-model is supplied\n\
   --crash-after-queries N  Exit on accepting the Nth analysis query\n\
   --crash-after-ms N       Exit after N simulated milliseconds\n\
   --hang-after-queries N   Silence output from the Nth analysis query\n\
@@ -57,7 +59,9 @@ pub struct Options {
     pub launch_log: Option<PathBuf>,
     pub exit_log: Option<PathBuf>,
     pub play_script: Option<PathBuf>,
+    pub human_model: bool,
     pub fail_startup: bool,
+    pub fail_human_model: bool,
     pub crash_after_queries: Option<u64>,
     pub crash_after_ms: Option<u64>,
     pub hang_after_queries: Option<u64>,
@@ -85,7 +89,9 @@ impl Default for Options {
             launch_log: None,
             exit_log: None,
             play_script: None,
+            human_model: false,
             fail_startup: false,
+            fail_human_model: false,
             crash_after_queries: None,
             crash_after_ms: None,
             hang_after_queries: None,
@@ -131,6 +137,10 @@ impl Options {
                 opts.fail_startup = true;
                 continue;
             }
+            if key == "--fail-human-model" {
+                opts.fail_human_model = true;
+                continue;
+            }
             if key == "--default-perspective-to-play" {
                 opts.default_perspective_to_play = true;
                 continue;
@@ -147,6 +157,7 @@ impl Options {
                 .ok_or_else(|| CliError(format!("missing value for {key}")))?;
             match key.as_str() {
                 "-config" | "-model" => {}
+                "-human-model" => opts.human_model = true,
                 "-override-config" => opts.override_config(&value)?,
                 "-v" | "-n" | "-time" if opts.benchmark => {
                     positive_number(&key, &value)?;

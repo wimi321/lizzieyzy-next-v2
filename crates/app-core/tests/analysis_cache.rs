@@ -20,6 +20,7 @@ fn engine(directory: &Path) -> EngineProfile {
     std::fs::write(&model, b"model one").unwrap();
     std::fs::write(&config, b"numAnalysisThreads = 2").unwrap();
     EngineProfile {
+        human_model: None,
         program: fake_katago::binary_path().unwrap(),
         model,
         config,

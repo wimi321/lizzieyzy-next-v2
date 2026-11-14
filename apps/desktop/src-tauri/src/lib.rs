@@ -64,6 +64,14 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::match_game::match_resign,
             commands::match_game::set_match_side_params,
             commands::match_game::match_view,
+            commands::coach::start_coach,
+            commands::coach::coach_view,
+            commands::coach::coach_hint,
+            commands::coach::coach_decision,
+            commands::coach::coach_review,
+            commands::coach::humansl_model_status,
+            commands::coach::import_humansl_model,
+            commands::coach::pause_asset_download,
             commands::game::start_game,
             commands::game::pause_game,
             commands::game::resume_game,
@@ -227,19 +235,22 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 Some(directory) => directory.clone(),
                 None => app.path().app_config_dir()?,
             };
-            let data_dir = match &options.config_dir {
-                Some(directory) => directory.clone(),
-                None => app.path().app_data_dir()?,
-            };
+            let (data_dir, games_directory) = startup::optional_directories(
+                &default_dir,
+                options
+                    .config_dir
+                    .clone()
+                    .or_else(|| app.path().app_data_dir().ok()),
+                app.path().document_dir().ok(),
+            );
             let (core, subscription) =
                 tauri::async_runtime::block_on(startup::start_with_clipboard(
                     options,
                     default_dir,
                     data_dir,
-                    default_games_directory(
-                        app.path().document_dir().ok(),
-                        app.path().home_dir().ok(),
-                    ),
+                    // Documents first; without one, the home folder; else AppCore's own.
+                    games_directory
+                        .or_else(|| default_games_directory(None, app.path().home_dir().ok())),
                     Some(std::sync::Arc::new(clipboard::NativeClipboard(
                         app.handle().clone(),
                     ))),

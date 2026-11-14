@@ -20,6 +20,8 @@ pub(crate) struct CatalogModel {
     pub size_bytes: u64,
     pub sha256: String,
     pub tier: String,
+    #[serde(default)]
+    pub purpose: String,
     pub published_at: Option<String>,
     #[serde(rename = "minimumKataGoVersion")]
     pub minimum_katago_version: String,
@@ -58,6 +60,14 @@ impl ModelCatalog {
             .values()
             .find(|model| model.size_bytes == size && model.sha256.eq_ignore_ascii_case(&digest))
             .cloned()
+    }
+
+    pub fn is_human_style(&self, path: &Path, identified: Option<&CatalogModel>) -> bool {
+        identified.is_some_and(|model| model.purpose == "human-style")
+            || path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.to_ascii_lowercase().contains("human"))
     }
 
     pub fn rank(&self, model: Option<&CatalogModel>) -> u8 {

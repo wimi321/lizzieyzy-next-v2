@@ -68,6 +68,7 @@ async fn download_events_and_weight_switch_share_the_existing_transaction_and_ro
     let fault = directory.path().join("startup-fault-consumed");
     tokio::fs::write(&fault, b"already consumed").await.unwrap();
     let original = EngineProfile {
+        human_model: None,
         program: binary.clone(),
         model: binary.clone(),
         config: binary,
@@ -154,6 +155,7 @@ async fn stale_preparation_does_not_overwrite_a_new_main_engine() {
         .await
         .unwrap();
     let profile = EngineProfile {
+        human_model: None,
         program: binary.clone(),
         model: binary.clone(),
         config: binary,
@@ -182,4 +184,71 @@ async fn stale_preparation_does_not_overwrite_a_new_main_engine() {
     assert!(error.to_string().contains("changed during preparation"));
     assert_eq!(core.settings().await.unwrap(), second);
     within(core.shutdown()).await.unwrap();
+}
+
+#[tokio::test]
+async fn ordinary_startup_tolerates_missing_human_model_and_never_sets_a_human_profile() {
+    let binary = fake_katago::binary_path().unwrap();
+    for present in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let human = directory.path().join("human-model.bin.gz");
+        if present {
+            std::fs::write(&human, b"fake human model").unwrap();
+        }
+        let requests = directory.path().join("requests.jsonl");
+        let launches = directory.path().join("launches.jsonl");
+        let profile = EngineProfile {
+            program: binary.clone(),
+            model: binary.clone(),
+            config: binary.clone(),
+            human_model: Some(human.clone()),
+            extra_args: vec![
+                "--request-log".into(),
+                requests.to_string_lossy().into_owned(),
+                "--launch-log".into(),
+                launches.to_string_lossy().into_owned(),
+            ],
+            ..Default::default()
+        };
+        Settings {
+            engine: Some(profile),
+            ..Default::default()
+        }
+        .save(directory.path())
+        .await
+        .unwrap();
+        let (core, mut events) = crate::spawn_with_config(directory.path(), config())
+            .await
+            .unwrap();
+        within(async {
+            loop {
+                if let Some(AppEvent::AnalysisUpdated(view)) = events.recv().await
+                    && !view.is_during_search
+                    && view.visits > 0
+                {
+                    break;
+                }
+            }
+        })
+        .await;
+        // Receiving a final response is the barrier after the fake writes its
+        // request log; never conclude absence immediately after a command.
+        let received: Vec<serde_json::Value> = std::fs::read_to_string(&requests)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .filter(|value: &serde_json::Value| value.get("moves").is_some())
+            .collect();
+        assert!(!received.is_empty());
+        assert!(
+            received
+                .iter()
+                .all(|query| query["overrideSettings"].get("humanSLProfile").is_none())
+        );
+        let launch = std::fs::read_to_string(&launches).unwrap();
+        let args: Vec<String> = serde_json::from_str(launch.lines().next().unwrap()).unwrap();
+        assert_eq!(args.iter().any(|arg| arg == "-human-model"), present);
+        assert_eq!(human.exists(), present);
+        within(core.shutdown()).await.unwrap();
+    }
 }

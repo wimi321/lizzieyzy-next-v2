@@ -43,6 +43,7 @@ pub(crate) fn test_runtime_catalog(program: &[u8]) -> (AssetCatalog, Vec<(PathBu
     let mut archives = Vec::new();
     for (id, bytes) in [("windows-nvidia", engine), ("runtime-cuda_cudart", runtime)] {
         let spec = AssetSpec {
+            human_style: false,
             id: id.into(),
             file_name: format!("{id}.zip"),
             size: bytes.len() as u64,

@@ -14,6 +14,7 @@ const BODY: &[u8] = b"tiny pinned test model, never a real weight";
 struct Response {
     body: Vec<u8>,
     status: u16,
+    content_range: Option<String>,
     gate: Option<oneshot::Receiver<()>>,
 }
 impl Response {
@@ -21,6 +22,7 @@ impl Response {
         Self {
             body: BODY.to_vec(),
             status: 200,
+            content_range: None,
             gate: None,
         }
     }
@@ -28,7 +30,7 @@ impl Response {
 struct Server {
     url: String,
     responses: mpsc::Sender<Response>,
-    requests: mpsc::Receiver<()>,
+    requests: mpsc::Receiver<String>,
     task: JoinHandle<()>,
 }
 impl Drop for Server {
@@ -53,16 +55,24 @@ impl Server {
                     }
                     request.extend_from_slice(&buffer[..size]);
                 }
-                if request_tx.send(()).await.is_err() {
+                if request_tx
+                    .send(String::from_utf8(request).unwrap())
+                    .await
+                    .is_err()
+                {
                     return;
                 }
                 let Some(response) = responses.recv().await else {
                     return;
                 };
                 let header = format!(
-                    "HTTP/1.1 {} Test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    "HTTP/1.1 {} Test\r\nContent-Length: {}\r\n{}Connection: close\r\n\r\n",
                     response.status,
-                    response.body.len()
+                    response.body.len(),
+                    response
+                        .content_range
+                        .map(|range| format!("Content-Range: {range}\r\n"))
+                        .unwrap_or_default()
                 );
                 if stream.write_all(header.as_bytes()).await.is_err() {
                     continue;
@@ -84,11 +94,11 @@ impl Server {
             task,
         }
     }
-    async fn requested(&mut self) {
+    async fn requested(&mut self) -> String {
         tokio::time::timeout(Duration::from_secs(5), self.requests.recv())
             .await
             .unwrap()
-            .unwrap();
+            .unwrap()
     }
 }
 async fn phase(
@@ -350,7 +360,14 @@ async fn only_catalog_ids_are_accepted_and_different_active_asset_is_busy() {
 #[test]
 fn trusted_catalog_lists_pinned_models_and_runtime_packages() {
     let catalog = AssetCatalog::bundled().unwrap();
-    assert_eq!(catalog.specs.iter().filter(|spec| spec.weight).count(), 3);
+    assert_eq!(
+        catalog
+            .specs
+            .iter()
+            .filter(|spec| spec.weight && !spec.human_style)
+            .count(),
+        3
+    );
     assert_eq!(catalog.specs[0].id, "b11-flagship");
     assert!(
         catalog
@@ -522,4 +539,223 @@ fn legacy_gpu_query_falls_back_to_java_model_capabilities() {
         acceleration::parse_gpu_names("NVIDIA GTX 1080\nNVIDIA RTX 3080"),
         (true, Some(86))
     );
+}
+
+#[tokio::test]
+async fn human_model_status_import_and_main_model_list_are_separate() {
+    let directory = tempfile::tempdir().unwrap();
+    let catalog = AssetCatalog::test_weight("human-sl", "http://127.0.0.1:1/unused", BODY);
+    let (handle, _) = spawn_with_catalog(directory.path().into(), catalog);
+    assert_eq!(
+        handle.humansl_status().await.unwrap(),
+        HumanSlModelStatus::Missing
+    );
+    assert!(handle.list_weights().await.unwrap().is_empty());
+    assert!(matches!(
+        handle.verified_weight("human-sl".into()).await,
+        Err(AssetError::UnknownAsset(_))
+    ));
+    let source = directory.path().join("import.bin.gz");
+    std::fs::write(&source, vec![0; BODY.len()]).unwrap();
+    assert!(matches!(
+        handle.import_humansl(source.clone()).await,
+        Err(AssetError::Verification)
+    ));
+    assert_eq!(
+        handle.humansl_status().await.unwrap(),
+        HumanSlModelStatus::Missing
+    );
+    std::fs::write(&source, BODY).unwrap();
+    let ready = handle.import_humansl(source.clone()).await.unwrap();
+    let HumanSlModelStatus::Ready { path } = ready else {
+        panic!("expected ready")
+    };
+    assert_eq!(std::fs::read(&path).unwrap(), BODY);
+    assert_eq!(handle.verified_humansl_at(None).await.unwrap(), path);
+    assert_eq!(
+        handle
+            .verified_humansl_at(Some(source))
+            .await
+            .unwrap()
+            .file_name()
+            .unwrap(),
+        "import.bin.gz"
+    );
+    assert_eq!(
+        handle.humansl_status().await.unwrap(),
+        HumanSlModelStatus::Ready { path: path.clone() }
+    );
+    std::fs::write(&path, vec![0; BODY.len()]).unwrap();
+    assert_eq!(
+        handle.humansl_status().await.unwrap(),
+        HumanSlModelStatus::Corrupt
+    );
+    assert!(matches!(
+        handle.verified_humansl_at(None).await,
+        Err(AssetError::NotDownloaded)
+    ));
+    handle.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn human_model_pause_resume_uses_verified_range_and_reports_four_state_progress() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut server = Server::new().await;
+    let (release, gate) = oneshot::channel();
+    server
+        .responses
+        .send(Response {
+            gate: Some(gate),
+            ..Response::good()
+        })
+        .await
+        .unwrap();
+    let catalog = AssetCatalog::test_weight("human-sl", &server.url, BODY);
+    let (handle, mut events) = spawn_with_catalog(directory.path().into(), catalog);
+    handle.start("human-sl".into()).await.unwrap();
+    server.requested().await;
+    let partial = progress(&mut events).await;
+    assert!(matches!(
+        handle.humansl_status().await.unwrap(),
+        HumanSlModelStatus::Downloading { paused: false, .. }
+    ));
+    assert_eq!(handle.pause().await.unwrap().phase, DownloadPhase::Paused);
+    assert!(matches!(
+        handle.humansl_status().await.unwrap(),
+        HumanSlModelStatus::Downloading { paused: true, .. }
+    ));
+    release.send(()).unwrap();
+    let received = partial.downloaded_bytes as usize;
+    server
+        .responses
+        .send(Response {
+            body: BODY[received..].to_vec(),
+            status: 206,
+            content_range: Some(format!(
+                "bytes {}-{}/{}",
+                received,
+                BODY.len() - 1,
+                BODY.len()
+            )),
+            gate: None,
+        })
+        .await
+        .unwrap();
+    handle.start("human-sl".into()).await.unwrap();
+    let request = server.requested().await;
+    assert!(
+        request
+            .to_ascii_lowercase()
+            .contains(&format!("range: bytes={received}-"))
+    );
+    phase(&mut events, DownloadPhase::Completed).await;
+    assert!(matches!(
+        handle.humansl_status().await.unwrap(),
+        HumanSlModelStatus::Ready { .. }
+    ));
+    assert_eq!(
+        std::fs::read(handle.verified_humansl_at(None).await.unwrap()).unwrap(),
+        BODY
+    );
+    handle.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn resumed_server_ignoring_range_restarts_and_cancelled_pause_cleans_up() {
+    for cancel in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let mut server = Server::new().await;
+        let (release, gate) = oneshot::channel();
+        server
+            .responses
+            .send(Response {
+                gate: Some(gate),
+                ..Response::good()
+            })
+            .await
+            .unwrap();
+        let (handle, mut events) = setup(&directory, &server.url);
+        handle.start("small".into()).await.unwrap();
+        server.requested().await;
+        progress(&mut events).await;
+        handle.pause().await.unwrap();
+        release.send(()).unwrap();
+        if cancel {
+            handle.cancel().await.unwrap();
+            assert!(files(&directory).is_empty());
+        } else {
+            server.responses.send(Response::good()).await.unwrap();
+            handle.start("small".into()).await.unwrap();
+            phase(&mut events, DownloadPhase::Completed).await;
+            assert_eq!(
+                std::fs::read(handle.verified_weight("small".into()).await.unwrap()).unwrap(),
+                BODY
+            );
+        }
+        handle.shutdown().await.unwrap();
+    }
+}
+
+#[test]
+fn human_catalog_pin_has_explicit_separate_purpose() {
+    let catalog = AssetCatalog::bundled().unwrap();
+    let spec = catalog.get("human-sl").unwrap();
+    assert!(spec.human_style && spec.weight);
+    assert_eq!(spec.file_name, "b18c384nbt-humanv0.bin.gz");
+    assert_eq!(spec.size, 99_066_230);
+    assert_eq!(
+        spec.sha256,
+        "637746e44f0efe00ad1245a50aa9bbf0716efe364c43965ead97bd6835d84ab5"
+    );
+    assert_eq!(
+        spec.url,
+        "https://media.katagotraining.org/uploaded/networks/models_extra/b18c384nbt-humanv0.bin.gz"
+    );
+}
+
+#[tokio::test]
+async fn resumed_bad_range_or_checksum_never_publishes_a_weight() {
+    for bad_range in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let mut server = Server::new().await;
+        let (release, gate) = oneshot::channel();
+        server
+            .responses
+            .send(Response {
+                gate: Some(gate),
+                ..Response::good()
+            })
+            .await
+            .unwrap();
+        let (handle, mut events) = setup(&directory, &server.url);
+        handle.start("small".into()).await.unwrap();
+        server.requested().await;
+        progress(&mut events).await;
+        let paused = handle.pause().await.unwrap();
+        let received = paused.downloaded_bytes as usize;
+        release.send(()).unwrap();
+        let mut body = BODY[received..].to_vec();
+        if !bad_range {
+            body[0] ^= 1;
+        }
+        server
+            .responses
+            .send(Response {
+                body,
+                status: 206,
+                content_range: Some(format!(
+                    "bytes {}-{}/{}",
+                    if bad_range { received + 1 } else { received },
+                    BODY.len() - 1,
+                    BODY.len()
+                )),
+                gate: None,
+            })
+            .await
+            .unwrap();
+        handle.start("small".into()).await.unwrap();
+        phase(&mut events, DownloadPhase::Failed).await;
+        assert!(files(&directory).is_empty());
+        handle.shutdown().await.unwrap();
+    }
 }

@@ -27,6 +27,8 @@ enum RunError {
     Crash,
     #[error("模型找不到")]
     MissingModel,
+    #[error("injected human model load failure")]
+    HumanModelLoadFailure,
     #[error("injected benchmark failure")]
     BenchmarkFailure,
     #[error("could not read startup gate {}: {source}", path.display())]
@@ -140,7 +142,13 @@ impl<W: Write> Engine<W> {
             Ok(query) => query,
             Err(error) => return self.error(&value, error.field, &error.message),
         };
-        query.script.clone_from(&self.script);
+        if query.human_profile.is_some() && !self.options.human_model {
+            return self.error(&value, "humanSLProfile", "HumanSL model is not loaded");
+        }
+        query.human_model = self.options.human_model;
+        query
+            .script
+            .clone_from(self.script.for_profile(query.human_profile.as_deref()));
         for &turn in &query.turns {
             if let Some(error) = query
                 .script
@@ -460,6 +468,12 @@ fn run(options: Options) -> Result<(), RunError> {
     }
     if options.fail_startup && claim_fault(options.fault_once_file.as_deref())? {
         return Err(RunError::MissingModel);
+    }
+    if options.fail_human_model
+        && options.human_model
+        && claim_fault(options.fault_once_file.as_deref())?
+    {
+        return Err(RunError::HumanModelLoadFailure);
     }
     let script = PlayScript::load(options.play_script.as_deref())?;
     let (sender, receiver) = mpsc::sync_channel(64);

@@ -39,6 +39,7 @@ async fn fake_engine_requests_follow_turn_changes_and_undo_redo_but_not_markup()
     std::fs::write(&model, "fake").unwrap();
     std::fs::write(&config_file, "").unwrap();
     let engine = EngineProfile {
+        human_model: None,
         program,
         model,
         config: config_file,
@@ -149,6 +150,7 @@ async fn setup_and_first_player_invalidate_stale_analysis_and_conversion_starts_
     std::fs::write(&model, "fake").unwrap();
     std::fs::write(&config_file, "").unwrap();
     let engine = EngineProfile {
+        human_model: None,
         program: fake_katago::binary_path().unwrap(),
         model,
         config: config_file,

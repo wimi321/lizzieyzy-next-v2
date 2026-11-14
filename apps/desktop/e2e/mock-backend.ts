@@ -1,7 +1,8 @@
-import type { GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
-import { fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
+import type { CoachView, CoachHint, HumanSlModelStatus, GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import { defaultCoachSetup, fillCoachSetupDefaults, fillCoachDefaults, fillCoachRatingDefaults, fillCoachSummaryDefaults, fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 
 export type {
+  CoachCommands, CoachUpdatedListener, CoachMoveRatedListener, CoachSummaryListener, CoachSetup, CoachView, CoachDecision, CoachHint, CoachMoveRated, CoachSummary, CoachBestMove, CoachWorstMove, CoachVerdict, CoachRank, CoachMode, CoachColor, CoachPace, CoachError, HumanSlModelStatus, HumanSlPlay,
   GtpCommands, GtpConsoleListener, GtpEngineEntry, GtpEngineInfo, GtpConsoleLine, GtpTime, MatchCommands, MatchUpdatedListener, MatchSetup, MatchView, MatchPlayer, MatchSide,
   GameCommands, GameUpdatedListener, GameSetup, GameView, GameStart, GamePhase, GameEndReason, GameError, AiPlayer, Player, KataGoPlay, HumanClock, HumanClockView, RandomOpening, ResignRule, PvPick,
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
@@ -40,7 +41,7 @@ export type {
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribeMatchUpdated" | "subscribeGtpConsole" | "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
+type CommandName = Exclude<keyof Backend, "subscribeCoachUpdated" | "subscribeCoachMoveRated" | "subscribeCoachSummary" | "subscribeMatchUpdated" | "subscribeGtpConsole" | "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -172,6 +173,9 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
           const cloned = structuredClone(event);
           if (cloned.type === "MatchUpdated") fillMatchDefaults(cloned.data);
           if (cloned.type === "GtpConsoleLine") fillGtpLineDefaults(cloned.data);
+          if (cloned.type === "CoachUpdated") fillCoachDefaults(cloned.data);
+          if (cloned.type === "CoachMoveRated") fillCoachRatingDefaults(cloned.data);
+          if (cloned.type === "CoachSummary") fillCoachSummaryDefaults(cloned.data);
           if (cloned.type === "GameUpdated") fillGameDefaults(cloned.data);
           if (cloned.type === "BatchAnalysisProgress") fillBatchDefaults(cloned.data);
           if (cloned.type === "DocumentChanged") fillDocumentDefaults(cloned.data.view);
@@ -236,7 +240,7 @@ async function command<K extends CommandName>(
   if (next.command === "wholeGameResult" && cloned) fillAnalysisDefaults(cloned as AnalysisView);
   if (next.command === "problemMoves" && cloned) fillLossDefaults(cloned as ProblemMovesView);
   if (next.command === "variationTree") fillTreeDefaults(cloned as VariationTreeView);
-  if (["startAssetDownload", "cancelAssetDownload", "assetDownloadStatus"].includes(next.command)) {
+  if (["startAssetDownload", "pauseAssetDownload", "cancelAssetDownload", "assetDownloadStatus"].includes(next.command)) {
     fillDownloadDefaults(cloned as AssetDownloadStatus);
   }
   if ((next.command === "checkUpdate" || next.command === "automaticUpdateCheck") && cloned) {
@@ -281,6 +285,10 @@ async function command<K extends CommandName>(
     defaultField(settings, "flash_analysis", structuredClone(defaultFlashAnalysisSettings));
     fillFlashDefaults(settings.flash_analysis!);
     lastFlashSettings = { ...defaultFlashAnalysisSettings, ...settings.flash_analysis };
+    defaultField(settings, "coach_setup", structuredClone(defaultCoachSetup));
+    fillCoachSetupDefaults(settings.coach_setup!);
+    if (settings.engine) defaultField(settings.engine, "human_model", undefined);
+    for (const entry of settings.engines ?? []) if (entry.profile) defaultField(entry.profile, "human_model", undefined);
     defaultField(settings, "game_setup", structuredClone(defaultGameSetup));
     fillGameSetupDefaults(settings.game_setup!);
     defaultField(settings, "games_directory", null);
@@ -321,6 +329,24 @@ async function command<K extends CommandName>(
   if (["startGame", "pauseGame", "resumeGame", "stopGame", "resignGame", "takeBack", "continueGame", "setAiPlayer", "gameView"].includes(next.command) && cloned) {
     fillGameDefaults(cloned as GameView);
     lastGameView = { ...structuredClone(defaultGameView), ...cloned as GameView };
+  }
+  if ((next.command === "startCoach" || next.command === "coachView") && cloned) {
+    fillCoachDefaults(cloned as CoachView);
+  }
+  if (next.command === "humanslModelStatus" || next.command === "importHumanslModel") {
+    const status = cloned as HumanSlModelStatus;
+    if (status.type === "Downloading") {
+      defaultField(status.data, "downloaded_bytes", 0); defaultField(status.data, "total_bytes", 99066230);
+      defaultField(status.data, "paused", false);
+    } else if (status.type === "Ready") defaultField(status.data, "path", "");
+  }
+  if (next.command === "coachHint" || next.command === "coachDecision") {
+    const hint = cloned as CoachHint;
+    if (hint.type === "Region") {
+      defaultField(hint.data, "row", 0); defaultField(hint.data, "column", 0);
+    } else if (hint.type === "Exact") {
+      defaultField(hint.data, "mv", { type: "Pass", data: { color: "Black" } }); defaultField(hint.data, "human_share", null);
+    }
   }
   return cloned as Awaited<ReturnType<NonNullable<Backend[K]>>>;
 }
@@ -651,7 +677,7 @@ export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+    if (event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
   });
   pushEvents([]);
   return id;
@@ -849,4 +875,25 @@ export const subscribeGtpConsole: NonNullable<Backend["subscribeGtpConsole"]> = 
   listeners.set(id, (event) => { if (event.type === "GtpConsoleLine") listener(event.data); });
   pushEvents([]);
   return id;
+};
+
+export const startCoach: NonNullable<Backend["startCoach"]> = (setup) => command("startCoach", [setup]);
+export const coachView: NonNullable<Backend["coachView"]> = () => command("coachView", []);
+export const coachHint: NonNullable<Backend["coachHint"]> = () => command("coachHint", []);
+export const coachDecision: NonNullable<Backend["coachDecision"]> = (decision) => command("coachDecision", [decision]);
+export const coachReview: NonNullable<Backend["coachReview"]> = () => command("coachReview", []);
+export const humanslModelStatus: NonNullable<Backend["humanslModelStatus"]> = () => command("humanslModelStatus", []);
+export const importHumanslModel: NonNullable<Backend["importHumanslModel"]> = (path) => command("importHumanslModel", [path]);
+export const pauseAssetDownload: NonNullable<Backend["pauseAssetDownload"]> = () => command("pauseAssetDownload", []);
+export const subscribeCoachUpdated: NonNullable<Backend["subscribeCoachUpdated"]> = async (listener) => {
+  const id = ++nextListenerId; listeners.set(id, (event) => { if (event.type === "CoachUpdated") listener(event.data); });
+  pushEvents([]); return id;
+};
+export const subscribeCoachMoveRated: NonNullable<Backend["subscribeCoachMoveRated"]> = async (listener) => {
+  const id = ++nextListenerId; listeners.set(id, (event) => { if (event.type === "CoachMoveRated") listener(event.data); });
+  pushEvents([]); return id;
+};
+export const subscribeCoachSummary: NonNullable<Backend["subscribeCoachSummary"]> = async (listener) => {
+  const id = ++nextListenerId; listeners.set(id, (event) => { if (event.type === "CoachSummary") listener(event.data); });
+  pushEvents([]); return id;
 };

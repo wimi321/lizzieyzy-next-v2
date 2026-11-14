@@ -73,7 +73,11 @@ impl Session {
 }
 impl Actor {
     pub(super) fn game_view(&self) -> Option<GameView> {
-        self.game.as_ref().map(Session::snapshot)
+        self.game.as_ref().map(|game| {
+            let mut view = game.snapshot();
+            view.ai_thinking |= self.coach_thinking();
+            view
+        })
     }
     pub(super) fn game_playing(&self) -> bool {
         self.game
@@ -81,7 +85,8 @@ impl Actor {
             .is_some_and(|game| game.view.phase == GamePhase::Playing)
     }
     pub(super) fn game_owns_query(&self) -> bool {
-        self.match_active()
+        self.coach_hides_analysis()
+            || self.match_active()
             || self.game_playing()
                 && self.game.as_ref().is_some_and(|game| {
                     game.starting
@@ -113,6 +118,10 @@ impl Actor {
         }
     }
     pub(super) fn invalidate_game_document(&mut self) {
+        if !self.game_playing() {
+            self.coach.end();
+            self.publish_coach();
+        }
         if let Some(game) = &mut self.game {
             game.invalidated = true;
         }
@@ -219,6 +228,18 @@ impl Actor {
         if self.tsumego.is_some() {
             return Err(GameError::IncompatibleMode.into());
         }
+        let has_human_sl = [&setup.black, &setup.white]
+            .iter()
+            .any(|p| matches!(p, Player::Ai(crate::AiPlayer::HumanSl(_))));
+        if has_human_sl && !self.coach.session_active() {
+            return Err(crate::CoachError::NotActive.into());
+        }
+        if !has_human_sl {
+            self.cancel_coach_queries().await;
+            self.coach.end();
+            self.publish_coach();
+            self.coach = Default::default();
+        }
         let mut document = match &setup.start {
             GameStart::NewBoard(options) => Some(GameDocument::new_game(options.clone().into())?),
             GameStart::CurrentPosition => None,
@@ -230,10 +251,12 @@ impl Actor {
             Some(doc) => doc.position_at(doc.current())?,
             None => self.document.position_at(self.document.current())?,
         };
-        if [&setup.black, &setup.white]
-            .iter()
-            .any(|p| matches!(p, Player::Ai(crate::AiPlayer::KataGo(_))))
-        {
+        if [&setup.black, &setup.white].iter().any(|p| {
+            matches!(
+                p,
+                Player::Ai(crate::AiPlayer::KataGo(_) | crate::AiPlayer::HumanSl(_))
+            )
+        }) {
             self.game_engine()?;
         }
         let gtp_players = self.prepare_gtp_players(&setup, &position).await?;
@@ -382,7 +405,21 @@ impl Actor {
                     .take(2)
                     .all(|m| matches!(m, Move::Pass(_)));
         }
+        if let Err(error) = Box::pin(self.coach_after_move(parent, node, mv, human)).await {
+            // The human move is already committed. Publish it even if the
+            // optional feedback search fails, and pause the opponent safely.
+            self.fail_game_query(error.to_string()).await;
+        }
         self.document_changed().await?;
         self.begin_game_turn().await
+    }
+}
+
+impl Actor {
+    pub(super) fn game_random_mut(&mut self) -> Result<&mut u64, AppError> {
+        self.game
+            .as_mut()
+            .map(|g| &mut g.random)
+            .ok_or_else(|| GameError::NotActive.into())
     }
 }

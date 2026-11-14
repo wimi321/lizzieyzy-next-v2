@@ -37,6 +37,18 @@
       "sizeBytes": 38245488,
       "sha256": "0ba27eced5180b3e3d0b898b280c541112989765e789d1eb6cd0d31b2b2c1229",
       "bundled": false
+    },
+    "human-sl": {
+      "fileName": "b18c384nbt-humanv0.bin.gz",
+      "downloadUrl": "https://media.katagotraining.org/uploaded/networks/models_extra/b18c384nbt-humanv0.bin.gz",
+      "displayFamily": "HumanSL",
+      "tier": "human-style",
+      "architecture": "residual",
+      "purpose": "human-style",
+      "minimumKataGoVersion": "1.15.0",
+      "sizeBytes": 99066230,
+      "sha256": "637746e44f0efe00ad1245a50aa9bbf0716efe364c43965ead97bd6835d84ab5",
+      "bundled": false
     }
   },
   "assets": {
