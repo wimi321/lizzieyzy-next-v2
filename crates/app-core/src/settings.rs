@@ -35,6 +35,8 @@ pub struct EngineProfile {
 #[serde(default)]
 pub struct Settings {
     pub version: u32,
+    #[ts(as = "Option<crate::CommentarySettings>", optional)]
+    pub commentary: crate::CommentarySettings,
     #[ts(as = "Option<crate::UiLanguage>", optional)]
     pub language: crate::UiLanguage,
     #[ts(as = "Option<bool>", optional)]
@@ -89,6 +91,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             version: SETTINGS_VERSION,
+            commentary: Default::default(),
             language: crate::UiLanguage::System,
             always_on_top: false,
             ui_scale: 1.0,
@@ -121,6 +124,8 @@ impl Default for Settings {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SettingsError {
+    #[error(transparent)]
+    Commentary(#[from] crate::CommentaryError),
     #[error("cannot access {kind} at {path}: {source}")]
     Io {
         kind: &'static str,
@@ -199,6 +204,7 @@ impl Settings {
         if !self.ui_scale.is_finite() || !(0.5..=3.0).contains(&self.ui_scale) {
             return Err(SettingsError::InvalidUiScale);
         }
+        self.commentary = self.commentary.normalized()?;
         self.normalize_engines()?;
         crate::gtp_engines::validate_entries(&self.gtp_engines)?;
         self.engine_settings.validate()?;

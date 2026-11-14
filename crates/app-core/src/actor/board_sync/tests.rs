@@ -371,6 +371,7 @@ async fn synchronization_analyzes_remote_latest_without_overpainting_a_browsed_p
                 | AppEvent::CoachMoveRated(_)
                 | AppEvent::CoachSummary(_)
                 | AppEvent::CoachUpdated(_)
+                | AppEvent::CommentaryUpdated(_)
                 | AppEvent::BenchmarkProgress(_) => {}
             }
         }

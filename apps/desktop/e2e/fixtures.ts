@@ -1,4 +1,7 @@
 import type {
+  CommentarySettings,
+  CommentaryUpdated,
+  CommentaryKeyStatus,
   AnalysisView,
   GameSetup,
   GameView,
@@ -719,4 +722,28 @@ export function fillCoachDefaults(view: CoachView): void {
   fillCoachSetupDefaults(view.setup!);
   if (view.last_rating) fillCoachRatingDefaults(view.last_rating);
   if (view.summary) fillCoachSummaryDefaults(view.summary);
+}
+
+/** Commentary snapshots are fixed fixtures; all service/key actions are scripted. */
+export const defaultCommentarySettings: Required<CommentarySettings> = {
+  base_url: "", model: "", remember_key: false, rank: "5k", style: "Balanced",
+  terminology: "Medium", detail: "Standard", variations: "Moderate", write_to_comment: true,
+};
+export const defaultCommentaryUpdated: Required<CommentaryUpdated> = {
+  request_id: 0, phase: "Stopped", text: "", delta: "", replacement: false,
+  positions: [], evidence: "", analyzed: 0, selected: 0, omitted: 0, issues: [], error: null,
+};
+export function fillCommentarySettingsDefaults(settings: CommentarySettings): void {
+  for (const key of Object.keys(defaultCommentarySettings) as (keyof CommentarySettings)[]) gameDefaultField(settings, key, structuredClone(defaultCommentarySettings[key]));
+}
+export function fillCommentaryDefaults(view: CommentaryUpdated): void {
+  for (const key of Object.keys(defaultCommentaryUpdated) as (keyof CommentaryUpdated)[]) gameDefaultField(view, key, structuredClone(defaultCommentaryUpdated[key]));
+  for (const position of view.positions ?? []) {
+    gameDefaultField(position, "node_id", 0); gameDefaultField(position, "move_number", 0);
+  }
+}
+
+export const defaultCommentaryKeyStatus: Required<CommentaryKeyStatus> = { has_key: false, stored: false, available: false };
+export function fillCommentaryKeyDefaults(status: CommentaryKeyStatus): void {
+  for (const key of Object.keys(defaultCommentaryKeyStatus) as (keyof CommentaryKeyStatus)[]) gameDefaultField(status, key, defaultCommentaryKeyStatus[key]);
 }

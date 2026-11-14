@@ -11,6 +11,7 @@ members = [
     "crates/fox-kifu",
     "crates/strength",
     "crates/readboard",
+    "crates/commentary",
     "crates/app-core",
     "tools/fake-katago",
     "apps/desktop/src-tauri",

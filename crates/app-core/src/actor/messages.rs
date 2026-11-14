@@ -41,6 +41,7 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    Commentary(crate::commentary::Request),
     Coach(crate::coach_api::Request),
     Gtp(crate::gtp_engines::Request),
     Match(

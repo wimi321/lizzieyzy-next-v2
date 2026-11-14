@@ -18,6 +18,7 @@ mod benchmark;
 mod board_sync;
 mod clear_analysis;
 mod coach;
+mod commentary;
 mod display;
 mod editing;
 mod engine_settings;
@@ -84,6 +85,7 @@ struct Actor {
     batch: batch::State,
     game: Option<game::Session>,
     coach: coach::State,
+    commentary: commentary::State,
     gtp: gtp::State,
     match_session: Option<match_game::Session>,
     strength: Option<strength::Estimator>,
@@ -139,6 +141,10 @@ pub(crate) async fn run(
         batch: Default::default(),
         game: None,
         coach: Default::default(),
+        commentary: commentary::State::new(
+            config.commentary_key_store.clone(),
+            &settings.commentary,
+        ),
         gtp: Default::default(),
         match_session: None,
         strength: None,
@@ -178,6 +184,7 @@ pub(crate) async fn run(
                 None => None,
               };
               match command {
+                Some(Command::Commentary(request)) => actor.commentary_command(request).await,
                 Some(Command::Coach(request)) => actor.coach_command(request).await,
                 Some(Command::Gtp(request)) => actor.gtp_request(request).await,
                 Some(Command::Match(request, reply)) => { let _ = reply.send(actor.match_command(request).await); }
@@ -247,6 +254,7 @@ pub(crate) async fn run(
                 }
                 Some(Command::TryAutoEngine(trial, reply)) => actor.begin_auto_trial(trial, reply).await,
                 Some(Command::Apply(Input::Shutdown, reply)) => {
+                    actor.stop_commentary();
                     if actor.batch_active() { actor.stop_batch(None).await; }
                     actor.shutdown_match().await;
                     actor.shutdown_gtp().await;
@@ -272,6 +280,7 @@ pub(crate) async fn run(
                 None => { if actor.batch_active() { actor.stop_batch(None).await; } actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
               }
             },
+            progress = commentary::receive(&mut actor.commentary) => actor.commentary_progress(progress).await,
             line = gtp::receive(&mut actor.gtp) => actor.gtp_line(line),
             signal = next_signal(&mut actor.running) => actor.cache_signal(signal),
             event = game::receive(&mut actor.game) => actor.game_signal(event).await,
@@ -289,6 +298,7 @@ pub(crate) async fn run(
         }
         actor.publish_analysis_state();
     }
+    actor.stop_commentary();
     actor.shutdown_match().await;
     actor.shutdown_gtp().await;
     let _ = actor.updates.shutdown().await;
@@ -515,6 +525,7 @@ impl Actor {
         cached: HashMap<AnalysisKey, crate::StoredAnalysis>,
         import_saved: bool,
     ) -> Result<(), AppError> {
+        self.reset_commentary();
         self.invalidate_game_document();
         self.flush_cached_analysis().await;
         self.auto_curve.pending = false;

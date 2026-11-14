@@ -21,6 +21,7 @@ mod benchmark;
 mod board_sync;
 mod cache;
 mod coach;
+mod commentary;
 mod display_settings;
 mod edit;
 mod engine_auto_setup;
@@ -212,7 +213,8 @@ impl Harness {
                     | AppEvent::GameUpdated(_)
                     | AppEvent::CoachUpdated(_)
                     | AppEvent::CoachMoveRated(_)
-                    | AppEvent::CoachSummary(_) => {}
+                    | AppEvent::CoachSummary(_)
+                    | AppEvent::CommentaryUpdated(_) => {}
                 }
             }
         })
