@@ -39,6 +39,8 @@ import { useEngines } from "./engines/useEngines";
 import { useRelease } from "./release/useRelease";
 import { useEveryday } from "./everyday/useEveryday";
 import { useBatch } from "./batch/useBatch";
+import { useEstimate } from "./estimate/useEstimate";
+import { BOTTOM_ITEMS, itemFilter, TOP_ITEMS } from "./frame/toolbarItems";
 import { type ToolsTab, useEngineTools } from "./engines/useEngineTools";
 import { BenchmarkChip } from "./benchmark/BenchmarkChip";
 import { BenchmarkDialog } from "./benchmark/BenchmarkDialog";
@@ -96,7 +98,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const messages = getMessages(release.locale);
   const chinese = release.locale.toLowerCase().startsWith("zh");
   const loadRelease = release.load;
-  const [ownership, setOwnership] = useState(false);
   const [pondering, setPondering] = useState(true);
   const [foxOpen, setFoxOpen] = useState(false);
   // Mounted on first use and then only hidden, so a minimized window keeps its list.
@@ -115,6 +116,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const engines = useEngines(backend, engine, messages.frame.engineNames, messages.engines, messages.setup, (settings) => display.load(settings.display));
   const loadEngines = engines.load;
   const shown = display.display;
+  // Kata形势, 纯网络 and 策略网络 on both boards.
+  const estimate = useEstimate(backend, shown, display.set, analysis);
   const everyday = useEveryday(
     backend,
     { board: document?.board ?? null, fileName: document?.file_name ?? null, subBoard: shown.show_sub_board, graph: shown.show_winrate_graph },
@@ -315,7 +318,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {
         hasDocument: document !== null,
         hasBoard: board !== null,
-        ownership,
         wholeGameActive: wholeGameStatus === "Running" || wholeGameStatus === "Paused",
         hasBestMove: board !== null && best !== undefined,
         engineConfigured: engines.profile !== null,
@@ -356,7 +358,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         alternate: modes.exit,
         insertMode: modes.insertMode,
         quit: () => void backend.quit().catch(report),
-        setOwnership,
         togglePondering,
         openAutoAnalysis: () => autoAnalysis?.show(),
         flashAnalyze: () => wholeGame.start(1),
@@ -384,6 +385,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...release.bindings,
     ...everyday.bindings,
     ...batch.bindings,
+    ...estimate.bindings,
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
     hawkEye2: { run: toggleHawkEye, enabled: document !== null },
@@ -424,6 +426,48 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     states: messages.engine,
   });
 
+  // 合并在菜单栏上 puts the toolbar in the menu bar's row; otherwise it has its own.
+  const combinedTop = shown.top_toolbar_layout === "Combined";
+  const topToolbar = (
+<TopToolbar
+      labels={frame.top}
+      hasDocument={document !== null}
+      hasBoard={board !== null}
+      offMainLine={isEnabled(bindings.backToMainBranch)}
+      komi={info?.komi ?? null}
+      onNew={editing.newBoard}
+      onSetMain={editing.setAsMain}
+      onKomi={editing.setKomi}
+      onBoardSize={editing.openBoardSize}
+      markupOpen={modes.mode.kind === "markup"}
+      onMarkup={modes.toggleMarkup}
+      hawkEye={hawkEyeOpen}
+      onHawkEye={toggleHawkEye}
+      rankMarks={shown.move_rank_marks !== "None"}
+      onRankMarks={() => display.set(nextRankMarks(shown))}
+      onChangeTurn={modes.toggleToPlay}
+      trial={editing.trial}
+      playColor={modes.mode.kind === "color" ? modes.mode.color : null}
+      onColor={modes.colorMode}
+      onAlternate={modes.exit}
+      onOpen={() => void openFile().catch(report)}
+      onSave={editing.save}
+      onFox={openFox}
+      onStrength={() => setStrengthOpen(true)}
+      onAutoSetup={() => setToolsTab("overview")}
+      onFlash={() => batch.bindings.flashAnalyzeAllGame?.run?.()}
+      onBackMain={() => bindings.backToMainBranch?.run?.()}
+      onPass={pass}
+      onTsumego={() => tsumego.setOpen(true)}
+      show={itemFilter(TOP_ITEMS, shown.top_toolbar_hidden)}
+      combined={combinedTop}
+      wrap={shown.top_toolbar_wrap}
+      onSwitchLayout={() => display.set({ top_toolbar_layout: combinedTop ? "Separate" : "Combined" })}
+      limits={limits}
+      onLimits={(next) => void backend.setAnalysisLimits(next).then(setLimits).catch(report)}
+    />
+  );
+
   return (
     <main className="app">
       <h1 className="visually-hidden">{messages.app.title}</h1>
@@ -434,6 +478,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         label={messages.menuBar.label}
         actions={
           <>
+            {shown.show_top_toolbar && combinedTop ? topToolbar : null}
             <ToolButton className="jt-coach" label={frame.menu.aiCoach} title={frame.menu.aiCoachTip} enabled={false} />
             <ToolButton label={frame.menu.aiCommentary} enabled={false} />
           </>
@@ -452,39 +497,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           </>
         }
       />
-      {shown.show_top_toolbar ? (
-        <TopToolbar
-          labels={frame.top}
-          hasDocument={document !== null}
-          hasBoard={board !== null}
-          offMainLine={isEnabled(bindings.backToMainBranch)}
-          komi={info?.komi ?? null}
-          onNew={editing.newBoard}
-          onSetMain={editing.setAsMain}
-          onKomi={editing.setKomi}
-          onBoardSize={editing.openBoardSize}
-          markupOpen={modes.mode.kind === "markup"}
-          onMarkup={modes.toggleMarkup}
-          hawkEye={hawkEyeOpen}
-          onHawkEye={toggleHawkEye}
-          rankMarks={shown.move_rank_marks !== "None"}
-          onRankMarks={() => display.set(nextRankMarks(shown))}
-          onChangeTurn={modes.toggleToPlay}
-          trial={editing.trial}
-          playColor={modes.mode.kind === "color" ? modes.mode.color : null}
-          onColor={modes.colorMode}
-          onAlternate={modes.exit}
-          onOpen={() => void openFile().catch(report)}
-          onSave={editing.save}
-          onFox={openFox}
-          onStrength={() => setStrengthOpen(true)}
-          onAutoSetup={() => setToolsTab("overview")}
-          onFlash={() => batch.bindings.flashAnalyzeAllGame?.run?.()}
-          onBackMain={() => bindings.backToMainBranch?.run?.()}
-          onPass={pass}
-          onTsumego={() => tsumego.setOpen(true)}
-        />
-      ) : null}
+      {shown.show_top_toolbar && !combinedTop ? topToolbar : null}
       <MainPanel
         hidden={hidden}
         boardSize={board?.width ?? 19}
@@ -572,7 +585,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               board={board}
               analysis={analysis}
               coordinates={shown.show_coordinates}
-              ownership={ownership}
+              {...estimate.board}
               maxCandidates={shown.max_suggestions > 0 ? shown.max_suggestions : board.width * board.height}
               label={messages.board.label}
               preview={listHover}
@@ -613,7 +626,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           tree: (
             <MoveTree tree={tree} current={document?.tree.current ?? -1} line={line} boardSize={board?.width ?? 19} ranks={ranks} label={messages.tree.label} onJump={jump} />
           ),
-          subBoard: board ? <SubBoard board={board} node={currentNode} revision={revision} variation={replay} label={messages.tree.subBoard} /> : null,
+          subBoard: board ? <SubBoard board={board} node={currentNode} revision={revision} variation={replay} label={messages.tree.subBoard} {...estimate.subBoard} /> : null,
         }}
       />
       {shown.show_bottom_toolbar ? (
@@ -621,8 +634,20 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           labels={frame.bottom}
           pondering={livePondering}
           hasBoard={board !== null}
-          ownership={ownership}
+          ownership={estimate.on}
           coordinates={shown.show_coordinates}
+          show={itemFilter(BOTTOM_ITEMS, shown.bottom_toolbar_hidden)}
+          pureNetwork={estimate.pure}
+          onPureNetwork={estimate.bindings.showHeatmap?.run}
+          onOpen={() => void openFile().catch(report)}
+          onSave={editing.save}
+          onHawkEye={toggleHawkEye}
+          onList={() => display.set({ show_list_pane: !shown.show_list_pane })}
+          onRefresh={bindings.clearThisLizzieCache?.run}
+          onBackMain={() => bindings.backToMainBranch?.run?.()}
+          canBackMain={isEnabled(bindings.backToMainBranch)}
+          onMoveRank={() => display.set(nextRankMarks(shown))}
+          rankMarks={shown.move_rank_marks !== "None"}
           moveNumbers={shown.move_numbers !== "None"}
           canSetMain={isEnabled(bindings.setAsMain)}
           canDelete={isEnabled(bindings.delete)}
@@ -647,7 +672,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             />
           }
           onTogglePondering={togglePondering}
-          onToggleOwnership={() => setOwnership((value) => !value)}
+          onToggleOwnership={estimate.toggle}
           onToggleCoordinates={() => display.set({ show_coordinates: !shown.show_coordinates })}
           onToggleMoveNumbers={() => display.set(nextMoveNumbers(shown))}
           onGotoMove={(n) => {

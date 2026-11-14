@@ -645,3 +645,43 @@
   color: var(--jf-text);
   background: var(--jf-primary);
 }
+
+/* 自动换行 off: at most Java's two rows; narrower windows clip what is left, as Java does. */
+.jt-top[data-wrap="false"]:not(.jt-combined) {
+  max-height: 49px;
+  overflow: hidden;
+}
+
+/* 合并在菜单栏上: the toolbar shares the menu bar's row and gives way to the menus, which keep
+   their full width; what does not fit at the toolbar's end is clipped, as in Java. */
+.menubar-row:has(.jt-combined) .menubar {
+  flex: none;
+}
+
+.menubar-actions:has(.jt-combined) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.menubar-actions:has(.jt-combined) > .jt-button {
+  flex: none;
+}
+
+.jt-top.jt-combined {
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  background: none;
+  border: 0;
+}
+
+/* 单步分析限制 (时间 / 计算): a checkbox, a number, and its unit. */
+.jt-limit {
+  gap: 3px;
+}
+
+.jt-limit .jt-input {
+  width: 52px;
+}

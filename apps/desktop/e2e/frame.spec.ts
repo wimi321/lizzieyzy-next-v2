@@ -95,12 +95,13 @@ test("the working buttons do what Java's do", async ({ page }) => {
   await page.getByTestId("tsumego-close").click();
   await expect(page.getByTestId("tsumego-dialog")).toBeHidden();
 
-  // 更多 lists the default buttons the bar has no room for; their features are not built yet.
+  // 更多 lists the default buttons the bar has no room for. 终局点目 comes with P3's games.
   await page.getByTestId("tool-more").click();
   const more = page.getByTestId("tool-more-menu");
   await expect(more.getByRole("menuitem")).toHaveText(["试下", "终局点目", "纯网络"]);
   await expect(more.getByTestId("tool-try-play")).toBeEnabled();
-  for (const item of (await more.getByRole("menuitem").all()).slice(1)) await expect(item).toBeDisabled();
+  await expect(more.getByRole("menuitem", { name: "终局点目" })).toBeDisabled();
+  await expect(more.getByTestId("tool-heat-map")).toBeEnabled();
 });
 
 test("the title and status line carry what Java puts there", async ({ page }) => {

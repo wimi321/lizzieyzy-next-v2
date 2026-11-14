@@ -45,6 +45,18 @@ export const DISPLAY_DEFAULTS: Display = {
   confirm_new_board: true,
   confirm_overwrite: true,
   show_names_below_board: true,
+  estimate_location: "Off",
+  estimate_style: "TransparentSmall",
+  pure_estimate_style: "BigSquare",
+  remember_estimate: false,
+  moves_ownership: true,
+  estimate_shortcut: false,
+  sub_board_heat: "None",
+  sub_board_raw: false,
+  top_toolbar_layout: "Separate",
+  top_toolbar_wrap: false,
+  top_toolbar_hidden: [],
+  bottom_toolbar_hidden: [],
 };
 
 export function filled(display: DisplaySettings | null | undefined): Display {

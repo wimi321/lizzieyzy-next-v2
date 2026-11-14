@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ToolButton } from "./ToolButton";
+import type { ItemFilter } from "./toolbarItems";
 
 /** Home / End step size: the backend stops at the first or last move. */
 export const JUMP = 1_000_000;
@@ -22,6 +23,13 @@ export interface BottomToolbarLabels {
   heatMap: string;
   tryPlay: string;
   tryBack: string;
+  open: string;
+  save: string;
+  hawkEye: string;
+  list: string;
+  refresh: string;
+  backMain: string;
+  moveRank: string;
   first: string;
   back10: string;
   previous: string;
@@ -57,7 +65,25 @@ export interface BottomToolbarProps {
   onClear(): void;
   onDelete(): void;
   onTrial(): void;
+  /** 显示 → 工具栏 → 底部工具栏 → 自定义内容. Every default button when absent. */
+  show?: ItemFilter;
+  /** 纯网络 is on. */
+  pureNetwork?: boolean;
+  onPureNetwork?(): void;
+  /** The buttons Java hides at first, shown once chosen. */
+  onOpen?(): void;
+  onSave?(): void;
+  onHawkEye?(): void;
+  onList?(): void;
+  onRefresh?(): void;
+  onBackMain?(): void;
+  canBackMain?: boolean;
+  onMoveRank?(): void;
+  rankMarks?: boolean;
 }
+
+/** Java's default buttons, for callers that do not customise the bar. */
+const DEFAULT_SHOWN: ItemFilter = (id) => !["openfile", "savefile", "badMoves", "analyzeList", "refresh", "backMain", "moveRank"].includes(id);
 
 const NAVIGATION: { key: keyof BottomToolbarLabels; text: string; steps: number }[] = [
   { key: "first", text: "|<", steps: -JUMP },
@@ -69,7 +95,7 @@ const NAVIGATION: { key: keyof BottomToolbarLabels; text: string; steps: number 
 ];
 
 /** 更多: the buttons Java's bar has no room for at this width (终局点目, 纯网络). */
-function MoreButton({ labels, trial, hasBoard, onTrial }: { labels: BottomToolbarLabels; trial: boolean; hasBoard: boolean; onTrial(): void }) {
+function MoreButton({ labels, trial, hasBoard, onTrial, show, pure, onPure }: { labels: BottomToolbarLabels; trial: boolean; hasBoard: boolean; onTrial(): void; show: ItemFilter; pure: boolean; onPure?(): void }) {
   const [anchor, setAnchor] = useState<{ right: number; bottom: number } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -92,24 +118,40 @@ function MoreButton({ labels, trial, hasBoard, onTrial }: { labels: BottomToolba
       />
       {anchor ? (
         <div className="jt-more-menu" role="menu" style={anchor} data-testid="tool-more-menu">
-          <button
-            type="button"
-            role="menuitem"
-            disabled={!hasBoard}
-            data-testid="tool-try-play"
-            onClick={() => {
-              setAnchor(null);
-              onTrial();
-            }}
-          >
-            {trial ? labels.tryBack : labels.tryPlay}
-          </button>
-          <button type="button" role="menuitem" disabled>
-            {labels.finalScore}
-          </button>
-          <button type="button" role="menuitem" disabled>
-            {labels.heatMap}
-          </button>
+          {show("tryPlay") ? (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={!hasBoard}
+              data-testid="tool-try-play"
+              onClick={() => {
+                setAnchor(null);
+                onTrial();
+              }}
+            >
+              {trial ? labels.tryBack : labels.tryPlay}
+            </button>
+          ) : null}
+          {show("finalScore") ? (
+            <button type="button" role="menuitem" disabled>
+              {labels.finalScore}
+            </button>
+          ) : null}
+          {show("heatMap") ? (
+            <button
+              type="button"
+              role="menuitem"
+              data-on={pure ? "true" : undefined}
+              disabled={!hasBoard || onPure === undefined}
+              data-testid="tool-heat-map"
+              onClick={() => {
+                setAnchor(null);
+                onPure?.();
+              }}
+            >
+              {labels.heatMap}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -117,26 +159,52 @@ function MoreButton({ labels, trial, hasBoard, onTrial }: { labels: BottomToolba
 }
 
 /** LizzieYzy Next's bottom toolbar with its default buttons (`BottomToolbar`, `Config`). */
-export function BottomToolbar({ labels, pondering, hasBoard, ownership, coordinates, moveNumbers = false, canSetMain, canDelete, trial, autoAnalysis, ...on }: BottomToolbarProps) {
+export function BottomToolbar({
+  labels,
+  pondering,
+  hasBoard,
+  ownership,
+  coordinates,
+  moveNumbers = false,
+  canSetMain,
+  canDelete,
+  trial,
+  autoAnalysis,
+  show = DEFAULT_SHOWN,
+  pureNetwork = false,
+  canBackMain = false,
+  rankMarks = false,
+  ...on
+}: BottomToolbarProps) {
+  const more = ["tryPlay", "finalScore", "heatMap"].some(show);
   return (
     <div className="jt-bottom" role="toolbar" data-testid="bottom-toolbar">
       <div className="jt-group">
-        <ToolButton
-          role="primary"
-          label={
-            <>
-              <span className={pondering ? "jt-pause-glyph" : "jt-play-glyph"} aria-hidden="true" />
-              {pondering ? labels.pauseAnalyse : labels.analyse}
-            </>
-          }
-          testId="toggle-pondering"
-          pressed={!pondering}
-          onClick={on.onTogglePondering}
-        />
-        {autoAnalysis}
+        {show("analyse") ? (
+          <ToolButton
+            role="primary"
+            label={
+              <>
+                <span className={pondering ? "jt-pause-glyph" : "jt-play-glyph"} aria-hidden="true" />
+                {pondering ? labels.pauseAnalyse : labels.analyse}
+              </>
+            }
+            testId="toggle-pondering"
+            pressed={!pondering}
+            onClick={on.onTogglePondering}
+          />
+        ) : null}
+        {show("batchOpen") ? autoAnalysis : null}
         <ToolButton role="primary" className="jt-optional" label={labels.remote} enabled={false} />
         <ToolButton className="jt-optional" label={labels.downloadWeight} enabled={false} />
-        <ToolButton label={labels.kataEstimate} pressed={ownership} enabled={hasBoard} testId="toggle-ownership" onClick={on.onToggleOwnership} />
+        {show("kataEstimateButton") ? (
+          <ToolButton label={labels.kataEstimate} pressed={ownership} enabled={hasBoard} testId="toggle-ownership" onClick={on.onToggleOwnership} />
+        ) : null}
+        {show("openfile") ? <ToolButton label={labels.open} enabled={on.onOpen !== undefined && !trial} testId="bottom-open" onClick={on.onOpen} /> : null}
+        {show("savefile") ? <ToolButton label={labels.save} enabled={on.onSave !== undefined && hasBoard} testId="bottom-save" onClick={on.onSave} /> : null}
+        {show("badMoves") ? <ToolButton label={labels.hawkEye} enabled={on.onHawkEye !== undefined && hasBoard} testId="bottom-hawkeye" onClick={on.onHawkEye} /> : null}
+        {show("analyzeList") ? <ToolButton label={labels.list} enabled={on.onList !== undefined} testId="bottom-list" onClick={on.onList} /> : null}
+        {show("refresh") ? <ToolButton label={labels.refresh} enabled={on.onRefresh !== undefined && hasBoard} testId="bottom-refresh" onClick={on.onRefresh} /> : null}
       </div>
       <div className="jt-group">
         {NAVIGATION.map((item) => (
@@ -151,15 +219,19 @@ export function BottomToolbar({ labels, pondering, hasBoard, ownership, coordina
           />
         ))}
         <GotoMove label={labels.gotoMove} enabled={hasBoard && on.onGotoMove !== undefined} onGo={(n) => on.onGotoMove?.(n)} />
-        <ToolButton className="jt-optional" label={labels.autoPlay} enabled={false} />
+        {show("autoPlay") ? <ToolButton className="jt-optional" label={labels.autoPlay} enabled={false} /> : null}
       </div>
       <div className="jt-group" data-align="end">
-        <ToolButton className="jt-optional" label={labels.setMain} enabled={canSetMain} testId="bottom-set-main" onClick={on.onSetMain} />
-        <ToolButton label={labels.move} pressed={moveNumbers} testId="toggle-move-numbers" enabled={on.onToggleMoveNumbers !== undefined} onClick={on.onToggleMoveNumbers} />
-        <ToolButton label={labels.coords} pressed={coordinates} testId="toggle-coordinates" onClick={on.onToggleCoordinates} />
-        <ToolButton role="danger" label={labels.clear} enabled={!trial} testId="bottom-clear" onClick={on.onClear} />
-        <ToolButton role="danger" label={labels.delete} enabled={canDelete} testId="bottom-delete" onClick={on.onDelete} />
-        <MoreButton labels={labels} trial={trial} hasBoard={hasBoard} onTrial={on.onTrial} />
+        {show("setMainButton") ? <ToolButton className="jt-optional" label={labels.setMain} enabled={canSetMain} testId="bottom-set-main" onClick={on.onSetMain} /> : null}
+        {show("backMain") ? <ToolButton label={labels.backMain} enabled={canBackMain} testId="bottom-back-main" onClick={on.onBackMain} /> : null}
+        {show("moveRank") ? <ToolButton label={labels.moveRank} pressed={rankMarks} enabled={on.onMoveRank !== undefined} testId="bottom-move-rank" onClick={on.onMoveRank} /> : null}
+        {show("move") ? (
+          <ToolButton label={labels.move} pressed={moveNumbers} testId="toggle-move-numbers" enabled={on.onToggleMoveNumbers !== undefined} onClick={on.onToggleMoveNumbers} />
+        ) : null}
+        {show("coords") ? <ToolButton label={labels.coords} pressed={coordinates} testId="toggle-coordinates" onClick={on.onToggleCoordinates} /> : null}
+        {show("clearButton") ? <ToolButton role="danger" label={labels.clear} enabled={!trial} testId="bottom-clear" onClick={on.onClear} /> : null}
+        {show("deleteMove") ? <ToolButton role="danger" label={labels.delete} enabled={canDelete} testId="bottom-delete" onClick={on.onDelete} /> : null}
+        {more ? <MoreButton labels={labels} trial={trial} hasBoard={hasBoard} onTrial={on.onTrial} show={show} pure={pureNetwork} onPure={on.onPureNetwork} /> : null}
       </div>
     </div>
   );

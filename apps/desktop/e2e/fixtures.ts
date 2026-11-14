@@ -92,13 +92,6 @@ export const defaultDisplaySettings: Required<import("../src/api/backend").Displ
   show_names_below_board: true,
 };
 
-// Preserve the enumerable shape used by the existing P2 UI scripts. New
-// property reads still see defaults; explicit P3 scripted values stay enumerable.
-for (const key of [
-  "estimate_location", "estimate_style", "pure_estimate_style", "remember_estimate",
-  "moves_ownership", "estimate_shortcut", "sub_board_heat", "sub_board_raw",
-  "top_toolbar_layout", "top_toolbar_wrap", "top_toolbar_hidden", "bottom_toolbar_hidden",
-] as const) Object.defineProperty(defaultDisplaySettings, key, { enumerable: false });
 
 /** Scripted Fox reply for UI tests; network parsing remains in Rust. */
 export function foxSearchResult(): FoxSearchResult {

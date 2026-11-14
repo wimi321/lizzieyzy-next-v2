@@ -48,6 +48,9 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "nextMove", code: "ArrowDown", repeat: true },
   { id: "back10", code: "ArrowUp", control: true, repeat: true },
   { id: "forward10", code: "ArrowDown", control: true, repeat: true },
+  // 纯网络(H); "." toggles Kata形势 once 使用快捷键(大键盘点) is on.
+  { id: "showHeatmap", code: "KeyH" },
+  { id: "toggleKataEstimate", code: "Period" },
   { id: "copySgf", code: "KeyC", control: true },
   { id: "pasteSgf", code: "KeyV", control: true },
   { id: "copyBoardScreen", code: "KeyC", shift: true },
@@ -70,7 +73,7 @@ type KeyPress = Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "metaKey" | "al
 function codeOf(event: KeyPress): string {
   if (event.code) return event.code;
   if (/^[a-z]$/i.test(event.key)) return `Key${event.key.toUpperCase()}`;
-  return event.key === " " ? "Space" : event.key === "," ? "Comma" : event.key;
+  return event.key === " " ? "Space" : event.key === "," ? "Comma" : event.key === "." ? "Period" : event.key;
 }
 
 export function matchShortcut(event: KeyPress): string | null {

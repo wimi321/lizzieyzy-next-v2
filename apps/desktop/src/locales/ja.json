@@ -782,7 +782,11 @@
       "tsumego": "詰碁",
       "params": "パラメータ",
       "goban": "碁盤",
-      "saveLoad": "保存"
+      "saveLoad": "保存",
+      "timeLimit": "時間",
+      "playoutLimit": "訪問数",
+      "switchLayout": "統合/分離の切替用ボタンを表示",
+      "seconds": "秒"
     },
     "bottom": {
       "analyse": "分析開始",
@@ -809,7 +813,14 @@
       "forward10": "十手進む",
       "last": "最終手",
       "tryPlay": "検討",
-      "tryBack": "戻る"
+      "tryBack": "戻る",
+      "open": "開く",
+      "save": "保存",
+      "hawkEye": "ホークアイ",
+      "list": "候補手リスト",
+      "refresh": "リフレッシュ",
+      "backMain": "主分岐に戻る",
+      "moveRank": "着手ランク"
     },
     "status": {
       "analyzing": "解析中",

@@ -782,7 +782,11 @@
       "tsumego": "โจทย์เป็นตาย",
       "params": "พารามิเตอร์",
       "goban": "กระดาน",
-      "saveLoad": "บันทึก"
+      "saveLoad": "บันทึก",
+      "timeLimit": "เวลา",
+      "playoutLimit": "วี",
+      "switchLayout": "ปุ่มแถบเครื่องมือรวม/แยก",
+      "seconds": "วินาที"
     },
     "bottom": {
       "analyse": "เริ่มวิเคราะห์",
@@ -809,7 +813,14 @@
       "forward10": "เดินหน้าสิบตา",
       "last": "ตาสุดท้าย",
       "tryPlay": "ลอง",
-      "tryBack": "กลับ"
+      "tryBack": "กลับ",
+      "open": "เปิด",
+      "save": "บันทึก",
+      "hawkEye": "ฮอว์กอาย",
+      "list": "วิเคราะห์รายการ",
+      "refresh": "รีเฟรช",
+      "backMain": "กลับทางหลัก",
+      "moveRank": "ย้ายอันดับ"
     },
     "status": {
       "analyzing": "กำลังวิเคราะห์",

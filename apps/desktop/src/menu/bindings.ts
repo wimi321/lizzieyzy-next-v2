@@ -19,7 +19,6 @@ export function isEnabled(binding: MenuBinding | undefined): boolean {
 export interface MenuState {
   hasDocument: boolean;
   hasBoard: boolean;
-  ownership: boolean;
   /** Whole-game analysis is running or paused. */
   wholeGameActive: boolean;
   /** The engine's first choice for the displayed position, if it has one. */
@@ -71,7 +70,6 @@ export interface MenuActions {
   alternate(): void;
   insertMode(color: "Black" | "White"): void;
   quit(): void;
-  setOwnership(visible: boolean): void;
   togglePondering(): void;
   openAutoAnalysis(): void;
   /** 整盘速览（闪电）: one visit per move over the displayed line. */
@@ -128,8 +126,6 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     exit: when(true, actions.quit),
 
     // The 显示 settings are bound by `displayBindings`.
-    kataEstimateClose: { run: () => actions.setOwnership(false), checked: !state.ownership },
-    kataEstimateOnMainBoard: { run: () => actions.setOwnership(true), checked: state.ownership },
 
     playBestMove: when(state.hasBestMove, actions.playBestMove),
     setupModeToggle: { run: actions.toggleSetup, enabled: state.hasBoard, checked: state.setupTool !== null },
