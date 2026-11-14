@@ -1,6 +1,9 @@
 //! Persisted play settings and snapshots. The application actor owns the session.
 mod clock;
+mod gtp_time;
 mod result;
+pub(crate) use gtp_time::GtpClock;
+pub use gtp_time::GtpTime;
 
 pub(crate) use clock::ClockState;
 pub(crate) use result::{game_file_name, score_result};
@@ -20,6 +23,7 @@ pub enum Player {
 #[serde(tag = "type", content = "data")]
 pub enum AiPlayer {
     KataGo(KataGoPlay),
+    Gtp { engine_id: String, time: GtpTime },
 }
 
 impl Default for AiPlayer {
@@ -32,6 +36,12 @@ impl AiPlayer {
     pub fn validate(&self) -> Result<(), GameError> {
         match self {
             Self::KataGo(play) => play.validate(),
+            Self::Gtp { engine_id, time } => {
+                if engine_id.trim().is_empty() {
+                    return Err(GameError::InvalidSetup("GTP engine ID is empty".into()));
+                }
+                time.validate()
+            }
         }
     }
 }
@@ -41,6 +51,7 @@ impl AiPlayer {
 pub enum GameStart {
     NewBoard(NewGameOptions),
     CurrentPosition,
+    FreeHandicap { options: NewGameOptions, stones: u8 },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -75,23 +86,39 @@ impl Default for GameSetup {
 
 impl GameSetup {
     pub fn validate(&self) -> Result<(), GameError> {
+        self.validate_match()?;
+        if matches!((&self.black, &self.white), (Player::Ai(_), Player::Ai(_))) {
+            return Err(GameError::InvalidSetup(
+                "use start_match for two AI players".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_match(&self) -> Result<(), GameError> {
         for player in [&self.black, &self.white] {
             if let Player::Ai(ai) = player {
                 ai.validate()?;
             }
         }
-        // This card introduces human play only; engine matches belong to P3-10.
-        if matches!((&self.black, &self.white), (Player::Ai(_), Player::Ai(_))) {
-            return Err(GameError::InvalidSetup(
-                "two AI players are not supported yet".into(),
-            ));
-        }
         if let Some(clock) = &self.human_clock {
             clock.validate()?;
         }
-        if let GameStart::NewBoard(options) = &self.start {
+        if let GameStart::NewBoard(options) | GameStart::FreeHandicap { options, .. } = &self.start
+        {
             document::GameDocument::new_game(options.clone().into())
                 .map_err(|error| GameError::InvalidSetup(error.to_string()))?;
+        }
+        if let GameStart::FreeHandicap { options, stones } = &self.start
+            && (!(2..=9).contains(stones)
+                || options.handicap != 0
+                || ![&self.black, &self.white]
+                    .iter()
+                    .any(|p| matches!(p, Player::Ai(AiPlayer::Gtp { .. }))))
+        {
+            return Err(GameError::InvalidSetup(
+                "free handicap requires a GTP player, 2..=9 stones and no fixed handicap".into(),
+            ));
         }
         Ok(())
     }
@@ -277,6 +304,8 @@ pub enum GameEndReason {
     Scored,
     Unscored,
     Stopped,
+    EngineError,
+    MoveLimit,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -347,6 +376,16 @@ pub enum GameError {
     IncompatibleMode,
     #[error("game engine failed: {0}")]
     Engine(String),
+    #[error("GTP engine {engine_id} failed: {reason}")]
+    Gtp { engine_id: String, reason: String },
+    #[error("GTP engine does not support this time control")]
+    GtpUnsupportedTime,
+    #[error("GTP engine returned an illegal move: {0}")]
+    GtpIllegalMove(String),
+    #[error("the GTP player does not support play now")]
+    GtpPlayNowUnsupported,
+    #[error("未数子")]
+    Unscored,
     #[error("game ended, but saving to {path} failed: {reason}")]
     AutoSave { path: String, reason: String },
 }

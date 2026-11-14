@@ -23,3 +23,5 @@ pub mod variation;
 pub mod weights;
 
 pub mod game;
+pub mod gtp;
+pub mod match_game;

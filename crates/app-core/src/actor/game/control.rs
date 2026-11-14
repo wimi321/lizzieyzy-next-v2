@@ -84,7 +84,7 @@ impl Actor {
         };
         self.apply(super::super::Input::Edit(command)).await
     }
-    pub(super) async fn pause_game(&mut self) -> Result<(), AppError> {
+    pub(in crate::actor) async fn pause_game(&mut self) -> Result<(), AppError> {
         self.require_game()?;
         if !self.game_playing() {
             return Ok(());
@@ -105,7 +105,7 @@ impl Actor {
         self.update_focus().await;
         Ok(())
     }
-    pub(super) async fn resume_game(&mut self) -> Result<(), AppError> {
+    pub(in crate::actor) async fn resume_game(&mut self) -> Result<(), AppError> {
         let game = self.require_game()?;
         if game.view.phase != GamePhase::Paused {
             return Err(GameError::NotPaused.into());
@@ -131,7 +131,7 @@ impl Actor {
         }
         self.begin_game_turn().await
     }
-    pub(super) async fn resign_game(&mut self) -> Result<(), AppError> {
+    pub(in crate::actor) async fn resign_game(&mut self) -> Result<(), AppError> {
         let game = self.require_game()?;
         let human = match (&game.setup.black, &game.setup.white) {
             (Player::Human, Player::Human) => game.color(),
@@ -145,7 +145,7 @@ impl Actor {
         )
         .await
     }
-    pub(super) async fn take_back(&mut self) -> Result<(), AppError> {
+    pub(in crate::actor) async fn take_back(&mut self) -> Result<(), AppError> {
         self.validate_game_position()?;
         let game = self.require_game()?;
         let from = game
@@ -177,6 +177,7 @@ impl Actor {
             game.low_winrates = [0; 2];
             game.scoring = false;
         }
+        self.undo_gtp_players().await?;
         self.document_changed().await?;
         if self.game_playing() {
             self.begin_game_turn().await?;

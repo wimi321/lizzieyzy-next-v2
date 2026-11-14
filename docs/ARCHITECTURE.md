@@ -18,6 +18,7 @@ crates/
   sgf/                     SGF 解析 / 序列化、编码识别（纯同步）
   document/                棋谱树、编辑命令、撤销、局面计算（纯同步）
   katago-protocol/         分析引擎 JSON 协议类型与解析（纯同步）
+  gtp/                     第三方引擎 GTP 命令与多行回复（纯同步，仅依赖 go-core）
   engine-session/          每个引擎一个 actor：进程、请求表、重启（tokio）
   analysis/                分析协调：焦点变化、过期丢弃、缓存、节流（tokio）
   strength/                棋力特征、XGBoost 推理、残差校准与统计（纯同步）
@@ -32,6 +33,7 @@ apps/desktop/
   e2e/                     Playwright 用例与 mock 后端（不进生产包）
 tools/fake-katago/         测试用假 KataGo（Rust 二进制 + binary_path() 库函数）
 tools/fake-readboard/      独立测试二进制，按文本回放同一 stdio 协议
+tools/fake-gtp/            独立 Cargo 测试包，脚本化 GTP 引擎，不加入 workspace
 fixtures/                  SGF 语料、KataGo 真实录制、期望结果
 resources/katago/          应用自带的 analysis.cfg 模板与模型身份目录
 scripts/                   验收门禁（维护者所有）
@@ -45,6 +47,7 @@ go-core ← sgf ← document ←──────────── analysis �
 katago-protocol ← engine-session ←───┘
 fox-kifu ← app-core
 go-core ← readboard ← app-core
+go-core ← gtp ← engine-session / app-core
 katago-protocol ← fake-katago（engine-session / analysis / app-core / desktop 仅在测试里依赖它）
 strength ← app-core（strength 无 workspace 内部依赖）
 ```
@@ -345,6 +348,20 @@ pub enum EngineStatus {
 - 每种正常结束路径均按 auto_save 保存，即使无结果也保存棋谱。文件名 `yyyy-MM-dd-HHmmss_<黑方>_vs_<白方>.sgf`，限制名字长度并替换跨平台非法字符；时间复用可注入的 `BatchClock` 本地时间戳。目录按需创建，沿既有临时文件 flush/sync 和禁止覆盖的原子发布路径保存；同名递增 `-2` 等后缀。失败通过命令错误及 GameView.error 的 `AutoSave` 报告，已完成阶段和 RE 保持，不伪装成未结束。暂停后换到另一文档的失效会话停止时返回 PositionChanged，不给新文档写旧结果或保存它。
 - fake-katago 的 `overrideSettings.maxTime` 纳入已有 `--time-scale` 模拟时间，与 maxVisits 先达到的上限结束。`--play-script PATH` 读取 `{default,turns}`，turns 以查询 turnNumber 为键，整项覆盖 default；每项可指定黑方 winrate/scoreLead、candidates（move、visitShare、winrate、scoreLead、pv）、error、hang、gateFile。门控仅暂停该查询搜索，仍处理版本与取消动作。所有行为验收使用 fake；真实 GPU、桌面人机对局界面及三平台真机操作不由本卡测试替代。
 
+### P3-10 GTP 后端与引擎比赛
+
+- 新的纯同步 `gtp` crate 只依赖工作区内的 go-core；提供带可选数字 ID 的命令编码、标准命令、空行结束的成功/失败多行回复、大小写不敏感的落点/pass/resign 解析。坐标由 go-core 转换；格式错误是类型化错误，黄金样例位于 `crates/gtp/fixtures/`，与 proptest 一起运行。
+- `engine_session::gtp::spawn(TransportSpec, GtpSessionConfig)` 复用现有本地进程 driver，独立 actor 独占进程，不改变 JSON 分析会话。握手依次查询 protocol_version/name/version/list_commands，再执行 init_commands；拒绝任何初始化命令即启动失败。一次只有一条命令在途，有界队列满返回 Capacity；握手、写入和回复均有期限，退出/超时不自动重启。`GtpHandle` 提供 ready/command/command_with_timeout/status/console/subscribe/shutdown；单条命令可覆盖回复期限，不影响握手或其他命令。每会话保留最近 2000 行发出、收到和 stderr，进程关闭后仍可读取最后快照。
+- `Settings.gtp_engines` 是独立于 KataGo 列表的 `GtpEngineEntry { id, name, program, args, working_dir, init_commands }` 数组，旧设置默认为空。add/update/remove 先验证及原子保存，失败不改内存；使用中的条目拒绝修改。test_gtp_engine 启动新会话、获取身份和命令列表、quit 并回收。程序直接按 argv/cwd 启动，不经过 shell。
+- `AiPlayer::Gtp { engine_id, time }` 在同一 P3-09 Session 中运行。GtpTime 支持 PerMove、Byoyomi、Fischer、Absolute、EngineDefault、Custom；Fischer/Absolute 要求 kata-time_settings。Byoyomi 在 genmove 前按会话单调时钟发 time_left，只计算实际 genmove 的用时，不把握手和棋盘同步算入时钟；剩余时间按标准 GTP 向下取整为整数秒发送。已知时间控制的 genmove 回复期限取配置期限与当前可用时间加 5 秒中的较大者，EngineDefault/Custom 无法推导预算，沿用配置期限。启动同步 boardsize/clear_board/komi、可选 kata-set-rules、固定让子已摆点及已有着手；FreeHandicap 从指定 GTP 玩家 place_free_handicap 的合法回复构造根摆子。每回合只补发尚未同步着手，genmove 的结果仍由 document 检查，非法着法不变成 pass。
+- 悔棋先尝试 undo，不支持或拒绝时清盘并重放。暂停正在计算的 GTP 时关闭进程，恢复重新启动和重放，避免迟到回复修改棋谱；时钟消耗保留。双方 pass 优先读取 GTP final_score，缺少时尝试现有主 KataGo 数子，再无可用结果则结束为未数子，不写 RE。JSON 分析输出不进入 GTP 控制台。
+- MatchSetup 以 A/B 的 MatchPlayer 配置 KataGo 条目及每手参数、WRN/PDA，或 GTP 条目及用时；比赛复用同一对局 Session，双方 AI 只通过 start_match 开始。全局 start 使用 GameStart 表达新局（含尺寸、贴目、让子、规则）或当前局面，另有盘数、换色、手数上限、顺序/随机开局 SGF、随机开局与自动保存。默认 1 盘、交换黑白、自动保存，上限未设置时使用棋盘面积的两倍。开局使用首盘主线末端，当前局面与开局文件互斥。开局 SGF 和当前局面作为完整局面源，保留其尺寸、贴目、规则和摆子，NewBoard 的棋盘选项仅对新盘生效，避免重解释既有着手。标准 GTP 保守只接方盘，自由让子接受 2..9 子且不能同时配置固定让子。
+- 比赛中当前主 KataGo 条目复用主会话，其他条目另起分析会话；同一条目只使用一个会话，各方 WRN/PDA 以请求 overrideSettings 提交。比赛运行、暂停和盘间均停止主棋盘实时分析；比赛结束回收额外会话，主会话保留并按原意图恢复实时分析；WRN/PDA 调整从下一次请求生效。比赛过程不写主引擎持久缓存，保存后清除非 Saved 的比赛内存结果，避免带其他引擎或参数的分析被注入主引擎缓存。比赛与人机、批量、试下等模式互斥；浏览仍可用，比赛期间不能改写棋谱或引擎设置。
+- 每盘在主棋盘展示。认输、双方 pass、超手数和错误均有终态；后两者不计分，错误保留原因。MatchView/MatchUpdated 提供盘数、执色胜局、和棋、按原因分组的不计分、按开局统计和 A 相对 B 的 Elo/2σ 区间；p 为 0 或 1 时没有估计，区间越过概率边界的一端为 null。pause/resume/stop、set_match_games、match_play_now（仅 KataGo）、match_resign 和 set_match_side_params 通过原 actor 串行应用。stop 不保存当前盘，已完成统计保留。
+- 自动保存使用 games_directory 下 `EngineGames/<A>_VS_<B>_<yyyyMMddHHmmss>/` 和 `<序号>_<黑方>_vs_<白方>_<结果>.sgf`；名字做跨平台字符清理，复用原子、不覆写的保存路径。空结果以结束原因标记文件名，不制造 RE；保存错误单独报告。时间和随机种子沿用 AppConfig 的可注入来源。
+- `gtp_console(engine_id)` 补读会话日志，`GtpConsoleLine` 推送新增行；AppCore 的有界 2000 行事件队列与既有状态槽按同一发布顺序读取，慢消费者可用 console 补读。gtp_console_send 自动启动未运行引擎；命令先在主 actor 校验并入队，等待回复在独立 future 进行，启动测试同样不阻塞文档命令，测试期间的条目被保留供该测试独占；对局或比赛中拒绝 play/genmove/undo/clear_board/boardsize/komi/fixed_handicap/place_free_handicap/set_free_handicap/loadsgf/quit，包括带数字 ID 和大小写变体。空命令、换行注入及超长行拒绝。其他命令按用户文本传给引擎；控制台不解析围棋业务。
+- Tauri `commands/gtp.rs`、`commands/match_game.rs` 仅转发上述 AppCore，权限仅本地 main。MatchUpdated 重连回放最新状态；控制台逐行事件不重连回放，使用日志查询补读。新设置/视图属性与 Backend 方法生成 TS 可选；mock 为新字段补默认值，所有新命令为脚本化 command。`fake-gtp` 独立包按 manifest 构建，支持着法、拒绝、退出、挂起、让子、数子和能力选项；普通测试不使用真实 GTP/KataGo 或 GPU，P3-11 才实现界面。
+
 ### 4.8 strength（棋力评估）
 
 - `strength::Estimator::bundled()` 从编译时嵌入的模型 JSON 构造纯同步估计器，无网络、文件 I/O 或异步运行时。`estimate(&[MoveInput])` 返回黑、白、整体 `StrengthReport`；每手输入包括手数、颜色、坐标、前后根评估的损失及落子前按 order 排序的候选点；app-core 先通过 P1-24 每手损失入口检查有效性。候选点的胜率由 app-core 从黑方概率转换为落子方百分点，目差同样转换到落子方；这只是计算差值的内部输入，对外局面分析仍为黑方视角。
@@ -547,4 +564,4 @@ Windows PowerShell 使用 `Get-AuthenticodeSignature '<installer>.exe'` 和 `sig
 
 ## 9. 暂不做
 
-GTP 后端、人机对局界面、陪练、远程算力、弈客、HumanSL 棋力评估、AI 解说、死活题屏幕抓取、网页棋盘，见 ROADMAP 的 P3。readboard 本阶段仅实现 4.11 的 Windows 同步后端。
+人机对局界面、陪练、远程算力、弈客、HumanSL 棋力评估、AI 解说、死活题屏幕抓取、网页棋盘，见 ROADMAP 的 P3。readboard 本阶段仅实现 4.11 的 Windows 同步后端。

@@ -12,6 +12,8 @@ struct Mailbox {
     review: Option<(u64, AppEvent)>,
     batch: Option<(u64, AppEvent)>,
     game: Option<(u64, AppEvent)>,
+    match_game: Option<(u64, AppEvent)>,
+    console: std::collections::VecDeque<(u64, AppEvent)>,
     board_sync: Option<(u64, AppEvent)>,
     benchmark: Option<(u64, AppEvent)>,
     analysis_state: Option<(u64, AppEvent)>,
@@ -24,7 +26,8 @@ pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 12],
+    read: [Option<u64>; 13],
+    console_read: u64,
 }
 
 pub(crate) fn channel() -> (Delivery, AppSubscription) {
@@ -33,7 +36,8 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 12],
+            read: [None; 13],
+            console_read: 0,
         },
     )
 }
@@ -50,7 +54,16 @@ impl Delivery {
                 return false;
             }
             mailbox.serial = mailbox.serial.wrapping_add(1);
+            if matches!(event, AppEvent::GtpConsoleLine(_)) {
+                mailbox.console.push_back((mailbox.serial, event));
+                if mailbox.console.len() > 2000 {
+                    mailbox.console.pop_front();
+                }
+                return true;
+            }
             let slot = match &event {
+                AppEvent::GtpConsoleLine(_) => return false,
+                AppEvent::MatchUpdated(_) => &mut mailbox.match_game,
                 AppEvent::UpdateDownloadProgress(_) => &mut mailbox.update_download,
                 AppEvent::AssetDownloadProgress(_) => &mut mailbox.asset_download,
                 AppEvent::DocumentChanged { .. } => &mut mailbox.document,
@@ -111,12 +124,24 @@ impl AppSubscription {
                     &mailbox.update_download,
                     &mailbox.batch,
                     &mailbox.game,
+                    &mailbox.match_game,
                 ]
                 .into_iter()
                 .enumerate()
                 .filter_map(|(i, slot)| slot.as_ref().map(|(serial, event)| (i, *serial, event)))
                 .filter(|(i, serial, _)| self.read[*i] != Some(*serial))
                 .min_by_key(|(_, serial, _)| *serial);
+                if let Some((serial, event)) = mailbox
+                    .console
+                    .iter()
+                    .find(|(serial, _)| *serial > self.console_read)
+                    && next
+                        .as_ref()
+                        .is_none_or(|(_, next_serial, _)| serial < next_serial)
+                {
+                    self.console_read = *serial;
+                    return Some(event.clone());
+                }
                 if let Some((i, serial, event)) = next {
                     self.read[i] = Some(serial);
                     return Some(event.clone());

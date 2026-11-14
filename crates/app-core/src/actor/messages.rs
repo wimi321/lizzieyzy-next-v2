@@ -41,6 +41,12 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    Gtp(crate::gtp_engines::Request),
+    Match(
+        crate::match_game::Request,
+        oneshot::Sender<Result<crate::MatchView, AppError>>,
+    ),
+    MatchView(oneshot::Sender<Option<crate::MatchView>>),
     Game(
         crate::game_api::Request,
         oneshot::Sender<Result<crate::GameView, AppError>>,

@@ -47,6 +47,8 @@ pub struct Settings {
     pub engine: Option<EngineProfile>,
     #[ts(as = "Option<Vec<crate::EngineEntry>>", optional)]
     pub engines: Vec<crate::EngineEntry>,
+    #[ts(as = "Option<Vec<crate::GtpEngineEntry>>", optional)]
+    pub gtp_engines: Vec<crate::GtpEngineEntry>,
     #[ts(optional = nullable)]
     pub main_engine_id: Option<String>,
     #[ts(as = "Option<crate::EngineSettings>", optional)]
@@ -87,6 +89,7 @@ impl Default for Settings {
             last_update_check_unix_ms: None,
             engine: None,
             engines: Vec::new(),
+            gtp_engines: Vec::new(),
             main_engine_id: None,
             engine_settings: crate::EngineSettings::default(),
             game_setup: crate::GameSetup::default(),
@@ -187,6 +190,7 @@ impl Settings {
             return Err(SettingsError::InvalidUiScale);
         }
         self.normalize_engines()?;
+        crate::gtp_engines::validate_entries(&self.gtp_engines)?;
         self.engine_settings.validate()?;
         crate::fox::normalize_history(&mut self.fox_history);
         crate::edit::normalize_recent_files(&mut self.recent_files);

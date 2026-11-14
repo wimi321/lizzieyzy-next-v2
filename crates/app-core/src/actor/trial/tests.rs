@@ -22,6 +22,8 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
     (
         Actor {
             game: None,
+            gtp: Default::default(),
+            match_session: None,
             document: GameDocument::new(),
             file_name: None,
             file_state: crate::actor::editing::FileState::new(&GameDocument::new(), None),

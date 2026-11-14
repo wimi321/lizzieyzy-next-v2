@@ -244,3 +244,178 @@ fn scoring_and_filename_have_stable_safe_output() {
     );
     assert_eq!(game_file_name("invalid", "Black", "White"), None);
 }
+
+#[test]
+fn gtp_clock_tracks_canadian_stones_main_time_and_fischer_increment() {
+    let mut clock = GtpClock::new(GtpTime::Byoyomi {
+        main: 5,
+        period: 10,
+        stones: 2,
+    });
+    assert_eq!(
+        clock.time_left(go_core::Color::Black).as_deref(),
+        Some("time_left black 5 0")
+    );
+    clock.spend(3.0, true);
+    assert_eq!(
+        clock.time_left(go_core::Color::Black).as_deref(),
+        Some("time_left black 2 0")
+    );
+    clock.spend(4.0, true);
+    assert_eq!(
+        clock.time_left(go_core::Color::Black).as_deref(),
+        Some("time_left black 8 1")
+    );
+    clock.spend(3.0, false);
+    assert_eq!(
+        clock.time_left(go_core::Color::Black).as_deref(),
+        Some("time_left black 5 1")
+    );
+    clock.spend(1.0, true);
+    assert_eq!(
+        clock.time_left(go_core::Color::Black).as_deref(),
+        Some("time_left black 10 2")
+    );
+    let mut clock = GtpClock::new(GtpTime::Fischer {
+        main: 5,
+        increment: 2,
+    });
+    clock.spend(3.0, true);
+    assert_eq!(
+        clock.time_left(go_core::Color::White).as_deref(),
+        Some("time_left white 4 0")
+    );
+    clock.spend(1.0, false);
+    assert_eq!(
+        clock.time_left(go_core::Color::White).as_deref(),
+        Some("time_left white 3 0")
+    );
+}
+
+#[test]
+fn gtp_time_validation_rejects_zero_clocks_and_multiline_custom_injection() {
+    for time in [
+        GtpTime::PerMove(0),
+        GtpTime::Absolute { main: 0 },
+        GtpTime::Fischer {
+            main: 0,
+            increment: 0,
+        },
+        GtpTime::Byoyomi {
+            main: 10,
+            period: 5,
+            stones: 0,
+        },
+        GtpTime::Custom(vec!["time_settings 0 1 1\nquit".into()]),
+    ] {
+        assert!(time.validate().is_err());
+    }
+    assert!(GtpTime::EngineDefault.validate().is_ok());
+    assert!(
+        GtpTime::Custom(vec!["echo exact text".into()])
+            .validate()
+            .is_ok()
+    );
+}
+
+#[test]
+fn gtp_clock_emits_standard_integer_seconds_and_clamps_fischer_growth() {
+    let mut clock = GtpClock::new(GtpTime::Byoyomi {
+        main: 3,
+        period: 5,
+        stones: 2,
+    });
+    clock.spend(0.25, false);
+    assert_eq!(
+        clock.time_left(go_core::Color::Black).as_deref(),
+        Some("time_left black 2 0")
+    );
+    clock.spend(3.0, true);
+    assert_eq!(
+        clock.time_left(go_core::Color::Black).as_deref(),
+        Some("time_left black 4 1")
+    );
+    let mut clock = GtpClock::new(GtpTime::Fischer {
+        main: i32::MAX as u32,
+        increment: 10,
+    });
+    clock.spend(0.25, true);
+    assert_eq!(
+        clock.time_left(go_core::Color::White).as_deref(),
+        Some("time_left white 2147483647 0")
+    );
+    for time in [
+        GtpTime::PerMove(u32::MAX),
+        GtpTime::Absolute { main: u32::MAX },
+        GtpTime::Fischer {
+            main: 10,
+            increment: u32::MAX,
+        },
+        GtpTime::Byoyomi {
+            main: u32::MAX,
+            period: 1,
+            stones: 1,
+        },
+        GtpTime::Byoyomi {
+            main: 1,
+            period: u32::MAX,
+            stones: 1,
+        },
+        GtpTime::Byoyomi {
+            main: 1,
+            period: 1,
+            stones: u32::MAX,
+        },
+    ] {
+        assert!(time.validate().is_err());
+    }
+}
+
+#[test]
+fn gtp_genmove_timeout_covers_known_remaining_budget_and_preserves_unknown_modes() {
+    let default = Duration::from_millis(100);
+    for (time, expected) in [
+        (GtpTime::PerMove(300), Duration::from_secs(305)),
+        (GtpTime::Absolute { main: 300 }, Duration::from_secs(305)),
+        (
+            GtpTime::Fischer {
+                main: 300,
+                increment: 10,
+            },
+            Duration::from_secs(305),
+        ),
+        (
+            GtpTime::Byoyomi {
+                main: 300,
+                period: 30,
+                stones: 2,
+            },
+            Duration::from_secs(335),
+        ),
+        (GtpTime::EngineDefault, default),
+        (
+            GtpTime::Custom(vec!["time_settings 0 30 1".into()]),
+            default,
+        ),
+    ] {
+        let clock = GtpClock::new(time);
+        assert_eq!(clock.response_timeout(default), expected);
+        assert_eq!(
+            clock.response_timeout(Duration::from_secs(1000)),
+            Duration::from_secs(1000)
+        );
+    }
+    let mut clock = GtpClock::new(GtpTime::Byoyomi {
+        main: 10,
+        period: 20,
+        stones: 2,
+    });
+    clock.spend(21.0, true);
+    assert_eq!(clock.response_timeout(default), Duration::from_secs(14));
+    let mut clock = GtpClock::new(GtpTime::Fischer {
+        main: 10,
+        increment: 2,
+    });
+    clock.spend(3.0, true);
+    assert_eq!(clock.response_timeout(default), Duration::from_secs(14));
+}

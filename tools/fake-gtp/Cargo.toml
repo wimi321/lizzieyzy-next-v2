@@ -1,0 +1,16 @@
+[package]
+name = "fake-gtp"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96.0"
+license = "GPL-3.0-only"
+
+# Deliberately isolated; tests build this manifest, never link it into production.
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

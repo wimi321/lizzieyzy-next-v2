@@ -504,7 +504,20 @@ fn main() -> std::process::ExitCode {
             return std::process::ExitCode::from(2);
         }
     };
-    match run(options) {
+    let exit_log = options.exit_log.clone();
+    let result = run(options);
+    if let Some(path) = exit_log {
+        let written = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .and_then(|mut file| writeln!(file, "{}", std::process::id()));
+        if let Err(error) = written {
+            eprintln!("exit log: {error}");
+            return std::process::ExitCode::FAILURE;
+        }
+    }
+    match result {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");

@@ -89,6 +89,7 @@ dependencies = [
  "fake-katago",
  "fox-kifu",
  "go-core",
+ "gtp",
  "katago-protocol",
  "png",
  "proptest",
@@ -1053,6 +1054,7 @@ name = "engine-session"
 version = "0.1.0"
 dependencies = [
  "fake-katago",
+ "gtp",
  "katago-protocol",
  "serde",
  "serde_json",
@@ -1681,6 +1683,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "gtp"
+version = "0.1.0"
+dependencies = [
+ "go-core",
+ "proptest",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

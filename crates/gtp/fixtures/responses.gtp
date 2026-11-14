@@ -1,0 +1,21 @@
+= 2
+
+=17 Fake GTP
+
+=18 protocol_version
+name
+version
+list_commands
+play
+genmove
+
+?19 unknown command
+
+=20
+
+=21 PaSs
+
+=22 rEsIgN
+
+=23 q16
+

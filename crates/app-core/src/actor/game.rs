@@ -9,6 +9,8 @@ use go_core::{Color, Move};
 use tokio::time::Instant;
 
 mod control;
+mod gtp;
+mod gtp_sync;
 mod guard;
 mod query;
 mod results;
@@ -16,13 +18,15 @@ use query::Query;
 pub(super) use query::receive;
 
 pub(super) struct Session {
-    setup: GameSetup,
+    pub(super) setup: GameSetup,
     starting: bool,
-    view: GameView,
+    pub(super) view: GameView,
     key: AnalysisKey,
     clocks: [Option<ClockState>; 2],
     history: Vec<Turn>,
     query: Option<Query>,
+    gtp_query: Option<gtp::Pending>,
+    gtp_players: std::collections::BTreeMap<String, gtp::State>,
     scoring: bool,
     invalidated: bool,
     low_winrates: [u32; 2],
@@ -63,7 +67,7 @@ impl Session {
         view.white_clock = self.clocks[1]
             .as_ref()
             .map(|clock| clock.view(Instant::now()));
-        view.ai_thinking = self.query.is_some();
+        view.ai_thinking = self.query.is_some() || self.gtp_query.is_some();
         view
     }
 }
@@ -77,13 +81,14 @@ impl Actor {
             .is_some_and(|game| game.view.phase == GamePhase::Playing)
     }
     pub(super) fn game_owns_query(&self) -> bool {
-        self.game_playing()
-            && self.game.as_ref().is_some_and(|game| {
-                game.starting
-                    || !game.setup.ponder
-                    || game.scoring
-                    || matches!(game.player(game.color()), Player::Ai(_))
-            })
+        self.match_active()
+            || self.game_playing()
+                && self.game.as_ref().is_some_and(|game| {
+                    game.starting
+                        || !game.setup.ponder
+                        || game.scoring
+                        || matches!(game.player(game.color()), Player::Ai(_))
+                })
     }
     pub(super) fn game_focus_node(&self) -> Option<NodeId> {
         self.game
@@ -102,7 +107,7 @@ impl Actor {
                     && game.setup.ponder
             })
     }
-    fn publish_game(&self) {
+    pub(super) fn publish_game(&self) {
         if let Some(view) = self.game_view() {
             self.output.send(AppEvent::GameUpdated(view));
         }
@@ -161,13 +166,13 @@ impl Actor {
         }
         self.game_view().ok_or_else(|| GameError::NotActive.into())
     }
-    fn require_game(&self) -> Result<&Session, GameError> {
+    pub(super) fn require_game(&self) -> Result<&Session, GameError> {
         self.game
             .as_ref()
             .filter(|game| game.view.phase != GamePhase::Finished)
             .ok_or(GameError::NotActive)
     }
-    fn validate_game_position(&self) -> Result<(), AppError> {
+    pub(super) fn validate_game_position(&self) -> Result<(), AppError> {
         let game = self.require_game()?;
         if game.invalidated
             || self
@@ -187,7 +192,11 @@ impl Actor {
         }
         Ok(())
     }
-    async fn start_game(&mut self, setup: GameSetup, persist_setup: bool) -> Result<(), AppError> {
+    pub(super) async fn start_game(
+        &mut self,
+        setup: GameSetup,
+        persist_setup: bool,
+    ) -> Result<(), AppError> {
         if self
             .game
             .as_ref()
@@ -195,7 +204,11 @@ impl Actor {
         {
             return Err(GameError::AlreadyActive.into());
         }
-        setup.validate()?;
+        if persist_setup {
+            setup.validate()?;
+        } else {
+            setup.validate_match()?;
+        }
         self.ensure_no_batch()?;
         self.ensure_no_benchmark()?;
         self.ensure_no_move_trial()?;
@@ -206,17 +219,24 @@ impl Actor {
         if self.tsumego.is_some() {
             return Err(GameError::IncompatibleMode.into());
         }
-        let document = match &setup.start {
+        let mut document = match &setup.start {
             GameStart::NewBoard(options) => Some(GameDocument::new_game(options.clone().into())?),
             GameStart::CurrentPosition => None,
+            GameStart::FreeHandicap { options, stones } => {
+                Some(self.gtp_free_handicap(&setup, options, *stones).await?)
+            }
         };
         let position = match &document {
             Some(doc) => doc.position_at(doc.current())?,
             None => self.document.position_at(self.document.current())?,
         };
-        if matches!(setup.black, Player::Ai(_)) || matches!(setup.white, Player::Ai(_)) {
+        if [&setup.black, &setup.white]
+            .iter()
+            .any(|p| matches!(p, Player::Ai(crate::AiPlayer::KataGo(_))))
+        {
             self.game_engine()?;
         }
+        let gtp_players = self.prepare_gtp_players(&setup, &position).await?;
         // Quick continuation only borrows the dialog's settings. Its current
         // position and chosen AI color belong to this session, not the defaults.
         if persist_setup {
@@ -267,6 +287,8 @@ impl Actor {
             key: position.analysis_key(),
             history: Vec::new(),
             query: None,
+            gtp_query: None,
+            gtp_players,
             scoring: false,
             invalidated: false,
             low_winrates: [0; 2],
@@ -277,7 +299,7 @@ impl Actor {
             }),
             tick: Instant::now(),
         });
-        if let Some(document) = document {
+        if let Some(document) = document.take() {
             self.replace_document(document).await?;
         }
         if let Some(game) = &mut self.game {
@@ -321,7 +343,7 @@ impl Actor {
         self.append_game_move(mv, true).await?;
         Ok(self.revision)
     }
-    async fn append_game_move(&mut self, mv: Move, human: bool) -> Result<(), AppError> {
+    pub(super) async fn append_game_move(&mut self, mv: Move, human: bool) -> Result<(), AppError> {
         self.validate_game_position()?;
         self.next_revision()?;
         let game = self.require_game()?;
