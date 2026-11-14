@@ -414,7 +414,7 @@ pub enum EngineStatus {
 - 三段固定按布局、中盘、官子排列，`PhaseEstimate { index, first, last, played, black, white, black_ranked, white_ranked }` 的 index 为 0..2，范围端点均包含；last 截到当前显示线实际最后一手，`played = last >= first`，与是否有分析无关。每段每方只筛选原始手数落在范围内的该方样本，调用与整盘相同的 `summarize`，不重新编号；原有 `SideReport.opening/middlegame/endgame` 特征统计仍用 60/160 固定分界。保留完整 SideReport（包括少量样本的低可信估计），但只有该方至少 6 个有效样本且段位有限时 ranked 才为 true，界面只能在 ranked 为 true 时显示该段段位。
 - `StrengthPhasesReport.black/white` 分别为 `PhaseExtremes { best, worst, worth_reviewing }`。至少两个阶段 ranked 且最高最低相差 >=0.3 段时，best/worst 返回对应 index，否则均为 null；并列取最早阶段。差值 >=0.6 段时 `worth_reviewing=true`。每次查询回显实际分界，不持久化拖动位置；mock 可脚本返回自定义分界的结果，不在 TypeScript 中重算评估。
 
-### 4.9 野狐公开棋谱
+### 4.9 野狐、腾讯公开棋谱与在线链接
 
 - `fox-kifu` 不依赖其他工作区 crate，使用 reqwest 的 rustls 后端访问公开 HTTP 接口，不需要账号登录、Cookie 或外部 JAR。`FoxClient::search(&FoxQuery)` 返回 `FoxSearchResult { account, page }`；`FoxQuery::{Nickname(String), Uid(String)}` 在 IPC 中使用 `type/value` 判别，数字昵称不会被自动解释为 UID。UID 只接受 ASCII 数字。
 - `FoxAccount { uid, nickname }` 保留账号身份；`FoxPage { games, next_cursor }` 的每项 `FoxGame` 包含对局 id、开始时间、黑白 `FoxPlayer { uid, nickname, rank }`、结果和手数。结果由胜方、胜负方式、可选分值及子/目单位组成，区分中盘、超时、点数和其他胜负；显示文案留给界面本地化。段位沿用 Java 的数值偏移及职业 `P` 规则。
@@ -426,6 +426,17 @@ pub enum EngineStatus {
 - 成功取得账号和第一页后，才把 `FoxAccount` 记入 `Settings.fox_history`，按 UID 去重、最近成功完成的搜索在前、最多 10 条；加载设置也规范化历史，清空通过同一原子保存流程持久化。`AppConfig.fox_client` 可注入本地测试端点，默认客户端惰性创建。
 - Tauri 的 `commands/fox.rs` 提供 `fox_search(query)`、`fox_next_page(uid, cursor)`、`fox_open_game(gameId)`、`fox_clear_history()`，仅授权本地 main 窗口。`CommandError::Fox(FoxFailure)` 保留可本地化的 `Network`（网络错误）、`Timeout`（网络超时）分类及 HTTP/API 状态码；下载回退耗尽时若包含网络原因，仍返回网络分类（优先 Network，其次 Timeout），纯协议失败才返回 DownloadFailed。IPC 只传类型和数据，不暴露平台错误文本；最终提示由界面本地化。其余错误维持原有应用错误边界。所有野狐 DTO 和错误类型由 Rust 递归生成 TS，前端 backend 与 E2E mock 仅转发或回放命令，不实现网络协议或解析。
 - 普通测试使用 `fixtures/fox/` 的真实录制和本地假 HTTP 服务；列表裁为 5 盘，昵称、UID 及 SGF 的 PB/PW 一致脱敏，保留字段类型和业务结果，清理敏感字段。录制日期和接口在测试注释中注明。`fox-recorded-2026-10-30.sgf` 保留录制的 177 手棋谱；此外保留 Java 八手回归片段和 [Leela Zero #2285](https://github.com/leela-zero/leela-zero/issues/2285) 公开发布的 313 手完整野狐棋谱；SGF 样本由独立 oracle 校验。`app-core/tests/fox_live.rs` 的联网验收显式 `#[ignore]`，经生产 AppCore 完成昵称、列表、CGI/H5 下载和打开，报告列表盘数、对局 id、手数和贴目，仅使用临时目录，不把未脱敏网络响应写入仓库。
+
+#### 腾讯棋谱与一次性在线打开（P3-15）
+
+- `fox_kifu::tencent::TencentClient` 复用野狐的 HTTP 客户端构造、超时、网络重试、4 MiB 响应上限和 SGF 整理；不依赖其他工作区 crate。列表仅 GET `cgi.huanle.qq.com/cgi-bin/CommonMobileCGI/TXWQFetchChessList`，固定 `type=7`、`fetchnum=100`、`txwqsession=lizzieyzy-next`，以 `lastCode` 传游标；单局仅 GET `happyapp.huanle.qq.com/cgi-bin/CommonMobileCGI/TXWQFetchChess`。两个地址均为 HTTPS，不需要登录。
+- `TencentQuery` 是透明字符串类型，去除首尾空白，拒绝空查询；纯 ASCII 数字同时传为 `username` 和 `srcuid`，其他查询只传 `username`，`srcuid` 为空。列表必须 `result=0` 且 `ret` 缺失或为 0；接口失败保留 `result`、可空 `ret` 和 `resultstr`，传输失败沿共用网络、超时、HTTP、格式及大小分类，不暴露请求 URL 或平台错误文本。
+- `TencentPage { games, next_cursor }` 返回每局 ID、可空 Unix 秒开始时间、黑白 UID/昵称/结构化段位、结果与手数。昵称按 `blacknick/blackenname/blackname`（白方同理）依次选择非空值；`TencentRank::{Kyu,Dan,Professional}` 分别承载级、段、职业段的数值，职业从原值 100 对应 P1，业余原值 18 对应 1 段、17 对应 1 级。结果复用 `FoxResult` 的胜方、中盘、超时、点数及目/子单位，文字由界面本地化。
+- 开始时间先采用可解析为整数秒的 `gamestarttime`，否则读取 `starttime` 的整数秒或严格 `YYYY-MM-DD HH:MM:SS`，日期文本使用固定北京时间 UTC+8，不使用机器本地时区。两者都缺失或不可解析时为 null，不丢弃该局。2026-11-14 的真实录制中，`starttime` 是日期时间字符串，`gamestarttime` 是整数秒；本卡采用维护者根据录制修订的字段优先级。
+- 只要当前页非空，就用最后一局 `chessid` 提供下一页；空页才表示到底，即使少于请求的 100 局也不提前结束。返回游标与输入游标重复时为类型化错误。2026-11-14 同一公开账号的两页各返回 50 局，第二页无首页重复项且游标前进，证明不能以少于 100 局判断结束。调用方可能需要再翻一次空页；查询与游标都显式传入，不维护全局翻页状态。
+- `AppCore::{tencent_search,tencent_next_page,tencent_open_game,tencent_clear_history}` 的网络 future 在调用方执行，actor 只惰性提供客户端、原子保存历史及打开下载字节。`Settings.tencent_history` 保存成功取得第一页的规范查询，按完整查询去重、最近在前、最多 10 条；旧设置默认空，加载时同样规范化，诊断导出整项脱敏。下载前和 `open_bytes` 提交时复用原有批量/对局/更新保护；失败保留当前棋谱。启动不创建网络客户端或额外目录。
+- `AppCore::open_url(url)` 去掉首尾空白和引号，仅接受 HTTP/HTTPS；`yikeweiqi.com` 及其子域返回暂不支持，只有主机为 `foxwq.com`、`qq.com` 或它们的点分隔子域（不区分大小写）且带 `chessid` 查询参数的分享链接才复用现有野狐 `download`。其他主机即使带 `chessid` 也按普通链接一次 GET，保留原始字节交现有 SGF/GIB 编码识别和打开事务；不重试普通 GET、不轮询、不实时刷新。响应仍限 4 MiB，连接/读取/总期限与野狐一致；最多跟随 5 次 HTTP/HTTPS 跳转，非法跳转和超过次数有类型化错误，无法解析为棋谱返回 `InvalidSgf` 且不替换文档。
+- Tauri `commands/tencent.rs` 薄转发上述五个命令，只授权本地 main。`CommandError::Tencent` 和 `OpenUrl` 保留可本地化错误 DTO，共享传输错误通过 `FoxFailure` 分类；新增设置/视图字段在生成 TS 中可选，mock 给历史补空列表，所有新命令都必须有脚本化 `command`。真实录制仅以一致替换身份、裁为五局的 `fixtures/tencent/` 入库；原始响应仅留在 target 临时目录。普通测试使用录制和本地 HTTP 回放，手动联网测试为 `#[ignore]`，账号从环境变量读取，不打印真实身份。
 
 ### 4.10 死活题
 

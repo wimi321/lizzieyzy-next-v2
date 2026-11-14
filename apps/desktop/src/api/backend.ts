@@ -28,6 +28,7 @@ import type { PreferenceCommands } from "./preferences";
 import type { UpdateCommands, UpdateDownloadProgressListener } from "./updates";
 import type { SupportCommands } from "./support";
 import type { EverydayCommands } from "./everyday";
+import type { TencentCommands } from "./tencent";
 import type { EngineDisplayName } from "./generated/EngineDisplayName";
 import type { EngineProfile } from "./generated/EngineProfile";
 import type { EngineSetupProfile } from "./generated/EngineSetupProfile";
@@ -75,6 +76,7 @@ export * from "./preferences";
 export * from "./updates";
 export * from "./support";
 export * from "./everyday";
+export * from "./tencent";
 export type { AnalysisSource } from "./generated/AnalysisSource";
 export type { AnalysisSummary } from "./generated/AnalysisSummary";
 export type { AnalysisView } from "./generated/AnalysisView";
@@ -109,7 +111,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends RemoteCommands, CommentaryCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+export interface Backend extends RemoteCommands, CommentaryCommands, TencentCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
   subscribeCommentaryUpdated?(listener: CommentaryUpdatedListener): Promise<number>;
   subscribeCoachUpdated?(listener: CoachUpdatedListener): Promise<number>;
   subscribeCoachMoveRated?(listener: CoachMoveRatedListener): Promise<number>;

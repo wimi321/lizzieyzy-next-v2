@@ -118,6 +118,7 @@ pub(crate) enum Command {
         oneshot::Sender<Result<crate::StrengthEstimateView, AppError>>,
     ),
     Fox(crate::fox::Request),
+    Tencent(crate::tencent::Request),
     ProblemMoves(
         crate::ProblemMovesQuery,
         oneshot::Sender<Result<crate::ProblemMovesView, AppError>>,

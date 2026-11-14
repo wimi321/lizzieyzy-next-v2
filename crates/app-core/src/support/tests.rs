@@ -403,6 +403,7 @@ async fn export_includes_sanitized_settings_engine_system_logs_and_never_reads_s
         "engine": {"program": "/Users/Alice/katago", "model": "C:\\Users\\Alice\\net.bin.gz", "config": "/home/alice/analysis.cfg", "extra_args": ["--password", "hunter2"]},
         "recent_files": ["/Users/Alice/private-game.sgf"],
         "fox_history": [{"uid": "12345678", "nickname": "Private player"}],
+        "tencent_history": ["synthetic-tencent-query", "9911223344"],
     })).unwrap();
     let diagnostics: EngineDiagnostics = serde_json::from_value(json!({
         "profile": settings.engine,
@@ -448,6 +449,8 @@ async fn export_includes_sanitized_settings_engine_system_logs_and_never_reads_s
         "private-game",
         "Private notes",
         "disabled-debug",
+        "synthetic-tencent-query",
+        "9911223344",
     ] {
         assert!(!all.contains(sensitive), "export leaked {sensitive}");
     }

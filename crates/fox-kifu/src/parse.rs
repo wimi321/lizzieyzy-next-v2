@@ -110,7 +110,7 @@ pub fn format_rank(raw: i32) -> String {
     }
 }
 
-fn result(value: &Value) -> Result<FoxResult, FoxError> {
+pub(crate) fn result(value: &Value) -> Result<FoxResult, FoxError> {
     let winner = match integer(value, "winner")? {
         1 => Some(FoxColor::Black),
         2 => Some(FoxColor::White),
@@ -145,20 +145,20 @@ fn result(value: &Value) -> Result<FoxResult, FoxError> {
     })
 }
 
-fn integer(value: &Value, key: &'static str) -> Result<i64, FoxError> {
+pub(crate) fn integer(value: &Value, key: &'static str) -> Result<i64, FoxError> {
     value
         .get(key)
         .and_then(|v| v.as_i64().or_else(|| v.as_str()?.parse().ok()))
         .ok_or(FoxError::InvalidResponse(key))
 }
 
-fn required_text(value: &Value, key: &'static str) -> Result<String, FoxError> {
+pub(crate) fn required_text(value: &Value, key: &'static str) -> Result<String, FoxError> {
     text(value, key)
         .filter(|s| !s.is_empty())
         .ok_or(FoxError::InvalidResponse(key))
 }
 
-fn text(value: &Value, key: &str) -> Option<String> {
+pub(crate) fn text(value: &Value, key: &str) -> Option<String> {
     match value.get(key)? {
         Value::String(text) => Some(text.trim().to_owned()),
         Value::Number(number) => Some(number.to_string()),
@@ -166,7 +166,7 @@ fn text(value: &Value, key: &str) -> Option<String> {
     }
 }
 
-fn first_text(value: &Value, keys: &[&str]) -> Option<String> {
+pub(crate) fn first_text(value: &Value, keys: &[&str]) -> Option<String> {
     keys.iter()
         .filter_map(|key| text(value, key))
         .find(|text| !text.is_empty())

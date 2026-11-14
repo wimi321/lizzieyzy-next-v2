@@ -2,6 +2,7 @@ use serde::Serialize;
 use ts_rs::TS;
 
 use crate::fox_error::FoxFailure;
+use crate::tencent_error::{OpenUrlFailure, TencentFailure};
 
 /// Serializable IPC failures. Domain errors are rendered only at this boundary.
 #[derive(Debug, thiserror::Error, Serialize, TS)]
@@ -57,6 +58,10 @@ pub enum CommandError {
     App(String),
     #[error("{0}")]
     Fox(FoxFailure),
+    #[error("{0}")]
+    Tencent(TencentFailure),
+    #[error("{0}")]
+    OpenUrl(OpenUrlFailure),
     #[error("{0}")]
     AutoSetup(app_core::AutoSetupError),
     #[error("{0}")]
@@ -124,6 +129,8 @@ impl From<app_core::AppError> for CommandError {
                 app_core::support::SupportError::RevealOutsideDataDirectory,
             ) => Self::RevealOutsideDataDirectory,
             app_core::AppError::Fox(error) => Self::Fox(error.into()),
+            app_core::AppError::Tencent(error) => Self::Tencent(error.into()),
+            app_core::AppError::OpenUrl(error) => Self::OpenUrl(error.into()),
             app_core::AppError::AutoSetup(error) => Self::AutoSetup(error),
             app_core::AppError::BoardSync(error) => Self::BoardSync(error),
             other => Self::App(other.to_string()),

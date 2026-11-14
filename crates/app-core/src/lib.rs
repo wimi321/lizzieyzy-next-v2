@@ -48,6 +48,7 @@ mod setup_markup;
 mod storage;
 mod strength_estimate;
 pub mod support;
+pub mod tencent;
 mod tsumego;
 pub mod updates;
 mod view;
@@ -196,6 +197,10 @@ pub enum AppError {
     #[error(transparent)]
     Fox(#[from] fox::FoxError),
     #[error(transparent)]
+    Tencent(#[from] tencent::TencentError),
+    #[error(transparent)]
+    OpenUrl(#[from] tencent::OpenUrlError),
+    #[error(transparent)]
     WholeGame(#[from] WholeGameError),
     #[error(transparent)]
     MoveRank(#[from] MoveRankError),
@@ -231,6 +236,8 @@ pub struct AppConfig {
     /// Optional client with caller-provided endpoints and timeout. None uses
     /// the public Fox endpoints, constructed lazily on the first Fox command.
     pub fox_client: Option<fox::FoxClient>,
+    /// Constructed lazily, so optional networking cannot prevent startup.
+    pub tencent_client: Option<tencent::TencentClient>,
 }
 
 impl Default for AppConfig {
@@ -253,6 +260,7 @@ impl Default for AppConfig {
             cache_max_bytes: analysis::persistent_cache::DEFAULT_MAX_BYTES,
             engine_setup_timeout: std::time::Duration::from_secs(120),
             fox_client: None,
+            tencent_client: None,
         }
     }
 }
