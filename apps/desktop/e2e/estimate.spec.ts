@@ -80,22 +80,17 @@ const STYLES: [string, EstimateStyle][] = [
   ["kataEstimateBySize", "BySize"],
 ];
 
-test("显示 → Kata形势显示 draws each of Java's five styles, and saves the choice", async ({ page }) => {
-  const display = { ...defaultDisplaySettings, estimate_location: "Main" } as const;
-  await start(
-    page,
-    settingsWith(display),
-    territory(),
-    STYLES.map(([, style]) => ({ command: "setDisplaySettings", result: { ...display, estimate_style: style } })),
-  );
-  const board = page.getByTestId("board");
-  for (const [id, style] of STYLES) {
+// One test per style: each picks it from the menu, saves it and draws it.
+for (const [id, style] of STYLES) {
+  test(`显示 → Kata形势显示 → ${style}, as Java draws it, and the choice is saved`, async ({ page }) => {
+    const display = { ...defaultDisplaySettings, estimate_location: "Main" } as const;
+    await start(page, settingsWith(display), territory(), [{ command: "setDisplaySettings", result: { ...display, estimate_style: style } }]);
     await pick(page, ["viewMenu", "kataSettings", "kataEstimate", id]);
-    await expect(board).toHaveAttribute("data-estimate", style);
+    await expect(page.getByTestId("board")).toHaveAttribute("data-estimate", style);
     await expect(page).toHaveScreenshot(`estimate-${style}.png`, { clip: await quarter(page) });
-  }
-  expect((await calls(page)).map((call) => (call.args[0] as DisplaySettings).estimate_style)).toEqual(STYLES.map(([, style]) => style));
-});
+    expect((await calls(page)).map((call) => (call.args[0] as DisplaySettings).estimate_style)).toEqual([style]);
+  });
+}
 
 test("分析 → 纯网络 (H) shows the network's first instinct and its own estimate; H again goes back", async ({ page }) => {
   const ordinary = midGameAnalysis(3, 20, 1, true);
@@ -138,22 +133,25 @@ test("显示 → 小棋盘设置 → 第一感热点图 spreads the candidates' 
   await expect(sub).toHaveAttribute("data-moves", "0");
 });
 
-test("显示 → 工具栏: groups can be hidden or added (PDA alone, Java #709), and the toolbar can join the menu bar", async ({ page }) => {
-  const custom = { ...defaultDisplaySettings, top_toolbar_hidden: ["showPdaInToolbar", "showTimeLimitController", "showGameController"] };
+test("显示 → 工具栏 → 自定义内容 → PDA hides PDA on its own; 广度 (WRN) stays (Java #709)", async ({ page }) => {
   await start(page, settingsWith({}), midGameAnalysis(3, 20), [
     { command: "setDisplaySettings", result: { ...defaultDisplaySettings, top_toolbar_hidden: ["showPdaInToolbar"] } },
-    { command: "setDisplaySettings", result: { ...defaultDisplaySettings, top_toolbar_hidden: ["showPdaInToolbar", "showTimeLimitController"] } },
-    { command: "setDisplaySettings", result: custom },
-    { command: "setAnalysisLimits", result: { ...LIMITS, limit_time: true, max_analyze_time_seconds: 30 } },
-    { command: "setDisplaySettings", result: { ...custom, top_toolbar_layout: "Combined" } },
   ]);
   const toolbar = page.getByTestId("top-toolbar");
   await expect(toolbar.getByTestId("tool-pda")).toBeVisible();
   await pick(page, ["viewMenu", "toolBar", "topToolBar", "customTopToolBar", "showPdaInToolbar"]);
-  await pick(page, ["viewMenu", "toolBar", "topToolBar", "customTopToolBar", "showTimeLimitController"]);
-  await pick(page, ["viewMenu", "toolBar", "topToolBar", "customTopToolBar", "showGameController"]);
   await expect(toolbar.getByTestId("tool-pda")).toHaveCount(0);
   await expect(toolbar.getByTestId("tool-wrn")).toBeVisible();
+  expect((await calls(page)).map((call) => call.args)).toEqual([[{ ...defaultDisplaySettings, top_toolbar_hidden: ["showPdaInToolbar"] }]]);
+});
+
+test("a customized top toolbar: the 单步分析限制 time field saves the analysis limits", async ({ page }) => {
+  // PDA hidden, the time limit added, the game controls removed.
+  const custom = { ...defaultDisplaySettings, top_toolbar_hidden: ["showPdaInToolbar", "showTimeLimitController", "showGameController"] };
+  await start(page, settingsWith(custom), midGameAnalysis(3, 20), [
+    { command: "setAnalysisLimits", result: { ...LIMITS, limit_time: true, max_analyze_time_seconds: 30 } },
+  ]);
+  const toolbar = page.getByTestId("top-toolbar");
   const time = toolbar.getByTestId("tool-time-limit").getByRole("textbox");
   await expect(time).toHaveValue("600");
   await expect(toolbar).toHaveScreenshot("custom-top-toolbar.png");
@@ -161,12 +159,19 @@ test("显示 → 工具栏: groups can be hidden or added (PDA alone, Java #709)
   await time.fill("30");
   await time.press("Enter");
   await expect(time).toHaveValue("30");
+  expect((await calls(page)).map((call) => [call.command, call.args])).toEqual([["setAnalysisLimits", [{ ...LIMITS, limit_time: true, max_analyze_time_seconds: 30 }]]]);
+});
 
+test("显示 → 工具栏 → 合并在菜单栏上 puts the toolbar in the menu bar's row; the menus keep their width", async ({ page }) => {
+  const custom = { ...defaultDisplaySettings, top_toolbar_hidden: ["showPdaInToolbar", "showTimeLimitController", "showGameController"] };
+  await start(page, settingsWith(custom), midGameAnalysis(3, 20), [{ command: "setDisplaySettings", result: { ...custom, top_toolbar_layout: "Combined" } }]);
   await pick(page, ["viewMenu", "toolBar", "topToolBar", "topToolBarCombined"]);
+  const toolbar = page.locator(".menubar-actions").getByTestId("top-toolbar");
   await expect(toolbar).toHaveAttribute("data-layout", "Combined");
-  await expect(page.locator(".menubar-actions").getByTestId("top-toolbar")).toHaveCount(1);
+  // The last menu, the engine's, ends before the toolbar starts.
+  const engine = await page.getByTestId("menubar").locator(".menubar-item").last().boundingBox();
+  const bar = await toolbar.boundingBox();
+  expect(engine && bar && engine.x + engine.width <= bar.x).toBe(true);
   await expect(page).toHaveScreenshot("combined-top-toolbar.png", { clip: { x: 0, y: 0, width: 1280, height: 40 } });
-
-  expect((await calls(page)).map((call) => call.command)).toEqual(["setDisplaySettings", "setDisplaySettings", "setDisplaySettings", "setAnalysisLimits", "setDisplaySettings"]);
-  expect((await calls(page))[3]?.args).toEqual([{ ...LIMITS, limit_time: true, max_analyze_time_seconds: 30 }]);
+  expect((await calls(page)).map((call) => call.command)).toEqual(["setDisplaySettings"]);
 });
