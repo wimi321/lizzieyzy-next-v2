@@ -26,6 +26,7 @@ mod engine_auto_setup;
 mod engines;
 mod everyday;
 mod frame;
+mod game;
 mod move_editing;
 mod preferences;
 mod problem_moves;
@@ -175,7 +176,8 @@ impl Harness {
                     | AppEvent::UpdateDownloadProgress(_)
                     | AppEvent::AssetDownloadProgress(_)
                     | AppEvent::AnalysisStateChanged(_)
-                    | AppEvent::BoardSyncStatusChanged(_) => {}
+                    | AppEvent::BoardSyncStatusChanged(_)
+                    | AppEvent::GameUpdated(_) => {}
                 }
             }
         })

@@ -62,6 +62,7 @@ impl GameDocument {
             Command::DeleteStone(point) => self.prepare_stone_edit(point, None, false)?,
             Command::MoveStone { from, to } => self.prepare_stone_edit(from, Some(to), false)?,
             Command::AddVariation(moves) => self.prepare_add_variation(&moves)?,
+            Command::PlaySequence(moves) => self.prepare_play_sequence(&moves, true)?,
             Command::GoTo(id) => {
                 self.node(id)?;
                 return Ok(self.navigate(id, next_revision));

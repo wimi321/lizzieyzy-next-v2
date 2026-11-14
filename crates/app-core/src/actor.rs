@@ -23,6 +23,7 @@ mod engine_settings;
 mod engines;
 mod everyday;
 mod fox;
+mod game;
 mod game_files;
 mod graph_analysis;
 mod java_import;
@@ -77,6 +78,7 @@ struct Actor {
     graph_analysis: graph_analysis::State,
     review: review::ReviewState,
     batch: batch::State,
+    game: Option<game::Session>,
     strength: Option<strength::Estimator>,
     summary_fingerprint: Option<String>,
     revision: u64,
@@ -128,6 +130,7 @@ pub(crate) async fn run(
         graph_analysis: Default::default(),
         review: review::ReviewState::default(),
         batch: Default::default(),
+        game: None,
         strength: None,
         summary_fingerprint: None,
         revision: 0,
@@ -160,10 +163,14 @@ pub(crate) async fn run(
             () = std::future::ready(()), if actor.batch_needs_advance() => actor.advance_batch().await,
             command = commands.recv() => {
               let command = match command {
-                Some(command) => match actor.update_guard(command).and_then(|command| actor.batch_guard(command)) { Some(command) => Some(command), None => continue },
+                Some(command) => match actor.update_guard(command).and_then(|command| actor.batch_guard(command)).and_then(|command| actor.game_guard(command)) { Some(command) => Some(command), None => continue },
                 None => None,
               };
               match command {
+                Some(Command::Game(request, reply)) => { let _ = reply.send(actor.game_command(request).await); }
+                Some(Command::GameView(reply)) => { let _ = reply.send(actor.game_view()); }
+                Some(Command::SetAiPlayer(color, player, reply)) => { let _ = reply.send(actor.set_ai_player(color, player).await); }
+                Some(Command::PlayBestMove(pv, reply)) => { let _ = reply.send(actor.play_best_move(pv).await); }
                 Some(Command::Batch(request, reply)) => { let _ = reply.send(actor.batch_command(request).await); }
                 Some(Command::BatchStatus(reply)) => { let _ = reply.send(actor.batch.status.clone()); }
                 Some(Command::ClaimUpdateCheck(now, reply)) => { let _ = reply.send(actor.claim_update_check(now).await); }
@@ -248,6 +255,7 @@ pub(crate) async fn run(
               }
             },
             signal = next_signal(&mut actor.running) => actor.cache_signal(signal),
+            event = game::receive(&mut actor.game) => actor.game_signal(event).await,
             result = review::receive(&mut actor.review) => actor.review_signal(result).await,
             result = trial::wait(&mut actor.trial) => actor.finish_trial(result).await,
             result = board_sync::receive(&mut actor.board_sync) => actor.board_sync_line(result).await,
@@ -397,6 +405,11 @@ impl Actor {
             Input::ConvertToStartPosition => self.convert_to_start_position().await?,
             Input::ClearRecentFiles => self.set_recent_files(Vec::new()).await?,
             Input::Edit(command) => {
+                if let document::Command::Play(mv) = command
+                    && self.game_playing()
+                {
+                    return self.game_human_move(mv).await;
+                }
                 self.next_revision()?;
                 let before_node = self.document.current();
                 let play = matches!(
@@ -480,6 +493,7 @@ impl Actor {
         cached: HashMap<AnalysisKey, crate::StoredAnalysis>,
         import_saved: bool,
     ) -> Result<(), AppError> {
+        self.invalidate_game_document();
         self.flush_cached_analysis().await;
         self.auto_curve.pending = false;
         self.cancel_review().await;
@@ -536,10 +550,15 @@ impl Actor {
 
     async fn update_focus_with_resume(&mut self, resume_limited: bool) {
         self.publish_saved_focus();
+        if self.game_owns_query() {
+            return;
+        }
         if self.running.is_none() {
             return;
         }
-        let node_id = if self.sync_active() && !self.config.analysis.pure_network {
+        let node_id = if let Some(node) = self.game_focus_node() {
+            node
+        } else if self.sync_active() && !self.config.analysis.pure_network {
             self.board_sync
                 .resolved_node
                 .filter(|id| self.document.node(*id).is_ok())
@@ -584,6 +603,9 @@ impl Actor {
             key,
         };
         if let Some(running) = &self.running {
+            if self.game_playing() {
+                let _ = running.coordinator.set_pondering(self.pondering()).await;
+            }
             // Cached review results establish the same depth floor as LRU hits.
             // Submit live before rebuilding the low-priority batch, reserving a
             // search slot even when background work occupied both threads.
@@ -706,6 +728,7 @@ impl Actor {
     }
 
     async fn stop_engine(&mut self) -> Result<(), AppError> {
+        self.cancel_game_query().await?;
         self.flush_cached_analysis().await;
         self.cancel_review().await;
         self.focus = None;

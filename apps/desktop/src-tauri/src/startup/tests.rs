@@ -234,6 +234,7 @@ async fn startup_opens_document_and_uses_only_selected_config_directory() {
     let options = StartupOptions::parse([config_arg, open_arg]).unwrap();
     let (core, mut output) = within(start(options, fallback.clone())).await.unwrap();
     let expected_settings = Settings {
+        games_directory: Some(selected.join("MyGames")),
         recent_files: vec![document.to_string_lossy().into_owned()],
         ..settings
     };
@@ -266,7 +267,13 @@ async fn startup_creates_default_config_directory() {
         .await
         .unwrap();
     assert!(directory.is_dir());
-    assert_eq!(within(core.settings()).await.unwrap(), Settings::default());
+    assert_eq!(
+        within(core.settings()).await.unwrap(),
+        Settings {
+            games_directory: Some(directory.join("MyGames")),
+            ..Default::default()
+        }
+    );
     within(core.shutdown()).await.unwrap();
 }
 
@@ -346,4 +353,42 @@ async fn startup_reports_config_failures_and_keeps_window_for_document_failures(
         within(start(StartupOptions::default(), temp.path().to_owned())).await,
         Err(StartupError::Core(error)) if matches!(error.as_ref(), AppError::Settings(_))
     ));
+}
+
+#[tokio::test]
+async fn games_directory_is_injected_by_shell_and_saved_override_survives_restart() {
+    let temp = tempdir().unwrap();
+    let directory = temp.path().join("settings");
+    let documents = temp.path().join("Documents/LizzieYzy Next 2/MyGames");
+    let (core, _) = super::start_with_clipboard(
+        StartupOptions::default(),
+        directory.clone(),
+        temp.path().join("data"),
+        Some(documents.clone()),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        core.settings().await.unwrap().games_directory,
+        Some(documents)
+    );
+    let mut settings = core.settings().await.unwrap();
+    settings.games_directory = Some(temp.path().join("chosen games"));
+    settings.save(&directory).await.unwrap();
+    core.shutdown().await.unwrap();
+    let (core, _) = super::start_with_clipboard(
+        StartupOptions::default(),
+        directory,
+        temp.path().join("data"),
+        Some(temp.path().join("changed default")),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        core.settings().await.unwrap().games_directory,
+        settings.games_directory
+    );
+    core.shutdown().await.unwrap();
 }

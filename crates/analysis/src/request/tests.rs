@@ -233,3 +233,65 @@ fn query_overrides_preserve_the_document_and_complete_custom_rules() {
     assert_eq!(position.komi, 7.5);
     assert_eq!(position.analysis_key(), original_key);
 }
+
+#[test]
+fn bounded_play_reuses_replay_and_limits_time_visits_or_one_network_evaluation() {
+    let collection = sgf_fixture_position();
+    let live = LiveSettings {
+        query_rules: Some(Rules::Named("japanese".into())),
+        query_komi: Some(6.5),
+        report_interval: Duration::from_millis(80),
+        ..LiveSettings::default()
+    };
+    for (visits, seconds, pure, expected_visits) in [
+        (None, Some(2.0), false, u64::from(u32::MAX)),
+        (Some(350), None, false, 350),
+        (Some(350), Some(2.0), false, 350),
+        (None, None, true, 1),
+        (Some(350), Some(2.0), true, 1),
+    ] {
+        let request = super::play_request(&collection, &live, visits, seconds, pure).unwrap();
+        assert_eq!(replay(&request, collection.rules), collection.board);
+        assert_eq!(request.max_visits, Some(expected_visits));
+        assert_eq!(request.rules, Rules::Named("japanese".into()));
+        assert_eq!(request.komi, Some(6.5));
+        assert_eq!(request.report_during_search_every, Some(0.08));
+        assert_eq!(request.priority, Some(0));
+        assert_eq!(
+            request
+                .override_settings
+                .as_ref()
+                .and_then(|s| s["maxTime"].as_f64()),
+            seconds
+        );
+    }
+}
+
+fn sgf_fixture_position() -> GamePosition {
+    let mut document = GameDocument::new();
+    document
+        .apply(document::Command::Play(Move::Play(
+            Color::Black,
+            Point { x: 3, y: 3 },
+        )))
+        .unwrap();
+    document.position_at(document.current()).unwrap()
+}
+
+#[test]
+fn bounded_play_rejects_missing_or_invalid_limits_before_submission() {
+    let position = empty();
+    for (visits, seconds, pure) in [
+        (None, None, false),
+        (Some(0), None, false),
+        (None, Some(0.0), false),
+        (None, Some(-1.0), false),
+        (None, Some(f64::INFINITY), false),
+        (None, Some(f64::NAN), true),
+    ] {
+        assert!(matches!(
+            super::play_request(&position, &LiveSettings::default(), visits, seconds, pure),
+            Err(AnalysisError::InvalidSettings(_))
+        ));
+    }
+}

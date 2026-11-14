@@ -36,6 +36,7 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                     panic!("unexpected benchmark without starting a task")
                 }
                 AppEvent::BatchAnalysisProgress(_) => {}
+                AppEvent::GameUpdated(_) => panic!("unexpected game without starting a session"),
                 AppEvent::WholeGameProgress(_) => {
                     panic!("unexpected review without starting a task")
                 }
@@ -227,7 +228,13 @@ async fn illegal_recorded_nodes_remain_navigable_with_warnings() {
 async fn configured_profile_and_pause_setting_survive_application_restart() {
     let directory = tempfile::tempdir().unwrap();
     let (app, _events) = within(app_core::spawn(directory.path())).await.unwrap();
-    assert_eq!(within(app.settings()).await.unwrap(), Settings::default());
+    assert_eq!(
+        within(app.settings()).await.unwrap(),
+        Settings {
+            games_directory: Some(directory.path().join("MyGames")),
+            ..Settings::default()
+        }
+    );
     // Missing files are intentionally editable settings, so no process starts.
     let profile = EngineProfile {
         canonical_model_name: None,

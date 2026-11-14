@@ -10,6 +10,7 @@ Options:\n\
   --startup-gate-file PATH Wait for an externally created file before readiness\n\
   --request-log PATH      Append received protocol lines for behavioral assertions\n\
   --launch-log PATH       Append JSON argv for each analysis/benchmark process\n\
+  --play-script PATH      Per-turn JSON evaluations, candidates and injected failures\n\
   --fail-startup           Report a missing model and exit with code 1\n\
   --crash-after-queries N  Exit on accepting the Nth analysis query\n\
   --crash-after-ms N       Exit after N simulated milliseconds\n\
@@ -53,6 +54,7 @@ pub struct Options {
     pub startup_gate_file: Option<PathBuf>,
     pub request_log: Option<PathBuf>,
     pub launch_log: Option<PathBuf>,
+    pub play_script: Option<PathBuf>,
     pub fail_startup: bool,
     pub crash_after_queries: Option<u64>,
     pub crash_after_ms: Option<u64>,
@@ -79,6 +81,7 @@ impl Default for Options {
             startup_gate_file: None,
             request_log: None,
             launch_log: None,
+            play_script: None,
             fail_startup: false,
             crash_after_queries: None,
             crash_after_ms: None,
@@ -163,6 +166,7 @@ impl Options {
                 "--startup-gate-file" => opts.startup_gate_file = Some(value.into()),
                 "--request-log" => opts.request_log = Some(value.into()),
                 "--launch-log" => opts.launch_log = Some(value.into()),
+                "--play-script" => opts.play_script = Some(value.into()),
                 "--crash-after-queries" => opts.crash_after_queries = Some(integer(&key, &value)?),
                 "--crash-after-ms" => opts.crash_after_ms = Some(integer(&key, &value)?),
                 "--hang-after-queries" => opts.hang_after_queries = Some(integer(&key, &value)?),

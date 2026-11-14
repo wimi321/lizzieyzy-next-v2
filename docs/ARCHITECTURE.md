@@ -329,6 +329,22 @@ pub enum EngineStatus {
 - 纯网络用 maxVisits=1、policy 和根 ownership；根胜率/目差优先使用 rawWinrate/rawLead，旧响应缺少 raw 字段时保留 1 次计算的根值。导航到新的显示局面重新查一次；不修改保存的 pondering，也不将纯网络浅结果写入普通 LRU、文档最佳结果或持久缓存。`AnalysisState.pure_network=true` 时 pondering=false 表示普通搜索暂时被替代；原用户/限停意图保留，关闭后恢复。打开时保守拒绝 Running 或 Paused 的整盘/批量任务；纯网络期间开始或恢复整盘/批量同样返回类型化错误，自动速览意图等待退出后处理，避免模式重叠。无引擎时可以设置运行时意图，配置引擎后按该意图查询。
 - 协调器内部 `SnapshotSource::Extras/PureNetwork` 标记单次查询，AppCore 据此在暂停时接收合法补查，纯网络越过 Saved 深度保护但不污染保存结果；对外仍映射 Live（已有 Saved 合并视图保留来源）。退出纯网络按当前焦点恢复普通结果和搜索状态。两个新模式只使用现有实时查询槽、取消入口和节流邮箱，不创建第二套调度、共享锁或线程。
 
+### P3-09 人机对局后端
+
+- `Settings.game_setup: GameSetup` 保存双方 `Player::{Human,Ai(AiPlayer)}`、`GameStart::{NewBoard(NewGameOptions),CurrentPosition}`、可选 `HumanClock`、ponder 和 auto_save。`AiPlayer::KataGo(KataGoPlay)` 保留后续 GTP 扩展位置，本卡拒绝双 AI；默认黑方人、白方 KataGo、2 秒/手，认输 150 手后连续 2 个 AI 回合胜率低于 0.05，随机开局关闭（启用默认前 20 手、胜率差 0.005、计算量比例 0.05）。人的时钟默认关闭，启用默认 1200 秒及 30 秒 × 3 次；时限至少一项，读秒秒数和次数须同时启用。明确采用卡片时钟数值，不沿用 Java 当前其他默认值。
+- `Settings.games_directory` 的缺省值由 `AppConfig.games_directory` 注入；桌面壳使用 Tauri `document_dir()/LizzieYzy Next 2/MyGames`，核心不依赖 Tauri。无壳默认设置目录下 MyGames，测试注入临时目录。原设置中的目录优先。新设置、时钟和视图字段生成 TS 均可选，旧 mock 补默认值；设置版本仍为 1。
+- AppCore / Tauri 新命令为 `start_game(GameSetup)`、`pause_game`、`resume_game`、`stop_game`、`resign_game`、`take_back`、`continue_game(Option<Color>)`、`set_ai_player(Color,AiPlayer)`、`play_best_move(Option<PvPick>)`，另有 `game_view` 查询。会话控制返回 `GameView`；`start_game` 保存传入的整组设置，`continue_game` 只借用保存值并为本局选择当前局面和 AI 执色，不改写 `Settings.game_setup` 或 settings 文件，因此新棋盘选项和对话框执色在续弈及重启后仍保留。修改 AI 返回可空视图，没有会话时只保存设置；最佳着手返回应用 revision。运行/暂停的会话只允许修改已是 AI 的一方，不借修改用时转换人的身份。当前查询保留提交时的设置，下一个 AI 回合才读取修改值，不重置人的时间。
+- app actor 独占一个 `actor::game::Session`，持有最新节点、局面 key、对局起点、实际创建的着手链、双方时钟、随机状态和至多一个 `QuerySubscription`。使用现有 engine-session 和 `analysis::play_request` 的请求构造；AI 接管前 `clear_focus` 取消协调器实时搜索及 Extras 补查，之后才提交有 `maxVisits` / `overrideSettings.maxTime` 上限的请求，纯网络为 1 visit。不会创建第二个引擎或模型。AI/数子查询期间导航不重新聚焦协调器；人的回合只对对局最新节点按会话 ponder 意图分析。开始新盘时也抑制文档替换流程的普通查询，防止继承保存的 pondering 开关而短暂提交多余请求。
+- 中间结果经过最新节点及 AnalysisKey 检查，沿既有结果保留、图摘要和缓存路径发布黑方数值；浏览别处时只更新图，不向错误棋盘发 AnalysisUpdated。最终响应先检查认输，再按 order 最小候选落子，首选 pass 直接虚手。随机筛选内部把黑方胜率转换成落子方胜率，保留不差于首选减阈值、visits 不少于首选比例且合法的候选；仅在前 N 手有效。actor 自持 SplitMix64 非密码学随机状态，`AppConfig.game_random_seed` 可注入固定种子，无种子时以系统时间初始化；不用于安全用途。
+- 对局开始/恢复拒绝活动批量、纯网络、试下、死活题及测速模式，停止棋盘同步，取消整盘分析、自动速览意图和待定引擎试启动。运行中禁止启动/恢复整盘、批量、纯网络或改变引擎配置；全局规则/贴目覆盖也保守拒绝开始/恢复，避免实际 SGF 对局规则与分析覆盖身份不一致。运行中普通 `Play` 仅允许人在最新节点落子，AI 回合、数子阶段或浏览别处返回类型化错误；其他文档编辑、删除、提升、换谱、新局、撤销/重做返回 `GameRunning`。导航与只读查询仍可用。暂停后恢复普通编辑；若最新局面改变、删除或整个文档被替换，恢复返回 `PositionChanged`，不会把旧查询用于新树。
+- `document::Command::PlaySequence(Vec<Move>)` 复用 AddVariation 的增量编辑，完整验证整串轮次和合法性，始终追加独立分支并聚焦末手，整串一次撤销/重做，非法输入不改变树、焦点或历史。会话每手通过此入口创建新节点，因此续弈即使与原后续相同也不复用/删除原节点，原分支和注释保留。`play_best_move(None)` 从当前有效保留分析读取 order 排序的首选，走普通 `Command::Play`：已有同一手子节点时只前进，否则新建一手。`play_best_move(Some(PvPick))` 读取零起算 candidate 的前 moves 手（须 1..=PV 长度），走既有 `Command::AddVariation`，与界面「加入变化」的独立分支、焦点和一次撤销行为完全相同（主干或有后续时焦点留在基准，非主干叶节点时聚焦新增变化末手）；不使用对局专用的 PlaySequence。没有分析或非法选择返回类型化错误，不启动对局。
+- 悔棋按会话创建的历史找最后一手人的落子，取消查询后删除该节点及 AI 应手子树，聚焦其父节点；无人的落子或会越过起点时拒绝。时间消耗不退还，保留剩余主时间及读秒次数，仅按新回合重置本次读秒。暂停取消 AI 查询并停止人的时钟，保留本次读秒剩余量；恢复时 AI 重新查询。无效 AI 响应/查询故障会带类型化错误暂停，避免留在没有查询的 AI 回合。
+- `ClockState` 仅由 actor 用 Tokio `Instant` 推进，人的回合才计时。保留时间耗尽后逐次扣读秒，最后一次耗尽即结束；每手重置本次读秒，暂停不重置。actor select 同时等待查询和下一时钟边界/秒级视图刷新，不使用线程、锁或睡眠同步。`AppConfig.game_query_timeout` 默认 120 秒，为无响应查询的兜底（AI 有秒数时额外加其每手预算），测试可注入短期限；引擎本身继续沿用原 session 看门狗和重启。
+- `GameUpdated(GameView)` 进入 AppCore 独立有界最新事件槽，壳层同一有序 Channel 转发并在重连回放；`GameView` 含 Playing/Paused/Finished、双方玩家、轮走方、是否查询中、时钟、手数、起点和最新节点、结果/结束原因以及可空错误。TS `subscribeGameUpdated` 独立分流，旧 subscribe 排除此事件；新 Backend 方法可选，mock 的所有修改命令必须脚本化，没有前端对局逻辑。
+- 认输写 `B+R/W+R`，超时写 `B+T/W+T`；连续两手 pass 后同一引擎进行最终局面的 200 visits 查询，以黑方 `scoreLead` 对齐整数盘面分数减贴目的格点，即 `round(scoreLead + komi) - komi`，整数贴目允许 `RE[0]`。这是 **KataGo 的估计，不是人工数子或裁判认定**。数子失败/超时结束为 Unscored，不写 RE；`stop_game` 为 Stopped，同样不写 RE。开始续弈清除上一局结果；结束结果经原文档元数据命令写入 SGF。
+- 每种正常结束路径均按 auto_save 保存，即使无结果也保存棋谱。文件名 `yyyy-MM-dd-HHmmss_<黑方>_vs_<白方>.sgf`，限制名字长度并替换跨平台非法字符；时间复用可注入的 `BatchClock` 本地时间戳。目录按需创建，沿既有临时文件 flush/sync 和禁止覆盖的原子发布路径保存；同名递增 `-2` 等后缀。失败通过命令错误及 GameView.error 的 `AutoSave` 报告，已完成阶段和 RE 保持，不伪装成未结束。暂停后换到另一文档的失效会话停止时返回 PositionChanged，不给新文档写旧结果或保存它。
+- fake-katago 的 `overrideSettings.maxTime` 纳入已有 `--time-scale` 模拟时间，与 maxVisits 先达到的上限结束。`--play-script PATH` 读取 `{default,turns}`，turns 以查询 turnNumber 为键，整项覆盖 default；每项可指定黑方 winrate/scoreLead、candidates（move、visitShare、winrate、scoreLead、pv）、error、hang、gateFile。门控仅暂停该查询搜索，仍处理版本与取消动作。所有行为验收使用 fake；真实 GPU、桌面人机对局界面及三平台真机操作不由本卡测试替代。
+
 ### 4.8 strength（棋力评估）
 
 - `strength::Estimator::bundled()` 从编译时嵌入的模型 JSON 构造纯同步估计器，无网络、文件 I/O 或异步运行时。`estimate(&[MoveInput])` 返回黑、白、整体 `StrengthReport`；每手输入包括手数、颜色、坐标、前后根评估的损失及落子前按 order 排序的候选点；app-core 先通过 P1-24 每手损失入口检查有效性。候选点的胜率由 app-core 从黑方概率转换为落子方百分点，目差同样转换到落子方；这只是计算差值的内部输入，对外局面分析仍为黑方视角。
@@ -531,4 +547,4 @@ Windows PowerShell 使用 `Get-AuthenticodeSignature '<installer>.exe'` 和 `sig
 
 ## 9. 暂不做
 
-GTP 后端、人机对局、陪练、远程算力、弈客、HumanSL 棋力评估、AI 解说、死活题屏幕抓取、网页棋盘，见 ROADMAP 的 P3。readboard 本阶段仅实现 4.11 的 Windows 同步后端。
+GTP 后端、人机对局界面、陪练、远程算力、弈客、HumanSL 棋力评估、AI 解说、死活题屏幕抓取、网页棋盘，见 ROADMAP 的 P3。readboard 本阶段仅实现 4.11 的 Windows 同步后端。

@@ -51,6 +51,10 @@ pub struct Settings {
     pub main_engine_id: Option<String>,
     #[ts(as = "Option<crate::EngineSettings>", optional)]
     pub engine_settings: crate::EngineSettings,
+    #[ts(as = "Option<crate::GameSetup>", optional)]
+    pub game_setup: crate::GameSetup,
+    #[ts(optional = nullable)]
+    pub games_directory: Option<PathBuf>,
     pub pondering: bool,
     #[ts(as = "Option<bool>", optional)]
     pub cache_enabled: bool,
@@ -85,6 +89,8 @@ impl Default for Settings {
             engines: Vec::new(),
             main_engine_id: None,
             engine_settings: crate::EngineSettings::default(),
+            game_setup: crate::GameSetup::default(),
+            games_directory: None,
             pondering: true,
             cache_enabled: true,
             display: crate::DisplaySettings::default(),
@@ -115,6 +121,8 @@ pub enum SettingsError {
     FutureVersion(u32),
     #[error("UI scale must be finite and within 0.5..=3.0")]
     InvalidUiScale,
+    #[error(transparent)]
+    Game(#[from] crate::GameError),
     #[error(transparent)]
     FlashAnalysis(#[from] crate::WholeGameError),
     #[error("invalid engine profile: {0}")]
@@ -186,6 +194,16 @@ impl Settings {
         self.tsumego.validate()?;
         self.analysis_limits.validate()?;
         self.flash_analysis.validate()?;
+        self.game_setup.validate()?;
+        if self
+            .games_directory
+            .as_ref()
+            .is_some_and(|path| path.as_os_str().is_empty())
+        {
+            return Err(
+                crate::GameError::InvalidSetup("games directory must not be empty".into()).into(),
+            );
+        }
         self.display.validate()?;
         self.display.normalize_toolbar_items();
         if self

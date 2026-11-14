@@ -48,6 +48,16 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::everyday::save_png,
             commands::everyday::copy_png,
             commands::everyday::transform_board,
+            commands::game::start_game,
+            commands::game::pause_game,
+            commands::game::resume_game,
+            commands::game::stop_game,
+            commands::game::resign_game,
+            commands::game::take_back,
+            commands::game::continue_game,
+            commands::game::set_ai_player,
+            commands::game::play_best_move,
+            commands::game::game_view,
             commands::document::play,
             commands::document::step,
             commands::document::go_to,
@@ -203,6 +213,12 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                     options,
                     default_dir,
                     data_dir,
+                    Some(
+                        app.path()
+                            .document_dir()?
+                            .join("LizzieYzy Next 2")
+                            .join("MyGames"),
+                    ),
                     Some(std::sync::Arc::new(clipboard::NativeClipboard(
                         app.handle().clone(),
                     ))),

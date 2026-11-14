@@ -7,6 +7,10 @@ use crate::fox_error::FoxFailure;
 #[derive(Debug, thiserror::Error, Serialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum CommandError {
+    #[error("game is running")]
+    GameRunning,
+    #[error("{0}")]
+    Game(app_core::GameError),
     #[error("{0}")]
     DisplaySettings(app_core::DisplaySettingsError),
     #[error("pure network is active")]
@@ -69,6 +73,11 @@ pub enum PngRequestError {
 impl From<app_core::AppError> for CommandError {
     fn from(error: app_core::AppError) -> Self {
         match error {
+            app_core::AppError::GameRunning => Self::GameRunning,
+            app_core::AppError::Game(error)
+            | app_core::AppError::Settings(app_core::SettingsError::Game(error)) => {
+                Self::Game(error)
+            }
             app_core::AppError::Settings(app_core::SettingsError::Display(error)) => {
                 Self::DisplaySettings(error)
             }

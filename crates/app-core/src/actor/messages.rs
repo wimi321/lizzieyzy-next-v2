@@ -41,6 +41,20 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    Game(
+        crate::game_api::Request,
+        oneshot::Sender<Result<crate::GameView, AppError>>,
+    ),
+    GameView(oneshot::Sender<Option<crate::GameView>>),
+    SetAiPlayer(
+        go_core::Color,
+        crate::AiPlayer,
+        oneshot::Sender<Result<Option<crate::GameView>, AppError>>,
+    ),
+    PlayBestMove(
+        Option<crate::PvPick>,
+        oneshot::Sender<Result<u64, AppError>>,
+    ),
     Batch(
         crate::batch::Request,
         oneshot::Sender<Result<crate::BatchAnalysisStatus, AppError>>,

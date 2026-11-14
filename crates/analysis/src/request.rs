@@ -5,6 +5,41 @@ use katago_protocol::{Player, Rules};
 
 use crate::{AnalysisError, LiveSettings};
 
+/// Build a bounded move/scoring search on the existing analysis-engine session.
+/// The caller must cancel its live focus before submitting this request, and
+/// keep the same node/key identity until consuming its final result.
+pub fn play_request(
+    position: &GamePosition,
+    live: &LiveSettings,
+    max_visits: Option<u64>,
+    max_time: Option<f64>,
+    pure_network: bool,
+) -> Result<AnalysisRequest, AnalysisError> {
+    live.validate()?;
+    if max_visits == Some(0)
+        || max_time.is_some_and(|seconds| !seconds.is_finite() || seconds <= 0.0)
+        || (!pure_network && max_visits.is_none() && max_time.is_none())
+    {
+        return Err(AnalysisError::InvalidSettings(
+            "play search needs a positive time or visits limit",
+        ));
+    }
+    let mut request = build(position, live)?;
+    request.max_visits = Some(if pure_network {
+        1
+    } else {
+        max_visits.unwrap_or(u64::from(u32::MAX))
+    });
+    if let Some(seconds) = max_time {
+        request.override_settings = Some(
+            [("maxTime".to_owned(), serde_json::json!(seconds))]
+                .into_iter()
+                .collect(),
+        );
+    }
+    Ok(request)
+}
+
 /// Replay only the history after the document's most recent setup/PL boundary.
 /// Evaluations already use Black's perspective through the engine config;
 /// neither the query nor its response needs a side-to-play conversion here.

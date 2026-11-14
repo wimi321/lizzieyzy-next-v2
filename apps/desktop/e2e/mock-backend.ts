@@ -1,7 +1,8 @@
-import type { BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
-import { defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
+import type { GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import { fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 
 export type {
+  GameCommands, GameUpdatedListener, GameSetup, GameView, GameStart, GamePhase, GameEndReason, GameError, AiPlayer, Player, KataGoPlay, HumanClock, HumanClockView, RandomOpening, ResignRule, PvPick,
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
   AnalysisSource, AnalysisSummary, AnalysisView, BoardView, CandidateView, ColorView, DocumentView,
   DocumentWarningView, EngineStatus, PointView, TreeView, WarningKindView, SubscriptionId,
@@ -38,7 +39,7 @@ export type {
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
+type CommandName = Exclude<keyof Backend, "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -86,6 +87,7 @@ const calls: MockCall[] = [];
 let dispatching = false;
 /** The newest document delivered to the app, for answering unscripted read-only queries. */
 let lastDocument: { revision: number; view: DocumentView } | null = null;
+let lastGameView: GameView | null = null;
 let lastProgress: WholeGameProgress | null = null;
 let lastBatchStatus = structuredClone(defaultBatchAnalysisStatus);
 let lastFlashSettings = structuredClone(defaultFlashAnalysisSettings);
@@ -116,6 +118,7 @@ export function setStrengthEstimate(view: StrengthEstimateView | null): void {
 
 /** Install deterministic replies and events. No Go or analysis logic is simulated. */
 export function setScript(script: MockScript): void {
+  lastGameView = null;
   lastBatchStatus = structuredClone(defaultBatchAnalysisStatus);
   lastFlashSettings = structuredClone(defaultFlashAnalysisSettings);
   lastAutoQuickAnalyzeOnLoad = true;
@@ -154,6 +157,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
         fillDocumentDefaults(lastDocument.view);
       }
       if (event.type === "BatchAnalysisProgress") lastBatchStatus = { ...defaultBatchAnalysisStatus, ...event.data };
+      if (event.type === "GameUpdated") lastGameView = { ...structuredClone(defaultGameView), ...event.data };
       if (event.type === "WholeGameProgress") lastProgress = structuredClone(event.data);
       if (event.type === "BoardSyncStatusChanged") lastBoardSyncStatus = structuredClone(event.data);
       if (event.type === "BenchmarkProgress") lastBenchmarkStatus = structuredClone(event.data);
@@ -165,6 +169,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       for (const listener of [...listeners.values()]) {
         try {
           const cloned = structuredClone(event);
+          if (cloned.type === "GameUpdated") fillGameDefaults(cloned.data);
           if (cloned.type === "BatchAnalysisProgress") fillBatchDefaults(cloned.data);
           if (cloned.type === "DocumentChanged") fillDocumentDefaults(cloned.data.view);
           if (cloned.type === "AnalysisUpdated") fillAnalysisDefaults(cloned.data);
@@ -273,6 +278,9 @@ async function command<K extends CommandName>(
     defaultField(settings, "flash_analysis", structuredClone(defaultFlashAnalysisSettings));
     fillFlashDefaults(settings.flash_analysis!);
     lastFlashSettings = { ...defaultFlashAnalysisSettings, ...settings.flash_analysis };
+    defaultField(settings, "game_setup", structuredClone(defaultGameSetup));
+    fillGameSetupDefaults(settings.game_setup!);
+    defaultField(settings, "games_directory", null);
     defaultField(settings, "recent_files", []);
     // As Rust's normalize_engines: an old single engine is a one-item list, and the main one.
     const legacy = settings.engine ? [{ id: "legacy-engine", name: "KataGo", profile: settings.engine }] : [];
@@ -299,6 +307,10 @@ async function command<K extends CommandName>(
   if (["startBatchAnalysis", "pauseBatchAnalysis", "resumeBatchAnalysis", "stopBatchAnalysis", "addBatchAnalysisFiles", "removeBatchAnalysisItem", "moveBatchAnalysisItem", "clearBatchAnalysis", "batchAnalysisStatus"].includes(next.command)) {
     fillBatchDefaults(cloned as BatchAnalysisStatus);
     lastBatchStatus = { ...defaultBatchAnalysisStatus, ...cloned as BatchAnalysisStatus };
+  }
+  if (["startGame", "pauseGame", "resumeGame", "stopGame", "resignGame", "takeBack", "continueGame", "setAiPlayer", "gameView"].includes(next.command) && cloned) {
+    fillGameDefaults(cloned as GameView);
+    lastGameView = { ...structuredClone(defaultGameView), ...cloned as GameView };
   }
   return cloned as Awaited<ReturnType<NonNullable<Backend[K]>>>;
 }
@@ -432,7 +444,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound">(
+function query<K extends "gameView" | "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
@@ -629,7 +641,7 @@ export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+    if (event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
   });
   pushEvents([]);
   return id;
@@ -782,3 +794,20 @@ if (typeof window !== "undefined") {
   window.__mockBackend = { setScript, pushEvents, recordedCalls, setProblemMoves, setStrengthEstimate, benchmarkDemoEvents, benchmarkDemoScript };
   if (window.__mockInitialScript) setScript(window.__mockInitialScript);
 }
+
+export const startGame: NonNullable<Backend["startGame"]> = (setup) => command("startGame", [setup]);
+export const pauseGame: NonNullable<Backend["pauseGame"]> = () => command("pauseGame", []);
+export const resumeGame: NonNullable<Backend["resumeGame"]> = () => command("resumeGame", []);
+export const stopGame: NonNullable<Backend["stopGame"]> = () => command("stopGame", []);
+export const resignGame: NonNullable<Backend["resignGame"]> = () => command("resignGame", []);
+export const takeBack: NonNullable<Backend["takeBack"]> = () => command("takeBack", []);
+export const continueGame: NonNullable<Backend["continueGame"]> = (aiColor = null) => command("continueGame", [aiColor]);
+export const setAiPlayer: NonNullable<Backend["setAiPlayer"]> = (color, player) => command("setAiPlayer", [color, player]);
+export const playBestMove: NonNullable<Backend["playBestMove"]> = (pv = null) => command("playBestMove", [pv]);
+export const gameView: NonNullable<Backend["gameView"]> = () => query("gameView", [], () => lastGameView);
+export const subscribeGameUpdated: NonNullable<Backend["subscribeGameUpdated"]> = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => { if (event.type === "GameUpdated") listener(event.data); });
+  pushEvents([]);
+  return id;
+};
