@@ -13,8 +13,8 @@ export type WholeGameProgressListener = (progress: WholeGameProgress) => void;
 
 /** All decisions, including option validation and resuming, belong to Rust. */
 export interface ReviewCommands {
-  flashAnalysis?(): Promise<FlashAnalysisSettings>;
-  setFlashAnalysis?(settings: FlashAnalysisSettings): Promise<FlashAnalysisSettings>;
+  flashAnalysis(): Promise<FlashAnalysisSettings>;
+  setFlashAnalysis(settings: FlashAnalysisSettings): Promise<FlashAnalysisSettings>;
   startWholeGameAnalysis(options?: WholeGameOptions): Promise<WholeGameProgress>;
   pauseWholeGameAnalysis(): Promise<WholeGameProgress>;
   resumeWholeGameAnalysis(): Promise<WholeGameProgress>;
@@ -37,7 +37,7 @@ export const wholeGameProgress: ReviewCommands["wholeGameProgress"] =
 export const wholeGameResult: ReviewCommands["wholeGameResult"] =
   (nodeId) => invoke("whole_game_result", { nodeId });
 
-export const flashAnalysis: NonNullable<ReviewCommands["flashAnalysis"]> =
+export const flashAnalysis: ReviewCommands["flashAnalysis"] =
   () => invoke("flash_analysis");
-export const setFlashAnalysis: NonNullable<ReviewCommands["setFlashAnalysis"]> =
+export const setFlashAnalysis: ReviewCommands["setFlashAnalysis"] =
   (settings) => invoke("set_flash_analysis", { settings });

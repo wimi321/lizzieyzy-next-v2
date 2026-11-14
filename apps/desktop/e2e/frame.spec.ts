@@ -86,7 +86,7 @@ test("the working buttons do what Java's do", async ({ page }) => {
   await page.getByTestId("tool-pass").click();
   await expect.poll(() => calls(page)).toEqual([
     { command: "settings", args: [] },
-    { command: "startWholeGameAnalysis", args: [{ visits: 1 }] },
+    { command: "startWholeGameAnalysis", args: [{ visits: 1, scope: { type: "Line" }, force: false }] },
     { command: "play", args: [{ type: "Pass", data: { color: "Black" } }] },
   ]);
 

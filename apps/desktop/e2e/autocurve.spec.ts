@@ -53,6 +53,6 @@ test("the auto-analysis panel turns the pass off, and 整盘速览（闪电） r
     .toEqual([
       { command: "settings", args: [] },
       { command: "setAutoQuickAnalyzeOnLoad", args: [false] },
-      { command: "startWholeGameAnalysis", args: [{ visits: 1 }] },
+      { command: "startWholeGameAnalysis", args: [{ visits: 1, scope: { type: "Line" }, force: false }] },
     ]);
 });

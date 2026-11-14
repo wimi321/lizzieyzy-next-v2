@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Backend, WholeGameProgress } from "@/api/backend";
+import type { Backend, WholeGameOptions, WholeGameProgress } from "@/api/backend";
 
 type ProgressBackend = Pick<
   Backend,
@@ -15,6 +15,8 @@ type ProgressBackend = Pick<
 export interface WholeGameControls {
   progress: WholeGameProgress | null;
   start(visits: number): void;
+  /** A run over a part of the game or every branch, or one that redoes finished positions. */
+  run(options: WholeGameOptions): void;
   pause(): void;
   resume(): void;
   cancel(): void;
@@ -74,6 +76,7 @@ export function useWholeGame(backend: ProgressBackend): WholeGameControls {
   return {
     progress,
     start: (visits) => apply(() => backend.startWholeGameAnalysis({ visits })),
+    run: (options) => apply(() => backend.startWholeGameAnalysis(options)),
     pause: () => apply(() => backend.pauseWholeGameAnalysis()),
     resume: () => apply(() => backend.resumeWholeGameAnalysis()),
     cancel: () => apply(() => backend.cancelWholeGameAnalysis()),

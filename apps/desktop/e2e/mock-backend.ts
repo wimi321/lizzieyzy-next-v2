@@ -368,17 +368,17 @@ function fillTreeDefaults(tree: VariationTreeView): void {
   for (const node of tree.nodes) defaultField(node, "has_comment", false);
 }
 
-export const startBatchAnalysis: NonNullable<Backend["startBatchAnalysis"]> = (options) => command("startBatchAnalysis", [options]);
-export const pauseBatchAnalysis: NonNullable<Backend["pauseBatchAnalysis"]> = () => command("pauseBatchAnalysis", []);
-export const resumeBatchAnalysis: NonNullable<Backend["resumeBatchAnalysis"]> = () => command("resumeBatchAnalysis", []);
-export const stopBatchAnalysis: NonNullable<Backend["stopBatchAnalysis"]> = () => command("stopBatchAnalysis", []);
-export const addBatchAnalysisFiles: NonNullable<Backend["addBatchAnalysisFiles"]> = (files) => command("addBatchAnalysisFiles", [files]);
-export const removeBatchAnalysisItem: NonNullable<Backend["removeBatchAnalysisItem"]> = (id) => command("removeBatchAnalysisItem", [id]);
-export const moveBatchAnalysisItem: NonNullable<Backend["moveBatchAnalysisItem"]> = (id, direction) => command("moveBatchAnalysisItem", [id, direction]);
-export const clearBatchAnalysis: NonNullable<Backend["clearBatchAnalysis"]> = () => command("clearBatchAnalysis", []);
-export const batchAnalysisStatus: NonNullable<Backend["batchAnalysisStatus"]> = () => query("batchAnalysisStatus", [], () => lastBatchStatus);
-export const flashAnalysis: NonNullable<Backend["flashAnalysis"]> = () => query("flashAnalysis", [], () => lastFlashSettings);
-export const setFlashAnalysis: NonNullable<Backend["setFlashAnalysis"]> = (settings) => command("setFlashAnalysis", [settings]);
+export const startBatchAnalysis: Backend["startBatchAnalysis"] = (options) => command("startBatchAnalysis", [options]);
+export const pauseBatchAnalysis: Backend["pauseBatchAnalysis"] = () => command("pauseBatchAnalysis", []);
+export const resumeBatchAnalysis: Backend["resumeBatchAnalysis"] = () => command("resumeBatchAnalysis", []);
+export const stopBatchAnalysis: Backend["stopBatchAnalysis"] = () => command("stopBatchAnalysis", []);
+export const addBatchAnalysisFiles: Backend["addBatchAnalysisFiles"] = (files) => command("addBatchAnalysisFiles", [files]);
+export const removeBatchAnalysisItem: Backend["removeBatchAnalysisItem"] = (id) => command("removeBatchAnalysisItem", [id]);
+export const moveBatchAnalysisItem: Backend["moveBatchAnalysisItem"] = (id, direction) => command("moveBatchAnalysisItem", [id, direction]);
+export const clearBatchAnalysis: Backend["clearBatchAnalysis"] = () => command("clearBatchAnalysis", []);
+export const batchAnalysisStatus: Backend["batchAnalysisStatus"] = () => query("batchAnalysisStatus", [], () => lastBatchStatus);
+export const flashAnalysis: Backend["flashAnalysis"] = () => query("flashAnalysis", [], () => lastFlashSettings);
+export const setFlashAnalysis: Backend["setFlashAnalysis"] = (settings) => command("setFlashAnalysis", [settings]);
 
 export const openBytes: Backend["openBytes"] = (bytes) => command("openBytes", [bytes]);
 export const openPath: Backend["openPath"] = (path) => command("openPath", [path]);
@@ -596,6 +596,7 @@ export const setDisplaySettings: Backend["setDisplaySettings"] = (display) =>
   command("setDisplaySettings", [display]);
 export const pickOpenPath: Backend["pickOpenPath"] = () => command("pickOpenPath", []);
 export const pickDirectory: Backend["pickDirectory"] = () => command("pickDirectory", []);
+export const pickOpenPaths: Backend["pickOpenPaths"] = () => command("pickOpenPaths", []);
 export const pickSavePath: Backend["pickSavePath"] = (defaultName?: string) =>
   command("pickSavePath", defaultName === undefined ? [] : [defaultName]);
 export const pickImagePath: Backend["pickImagePath"] = (defaultName: string) => command("pickImagePath", [defaultName]);
@@ -624,7 +625,7 @@ export const subscribeOpenFailed: Backend["subscribeOpenFailed"] = async (listen
   return id;
 };
 
-export const subscribeBatchAnalysisProgress: NonNullable<Backend["subscribeBatchAnalysisProgress"]> = async (listener) => {
+export const subscribeBatchAnalysisProgress: Backend["subscribeBatchAnalysisProgress"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => { if (event.type === "BatchAnalysisProgress") listener(event.data); });
   pushEvents([]);

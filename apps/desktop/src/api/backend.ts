@@ -124,6 +124,8 @@ export interface Backend extends BatchAnalysisCommands, ReviewCommands, BoardSyn
   setAutoQuickAnalyzeOnLoad(enabled: boolean): Promise<boolean>;
   /** Native file dialogs; null when the user cancels. */
   pickOpenPath(): Promise<string | null>;
+  /** 批量分析: several games at once; empty when the user cancels. */
+  pickOpenPaths(): Promise<string[]>;
   /** A folder, e.g. the Java app's, for importing its configuration. */
   pickDirectory(): Promise<string | null>;
   /** `defaultName` pre-fills the file name, e.g. 「对局-raw.sgf」 for 保存纯净棋谱. */
@@ -137,7 +139,7 @@ export interface Backend extends BatchAnalysisCommands, ReviewCommands, BoardSyn
   setWindowTitle(title: string): Promise<void>;
   subscribeOpenFailed(listener: OpenFailedListener): Promise<number>;
   subscribe(listener: EventListener): Promise<number>;
-  subscribeBatchAnalysisProgress?(listener: BatchAnalysisProgressListener): Promise<number>;
+  subscribeBatchAnalysisProgress(listener: BatchAnalysisProgressListener): Promise<number>;
   subscribeWholeGameProgress(listener: WholeGameProgressListener): Promise<number>;
   subscribeBoardSyncStatus(listener: BoardSyncStatusListener): Promise<number>;
   subscribeBenchmarkProgress(listener: BenchmarkProgressListener): Promise<number>;
@@ -186,6 +188,11 @@ const GAME_FILTERS = [{ name: "SGF / GIB", extensions: ["sgf", "gib"] }];
 export const pickOpenPath: Backend["pickOpenPath"] = async () => {
   const path = await openDialog({ multiple: false, directory: false, filters: GAME_FILTERS });
   return typeof path === "string" ? path : null;
+};
+
+export const pickOpenPaths: Backend["pickOpenPaths"] = async () => {
+  const paths = await openDialog({ multiple: true, directory: false, filters: GAME_FILTERS });
+  return Array.isArray(paths) ? paths : typeof paths === "string" ? [paths] : [];
 };
 
 export const pickDirectory: Backend["pickDirectory"] = async () => {
@@ -279,7 +286,7 @@ export const subscribeWholeGameProgress: Backend["subscribeWholeGameProgress"] =
   });
 
 /** Batch progress shares the ordered channel; subscribe before querying status. */
-export const subscribeBatchAnalysisProgress: NonNullable<Backend["subscribeBatchAnalysisProgress"]> =
+export const subscribeBatchAnalysisProgress: Backend["subscribeBatchAnalysisProgress"] =
   (listener) => subscribeWire((event) => {
     if (event.type === "BatchAnalysisProgress") listener(event.data);
   });
