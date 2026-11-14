@@ -39,9 +39,8 @@ async function calls(page: Page) {
 
 test("the toolbars hold Java's buttons in Java's order; what the new app lacks stays greyed in place", async ({ page }) => {
   await start(page);
-  expect(await buttons(page, "top-toolbar", true)).toEqual(["新建空白棋盘", "打开棋谱(O)", "保存棋谱(Ctrl+S)", "野狐棋谱", "棋力评估", "一键设置", "闪电分析", "超级鹰眼(Y)", "落子评价标记(Alt+M)", "交换落子顺序", "标记工具", "添加黑子(右键添加白子)", "添加白子(右键添加黑子)", "交替落子", "停一手(P)", "新对局", "死活", "棋盘"]);
+  expect(await buttons(page, "top-toolbar", true)).toEqual(["新建空白棋盘", "打开棋谱(O)", "保存棋谱(Ctrl+S)", "野狐棋谱", "腾讯棋谱", "棋力评估", "一键设置", "闪电分析", "超级鹰眼(Y)", "落子评价标记(Alt+M)", "交换落子顺序", "标记工具", "添加黑子(右键添加白子)", "添加白子(右键添加黑子)", "交替落子", "停一手(P)", "新对局", "死活", "棋盘"]);
   expect(await buttons(page, "top-toolbar", false)).toEqual([
-    "腾讯棋谱",
     "搜索功能",
     "设为主分支(L)",
     "返回主分支(B)",
@@ -60,11 +59,11 @@ test("the toolbars hold Java's buttons in Java's order; what the new app lacks s
   expect(await buttons(page, "bottom-toolbar", false)).toEqual(["远程算力", "更新官方权重", "跳转", "自动播放", "设为主分支"]);
   await expect(page.getByTestId("tool-komi")).toHaveValue("7.5");
 
-  // The menu strip: the engine as Java captions it, then AI 陪练 and AI 解说, not built yet.
+  // The menu strip: the engine as Java captions it, then AI 陪练 and AI 解说.
   const strip = page.locator(".menubar-row");
   await expect(page.getByTestId("menubar").getByRole("menuitem").last()).toHaveText("[1]: kata1-tf3-b11c768");
   await expect(strip.getByRole("button", { name: "AI 陪练" })).toBeEnabled();
-  await expect(strip.getByRole("button", { name: "AI 解说" })).toBeDisabled();
+  await expect(strip.getByRole("button", { name: "AI 解说" })).toBeEnabled();
 
   await expect(page.getByTestId("top-toolbar")).toHaveScreenshot("top-toolbar.png");
   await expect(page.getByTestId("bottom-toolbar")).toHaveScreenshot("bottom-toolbar.png");

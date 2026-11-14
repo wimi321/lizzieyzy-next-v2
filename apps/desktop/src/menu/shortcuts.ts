@@ -16,6 +16,7 @@ interface Shortcut {
 /** Java's keys for the entries the new app can do (`Input.java`, and the menu labels). */
 const SHORTCUTS: readonly Shortcut[] = [
   { id: "open", code: "KeyO" },
+  { id: "openUrl", code: "KeyQ" },
   { id: "saveAs", code: "KeyS" },
   { id: "save", code: "KeyS", control: true },
   { id: "togglePonder", code: "Space" },

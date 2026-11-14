@@ -86,6 +86,7 @@ export interface TopToolbarProps {
   onOpen(): void;
   onSave(): void;
   onFox(): void;
+  onTencent(): void;
   onStrength(): void;
   onAutoSetup(): void;
   onFlash(): void;
@@ -224,7 +225,7 @@ export function TopToolbar({
         <ToolButton icon={icon.open} title={labels.open} enabled={!trial} testId="open-file" onClick={on.onOpen} />
         <ToolButton icon={icon.save} title={labels.save} enabled={hasDocument} testId="save-file" onClick={on.onSave} />
         <ToolButton role="primary" label={labels.fox} title={labels.foxTip} enabled={!trial} testId="open-fox" onClick={on.onFox} />
-        <ToolButton role="primary" label={labels.tencent} title={labels.tencentTip} enabled={false} />
+        <ToolButton role="primary" label={labels.tencent} title={labels.tencentTip} enabled={!trial} testId="open-tencent" onClick={on.onTencent} />
         <ToolButton role="primary" label={labels.strength} title={labels.strengthTip} testId="open-strength" onClick={on.onStrength} />
         <ToolSeparator />
         <ToolButton role="primary" label={labels.autoSetup} title={labels.autoSetupTip} testId="tool-auto-setup" onClick={on.onAutoSetup} />

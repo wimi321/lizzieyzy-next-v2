@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
+import { shortGeneratedAt, splitComment } from "../commentary/block";
+import { Markdown } from "../commentary/Markdown";
 
 export interface NotesLabels {
   comment: string;
   problems: string;
   noComment: string;
   editHint: string;
+  aiCommentary: string;
+  aiFollowUp: string;
 }
 
 /** The comment while it is being edited: Java swaps the text for an editor in place. */
@@ -95,11 +99,35 @@ export function NotesPanel({ tab, onTab, problemCount, status, summary, comment,
             />
           ) : (
             <div className="notes-text" data-testid="comment-text" data-editable={onEdit ? "" : undefined} title={onEdit ? labels.editHint : undefined} onClick={onEdit}>
-              {comment ? <p>{comment}</p> : <p className="panel-empty">{labels.noComment}</p>}
+              {comment ? <CommentText comment={comment} labels={labels} /> : <p className="panel-empty">{labels.noComment}</p>}
             </div>
           )}
         </div>
       )}
     </section>
+  );
+}
+
+/** The user's own comment, then the AI 解说 block Rust wrote, with its follow-ups after it. */
+function CommentText({ comment, labels }: { comment: string; labels: NotesLabels }) {
+  const { own, ai } = splitComment(comment);
+  return (
+    <>
+      {own ? <p>{own}</p> : null}
+      {ai ? (
+        <section className="notes-ai" data-testid="comment-ai">
+          <h3>
+            {labels.aiCommentary}
+            <span className="notes-ai-meta">{[ai.model, shortGeneratedAt(ai.generatedAt)].filter(Boolean).join(" · ")}</span>
+          </h3>
+          {ai.sections.map((section, index) => (
+            <div key={index} className="notes-ai-section">
+              {section.question !== null ? <h4>{labels.aiFollowUp.replace("{question}", section.question)}</h4> : null}
+              <Markdown text={section.body} />
+            </div>
+          ))}
+        </section>
+      ) : null}
+    </>
   );
 }
