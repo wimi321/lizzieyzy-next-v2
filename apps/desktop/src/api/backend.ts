@@ -1,3 +1,4 @@
+import type { CommentaryCommands, CommentaryUpdatedListener } from "./commentary";
 import type { CoachCommands, CoachUpdatedListener, CoachMoveRatedListener, CoachSummaryListener } from "./coach";
 import type { GtpCommands, GtpConsoleListener } from "./gtp";
 import type { MatchCommands, MatchUpdatedListener } from "./match-game";
@@ -42,7 +43,7 @@ import type { VariationTreeView } from "./generated/VariationTreeView";
 
 /** Domain status subscriptions share one ordered IPC channel while existing
  * document/analysis UI consumers retain their original event set. */
-export type AppEvent = Exclude<WireAppEvent, { type: "CoachUpdated" | "CoachMoveRated" | "CoachSummary" | "MatchUpdated" | "GtpConsoleLine" | "GameUpdated" | "WholeGameProgress" | "BatchAnalysisProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" | "AssetDownloadProgress" | "UpdateDownloadProgress" }>;
+export type AppEvent = Exclude<WireAppEvent, { type: "CommentaryUpdated" | "CoachUpdated" | "CoachMoveRated" | "CoachSummary" | "MatchUpdated" | "GtpConsoleLine" | "GameUpdated" | "WholeGameProgress" | "BatchAnalysisProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" | "AssetDownloadProgress" | "UpdateDownloadProgress" }>;
 export type OpenFailed = Extract<WireAppEvent, { type: "OpenFailed" }>["data"];
 export type OpenFailedListener = (failure: OpenFailed) => void;
 export type { EngineDisplayName };
@@ -50,6 +51,7 @@ export type { WireAppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, 
 export * from "./review";
 export * from "./game";
 export * from "./coach";
+export * from "./commentary";
 export * from "./gtp";
 export * from "./match-game";
 export * from "./batch-analysis";
@@ -105,7 +107,8 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+export interface Backend extends CommentaryCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+  subscribeCommentaryUpdated?(listener: CommentaryUpdatedListener): Promise<number>;
   subscribeCoachUpdated?(listener: CoachUpdatedListener): Promise<number>;
   subscribeCoachMoveRated?(listener: CoachMoveRatedListener): Promise<number>;
   subscribeCoachSummary?(listener: CoachSummaryListener): Promise<number>;
@@ -285,7 +288,7 @@ async function subscribeWire(listener: (event: WireAppEvent) => void): Promise<n
 }
 
 export const subscribe: Backend["subscribe"] = (listener) => subscribeWire((event) => {
-  if (event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+  if (event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
 });
 
 export const subscribeOpenFailed: Backend["subscribeOpenFailed"] =
@@ -359,3 +362,7 @@ export const subscribeGtpConsole: NonNullable<Backend["subscribeGtpConsole"]> = 
 export const subscribeCoachUpdated: NonNullable<Backend["subscribeCoachUpdated"]> = (listener) => subscribeWire((event) => { if (event.type === "CoachUpdated") listener(event.data); });
 export const subscribeCoachMoveRated: NonNullable<Backend["subscribeCoachMoveRated"]> = (listener) => subscribeWire((event) => { if (event.type === "CoachMoveRated") listener(event.data); });
 export const subscribeCoachSummary: NonNullable<Backend["subscribeCoachSummary"]> = (listener) => subscribeWire((event) => { if (event.type === "CoachSummary") listener(event.data); });
+
+export const subscribeCommentaryUpdated: NonNullable<Backend["subscribeCommentaryUpdated"]> = (listener) => subscribeWire((event) => {
+  if (event.type === "CommentaryUpdated") listener(event.data);
+});

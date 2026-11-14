@@ -166,6 +166,7 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
     };
     let settings = Settings {
         version: 0,
+        commentary: Default::default(),
         language: crate::UiLanguage::System,
         always_on_top: false,
         ui_scale: 1.0,
@@ -212,6 +213,7 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
     assert_eq!(settings.fox_history.len(), 3);
     let expected = Settings {
         version: 1,
+        commentary: Default::default(),
         fox_history: vec![latest],
         ..settings
     }

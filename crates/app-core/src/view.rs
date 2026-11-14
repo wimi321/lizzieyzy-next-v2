@@ -454,6 +454,7 @@ impl From<engine_session::EngineStatus> for EngineStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum AppEvent {
+    CommentaryUpdated(crate::CommentaryUpdated),
     CoachMoveRated(crate::CoachMoveRated),
     CoachSummary(crate::CoachSummary),
     CoachUpdated(crate::CoachView),

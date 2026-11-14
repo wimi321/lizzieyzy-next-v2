@@ -12,6 +12,9 @@ mod benchmark;
 mod board_sync;
 mod coach;
 mod coach_api;
+mod commentary;
+pub mod commentary_client;
+pub mod commentary_keys;
 mod delivery;
 mod diagnostics;
 mod display;
@@ -61,6 +64,8 @@ pub use board_sync::{
     BoardSyncError, BoardSyncLanguage, BoardSyncOptions, BoardSyncPhase, BoardSyncStatus,
 };
 pub use coach::*;
+pub use commentary::*;
+pub use commentary_keys::CommentaryKeyStatus;
 pub use delivery::AppSubscription;
 pub use diagnostics::{
     DiagnosticCheck, DiagnosticKind, DiagnosticRepair, DiagnosticStatus, EngineDiagnostics,
@@ -106,6 +111,8 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    Commentary(#[from] CommentaryError),
     #[error(transparent)]
     Coach(#[from] CoachError),
     #[error(transparent)]
@@ -188,6 +195,7 @@ pub enum AppError {
 /// coordinator/session defaults, including the long first-start deadline.
 #[derive(Clone, Debug)]
 pub struct AppConfig {
+    pub commentary_key_store: Option<std::sync::Arc<dyn commentary_keys::CommentaryKeyStore>>,
     pub games_directory: Option<PathBuf>,
     pub game_random_seed: Option<u64>,
     pub gtp_session: engine_session::gtp::GtpSessionConfig,
@@ -213,6 +221,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            commentary_key_store: None,
             games_directory: None,
             game_random_seed: None,
             gtp_session: Default::default(),

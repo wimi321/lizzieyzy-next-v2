@@ -4,6 +4,7 @@ pub mod benchmark;
 pub mod board_sync;
 pub mod cache;
 pub mod coach;
+pub mod commentary;
 pub mod document;
 pub mod edit;
 pub mod engine;
