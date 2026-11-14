@@ -1,6 +1,7 @@
 //! Pure, bounded GTP version 2 command and response codec.
 
 mod command;
+pub mod kata_analyze;
 mod response;
 
 pub use command::{Command, StandardCommand};

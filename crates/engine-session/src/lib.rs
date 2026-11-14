@@ -1,16 +1,20 @@
 //! Actor-owned KataGo engine sessions.
 
 mod actor;
+mod bridge;
 mod delivery;
 pub mod gtp;
 mod remote;
 mod request;
 mod transport;
+mod zhizi;
 
+pub use bridge::BridgeError;
 pub use delivery::QuerySubscription;
 pub use remote::{RemoteTransportError, SshAuth, probe_remote};
 pub use request::AnalysisRequest;
 pub use transport::spawn_process;
+pub use zhizi::{ZhiziConnection, ZhiziConnector};
 
 use katago_protocol::AnalysisResponse;
 use std::{collections::BTreeMap, ffi::OsString, path::PathBuf, time::Duration};
@@ -29,6 +33,14 @@ pub enum TransportSpec {
     },
     WebSocket {
         url: String,
+    },
+    /// The callback must fetch a fresh one-use session token on every attempt.
+    Zhizi {
+        connect: ZhiziConnector,
+    },
+    /// An analysis-protocol adapter over a GTP line transport.
+    GtpBridge {
+        inner: Box<TransportSpec>,
     },
     Ssh {
         host: String,
@@ -62,6 +74,8 @@ impl std::fmt::Debug for TransportSpec {
                 .field("env", env)
                 .finish(),
             Self::WebSocket { .. } => f.debug_struct("WebSocket").finish_non_exhaustive(),
+            Self::Zhizi { .. } => f.debug_struct("Zhizi").finish_non_exhaustive(),
+            Self::GtpBridge { inner } => f.debug_tuple("GtpBridge").field(inner).finish(),
             Self::Ssh { .. } => f.debug_struct("Ssh").finish_non_exhaustive(),
         }
     }
@@ -133,6 +147,8 @@ pub enum QueryEvent {
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum QueryError {
+    #[error(transparent)]
+    Bridge(#[from] BridgeError),
     #[error("engine query failed: {0}")]
     Engine(String),
     #[error("engine returned no results for turn {0}")]

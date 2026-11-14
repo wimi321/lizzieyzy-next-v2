@@ -41,6 +41,8 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    ZhiziService(oneshot::Sender<crate::zhizi::ZhiziService>),
+    ZhiziCredentialsChanged(oneshot::Sender<Result<(), AppError>>),
     Remote(crate::remote::Request),
     Commentary(crate::commentary::Request),
     Coach(crate::coach_api::Request),

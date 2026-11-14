@@ -25,6 +25,7 @@ pub mod tencent;
 pub mod tsumego;
 pub mod variation;
 pub mod weights;
+pub mod zhizi;
 
 pub mod game;
 pub mod gtp;

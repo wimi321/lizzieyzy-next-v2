@@ -15,6 +15,8 @@ use std::{
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod zhizi_tests;
 
 #[derive(Default)]
 pub(super) struct ReviewState {
@@ -230,6 +232,7 @@ impl Actor {
                 }),
             }
         }
+        self.sync_zhizi_review_pondering().await?;
         self.review
             .progress
             .clone()
@@ -328,6 +331,35 @@ impl Actor {
             && self.review.line.iter().any(|(id, _)| *id == node)
     }
 
+    pub(super) fn is_zhizi_session(&self) -> bool {
+        !self.startup_local_fallback
+            && self.settings.engine.as_ref().is_some_and(|profile| {
+                matches!(
+                    profile.remote,
+                    Some(crate::RemoteEngineConfig::Zhizi { .. })
+                )
+            })
+    }
+
+    /// The GTP bridge has one search slot. A review temporarily owns it;
+    /// saved pondering and the user's later changes remain untouched.
+    pub(super) fn zhizi_review_owns_engine(&self) -> bool {
+        self.is_zhizi_session() && self.review_running()
+    }
+
+    async fn sync_zhizi_review_pondering(&self) -> Result<(), AppError> {
+        if self.is_zhizi_session()
+            && let Some(running) = &self.running
+        {
+            running
+                .coordinator
+                .set_pondering(self.pondering() && self.focus.is_some())
+                .await?;
+            self.publish_analysis_state();
+        }
+        Ok(())
+    }
+
     pub(super) fn review_running(&self) -> bool {
         self.review
             .progress
@@ -359,6 +391,9 @@ impl Actor {
                 }),
             }
         }
+        if let Err(error) = self.sync_zhizi_review_pondering().await {
+            self.analysis_failed(error.to_string());
+        }
     }
 
     fn set_review_status(&mut self, status: WholeGameStatus) {
@@ -373,11 +408,21 @@ impl Actor {
         if !self.review_running() {
             return;
         }
-        if let Err(error) = self.prepare_review().await {
+        let result = async {
+            self.sync_zhizi_review_pondering().await?;
+            self.prepare_review().await
+        }
+        .await;
+        if let Err(error) = result {
             let _ = self.stop_review_query().await;
             self.set_review_status(WholeGameStatus::Error {
                 reason: error.to_string(),
             });
+        }
+        if !self.review_running()
+            && let Err(error) = self.sync_zhizi_review_pondering().await
+        {
+            self.analysis_failed(error.to_string());
         }
     }
 
@@ -477,6 +522,11 @@ impl Actor {
             self.set_review_status(WholeGameStatus::Error {
                 reason: error.to_string(),
             });
+        }
+        if !self.review_running()
+            && let Err(error) = self.sync_zhizi_review_pondering().await
+        {
+            self.analysis_failed(error.to_string());
         }
     }
 
