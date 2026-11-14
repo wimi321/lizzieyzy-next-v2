@@ -12,7 +12,10 @@ async function start(page: Page, view: DocumentView, commands: MockCommand[] = [
     ([events, scripted]) => window.__mockBackend?.setScript({ initialEvents: events, commands: scripted }),
     [[documentChanged(view, 7)], commands] as [WireAppEvent[], MockCommand[]],
   );
-  await expect(page.getByTestId("board")).toHaveAttribute("data-ready", "true");
+  const board = page.getByTestId("board");
+  await expect(board).toHaveAttribute("data-ready", "true");
+  // Assets load independently of layout: the pointer tests read the geometry, so wait for it.
+  await expect(board).not.toHaveAttribute("data-cell", "0.000");
 }
 
 async function calls(page: Page) {

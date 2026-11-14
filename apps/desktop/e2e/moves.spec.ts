@@ -9,7 +9,10 @@ test.use({ viewport: { width: 1429, height: 941 }, deviceScaleFactor: 1, locale:
 async function start(page: Page, events: WireAppEvent[], commands: MockCommand[] = []) {
   await page.goto("/");
   await page.evaluate(([initial, scripted]) => window.__mockBackend?.setScript({ initialEvents: initial, commands: scripted }), [events, commands] as const);
-  await expect(page.getByTestId("board")).toHaveAttribute("data-ready", "true");
+  const board = page.getByTestId("board");
+  await expect(board).toHaveAttribute("data-ready", "true");
+  // Assets load independently of layout: the pointer tests read the geometry, so wait for it.
+  await expect(board).not.toHaveAttribute("data-cell", "0.000");
 }
 
 async function calls(page: Page) {
