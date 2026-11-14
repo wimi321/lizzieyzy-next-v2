@@ -1,21 +1,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod common;
+
 use app_core::{
     AnalysisSource, AppConfig, AppCore, AppError, AppEvent, AppSubscription, DocumentView,
     EngineProfile, EngineStatus, Settings, WholeGameOptions, WholeGameProgress, WholeGameSource,
     WholeGameStatus,
     fox::{FoxClient, FoxEndpoints},
 };
+use common::within;
 use serde_json::Value;
-use std::{future::Future, path::Path, time::Duration};
+use std::{path::Path, time::Duration};
 use tempfile::TempDir;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-async fn within<T>(future: impl Future<Output = T>) -> T {
-    tokio::time::timeout(Duration::from_secs(5), future)
-        .await
-        .expect("auto-curve operation exceeded safety deadline")
-}
 
 fn config() -> AppConfig {
     let mut config = AppConfig::default();
@@ -164,11 +161,13 @@ async fn opening_starts_one_visit_automatic_review_without_interrupting_live_ana
     within(app.configure_engine(Some(engine))).await.unwrap();
     logged(directory.path(), |q| q["priority"] == 0).await;
     let before = requests(directory.path()).len();
-    let revision = within(app.open_bytes(pass_game(80))).await.unwrap();
+    // Keep several background positions alongside the continuing live query;
+    // a long game adds replay work without testing another behavior.
+    let revision = within(app.open_bytes(pass_game(8))).await.unwrap();
     let opened = document(&mut events, revision).await;
     let started = progress(&app, WholeGameSource::AutomaticQuick).await;
     assert_eq!(started.visits, 1);
-    assert_eq!(started.total, 81);
+    assert_eq!(started.total, 9);
     assert_eq!(opened.tree.current, opened.tree.root);
     let first_live = within(async {
         loop {
