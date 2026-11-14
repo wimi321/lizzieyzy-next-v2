@@ -1,3 +1,4 @@
+import type { ZhiziCommands } from "./zhizi";
 import type { CommentaryCommands, CommentaryUpdatedListener } from "./commentary";
 import type { RemoteCommands } from "./remote";
 import type { CoachCommands, CoachUpdatedListener, CoachMoveRatedListener, CoachSummaryListener } from "./coach";
@@ -55,6 +56,7 @@ export * from "./game";
 export * from "./coach";
 export * from "./commentary";
 export * from "./remote";
+export * from "./zhizi";
 export * from "./gtp";
 export * from "./match-game";
 export * from "./batch-analysis";
@@ -111,7 +113,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends RemoteCommands, CommentaryCommands, TencentCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+export interface Backend extends ZhiziCommands, RemoteCommands, CommentaryCommands, TencentCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
   subscribeCommentaryUpdated?(listener: CommentaryUpdatedListener): Promise<number>;
   subscribeCoachUpdated?(listener: CoachUpdatedListener): Promise<number>;
   subscribeCoachMoveRated?(listener: CoachMoveRatedListener): Promise<number>;
@@ -153,6 +155,10 @@ export interface Backend extends RemoteCommands, CommentaryCommands, TencentComm
   /** 保存棋盘截图 / 保存胜率图截图: a PNG file. */
   pickImagePath(defaultName: string): Promise<string | null>;
   pickEngineFile(kind: EngineFileKind): Promise<string | null>;
+  /** 自建算力 → 导入二维码: a PNG or JPEG picture of the link's QR code. */
+  pickQrImage(): Promise<string | null>;
+  /** SSH 引擎: a private key file, whatever its name. */
+  pickKeyFile(): Promise<string | null>;
   /** 文件 → 退出: closing the only window ends the app. */
   quit(): Promise<void>;
   /** The native window's title, which LizzieYzy Next fills with the evaluation, players and file. */
@@ -243,6 +249,16 @@ const ENGINE_FILTERS: Record<EngineFileKind, { name: string; extensions: string[
 
 export const pickEngineFile: Backend["pickEngineFile"] = async (kind) => {
   const path = await openDialog({ multiple: false, directory: false, filters: ENGINE_FILTERS[kind] });
+  return typeof path === "string" ? path : null;
+};
+
+export const pickQrImage: Backend["pickQrImage"] = async () => {
+  const path = await openDialog({ multiple: false, directory: false, filters: [{ name: "PNG / JPEG", extensions: ["png", "jpg", "jpeg"] }] });
+  return typeof path === "string" ? path : null;
+};
+
+export const pickKeyFile: Backend["pickKeyFile"] = async () => {
+  const path = await openDialog({ multiple: false, directory: false });
   return typeof path === "string" ? path : null;
 };
 

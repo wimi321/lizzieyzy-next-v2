@@ -3,6 +3,8 @@ import type { AutoSetupError, Backend, EngineRules, EngineStatus, JavaImportPrev
 import { MessageBox } from "../frame/MessageBox";
 import type { MenuBinding } from "../menu/bindings";
 import { useEngineName } from "../frame/useEngineName";
+import type en from "../locales/en.json";
+import { SshEngineDialog } from "../remote/SshEngineDialog";
 import { EngineSetup, type SetupLabels } from "../settings/EngineSetup";
 import { JavaImportDialog, type JavaImportLabels, RulesDialog, type RulesLabels } from "./EngineDialogs";
 import { EngineList, type EngineListLabels } from "./EngineList";
@@ -38,9 +40,20 @@ type EnginesBackend = Pick<
   | "previewJavaImport"
   | "confirmJavaImport"
   | "engineDisplayName"
+  | "testRemoteEngine"
+  | "addRemoteEngine"
+  | "updateRemoteEngine"
+  | "pickKeyFile"
 >;
 
-type Setup = { kind: "main" } | { kind: "add" } | { kind: "edit"; id: string };
+type Setup = { kind: "main" } | { kind: "add" } | { kind: "edit"; id: string } | { kind: "ssh"; id: string | null };
+
+/** P3-20: SSH engines get their own form; 智子 and self-hosted ones are edited in 远程算力. */
+export interface RemoteEngineHooks {
+  labels: typeof en.remote;
+  open(): void;
+  summary(engine: Engine): string | null;
+}
 
 /** Why automatic setup gave up, for the setup dialog it opens instead. */
 function autoSetupFailure(error: unknown, labels: { autoNoPrograms: string; autoNoModels: string; autoAllFailed: string }): string {
@@ -70,6 +83,7 @@ export function useEngines(
   setupLabels: SetupLabels & { autoNoPrograms: string; autoNoModels: string; autoAllFailed: string },
   /** Settings changed wholesale by an import; the app reloads what it keeps itself. */
   onImported: (settings: Settings) => void,
+  remote?: RemoteEngineHooks,
 ) {
   const [engines, setEngines] = useState<Engine[]>([]);
   const [main, setMain] = useState<string | null>(null);
@@ -198,11 +212,25 @@ export function useEngines(
 
   const setupDialog = (): ReactNode => {
     if (!setup) return null;
-    const editing = setup.kind === "edit" ? (engines.find((engine) => engine.id === setup.id) ?? null) : null;
+    const editing = setup.kind === "edit" || setup.kind === "ssh" ? (engines.find((engine) => engine.id === setup.id) ?? null) : null;
     const close = () => {
       setSetup(null);
       setAutoFailure(null);
     };
+    if (setup.kind === "ssh") {
+      return remote ? (
+        <SshEngineDialog
+          backend={backend}
+          labels={remote.labels}
+          editing={editing}
+          onSaved={(saved) => {
+            apply(saved);
+            close();
+          }}
+          onClose={close}
+        />
+      ) : null;
+    }
     const entry =
       setup.kind === "main"
         ? undefined
@@ -244,7 +272,16 @@ export function useEngines(
           busy={busy}
           labels={labels.list}
           onSetMain={(id) => run(() => backend.selectMainEngine(id))}
-          onEdit={(id) => setSetup({ kind: "edit", id })}
+          describe={remote?.summary}
+          onEdit={(id) => {
+            const kind = engines.find((engine) => engine.id === id)?.profile.remote?.type;
+            if (kind === "Ssh") setSetup({ kind: "ssh", id });
+            else if (kind && remote) {
+              setListOpen(false);
+              remote.open();
+            } else setSetup({ kind: "edit", id });
+          }}
+          onAddSsh={remote ? () => setSetup({ kind: "ssh", id: null }) : undefined}
           onRemove={(id) => run(() => backend.removeEngine(id))}
           onMove={move}
           onAdd={() => setSetup({ kind: "add" })}

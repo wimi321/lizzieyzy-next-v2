@@ -146,6 +146,9 @@ fn transport(
     known_hosts: PathBuf,
 ) -> Result<TransportSpec, AppError> {
     Ok(match remote {
+        RemoteEngineConfig::Zhizi { .. } => {
+            return Err(RemoteEngineError::ZhiziLoginRequired.into());
+        }
         RemoteEngineConfig::WebSocket { identity, .. } => {
             let url = secret.ok_or(RemoteEngineError::MissingSecret)?;
             if blake3::hash(url.as_bytes()).to_hex().as_str() != identity {

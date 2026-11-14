@@ -22,6 +22,9 @@ impl Actor {
         let fingerprint = profile.fingerprint().await?;
         let known_hosts = self.known_hosts();
         let mut transport = match &profile.remote {
+            Some(crate::RemoteEngineConfig::Zhizi { options, .. }) => {
+                self.zhizi_transport(*options)?
+            }
             Some(remote) => self.remote.transport(remote, known_hosts).await?,
             None => profile.transport_with_benchmark(self.settings.benchmarks.get(&fingerprint))?,
         };

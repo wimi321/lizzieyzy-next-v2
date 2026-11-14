@@ -45,6 +45,14 @@ impl Actor {
         Ok(())
     }
 
+    pub(super) async fn clipboard_link(&self) -> Option<String> {
+        let clipboard = self.config.clipboard.as_ref()?;
+        // Clipboard errors may contain platform text; neither it nor the
+        // clipboard contents belong in logs or in a prefill error response.
+        let text = clipboard.read_text().await.ok()??;
+        validated_link(&text)
+    }
+
     pub(super) async fn save_clean_sgf(
         &self,
         path: PathBuf,
@@ -79,6 +87,40 @@ impl Actor {
         clipboard.write_image(image).await?;
         Ok(())
     }
+}
+
+fn validated_link(text: &str) -> Option<String> {
+    let text = text.trim();
+    let text = ['"', '\'']
+        .into_iter()
+        .find_map(|quote| text.strip_prefix(quote)?.strip_suffix(quote))
+        .unwrap_or(text)
+        .trim();
+    if text.len() > 4 * 1024
+        || text.chars().any(|c| c.is_whitespace() || c.is_control())
+        || text.contains('\\')
+        || text.starts_with(['"', '\''])
+        || text.ends_with(['"', '\''])
+    {
+        return None;
+    }
+    // Require an explicit authority before parsing: Url can repair missing
+    // slashes/hosts and discard empty user-info such as `https://@example.org`.
+    let (_, rest) = text.split_once("://")?;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    if authority.is_empty() || authority.contains('@') {
+        return None;
+    }
+    let parsed = url::Url::parse(text).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https")
+        || parsed.host_str().is_none_or(str::is_empty)
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
+        return None;
+    }
+    // Preserve signed paths/query strings instead of serializing the parsed URL.
+    Some(text.to_owned())
 }
 
 fn serialize(tree: sgf::GameTree) -> String {

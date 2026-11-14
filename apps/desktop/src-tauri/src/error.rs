@@ -9,6 +9,8 @@ use crate::tencent_error::{OpenUrlFailure, TencentFailure};
 #[serde(tag = "type", content = "data")]
 pub enum CommandError {
     #[error("{0}")]
+    Zhizi(app_core::zhizi::ZhiziError),
+    #[error("{0}")]
     Remote(app_core::RemoteEngineError),
     #[error("{0}")]
     RemoteLink(app_core::RemoteLinkError),
@@ -54,6 +56,8 @@ pub enum CommandError {
     RevealOutsideDataDirectory,
     #[error("cannot reveal this path: {0}")]
     RevealUnavailable(String),
+    #[error("cannot open the Zhizi website in the system browser")]
+    BrowserUnavailable,
     #[error("{0}")]
     App(String),
     #[error("{0}")]
@@ -90,6 +94,7 @@ pub enum PngRequestError {
 impl From<app_core::AppError> for CommandError {
     fn from(error: app_core::AppError) -> Self {
         match error {
+            app_core::AppError::Zhizi(error) => Self::Zhizi(error),
             app_core::AppError::Remote(error) => Self::Remote(error),
             app_core::AppError::RemoteLink(error) => Self::RemoteLink(error),
             app_core::AppError::Commentary(error)
