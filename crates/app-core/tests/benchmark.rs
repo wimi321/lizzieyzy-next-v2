@@ -99,9 +99,12 @@ async fn complete_saves_restarts_with_recommendation_resumes_and_reset_restores_
     app.open_bytes(b"(;SZ[9];B[aa];W[bb])".to_vec())
         .await
         .unwrap();
-    app.start_whole_game_analysis(WholeGameOptions { visits: 1_000_000 })
-        .await
-        .unwrap();
+    app.start_whole_game_analysis(WholeGameOptions {
+        visits: 1_000_000,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
     assert_eq!(
         app.start_benchmark().await.unwrap().phase,
         BenchmarkPhase::Running
@@ -254,9 +257,12 @@ async fn changed_engine_files_reject_result_and_explicit_review_cancel_is_not_un
         &["--benchmark-gate-file", gate.to_str().unwrap()],
     );
     let (app, mut events) = setup(engine.clone(), dir.path()).await;
-    app.start_whole_game_analysis(WholeGameOptions { visits: 1_000_000 })
-        .await
-        .unwrap();
+    app.start_whole_game_analysis(WholeGameOptions {
+        visits: 1_000_000,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
     app.start_benchmark().await.unwrap();
     benchmark_event(&mut events, |s| s.progress.is_some()).await;
     app.cancel_whole_game_analysis().await.unwrap();

@@ -71,9 +71,12 @@ async fn whole_game_completion_exposes_default_and_custom_phases_and_invalidates
         }
     })
     .await;
-    within(app.start_whole_game_analysis(WholeGameOptions { visits: 1 }))
-        .await
-        .unwrap();
+    within(app.start_whole_game_analysis(WholeGameOptions {
+        visits: 1,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     within(async {
         loop {
             match events.recv().await.unwrap() {

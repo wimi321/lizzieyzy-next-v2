@@ -418,9 +418,12 @@ async fn manual_and_automatic_whole_game_analysis_complete_despite_live_limit_pa
         let expected_source = if automatic {
             WholeGameSource::AutomaticQuick
         } else {
-            within(app.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-                .await
-                .unwrap();
+            within(app.start_whole_game_analysis(WholeGameOptions {
+                visits: 500,
+                ..Default::default()
+            }))
+            .await
+            .unwrap();
             WholeGameSource::Manual
         };
         completed(&app, expected_source).await;

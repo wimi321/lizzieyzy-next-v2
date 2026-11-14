@@ -37,6 +37,7 @@ test("review IPC forwards default/custom options, controls, full results and err
     [() => backend.startWholeGameAnalysis(), "start_whole_game_analysis", { options: { visits: 1000 } }, progress],
     [() => backend.startWholeGameAnalysis({ visits: 3000 }), "start_whole_game_analysis", { options: { visits: 3000 } }, progress],
     [() => backend.startWholeGameAnalysis({ visits: 1 }), "start_whole_game_analysis", { options: { visits: 1 } }, { ...progress, visits: 1 }],
+    [() => backend.startWholeGameAnalysis({ visits: 17, scope: { type: "AllBranches" }, force: true }), "start_whole_game_analysis", { options: { visits: 17, scope: { type: "AllBranches" }, force: true } }, progress],
     [() => backend.pauseWholeGameAnalysis(), "pause_whole_game_analysis", undefined, progress],
     [() => backend.resumeWholeGameAnalysis(), "resume_whole_game_analysis", undefined, progress],
     [() => backend.cancelWholeGameAnalysis(), "cancel_whole_game_analysis", undefined, progress],
@@ -49,7 +50,7 @@ test("review IPC forwards default/custom options, controls, full results and err
     expect(ipc.invoke).toHaveBeenLastCalledWith(...(args ? [name, args] : [name]));
   }
   ipc.invoke.mockRejectedValueOnce("visits out of range");
-  await expect(backend.startWholeGameAnalysis({ visits: 499 })).rejects.toBe("visits out of range");
+  await expect(backend.startWholeGameAnalysis({ visits: 0 })).rejects.toBe("visits out of range");
 });
 
 test("review and existing UI listeners share one channel and receive their own event types", async () => {

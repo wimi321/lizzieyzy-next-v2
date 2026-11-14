@@ -106,9 +106,12 @@ async fn settings_apply_to_live_and_review_queries_without_rewriting_sgf() {
     assert_eq!(changed["komi"], 7.5);
     assert_eq!(changed["reportDuringSearchEvery"], 0.27);
     assert_eq!(changed["firstReportDuringSearchAfter"], 0.27);
-    app.start_whole_game_analysis(WholeGameOptions { visits: 500 })
-        .await
-        .unwrap();
+    app.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
     within(async {
         loop {
             if let AppEvent::WholeGameProgress(progress) = events.recv().await.unwrap() {
@@ -149,9 +152,12 @@ async fn changing_query_rules_does_not_reuse_deeper_old_engine_results() {
     let (app, mut events) = app(directory.path()).await;
     app.configure_engine(Some(profile)).await.unwrap();
     final_live(&mut events).await;
-    app.start_whole_game_analysis(WholeGameOptions { visits: 500 })
-        .await
-        .unwrap();
+    app.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
     within(async {
         loop {
             if let AppEvent::WholeGameProgress(progress) = events.recv().await.unwrap()
@@ -265,9 +271,12 @@ async fn explicit_rules_do_not_skip_review_using_saved_analysis_from_the_sgf() {
             .saved
             .is_some()
     );
-    app.start_whole_game_analysis(WholeGameOptions { visits: 500 })
-        .await
-        .unwrap();
+    app.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
     within(async {
         loop {
             if let AppEvent::WholeGameProgress(progress) = events.recv().await.unwrap() {

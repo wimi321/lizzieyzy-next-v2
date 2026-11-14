@@ -2,6 +2,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import type { AppEvent as WireAppEvent } from "./generated/AppEvent";
+import type { BatchAnalysisCommands, BatchAnalysisProgressListener } from "./batch-analysis";
 import type { ReviewCommands, WholeGameProgressListener } from "./review";
 import type { BoardSyncCommands, BoardSyncStatusListener } from "./board-sync";
 import type { BenchmarkCommands, BenchmarkProgressListener } from "./benchmark";
@@ -36,12 +37,13 @@ import type { VariationTreeView } from "./generated/VariationTreeView";
 
 /** Domain status subscriptions share one ordered IPC channel while existing
  * document/analysis UI consumers retain their original event set. */
-export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" | "AssetDownloadProgress" | "UpdateDownloadProgress" }>;
+export type AppEvent = Exclude<WireAppEvent, { type: "WholeGameProgress" | "BatchAnalysisProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" | "AssetDownloadProgress" | "UpdateDownloadProgress" }>;
 export type OpenFailed = Extract<WireAppEvent, { type: "OpenFailed" }>["data"];
 export type OpenFailedListener = (failure: OpenFailed) => void;
 export type { EngineDisplayName };
 export type { WireAppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings };
 export * from "./review";
+export * from "./batch-analysis";
 export * from "./board-sync";
 export * from "./benchmark";
 export * from "./analysis-limits";
@@ -93,7 +95,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+export interface Backend extends BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
   openBytes(bytes: number[]): Promise<Revision>;
   openPath(path: string): Promise<Revision>;
   save(path: string): Promise<void>;
@@ -135,6 +137,7 @@ export interface Backend extends ReviewCommands, BoardSyncCommands, BenchmarkCom
   setWindowTitle(title: string): Promise<void>;
   subscribeOpenFailed(listener: OpenFailedListener): Promise<number>;
   subscribe(listener: EventListener): Promise<number>;
+  subscribeBatchAnalysisProgress?(listener: BatchAnalysisProgressListener): Promise<number>;
   subscribeWholeGameProgress(listener: WholeGameProgressListener): Promise<number>;
   subscribeBoardSyncStatus(listener: BoardSyncStatusListener): Promise<number>;
   subscribeBenchmarkProgress(listener: BenchmarkProgressListener): Promise<number>;
@@ -259,7 +262,7 @@ async function subscribeWire(listener: (event: WireAppEvent) => void): Promise<n
 }
 
 export const subscribe: Backend["subscribe"] = (listener) => subscribeWire((event) => {
-  if (event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+  if (event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
 });
 
 export const subscribeOpenFailed: Backend["subscribeOpenFailed"] =
@@ -273,6 +276,12 @@ export const subscribeOpenFailed: Backend["subscribeOpenFailed"] =
 export const subscribeWholeGameProgress: Backend["subscribeWholeGameProgress"] =
   (listener) => subscribeWire((event) => {
     if (event.type === "WholeGameProgress") listener(event.data);
+  });
+
+/** Batch progress shares the ordered channel; subscribe before querying status. */
+export const subscribeBatchAnalysisProgress: NonNullable<Backend["subscribeBatchAnalysisProgress"]> =
+  (listener) => subscribeWire((event) => {
+    if (event.type === "BatchAnalysisProgress") listener(event.data);
   });
 
 /** Subscribe before reading boardSyncStatus(); use unsubscribe() for this ID. */

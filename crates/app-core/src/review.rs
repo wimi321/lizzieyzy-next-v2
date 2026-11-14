@@ -34,6 +34,26 @@ impl WholeGamePreset {
 pub struct WholeGameOptions {
     #[ts(type = "number")]
     pub visits: u64,
+    #[ts(as = "Option<WholeGameScope>", optional)]
+    pub scope: WholeGameScope,
+    #[ts(as = "Option<bool>", optional)]
+    pub force: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "type", content = "data")]
+pub enum WholeGameScope {
+    #[default]
+    Line,
+    Range {
+        #[serde(default)]
+        #[ts(optional = nullable)]
+        first_move: Option<usize>,
+        #[serde(default)]
+        #[ts(optional = nullable)]
+        last_move: Option<usize>,
+    },
+    AllBranches,
 }
 
 impl Default for WholeGameOptions {
@@ -46,13 +66,15 @@ impl From<WholeGamePreset> for WholeGameOptions {
     fn from(value: WholeGamePreset) -> Self {
         Self {
             visits: value.visits(),
+            scope: WholeGameScope::Line,
+            force: false,
         }
     }
 }
 
 impl WholeGameOptions {
     pub fn validate(self) -> Result<(), WholeGameError> {
-        if self.visits != 1 && !(500..=1_000_000).contains(&self.visits) {
+        if !(1..=1_000_000).contains(&self.visits) {
             return Err(WholeGameError::InvalidVisits);
         }
         Ok(())
@@ -73,7 +95,7 @@ pub enum WholeGameStatus {
 pub struct WholeGameProgress {
     /// Includes positions already meeting the requested depth before starting.
     pub completed: usize,
-    /// Number of nodes in the captured displayed line, including the root.
+    /// Number of nodes in the captured scope.
     pub total: usize,
     #[ts(type = "number")]
     pub visits: u64,
@@ -93,8 +115,14 @@ pub enum WholeGameSource {
 
 #[derive(Debug, thiserror::Error)]
 pub enum WholeGameError {
-    #[error("whole-game visits must be 1 or between 500 and 1000000")]
+    #[error("whole-game visits must be between 1 and 1000000")]
     InvalidVisits,
+    #[error("review range {first_move}..={last_move} is outside moves 1..={last_available}")]
+    InvalidRange {
+        first_move: usize,
+        last_move: usize,
+        last_available: usize,
+    },
     #[error("whole-game analysis requires an active engine")]
     NoEngine,
     #[error("no whole-game analysis has been started")]
@@ -150,13 +178,12 @@ pub(crate) enum ReviewInput {
 }
 
 impl AppCore {
-    /// Captures root -> current -> first-child leaf. Later navigation does not
-    /// change the task's line. Returns immediately after submitting the work.
+    /// Captures the selected scope. Later navigation does not change its nodes.
+    /// Returns immediately after submitting the work.
     pub async fn start_whole_game_analysis(
         &self,
         options: WholeGameOptions,
     ) -> Result<WholeGameProgress, AppError> {
-        options.validate()?;
         self.review_command(ReviewInput::Start(options)).await
     }
 

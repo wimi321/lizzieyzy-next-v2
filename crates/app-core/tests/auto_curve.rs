@@ -386,9 +386,12 @@ async fn assert_deep_cache_is_first_after_reopen(pondering: bool) {
     within(app.configure_engine(Some(engine))).await.unwrap();
     within(app.open_bytes(pass_game(3))).await.unwrap();
     completed(&app, WholeGameSource::AutomaticQuick).await;
-    within(app.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    within(app.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     completed(&app, WholeGameSource::Manual).await;
     let before = within(app.whole_game_result(0)).await.unwrap().unwrap();
     assert_eq!(before.visits, 500);
@@ -502,9 +505,12 @@ async fn manual_review_replaces_automatic_request_and_owns_progress() {
     within(app.configure_engine(Some(engine))).await.unwrap();
     within(app.open_bytes(pass_game(3))).await.unwrap();
     let automatic = logged(directory.path(), |q| q["maxVisits"] == 1).await;
-    let manual = within(app.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    let manual = within(app.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     assert_eq!(manual.source, WholeGameSource::Manual);
     assert_eq!(manual.visits, 500);
     assert_eq!(manual.status, WholeGameStatus::Running);
@@ -542,9 +548,12 @@ async fn deeper_manual_results_replace_one_visit_curve_results() {
             1
         );
     }
-    within(app.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-        .await
-        .unwrap();
+    within(app.start_whole_game_analysis(WholeGameOptions {
+        visits: 500,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     completed(&app, WholeGameSource::Manual).await;
     for node in opened.tree.main_line {
         assert_eq!(
@@ -567,9 +576,12 @@ async fn opening_during_running_or_paused_manual_review_does_not_start_auto_revi
         let (app, _events) = app(directory.path()).await;
         within(app.set_pondering(false)).await.unwrap();
         within(app.configure_engine(Some(engine))).await.unwrap();
-        within(app.start_whole_game_analysis(WholeGameOptions { visits: 500 }))
-            .await
-            .unwrap();
+        within(app.start_whole_game_analysis(WholeGameOptions {
+            visits: 500,
+            ..Default::default()
+        }))
+        .await
+        .unwrap();
         logged(directory.path(), |q| q["maxVisits"] == 500).await;
         if paused {
             assert_eq!(

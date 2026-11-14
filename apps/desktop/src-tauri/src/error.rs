@@ -7,6 +7,16 @@ use crate::fox_error::FoxFailure;
 #[derive(Debug, thiserror::Error, Serialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum CommandError {
+    #[error("review range {first_move}..={last_move} is outside moves 1..={last_available}")]
+    InvalidWholeGameRange {
+        first_move: usize,
+        last_move: usize,
+        last_available: usize,
+    },
+    #[error("batch analysis is running")]
+    BatchAnalysisRunning,
+    #[error("{0}")]
+    Batch(app_core::BatchError),
     #[error("{0}")]
     Clipboard(app_core::ClipboardError),
     #[error("{0}")]
@@ -53,6 +63,17 @@ pub enum PngRequestError {
 impl From<app_core::AppError> for CommandError {
     fn from(error: app_core::AppError) -> Self {
         match error {
+            app_core::AppError::WholeGame(app_core::WholeGameError::InvalidRange {
+                first_move,
+                last_move,
+                last_available,
+            }) => Self::InvalidWholeGameRange {
+                first_move,
+                last_move,
+                last_available,
+            },
+            app_core::AppError::BatchAnalysisRunning => Self::BatchAnalysisRunning,
+            app_core::AppError::Batch(error) => Self::Batch(error),
             app_core::AppError::Clipboard(error) => Self::Clipboard(error),
             app_core::AppError::Png(error) => Self::Png(error),
             app_core::AppError::Update(app_core::updates::UpdateError::SigningNotConfigured) => {

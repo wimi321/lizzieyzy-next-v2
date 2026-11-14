@@ -30,6 +30,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["registry", "std"] }
 sys-locale = "0.3"
 png = "0.18"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [dev-dependencies]
 fake-katago = { path = "../../tools/fake-katago" }

@@ -35,6 +35,7 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                 AppEvent::BenchmarkProgress(_) => {
                     panic!("unexpected benchmark without starting a task")
                 }
+                AppEvent::BatchAnalysisProgress(_) => {}
                 AppEvent::WholeGameProgress(_) => {
                     panic!("unexpected review without starting a task")
                 }

@@ -363,6 +363,7 @@ async fn synchronization_analyzes_remote_latest_without_overpainting_a_browsed_p
                 | AppEvent::AnalysisStateChanged(_)
                 | AppEvent::UpdateDownloadProgress(_)
                 | AppEvent::AssetDownloadProgress(_)
+                | AppEvent::BatchAnalysisProgress(_)
                 | AppEvent::BenchmarkProgress(_) => {}
             }
         }

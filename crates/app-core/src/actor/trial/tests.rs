@@ -30,6 +30,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
             summaries: HashMap::new(),
             graph_analysis: Default::default(),
             review: Default::default(),
+            batch: Default::default(),
             strength: None,
             summary_fingerprint: None,
             revision: 0,

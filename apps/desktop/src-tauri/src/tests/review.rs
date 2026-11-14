@@ -58,7 +58,7 @@ async fn whole_game_commands_forward_controls_results_and_replay_progress() {
     let invalid = request(
         &harness.main,
         "start_whole_game_analysis",
-        json!({ "options": { "visits": 499 } }),
+        json!({ "options": { "visits": 0 } }),
         local_url(),
     )
     .await

@@ -177,6 +177,7 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
         cache_enabled: true,
         auto_quick_analyze_on_load: true,
         analysis_limits: crate::AnalysisLimitSettings::default(),
+        flash_analysis: crate::FlashAnalysisSettings::default(),
         engine: Some(profile(directory.path())),
         recent_files: Vec::new(),
         fox_history: vec![

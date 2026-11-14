@@ -213,9 +213,12 @@ async fn deeper_manual_review_replaces_saved_focus_after_the_latest_document() {
     let revision = within(app.open_bytes(JAVA.to_vec())).await.unwrap();
     completed(&app).await;
     let visits = 12346;
-    within(app.start_whole_game_analysis(WholeGameOptions { visits }))
-        .await
-        .unwrap();
+    within(app.start_whole_game_analysis(WholeGameOptions {
+        visits,
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
     within(async {
         loop {
             let progress = app.whole_game_progress().await.unwrap().unwrap();

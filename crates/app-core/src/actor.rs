@@ -12,6 +12,7 @@ mod analysis_cache;
 mod analysis_limit;
 mod auto_curve;
 mod auto_setup;
+mod batch;
 mod benchmark;
 mod board_sync;
 mod clear_analysis;
@@ -74,6 +75,7 @@ struct Actor {
     summaries: HashMap<NodeId, AnalysisSummary>,
     graph_analysis: graph_analysis::State,
     review: review::ReviewState,
+    batch: batch::State,
     strength: Option<strength::Estimator>,
     summary_fingerprint: Option<String>,
     revision: u64,
@@ -124,6 +126,7 @@ pub(crate) async fn run(
         summaries: HashMap::new(),
         graph_analysis: Default::default(),
         review: review::ReviewState::default(),
+        batch: Default::default(),
         strength: None,
         summary_fingerprint: None,
         revision: 0,
@@ -153,12 +156,15 @@ pub(crate) async fn run(
     actor.publish_analysis_state();
     loop {
         tokio::select! {
+            () = std::future::ready(()), if actor.batch_needs_advance() => actor.advance_batch().await,
             command = commands.recv() => {
               let command = match command {
-                Some(command) => match actor.update_guard(command) { Some(command) => Some(command), None => continue },
+                Some(command) => match actor.update_guard(command).and_then(|command| actor.batch_guard(command)) { Some(command) => Some(command), None => continue },
                 None => None,
               };
               match command {
+                Some(Command::Batch(request, reply)) => { let _ = reply.send(actor.batch_command(request).await); }
+                Some(Command::BatchStatus(reply)) => { let _ = reply.send(actor.batch.status.clone()); }
                 Some(Command::ClaimUpdateCheck(now, reply)) => { let _ = reply.send(actor.claim_update_check(now).await); }
                 Some(Command::Support(reply)) => { let _ = reply.send(actor.support.clone().ok_or(AppError::Closed)); }
                 Some(Command::Updates(reply)) => { let _ = reply.send(actor.updates.handle.clone().ok_or(crate::updates::UpdateError::SigningNotConfigured.into())); }
@@ -217,6 +223,7 @@ pub(crate) async fn run(
                 }
                 Some(Command::TryAutoEngine(trial, reply)) => actor.begin_auto_trial(trial, reply).await,
                 Some(Command::Apply(Input::Shutdown, reply)) => {
+                    if actor.batch_active() { actor.stop_batch(None).await; }
                     actor.auto_setup.cancel();
                     actor.cancel_trial().await;
                     let updates_result = actor.updates.shutdown().await;
@@ -236,7 +243,7 @@ pub(crate) async fn run(
                     actor.auto_setup.cancel();
                     actor.begin_trial(profile, source, reply).await;
                 }
-                None => { actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
+                None => { if actor.batch_active() { actor.stop_batch(None).await; } actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
               }
             },
             signal = next_signal(&mut actor.running) => actor.cache_signal(signal),
@@ -247,6 +254,7 @@ pub(crate) async fn run(
             progress = release::receive(&mut actor.updates) => actor.update_progress(progress).await,
             progress = weights::receive(&mut actor.assets) => actor.output.send(AppEvent::AssetDownloadProgress(progress)),
         }
+        actor.sync_batch_progress().await;
         if !actor.updates.install_pending {
             actor.maybe_start_auto_curve().await;
         }
@@ -352,6 +360,8 @@ impl Actor {
 
     async fn apply(&mut self, input: Input) -> Result<u64, AppError> {
         match input {
+            Input::EnsureNoBatch => self.ensure_no_batch()?,
+            Input::SetFlashAnalysis(settings) => self.set_flash_analysis(settings).await?,
             Input::StartTrial => self.start_move_trial().await?,
             Input::EndTrial => self.end_move_trial().await?,
             Input::GenerateTsumego(options) => self.generate_tsumego(options).await?,

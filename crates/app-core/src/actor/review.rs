@@ -1,7 +1,7 @@
 use super::Actor;
 use crate::{
     AnalysisSource, AnalysisView, AppError, AppEvent, GraphView, StoredAnalysis, WholeGameError,
-    WholeGameProgress, WholeGameSource, WholeGameStatus, review::ReviewInput,
+    WholeGameProgress, WholeGameScope, WholeGameSource, WholeGameStatus, review::ReviewInput,
 };
 use analysis::{
     AnalysisSnapshot, SnapshotSource,
@@ -9,7 +9,7 @@ use analysis::{
 };
 use document::{GamePosition, NodeId};
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     future::pending,
 };
 
@@ -21,6 +21,8 @@ pub(super) struct ReviewState {
     pub results: HashMap<NodeId, StoredAnalysis>,
     pub progress: Option<WholeGameProgress>,
     pub(super) line: Vec<(NodeId, GamePosition)>,
+    force: bool,
+    completed: HashSet<NodeId>,
     batches: VecDeque<ReviewBatch>,
     active: Option<ReviewRun>,
 }
@@ -42,6 +44,7 @@ impl Actor {
         self.graph_analysis.clear();
         self.review.results.clear();
         self.review.line.clear();
+        self.review.completed.clear();
         self.review.batches.clear();
         if self.review.progress.is_some() {
             self.set_review_status(WholeGameStatus::Cancelled);
@@ -131,50 +134,17 @@ impl Actor {
         &mut self,
         input: ReviewInput,
     ) -> Result<WholeGameProgress, AppError> {
+        self.ensure_no_batch()?;
         match input {
             ReviewInput::Start(options) => {
                 self.ensure_no_benchmark()?;
                 options.validate()?;
-                let graph = GraphView::from_document(&self.document)?;
-                let line = graph
-                    .points
-                    .into_iter()
-                    .map(|point| {
-                        let id = NodeId(point.node_id);
-                        Ok((id, self.document.position_at(id)?))
-                    })
-                    .collect::<Result<Vec<_>, AppError>>()?;
-                self.start_review(line, options.visits, WholeGameSource::Manual)
+                let line = self.review_positions(options.scope)?;
+                self.start_review(line, options.visits, WholeGameSource::Manual, options.force)
                     .await?;
             }
-            ReviewInput::Pause => {
-                if self.review.progress.is_none() {
-                    return Err(WholeGameError::NotStarted.into());
-                }
-                if self.review_running() {
-                    match self.stop_review_query().await {
-                        Ok(()) => self.set_review_status(WholeGameStatus::Paused),
-                        Err(error) => self.set_review_status(WholeGameStatus::Error {
-                            reason: error.to_string(),
-                        }),
-                    }
-                }
-            }
-            ReviewInput::Resume => {
-                self.ensure_no_benchmark()?;
-                let progress = self
-                    .review
-                    .progress
-                    .as_ref()
-                    .ok_or(WholeGameError::NotStarted)?;
-                if progress.status != WholeGameStatus::Paused {
-                    return Err(WholeGameError::NotPaused.into());
-                }
-                if let Some(progress) = &mut self.review.progress {
-                    progress.status = WholeGameStatus::Running;
-                }
-                self.continue_review().await;
-            }
+            ReviewInput::Pause => return self.pause_review().await,
+            ReviewInput::Resume => return self.resume_review().await,
             ReviewInput::Cancel => {
                 if self.review.progress.is_none() {
                     return Err(WholeGameError::NotStarted.into());
@@ -189,11 +159,109 @@ impl Actor {
             .ok_or_else(|| WholeGameError::NotStarted.into())
     }
 
+    pub(super) fn review_positions(
+        &self,
+        scope: WholeGameScope,
+    ) -> Result<Vec<(NodeId, GamePosition)>, AppError> {
+        let ids = match scope {
+            WholeGameScope::AllBranches => self
+                .document
+                .variation_tree()?
+                .into_iter()
+                .map(|node| node.id)
+                .collect(),
+            WholeGameScope::Line | WholeGameScope::Range { .. } => {
+                let graph = GraphView::from_document(&self.document)?;
+                let (first, last) = if let WholeGameScope::Range {
+                    first_move,
+                    last_move,
+                } = scope
+                {
+                    let available = graph.points.last().map_or(0, |point| point.move_number);
+                    let first = first_move.unwrap_or(1);
+                    let last = last_move.unwrap_or(available);
+                    if first == 0 || first > last || last > available {
+                        return Err(WholeGameError::InvalidRange {
+                            first_move: first,
+                            last_move: last,
+                            last_available: available,
+                        }
+                        .into());
+                    }
+                    (first, last)
+                } else {
+                    (0, usize::MAX)
+                };
+                // A move is evaluated against its direct parent, which can be
+                // an empty/setup node after the preceding numbered move. Keep
+                // exactly that preceding position, not every node at its number.
+                // Starting at move one also includes the root/opening context.
+                let start = if first <= 1 {
+                    0
+                } else {
+                    graph
+                        .points
+                        .partition_point(|point| point.move_number < first)
+                        .saturating_sub(1)
+                };
+                graph
+                    .points
+                    .into_iter()
+                    .skip(start)
+                    .take_while(|point| point.move_number <= last)
+                    .map(|point| NodeId(point.node_id))
+                    .collect::<Vec<_>>()
+            }
+        };
+        ids.into_iter()
+            .map(|id| Ok((id, self.document.position_at(id)?)))
+            .collect()
+    }
+
+    pub(super) async fn pause_review(&mut self) -> Result<WholeGameProgress, AppError> {
+        if self.review.progress.is_none() {
+            return Err(WholeGameError::NotStarted.into());
+        }
+        if self.review_running() {
+            match self.stop_review_query().await {
+                Ok(()) => self.set_review_status(WholeGameStatus::Paused),
+                Err(error) => self.set_review_status(WholeGameStatus::Error {
+                    reason: error.to_string(),
+                }),
+            }
+        }
+        self.review
+            .progress
+            .clone()
+            .ok_or_else(|| WholeGameError::NotStarted.into())
+    }
+
+    pub(super) async fn resume_review(&mut self) -> Result<WholeGameProgress, AppError> {
+        self.ensure_no_benchmark()?;
+        let progress = self
+            .review
+            .progress
+            .as_ref()
+            .ok_or(WholeGameError::NotStarted)?;
+        if progress.status != WholeGameStatus::Paused {
+            return Err(WholeGameError::NotPaused.into());
+        }
+        if let Some(progress) = &mut self.review.progress {
+            progress.status = WholeGameStatus::Running;
+        }
+        self.continue_review().await;
+        self.review
+            .progress
+            .clone()
+            .ok_or_else(|| WholeGameError::NotStarted.into())
+    }
+
     pub(super) async fn start_review(
         &mut self,
         line: Vec<(NodeId, GamePosition)>,
         visits: u64,
         source: WholeGameSource,
+        force: bool,
     ) -> Result<(), AppError> {
         let running = self.running.as_ref().ok_or(WholeGameError::NoEngine)?;
         if matches!(
@@ -209,7 +277,30 @@ impl Actor {
         }
         self.cancel_review().await;
         self.review.line = line;
-        self.restore_cached_review().await?;
+        self.review.force = force;
+        self.review.completed.clear();
+        if force {
+            // This is a task boundary, not a per-result write: invalidate old
+            // best-depth caches before fresh results start arriving. Otherwise
+            // a lower-depth forced replacement could be undone on navigation.
+            if let Some(cache) = &self.cache {
+                let keys: HashSet<_> = self
+                    .review
+                    .line
+                    .iter()
+                    .map(|(_, position)| position.analysis_key())
+                    .collect();
+                for key in keys {
+                    cache.clear_position(key).await;
+                }
+            }
+            if let Some(running) = &self.running {
+                running.coordinator.discard_cached_analysis().await?;
+            }
+            self.output.clear_analysis();
+        } else {
+            self.restore_cached_review().await?;
+        }
         self.review.progress = Some(WholeGameProgress {
             source,
             completed: 0,
@@ -219,6 +310,20 @@ impl Actor {
         });
         self.continue_review().await;
         Ok(())
+    }
+
+    /// Do not reintroduce pre-force results into the freshly cleared live LRU
+    /// when the user browses a selected node before its new Final arrives.
+    pub(super) fn force_review_pending(&self, node: NodeId) -> bool {
+        self.review.force
+            && self.review.progress.as_ref().is_some_and(|progress| {
+                matches!(
+                    progress.status,
+                    WholeGameStatus::Running | WholeGameStatus::Paused
+                )
+            })
+            && !self.review.completed.contains(&node)
+            && self.review.line.iter().any(|(id, _)| *id == node)
     }
 
     pub(super) fn review_running(&self) -> bool {
@@ -288,11 +393,7 @@ impl Actor {
             if current.analysis_key() != position.analysis_key() {
                 return Err(WholeGameError::ChangedPosition.into());
             }
-            if !self.review.results.get(id).is_some_and(|result| {
-                result.key == position.analysis_key()
-                    && (result.saved.is_none() || self.can_reuse_saved_analysis())
-                    && result.response.root_info.visits >= visits
-            }) {
+            if !self.review_node_complete(*id, position, visits) {
                 remaining.push((*id, position.clone()));
             }
         }
@@ -308,6 +409,17 @@ impl Actor {
         self.submit_review_batch().await?;
         self.set_review_status(WholeGameStatus::Running);
         Ok(())
+    }
+
+    fn review_node_complete(&self, id: NodeId, position: &GamePosition, visits: u64) -> bool {
+        if self.review.force {
+            return self.review.completed.contains(&id);
+        }
+        self.review.results.get(&id).is_some_and(|result| {
+            result.key == position.analysis_key()
+                && (result.saved.is_none() || self.can_reuse_saved_analysis())
+                && result.response.root_info.visits >= visits
+        })
     }
 
     async fn submit_review_batch(&mut self) -> Result<(), AppError> {
@@ -368,6 +480,7 @@ impl Actor {
         let had_saved_focus = self
             .stored_analysis(current)
             .is_some_and(|stored| stored.saved.is_some());
+        let mut refreshed_focus = false;
         for result in results {
             let position = self
                 .document
@@ -384,7 +497,7 @@ impl Actor {
                 source: SnapshotSource::Cache,
                 visits_per_second: None,
             };
-            if self.preserves_saved_analysis(&snapshot) {
+            if !self.review.force && self.preserves_saved_analysis(&snapshot) {
                 continue;
             }
             let view = AnalysisView::from_snapshot(
@@ -393,7 +506,15 @@ impl Actor {
                 position.board.to_play(),
             )
             .map_err(analysis::AnalysisError::from)?;
+            // Forced reviews replace even deeper old file/engine results, but
+            // only after the fresh result and its coordinates have validated.
+            if self.review.force {
+                self.review.results.remove(&result.node_id);
+                self.summaries.remove(&result.node_id);
+            }
             self.retain_analysis(&snapshot);
+            self.review.completed.insert(result.node_id);
+            refreshed_focus |= result.node_id.0 == current;
             self.persist_analysis(&snapshot);
             self.summaries
                 .entry(result.node_id)
@@ -408,26 +529,21 @@ impl Actor {
         self.publish_document()?;
         // When this batch improves the displayed file result, let its full
         // candidates replace Saved too. Other review results do not take focus.
-        if had_saved_focus
+        if (had_saved_focus || (self.review.force && refreshed_focus))
             && let Some(view) = self.review_view(current)?
             && view.source != AnalysisSource::Saved
         {
             self.output.send(AppEvent::AnalysisUpdated(view));
         }
-        let can_reuse_saved = self.can_reuse_saved_analysis();
-        if let Some(progress) = &mut self.review.progress {
-            progress.completed = self
-                .review
+        let completed = self.review.progress.as_ref().map_or(0, |progress| {
+            self.review
                 .line
                 .iter()
-                .filter(|(id, position)| {
-                    self.review.results.get(id).is_some_and(|result| {
-                        result.key == position.analysis_key()
-                            && (result.saved.is_none() || can_reuse_saved)
-                            && result.response.root_info.visits >= progress.visits
-                    })
-                })
-                .count();
+                .filter(|(id, position)| self.review_node_complete(*id, position, progress.visits))
+                .count()
+        });
+        if let Some(progress) = &mut self.review.progress {
+            progress.completed = completed;
             if progress.completed == progress.total {
                 progress.status = WholeGameStatus::Completed;
             }
