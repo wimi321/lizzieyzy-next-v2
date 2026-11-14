@@ -17,6 +17,7 @@ pub mod updater;
 mod window_preferences;
 
 use app_core::{AppCore, AppSubscription};
+use std::path::PathBuf;
 use tauri::{Manager, Runtime};
 
 pub struct DesktopState {
@@ -213,6 +214,13 @@ fn context<R: Runtime>() -> tauri::Context<R> {
     tauri::generate_context!()
 }
 
+fn default_games_directory(documents: Option<PathBuf>, home: Option<PathBuf>) -> Option<PathBuf> {
+    // Missing user directories must not block startup; None uses AppCore's fallback.
+    documents
+        .or(home)
+        .map(|directory| directory.join("LizzieYzy Next 2").join("MyGames"))
+}
+
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let options = startup::StartupOptions::parse(std::env::args_os().skip(1))?;
     let (opener, incoming) = system_open::SystemOpener::channel();
@@ -240,7 +248,9 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                     options,
                     default_dir,
                     data_dir,
-                    games_directory,
+                    // Documents first; without one, the home folder; else AppCore's own.
+                    games_directory
+                        .or_else(|| default_games_directory(None, app.path().home_dir().ok())),
                     Some(std::sync::Arc::new(clipboard::NativeClipboard(
                         app.handle().clone(),
                     ))),
