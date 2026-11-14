@@ -22,6 +22,8 @@ mod engines;
 mod everyday;
 mod flash_analysis;
 pub mod fox;
+mod game;
+mod game_api;
 mod graph;
 mod inspection;
 mod java_import;
@@ -73,6 +75,7 @@ pub use everyday::{
     PngError,
 };
 pub use flash_analysis::FlashAnalysisSettings;
+pub use game::*;
 pub use graph::{AnalysisSummary, GraphPointView, GraphView};
 pub use inspection::{
     GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
@@ -96,6 +99,10 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error("game is running")]
+    GameRunning,
+    #[error(transparent)]
+    Game(#[from] GameError),
     #[error("pure network is active")]
     PureNetworkActive,
     #[error("whole-game analysis is running or paused")]
@@ -168,6 +175,9 @@ pub enum AppError {
 /// coordinator/session defaults, including the long first-start deadline.
 #[derive(Clone, Debug)]
 pub struct AppConfig {
+    pub games_directory: Option<PathBuf>,
+    pub game_random_seed: Option<u64>,
+    pub game_query_timeout: std::time::Duration,
     pub batch_clock: std::sync::Arc<dyn BatchClock>,
     /// Native host adapter; headless callers and tests never access the system clipboard.
     pub clipboard: Option<std::sync::Arc<dyn Clipboard>>,
@@ -189,6 +199,9 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            games_directory: None,
+            game_random_seed: None,
+            game_query_timeout: std::time::Duration::from_secs(120),
             batch_clock: std::sync::Arc::new(LocalBatchClock),
             clipboard: None,
             #[cfg(test)]
@@ -225,7 +238,15 @@ pub async fn spawn_with_config(
     config: AppConfig,
 ) -> Result<(AppCore, AppSubscription), AppError> {
     let directory = settings_directory.into();
-    let settings = Settings::load(&directory).await?;
+    let mut settings = Settings::load(&directory).await?;
+    if settings.games_directory.is_none() {
+        settings.games_directory = Some(
+            config
+                .games_directory
+                .clone()
+                .unwrap_or_else(|| directory.join("MyGames")),
+        );
+    }
     let support = support::spawn(
         config
             .cache_directory

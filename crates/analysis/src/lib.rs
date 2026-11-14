@@ -13,6 +13,7 @@ mod throttle;
 
 pub use delivery::AnalysisSubscription;
 pub use limits::{AnalysisLimits, LimitReason};
+pub use request::play_request;
 
 use document::{AnalysisKey, GamePosition, NodeId, Revision};
 use engine_session::{EngineHandle, QueryError, SessionError};

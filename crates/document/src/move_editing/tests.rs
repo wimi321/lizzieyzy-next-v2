@@ -582,3 +582,98 @@ fn root_stone_edit_validates_original_setup_and_is_atomic_on_illegal_replacement
     );
     assert_eq!(doc.snapshot(), before);
 }
+
+#[test]
+fn play_sequence_continues_as_fresh_branch_preserving_annotations_and_original_line() {
+    let mut doc =
+        document("(;SZ[9]C[root];B[aa]C[start](;W[bb]C[old]XX[keep];B[cc])(;W[dd]C[side]))");
+    doc.apply(Command::Step(1)).unwrap();
+    let start = doc.current();
+    let original_children = doc.node(start).unwrap().children().to_vec();
+    let original_nodes = doc.snapshot().nodes;
+    assert_atomic_undo_redo(
+        &mut doc,
+        Command::PlaySequence(vec![play(Color::White, 1, 1), play(Color::Black, 4, 4)]),
+        "(;SZ[9]C[root];B[aa]C[start](;W[bb]C[old]XX[keep];B[cc])(;W[dd]C[side])(;W[bb];B[ee]))",
+    );
+    let children = doc.node(start).unwrap().children();
+    assert_eq!(&children[..2], original_children);
+    let fresh = children[2];
+    assert_ne!(fresh, original_children[0]);
+    assert_eq!(doc.node(doc.current()).unwrap().parent(), Some(fresh));
+    assert_eq!(doc.node(fresh).unwrap().comment(), None);
+    for original in original_nodes.into_iter().filter(|node| node.id() != start) {
+        assert_eq!(doc.node(original.id()).unwrap(), &original);
+    }
+}
+
+#[test]
+fn play_sequence_best_pv_is_one_edit_and_advances_even_at_main_leaf() {
+    let mut doc = document("(;SZ[9];B[aa])");
+    doc.apply(Command::Step(1)).unwrap();
+    let start = doc.current();
+    assert_atomic_undo_redo(
+        &mut doc,
+        Command::PlaySequence(vec![
+            play(Color::White, 1, 1),
+            Move::Pass(Color::Black),
+            play(Color::White, 2, 2),
+        ]),
+        "(;SZ[9];B[aa];W[bb];B[];W[cc])",
+    );
+    let final_node = doc.current();
+    assert_eq!(doc.position_at(final_node).unwrap().moves.len(), 4);
+    assert_ne!(final_node, start);
+    doc.undo().unwrap();
+    assert_eq!(doc.current(), start);
+    assert!(doc.node(start).unwrap().children().is_empty());
+    assert!(doc.node(final_node).is_err());
+    assert!(!doc.can_undo());
+    doc.redo().unwrap();
+    assert_eq!(doc.current(), final_node);
+}
+
+#[test]
+fn play_sequence_invalid_middle_move_is_atomic_and_does_not_consume_ids_or_redo() {
+    let mut doc = GameDocument::new();
+    doc.apply(Command::PlaySequence(vec![play(Color::Black, 0, 0)]))
+        .unwrap();
+    let first = doc.current();
+    doc.undo().unwrap();
+    let before = doc.snapshot();
+    let revision = doc.revision();
+    for moves in [
+        vec![play(Color::Black, 1, 1), play(Color::White, 1, 1)],
+        vec![play(Color::Black, 1, 1), play(Color::Black, 2, 2)],
+        vec![play(Color::Black, 1, 1), play(Color::White, 19, 1)],
+    ] {
+        assert!(doc.apply(Command::PlaySequence(moves)).is_err());
+        assert_eq!(doc.snapshot(), before);
+        assert_eq!(doc.revision(), revision);
+        assert!(doc.can_redo());
+        assert!(!doc.can_undo());
+    }
+    assert_eq!(doc.apply(Command::PlaySequence(vec![])).unwrap(), revision);
+    assert_eq!(doc.snapshot(), before);
+    assert!(doc.can_redo());
+    doc.apply(Command::PlaySequence(vec![play(Color::Black, 1, 1)]))
+        .unwrap();
+    assert_eq!(doc.current().0, first.0 + 1);
+    assert!(!doc.can_redo());
+}
+
+#[test]
+fn play_sequence_cannot_reuse_an_imported_continuation_to_bypass_ko() {
+    let mut doc = document("(;SZ[5]AB[ab][ba][bc]AW[bb][ca][cc][db];B[cb];W[bb])");
+    doc.apply(Command::Step(1)).unwrap();
+    let before = doc.snapshot();
+    assert!(matches!(
+        doc.apply(Command::PlaySequence(vec![play(Color::White, 1, 1)])),
+        Err(DocError::IllegalMove {
+            reason: IllegalMove::Ko { .. },
+            ..
+        })
+    ));
+    assert_eq!(doc.snapshot(), before);
+    assert!(!doc.can_undo());
+}

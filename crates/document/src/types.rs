@@ -46,6 +46,9 @@ pub enum Command {
     },
     /// Always creates a distinct variation and keeps the current focus.
     AddVariation(Vec<Move>),
+    /// Append a fresh branch and advance to its last move. The entire legal
+    /// sequence is one undo item; existing matching continuations are kept.
+    PlaySequence(Vec<Move>),
     GoTo(NodeId),
     /// Negative: ancestors. Positive: first children. Stops at either boundary.
     Step(i32),

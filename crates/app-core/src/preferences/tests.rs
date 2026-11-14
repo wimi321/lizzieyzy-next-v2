@@ -78,6 +78,7 @@ async fn daily_check_claim_is_persisted_before_network_and_survives_restarts() {
 async fn failed_preference_save_keeps_previous_state_and_check_claim() {
     let directory = tempfile::tempdir().unwrap();
     let (core, _) = crate::spawn(directory.path()).await.unwrap();
+    let original = core.settings().await.unwrap();
     std::fs::create_dir(directory.path().join("settings.json")).unwrap();
     assert!(core.set_language(UiLanguage::En).await.is_err());
     assert!(core.set_auto_check_updates(false).await.is_err());
@@ -85,7 +86,7 @@ async fn failed_preference_save_keeps_previous_state_and_check_claim() {
     assert!(core.set_ui_scale(1.5).await.is_err());
     assert!(core.set_play_sound(false).await.is_err());
     assert!(core.claim_daily_update_check(100).await.is_err());
-    assert_eq!(core.settings().await.unwrap(), Settings::default());
+    assert_eq!(core.settings().await.unwrap(), original);
     core.shutdown().await.unwrap();
 }
 

@@ -31,6 +31,9 @@ impl Actor {
     }
 
     pub(super) fn pondering(&self) -> bool {
+        if let Some(ponder) = self.game_pondering() {
+            return ponder;
+        }
         if self.benchmark_active() {
             return false;
         }

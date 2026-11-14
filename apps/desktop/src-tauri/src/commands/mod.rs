@@ -21,3 +21,5 @@ pub mod support;
 pub mod tsumego;
 pub mod variation;
 pub mod weights;
+
+pub mod game;

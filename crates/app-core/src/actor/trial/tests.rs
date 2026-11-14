@@ -21,6 +21,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
     config.session.shutdown_timeout = Duration::from_secs(60);
     (
         Actor {
+            game: None,
             document: GameDocument::new(),
             file_name: None,
             file_state: crate::actor::editing::FileState::new(&GameDocument::new(), None),

@@ -2,6 +2,7 @@
 use std::collections::BTreeMap;
 
 use crate::cli::ReportPerspective;
+use crate::play_script::PlayScript;
 
 use serde_json::{Value, json};
 use thiserror::Error;
@@ -53,6 +54,8 @@ pub struct Query {
     pub turns: Vec<usize>,
     pub priorities: Vec<i64>,
     pub max_visits: u64,
+    pub max_time: Option<f64>,
+    pub script: PlayScript,
     pub interval: Option<f64>,
     pub first_report: f64,
     pub ownership: bool,
@@ -144,6 +147,7 @@ impl Query {
         if v.get("overrideSettings").is_some_and(|x| !x.is_object()) {
             return Err(invalid("overrideSettings"));
         }
+        let max_time = number(&v["overrideSettings"], "maxTime", false)?;
         let allow_suicide = rules
             .as_str()
             .is_some_and(|r| matches!(r, "new-zealand" | "tromp-taylor"))
@@ -158,6 +162,8 @@ impl Query {
             turns,
             priorities,
             max_visits,
+            max_time,
+            script: PlayScript::default(),
             interval,
             first_report,
             ownership,
@@ -313,6 +319,9 @@ impl Query {
                 .collect();
             values.push(probability);
             result["policy"] = json!(values);
+        }
+        if let Some(step) = self.script.turn(turn) {
+            step.apply(&mut result, visits);
         }
         let white = match perspective {
             ReportPerspective::Black => false,

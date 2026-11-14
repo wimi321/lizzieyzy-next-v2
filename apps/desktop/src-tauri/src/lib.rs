@@ -17,6 +17,7 @@ pub mod updater;
 mod window_preferences;
 
 use app_core::{AppCore, AppSubscription};
+use std::path::PathBuf;
 use tauri::{Manager, Runtime};
 
 pub struct DesktopState {
@@ -48,6 +49,16 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::everyday::save_png,
             commands::everyday::copy_png,
             commands::everyday::transform_board,
+            commands::game::start_game,
+            commands::game::pause_game,
+            commands::game::resume_game,
+            commands::game::stop_game,
+            commands::game::resign_game,
+            commands::game::take_back,
+            commands::game::continue_game,
+            commands::game::set_ai_player,
+            commands::game::play_best_move,
+            commands::game::game_view,
             commands::document::play,
             commands::document::step,
             commands::document::go_to,
@@ -180,6 +191,13 @@ fn context<R: Runtime>() -> tauri::Context<R> {
     tauri::generate_context!()
 }
 
+fn default_games_directory(documents: Option<PathBuf>, home: Option<PathBuf>) -> Option<PathBuf> {
+    // Missing user directories must not block startup; None uses AppCore's fallback.
+    documents
+        .or(home)
+        .map(|directory| directory.join("LizzieYzy Next 2").join("MyGames"))
+}
+
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let options = startup::StartupOptions::parse(std::env::args_os().skip(1))?;
     let (opener, incoming) = system_open::SystemOpener::channel();
@@ -203,6 +221,10 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                     options,
                     default_dir,
                     data_dir,
+                    default_games_directory(
+                        app.path().document_dir().ok(),
+                        app.path().home_dir().ok(),
+                    ),
                     Some(std::sync::Arc::new(clipboard::NativeClipboard(
                         app.handle().clone(),
                     ))),

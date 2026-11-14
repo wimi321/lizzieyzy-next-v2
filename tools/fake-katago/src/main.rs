@@ -1,6 +1,7 @@
 mod benchmark;
 mod cli;
 mod model;
+mod play_script;
 
 use std::fs::OpenOptions;
 use std::io::{self, BufRead, Write};
@@ -10,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use cli::{Options, USAGE};
 use model::Query;
+use play_script::PlayScript;
 use serde_json::{Value, json};
 use thiserror::Error;
 
@@ -19,6 +21,8 @@ enum RunError {
     Io(#[from] io::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Script(#[from] play_script::ScriptError),
     #[error("injected crash")]
     Crash,
     #[error("模型找不到")]
@@ -62,6 +66,7 @@ struct Engine<W: Write> {
     queries: u64,
     lines: u64,
     hung: bool,
+    script: PlayScript,
 }
 
 impl<W: Write> Engine<W> {
@@ -131,10 +136,20 @@ impl<W: Write> Engine<W> {
             }
             return Ok(());
         }
-        let query = match Query::parse(&value) {
+        let mut query = match Query::parse(&value) {
             Ok(query) => query,
             Err(error) => return self.error(&value, error.field, &error.message),
         };
+        query.script.clone_from(&self.script);
+        for &turn in &query.turns {
+            if let Some(error) = query
+                .script
+                .turn(turn)
+                .and_then(|step| step.error.as_deref())
+            {
+                return self.error(&value, "playScript", error);
+            }
+        }
         self.queries = self.queries.saturating_add(1);
         if self
             .options
@@ -239,29 +254,52 @@ impl<W: Write> Engine<W> {
     }
 
     fn search_deadline(&self, search: &Running) -> f64 {
-        search.start + search.job.query.max_visits as f64 / self.options.visits_per_sec
+        search.start
+            + (search.job.query.max_visits as f64 / self.options.visits_per_sec)
+                .min(search.job.query.max_time.unwrap_or(f64::INFINITY))
+    }
+
+    fn final_visits(&self, search: &Running) -> u64 {
+        let query = &search.job.query;
+        query.max_time.map_or(query.max_visits, |seconds| {
+            ((seconds * self.options.visits_per_sec) as u64)
+                .max(1)
+                .min(query.max_visits)
+        })
     }
 
     fn next_event(&self) -> Option<(usize, f64)> {
         self.running
             .iter()
             .enumerate()
+            .filter(|(_, search)| {
+                !search
+                    .job
+                    .query
+                    .script
+                    .turn(search.job.turn)
+                    .is_some_and(|step| step.blocked())
+            })
             .map(|(i, search)| (i, search.next_report.min(self.search_deadline(search))))
             .min_by(|a, b| a.1.total_cmp(&b.1))
     }
 
     fn advance(&mut self) -> Result<(), RunError> {
+        self.advance_at(self.now())
+    }
+
+    fn advance_at(&mut self, now: f64) -> Result<(), RunError> {
         let Some((index, due)) = self.next_event() else {
             return Ok(());
         };
-        if due > self.now() {
+        if due > now {
             return Ok(());
         }
         let mut search = self.running.remove(index);
         if self.search_deadline(&search) <= search.next_report {
             self.emit(search.job.query.response(
                 search.job.turn,
-                search.job.query.max_visits,
+                self.final_visits(&search),
                 false,
                 self.options.perspective(),
             ))?;
@@ -372,7 +410,12 @@ impl<W: Write> Engine<W> {
     fn wait_duration(&self, deadline: f64) -> Duration {
         let seconds = ((deadline - self.now()) / self.options.time_scale).clamp(0.0, 86_400.0);
         // The clamped finite range is always representable; fallback also avoids a panic.
-        Duration::try_from_secs_f64(seconds).unwrap_or(Duration::from_secs(86_400))
+        let duration = Duration::try_from_secs_f64(seconds).unwrap_or(Duration::from_secs(86_400));
+        if self.script.has_gate() {
+            duration.min(Duration::from_millis(10))
+        } else {
+            duration
+        }
     }
 }
 
@@ -418,6 +461,7 @@ fn run(options: Options) -> Result<(), RunError> {
     if options.fail_startup && claim_fault(options.fault_once_file.as_deref())? {
         return Err(RunError::MissingModel);
     }
+    let script = PlayScript::load(options.play_script.as_deref())?;
     let (sender, receiver) = mpsc::sync_channel(64);
     std::thread::Builder::new()
         .name("fake-katago-stdin".into())
@@ -439,9 +483,14 @@ fn run(options: Options) -> Result<(), RunError> {
         queries: 0,
         lines: 0,
         hung: false,
+        script,
     }
     .run(receiver)
 }
+
+#[cfg(test)]
+#[path = "scheduler_tests.rs"]
+mod scheduler_tests;
 
 fn main() -> std::process::ExitCode {
     let options = match Options::parse(std::env::args().skip(1)) {

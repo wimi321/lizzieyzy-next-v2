@@ -1,5 +1,7 @@
 import type {
   AnalysisView,
+  GameSetup,
+  GameView,
   BatchAnalysisStatus,
   FlashAnalysisSettings,
   AppEvent,
@@ -571,3 +573,47 @@ export const defaultBatchAnalysisStatus: BatchAnalysisStatus = {
   phase: "Idle", items: [], current_index: null, reason: null,
 };
 export const defaultFlashAnalysisSettings: FlashAnalysisSettings = { visits: 1, always_override: false };
+
+/** P3-09 fixture defaults only; all play commands are explicitly scripted. */
+export const defaultGameSetup: Required<GameSetup> = {
+  black: { type: "Human" },
+  white: { type: "Ai", data: { type: "KataGo", data: {
+    seconds: 2, visits: null, pure_network: false,
+    resign: { after_moves: 150, consecutive: 2, below_winrate: 0.05 }, random_opening: null,
+  } } },
+  start: { type: "NewBoard", data: {
+    width: 19, height: 19, komi: 7.5, handicap: 0, rules: "chinese",
+    black_name: null, black_rank: null, white_name: null, white_rank: null,
+  } },
+  human_clock: null, ponder: true, auto_save: true,
+};
+export const defaultGameView: Required<GameView> = {
+  phase: "Playing", black: defaultGameSetup.black, white: defaultGameSetup.white,
+  to_play: "Black", ai_thinking: false, black_clock: null, white_clock: null,
+  move_number: 0, start_node: 0, latest_node: 0, result: null, end_reason: null, error: null,
+};
+
+export function fillGameSetupDefaults(setup: GameSetup): void {
+  for (const key of Object.keys(defaultGameSetup) as (keyof GameSetup)[]) gameDefaultField(setup, key, structuredClone(defaultGameSetup[key]));
+  for (const player of [setup.black, setup.white]) {
+    if (player?.type === "Ai" && player.data.type === "KataGo") {
+      const defaults = defaultGameSetup.white;
+      if (defaults.type === "Ai" && defaults.data.type === "KataGo") {
+        for (const key of Object.keys(defaults.data.data) as (keyof typeof defaults.data.data)[]) gameDefaultField(player.data.data, key, structuredClone(defaults.data.data[key]));
+      }
+    }
+  }
+  if (setup.human_clock) {
+    gameDefaultField(setup.human_clock, "main_seconds", 1200);
+    gameDefaultField(setup.human_clock, "byoyomi_seconds", 30);
+    gameDefaultField(setup.human_clock, "periods", 3);
+  }
+}
+
+export function fillGameDefaults(view: GameView): void {
+  for (const key of Object.keys(defaultGameView) as (keyof GameView)[]) gameDefaultField(view, key, structuredClone(defaultGameView[key]));
+}
+
+function gameDefaultField<T extends object, K extends keyof T>(target: T, key: K, value: T[K]): void {
+  if (target[key] === undefined) Object.defineProperty(target, key, { value, writable: true, configurable: true });
+}

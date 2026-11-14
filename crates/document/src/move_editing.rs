@@ -179,15 +179,6 @@ impl GameDocument {
     }
 
     pub(crate) fn prepare_add_variation(&self, moves: &[Move]) -> Result<Option<Edit>, DocError> {
-        if moves.is_empty() {
-            return Ok(None);
-        }
-        // Validate the entire supplied PV before committing. It is a command,
-        // unlike the partial-result preview query; passes are real SGF moves.
-        let preview = self.preview_variation(self.current, moves)?;
-        if let Some(error) = preview.stop_reason {
-            return Err(error);
-        }
         let mut ancestor = self.current;
         let mut side_branch = false;
         while let Some(parent) = self.node(ancestor)?.parent {
@@ -197,6 +188,23 @@ impl GameDocument {
         // LizzieFrame routes a non-main leaf through playCurrentVariation,
         // which extends the branch and leaves focus at its new final move.
         let focus_at_end = side_branch && self.node(self.current)?.children.is_empty();
+        self.prepare_play_sequence(moves, focus_at_end)
+    }
+
+    pub(crate) fn prepare_play_sequence(
+        &self,
+        moves: &[Move],
+        focus_at_end: bool,
+    ) -> Result<Option<Edit>, DocError> {
+        if moves.is_empty() {
+            return Ok(None);
+        }
+        // Validate the entire supplied PV before committing. It is a command,
+        // unlike the partial-result preview query; passes are real SGF moves.
+        let preview = self.preview_variation(self.current, moves)?;
+        if let Some(error) = preview.stop_reason {
+            return Err(error);
+        }
         let mut patch = PatchBuilder::new(self);
         let mut parent = self.current;
         for &mv in moves {
