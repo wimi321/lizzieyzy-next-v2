@@ -38,6 +38,7 @@ fn profile(directory: &Path, speed: u64) -> EngineProfile {
     std::fs::write(&model, "fake model").unwrap();
     std::fs::write(&config, "numAnalysisThreads = 1\n").unwrap();
     EngineProfile {
+        human_model: None,
         program,
         model,
         config,

@@ -102,6 +102,10 @@ pub(crate) fn detect_with_catalog(
         .iter()
         .filter_map(|path| catalog.identify(path).map(|model| (path.clone(), model)))
         .collect();
+    candidates
+        .result
+        .models
+        .retain(|path| !catalog.is_human_style(path, catalog_models.get(path)));
     candidates.result.models.sort_by_cached_key(|path| {
         let name = filename(path);
         let family = if name.starts_with("kata1-") {

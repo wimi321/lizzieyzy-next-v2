@@ -303,6 +303,7 @@ async fn generated_and_restored_analysis_use_fresh_namespaces_and_exact_setup_qu
     std::fs::write(&model, "fake model").unwrap();
     std::fs::write(&config_path, "fake config").unwrap();
     let engine = EngineProfile {
+        human_model: None,
         program: fake_katago::binary_path().unwrap(),
         model,
         config: config_path,

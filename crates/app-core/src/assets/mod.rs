@@ -3,6 +3,7 @@
 
 mod acceleration;
 mod catalog;
+mod humansl;
 mod install;
 mod runtime;
 mod runtime_archive;
@@ -23,9 +24,10 @@ use tokio::{
 
 pub(crate) use catalog::AssetCatalog;
 use catalog::AssetSpec;
+pub(crate) use humansl::{HumanModelBackend, human_model_backend};
 pub use types::{
     AccelerationPlan, AccelerationReason, AssetDownloadStatus, AssetError, DownloadPhase,
-    OfficialWeight, RuntimeInstallation,
+    HumanSlModelStatus, OfficialWeight, RuntimeInstallation,
 };
 
 type Reply = oneshot::Sender<Result<AssetDownloadStatus, AssetError>>;
@@ -33,6 +35,11 @@ enum Command {
     Start(String, Reply),
     Install(String, Reply),
     Cancel(Reply),
+    Pause(Reply),
+    ImportHumanSl(
+        PathBuf,
+        oneshot::Sender<Result<HumanSlModelStatus, AssetError>>,
+    ),
     Shutdown(oneshot::Sender<Result<(), AssetError>>),
 }
 
@@ -129,6 +136,10 @@ impl AssetHandle {
         result
     }
 
+    pub async fn pause(&self) -> Result<AssetDownloadStatus, AssetError> {
+        self.request(Command::Pause).await
+    }
+
     pub async fn cancel(&self) -> Result<AssetDownloadStatus, AssetError> {
         self.request(Command::Cancel).await
     }
@@ -140,7 +151,12 @@ impl AssetHandle {
     pub async fn list_weights(&self) -> Result<Vec<OfficialWeight>, AssetError> {
         self.ensure_open()?;
         let mut weights = Vec::new();
-        for spec in self.catalog.specs.iter().filter(|spec| spec.weight) {
+        for spec in self
+            .catalog
+            .specs
+            .iter()
+            .filter(|spec| spec.weight && !spec.human_style)
+        {
             let path = self.directory.join(spec.relative_path());
             let downloaded = transfer::verified(&path, spec).await?;
             weights.push(spec.weight_view(downloaded, path.to_string_lossy().into_owned()));
@@ -152,7 +168,7 @@ impl AssetHandle {
     pub async fn verified_weight(&self, id: String) -> Result<PathBuf, AssetError> {
         self.ensure_open()?;
         let spec = self.catalog.get(&id)?;
-        if !spec.weight {
+        if !spec.weight || spec.human_style {
             return Err(AssetError::UnknownAsset(id));
         }
         let path = self.directory.join(spec.relative_path());
@@ -258,7 +274,11 @@ async fn run(
                     break;
                 }
             }
-            Command::Cancel(reply) => {
+            Command::ImportHumanSl(source, reply) => {
+                let result = humansl::import(&directory, &catalog, source).await;
+                let _ = reply.send(result);
+            }
+            Command::Pause(reply) | Command::Cancel(reply) => {
                 let _ = reply.send(Ok(events.borrow().clone()));
             }
             Command::Shutdown(reply) => {
@@ -306,6 +326,7 @@ async fn begin_install(
 enum Outcome {
     Complete(Result<bool, AssetError>),
     Cancel(Reply),
+    Pause(Reply),
     Stop(Option<oneshot::Sender<Result<(), AssetError>>>),
 }
 
@@ -345,25 +366,7 @@ async fn download(
             return false;
         }
     };
-    let outcome = {
-        let transfer = transfer::transfer(spec, &target, &mut file, events);
-        tokio::pin!(transfer);
-        loop {
-            tokio::select! {
-                result = &mut transfer => break Outcome::Complete(result),
-                command = commands.recv() => match command {
-                    Some(Command::Install(_, reply)) => { let _ = reply.send(Err(AssetError::Busy)); }
-                    Some(Command::Start(id, reply)) => {
-                        let result = if id == spec.id { Ok(events.borrow().clone()) } else { Err(AssetError::Busy) };
-                        let _ = reply.send(result);
-                    }
-                    Some(Command::Cancel(reply)) => break Outcome::Cancel(reply),
-                    Some(Command::Shutdown(reply)) => break Outcome::Stop(Some(reply)),
-                    None => break Outcome::Stop(None),
-                }
-            }
-        }
-    };
+    let outcome = transfer_until_done(spec, &target, &mut file, commands, events).await;
     // Drain any in-flight Tokio filesystem operation before closing/removing;
     // Windows otherwise can retain the pending write handle after cancellation.
     let _ = file.flush().await;
@@ -398,6 +401,10 @@ async fn download(
                     }
                     false
                 }
+                Outcome::Pause(reply) => {
+                    let _ = reply.send(Err(AssetError::Cancelled));
+                    false
+                }
                 Outcome::Cancel(reply) => {
                     let result = cleanup.map(|()| {
                         events.send_modify(|status| {
@@ -424,6 +431,78 @@ async fn download(
                     }
                     true
                 }
+            }
+        }
+    }
+}
+
+async fn transfer_until_done(
+    spec: &AssetSpec,
+    target: &std::path::Path,
+    file: &mut tokio::fs::File,
+    commands: &mut mpsc::Receiver<Command>,
+    events: &watch::Sender<AssetDownloadStatus>,
+) -> Outcome {
+    loop {
+        let outcome = {
+            let transfer = transfer::transfer(spec, target, file, events);
+            tokio::pin!(transfer);
+            loop {
+                tokio::select! {
+                    result = &mut transfer => break Outcome::Complete(result),
+                    command = commands.recv() => match command {
+                        Some(Command::ImportHumanSl(_, reply)) => { let _ = reply.send(Err(AssetError::Busy)); }
+                        Some(Command::Install(_, reply)) => { let _ = reply.send(Err(AssetError::Busy)); }
+                        Some(Command::Start(id, reply)) => {
+                            let result = if id == spec.id { Ok(events.borrow().clone()) } else { Err(AssetError::Busy) };
+                            let _ = reply.send(result);
+                        }
+                        Some(Command::Pause(reply)) => break Outcome::Pause(reply),
+                        Some(Command::Cancel(reply)) => break Outcome::Cancel(reply),
+                        Some(Command::Shutdown(reply)) => break Outcome::Stop(Some(reply)),
+                        None => break Outcome::Stop(None),
+                    }
+                }
+            }
+        };
+        let Outcome::Pause(reply) = outcome else {
+            return outcome;
+        };
+        if let Err(error) = file.flush().await {
+            let _ = reply.send(Err(AssetError::Worker(error.to_string())));
+            return Outcome::Complete(Err(error.into()));
+        }
+        let received = match file.metadata().await {
+            Ok(metadata) => metadata.len(),
+            Err(error) => {
+                let _ = reply.send(Err(AssetError::Worker(error.to_string())));
+                return Outcome::Complete(Err(error.into()));
+            }
+        };
+        events.send_modify(|status| {
+            status.phase = DownloadPhase::Paused;
+            status.downloaded_bytes = received;
+        });
+        let _ = reply.send(Ok(events.borrow().clone()));
+        loop {
+            match commands.recv().await {
+                Some(Command::Start(id, reply)) if id == spec.id => {
+                    events.send_modify(|status| status.phase = DownloadPhase::Downloading);
+                    let _ = reply.send(Ok(events.borrow().clone()));
+                    break;
+                }
+                Some(Command::Start(_, reply) | Command::Install(_, reply)) => {
+                    let _ = reply.send(Err(AssetError::Busy));
+                }
+                Some(Command::ImportHumanSl(_, reply)) => {
+                    let _ = reply.send(Err(AssetError::Busy));
+                }
+                Some(Command::Pause(reply)) => {
+                    let _ = reply.send(Ok(events.borrow().clone()));
+                }
+                Some(Command::Cancel(reply)) => return Outcome::Cancel(reply),
+                Some(Command::Shutdown(reply)) => return Outcome::Stop(Some(reply)),
+                None => return Outcome::Stop(None),
             }
         }
     }

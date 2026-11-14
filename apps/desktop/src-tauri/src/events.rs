@@ -47,9 +47,9 @@ impl EventBridge {
 async fn forward(mut subscription: AppSubscription, mut requests: mpsc::Receiver<Request>) {
     let mut active: Option<(u32, Channel<AppEvent>)> = None;
     let mut next_id = Some(1_u32);
-    // At most ten state events (document, engine, review, batch, board sync, benchmark,
-    // live analysis state, asset download, application update, game), retained
-    // in their original publication order.
+    // Keep one latest event per state domain, including coaching state/summary,
+    // retained in their original publication order. Individual move ratings
+    // are transient; CoachView contains the current rating for reconnection.
     // Analysis is deliberately never replayed: pausing can invalidate it without
     // a document change. Only AppCore decides which new analysis may be sent.
     let mut replay = Vec::<AppEvent>::new();
@@ -87,10 +87,7 @@ async fn forward(mut subscription: AppSubscription, mut requests: mpsc::Receiver
             // mailbox while disconnected, including a completed final result.
             event = subscription.recv(), if active.is_some() => {
                 let Some(event) = event else { break };
-                if !matches!(event, AppEvent::AnalysisUpdated(_) | AppEvent::GtpConsoleLine(_) | AppEvent::OpenFailed { .. }) {
-                    replay.retain(|cached| std::mem::discriminant(cached) != std::mem::discriminant(&event));
-                    replay.push(event.clone());
-                }
+                remember_state(&mut replay, &event);
                 if let Some((_, channel)) = &active
                     && channel.send(event).is_err()
                 {
@@ -100,3 +97,24 @@ async fn forward(mut subscription: AppSubscription, mut requests: mpsc::Receiver
         }
     }
 }
+
+fn remember_state(replay: &mut Vec<AppEvent>, event: &AppEvent) {
+    if matches!(
+        event,
+        AppEvent::AnalysisUpdated(_)
+            | AppEvent::CoachMoveRated(_)
+            | AppEvent::GtpConsoleLine(_)
+            | AppEvent::OpenFailed { .. }
+    ) {
+        return;
+    }
+    // A new coaching session must not replay the previous game's summary.
+    if matches!(event, AppEvent::CoachUpdated(view) if view.summary.is_none()) {
+        replay.retain(|cached| !matches!(cached, AppEvent::CoachSummary(_)));
+    }
+    replay.retain(|cached| std::mem::discriminant(cached) != std::mem::discriminant(event));
+    replay.push(event.clone());
+}
+
+#[cfg(test)]
+mod tests;

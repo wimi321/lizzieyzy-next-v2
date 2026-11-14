@@ -25,6 +25,27 @@ fn fail_startup_reports_missing_model_and_exit_one() {
 }
 
 #[test]
+fn fail_human_model_only_rejects_loaded_human_model_and_preserves_plain_analysis() {
+    let mut plain = Engine::spawn(&["--fail-human-model"]);
+    plain.ready();
+    plain.send(&query("plain"));
+    assert_eq!(plain.recv()["id"], "plain");
+    plain.finish();
+
+    let mut human = Engine::spawn(&["--fail-human-model", "-human-model", "human.bin.gz"]);
+    assert_eq!(human.raw(), None);
+    let (status, stderr) = human.exited();
+    assert_eq!(status.code(), Some(1));
+    assert_eq!(stderr, "injected human model load failure");
+
+    let mut restored = Engine::spawn(&["--fail-human-model"]);
+    restored.ready();
+    restored.send(&query("restored"));
+    assert_eq!(restored.recv()["id"], "restored");
+    restored.finish();
+}
+
+#[test]
 fn crash_after_queries_counts_analysis_requests_and_exits_on_threshold() {
     let mut engine = Engine::spawn(&["--crash-after-queries", "2"]);
     engine.ready();

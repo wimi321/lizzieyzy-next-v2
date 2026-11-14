@@ -50,6 +50,28 @@ fn invalid_analysis_thread_override_is_rejected() {
 }
 
 #[test]
+fn human_model_is_explicit_and_cannot_be_repeated() {
+    assert!(!parse(&[]).human_model);
+    assert!(parse(&["-human-model", "unused-human.bin.gz"]).human_model);
+    assert!(
+        Options::parse(
+            ["analysis", "-human-model", "one", "-human-model", "two"].map(str::to_owned)
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn human_model_failure_is_opt_in_and_cannot_be_repeated() {
+    assert!(!parse(&[]).fail_human_model);
+    assert!(parse(&["--fail-human-model"]).fail_human_model);
+    assert!(
+        Options::parse(["analysis", "--fail-human-model", "--fail-human-model"].map(str::to_owned))
+            .is_err()
+    );
+}
+
+#[test]
 fn empty_override_removes_the_key_and_restores_default_threads() {
     assert_eq!(
         parse(&[

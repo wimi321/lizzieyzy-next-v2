@@ -112,7 +112,7 @@ fn output_version(output: &str) -> Option<String> {
 }
 
 /// An unknown version never satisfies a catalog model's minimum requirement.
-pub(super) fn supports(version: &str, minimum: &str) -> bool {
+pub(crate) fn supports(version: &str, minimum: &str) -> bool {
     match (parse(version), parse(minimum)) {
         (Some(version), Some(minimum)) => version >= minimum,
         _ => false,

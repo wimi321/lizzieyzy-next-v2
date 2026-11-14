@@ -2,6 +2,10 @@ import type {
   AnalysisView,
   GameSetup,
   GameView,
+  CoachSetup,
+  CoachView,
+  CoachMoveRated,
+  CoachSummary,
   MatchView,
   GtpConsoleLine,
   BatchAnalysisStatus,
@@ -604,6 +608,10 @@ export function fillGameSetupDefaults(setup: GameSetup): void {
         for (const key of Object.keys(defaults.data.data) as (keyof typeof defaults.data.data)[]) gameDefaultField(player.data.data, key, structuredClone(defaults.data.data[key]));
       }
     }
+    if (player?.type === "Ai" && player.data.type === "HumanSl") {
+      gameDefaultField(player.data.data, "rank", { type: "Dan", data: 3 });
+      gameDefaultField(player.data.data, "pace", "Natural");
+    }
   }
   if (setup.human_clock) {
     gameDefaultField(setup.human_clock, "main_seconds", 1200);
@@ -648,4 +656,46 @@ export function fillMatchDefaults(view: MatchView): void {
 export function fillGtpLineDefaults(line: GtpConsoleLine): void {
   gameDefaultField(line, "engine_id", ""); gameDefaultField(line, "sequence", 0);
   gameDefaultField(line, "direction", "Received"); gameDefaultField(line, "text", "");
+}
+
+/** P3-12 fixed snapshots only. Ratings, move selection and counters are scripted. */
+export const defaultCoachSetup: Required<CoachSetup> = {
+  rank: { type: "Dan", data: 3 }, mode: "LiveFeedback", color: "Random", pace: "Natural",
+  handicap: 0, from_current_position: false, width: 19, height: 19, auto_save: true,
+};
+export const defaultCoachView: Required<CoachView> = {
+  active: false,
+  setup: defaultCoachSetup, human_color: "Black", awaiting_decision: false,
+  hints: 0, take_backs: 0, last_rating: null, summary: null,
+};
+const defaultCoachRating: Required<CoachMoveRated> = {
+  node_id: 0, move_number: 0, color: "Black", verdict: "Good", winrate_before: 0.5,
+  winrate_after: 0.5, winrate_change: 0, points_lost: 0, human_share: null,
+  best: { mv: { type: "Pass", data: { color: "Black" } }, human_share: null },
+};
+const defaultCoachSummary: Required<CoachSummary> = {
+  result: null, end_reason: null, total_moves: 0, blunders: 0, hints: 0, take_backs: 0, worst_moves: [],
+};
+export function fillCoachSetupDefaults(setup: CoachSetup): void {
+  for (const key of Object.keys(defaultCoachSetup) as (keyof CoachSetup)[]) gameDefaultField(setup, key, structuredClone(defaultCoachSetup[key]));
+}
+export function fillCoachRatingDefaults(rating: CoachMoveRated): void {
+  for (const key of Object.keys(defaultCoachRating) as (keyof CoachMoveRated)[]) gameDefaultField(rating, key, structuredClone(defaultCoachRating[key]));
+  if (rating.best) {
+    gameDefaultField(rating.best, "mv", { type: "Pass", data: { color: "Black" } });
+    gameDefaultField(rating.best, "human_share", null);
+  }
+}
+export function fillCoachSummaryDefaults(summary: CoachSummary): void {
+  for (const key of Object.keys(defaultCoachSummary) as (keyof CoachSummary)[]) gameDefaultField(summary, key, structuredClone(defaultCoachSummary[key]));
+  for (const move of summary.worst_moves ?? []) {
+    gameDefaultField(move, "node_id", 0); gameDefaultField(move, "move_number", 0);
+    gameDefaultField(move, "verdict", "Good"); gameDefaultField(move, "points_lost", 0);
+  }
+}
+export function fillCoachDefaults(view: CoachView): void {
+  for (const key of Object.keys(defaultCoachView) as (keyof CoachView)[]) gameDefaultField(view, key, structuredClone(defaultCoachView[key]));
+  fillCoachSetupDefaults(view.setup!);
+  if (view.last_rating) fillCoachRatingDefaults(view.last_rating);
+  if (view.summary) fillCoachSummaryDefaults(view.summary);
 }

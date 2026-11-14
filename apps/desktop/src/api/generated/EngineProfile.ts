@@ -4,4 +4,4 @@
  * A reusable engine profile. Empty paths remain editable settings;
  * they become readable engine failures when the profile is started.
  */
-export type EngineProfile = { program: string, model: string, config: string, extra_args: Array<string>, canonical_model_name?: string, };
+export type EngineProfile = { program: string, model: string, human_model?: string, config: string, extra_args: Array<string>, canonical_model_name?: string, };

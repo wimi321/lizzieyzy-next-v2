@@ -7,6 +7,8 @@ use crate::play_script::PlayScript;
 use serde_json::{Value, json};
 use thiserror::Error;
 
+mod humansl;
+
 const LETTERS: &[u8] = b"ABCDEFGHJKLMNOPQRSTUVWXYZ";
 pub const FIELDS: &[&str] = &[
     "id",
@@ -27,6 +29,7 @@ pub const FIELDS: &[&str] = &[
     "priority",
     "priorities",
     "overrideSettings",
+    "allowMoves",
 ];
 
 #[derive(Debug, Error)]
@@ -56,6 +59,9 @@ pub struct Query {
     pub max_visits: u64,
     pub max_time: Option<f64>,
     pub script: PlayScript,
+    pub human_model: bool,
+    pub human_profile: Option<String>,
+    allow_moves: Vec<humansl::Allowance>,
     pub interval: Option<f64>,
     pub first_report: f64,
     pub ownership: bool,
@@ -164,6 +170,9 @@ impl Query {
             max_visits,
             max_time,
             script: PlayScript::default(),
+            human_model: false,
+            human_profile: humansl::profile(v)?,
+            allow_moves: humansl::allowances(v, width, height)?,
             interval,
             first_report,
             ownership,
@@ -323,6 +332,8 @@ impl Query {
         if let Some(step) = self.script.turn(turn) {
             step.apply(&mut result, visits);
         }
+        self.apply_human_policy(&mut result, &board, &legal, hash, turn);
+        self.restrict_moves(&mut result, &board, &legal, player, visits);
         let white = match perspective {
             ReportPerspective::Black => false,
             ReportPerspective::White => true,
@@ -344,7 +355,7 @@ impl Query {
 }
 
 fn invert_info(info: &mut Value) {
-    for field in ["winrate", "rawWinrate", "lcb"] {
+    for field in ["winrate", "rawWinrate", "lcb", "humanWinrate"] {
         if let Some(value) = info[field].as_f64() {
             info[field] = json!(1.0 - value);
         }
@@ -357,6 +368,7 @@ fn invert_info(info: &mut Value) {
         "utilityLcb",
         "rawLead",
         "rawScoreSelfplay",
+        "humanScoreMean",
     ] {
         if let Some(value) = info[field].as_f64() {
             info[field] = json!(-value);

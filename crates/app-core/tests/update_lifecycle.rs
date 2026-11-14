@@ -109,6 +109,7 @@ async fn install_excludes_concurrent_mutations_and_failure_restores_live_analysi
     std::fs::write(&model, "fake model").unwrap();
     std::fs::write(&config_path, "reportAnalysisWinratesAs=BLACK").unwrap();
     let profile = EngineProfile {
+        human_model: None,
         program,
         model,
         config: config_path,

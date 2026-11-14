@@ -11,12 +11,15 @@ const SOURCE: &str = include_str!("../../../../resources/katago/katago-assets.js
 struct Entry {
     #[serde(default, alias = "assetName")]
     file_name: String,
+    #[serde(default)]
+    purpose: String,
     size_bytes: u64,
     sha256: String,
     download_url: Option<String>,
     published_at: Option<String>,
     runtime_profile: Option<String>,
     executable_sha256: Option<String>,
+    backend: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -40,6 +43,7 @@ pub(crate) struct AssetSpec {
     pub sha256: String,
     pub url: String,
     pub weight: bool,
+    pub human_style: bool,
     pub published_at: Option<String>,
     pub runtime_profile: Option<String>,
     pub executable_sha256: Option<String>,
@@ -133,6 +137,7 @@ fn spec(id: String, entry: Entry, url: String, weight: bool) -> Result<AssetSpec
         sha256: entry.sha256,
         url,
         weight,
+        human_style: entry.purpose == "human-style",
         published_at: entry.published_at,
         runtime_profile: entry.runtime_profile,
         executable_sha256: entry.executable_sha256,
@@ -151,6 +156,7 @@ impl AssetCatalog {
                 sha256: format!("{:x}", Sha256::digest(bytes)),
                 url: url.into(),
                 weight: true,
+                human_style: id == "human-sl",
                 published_at: Some("2026-01-01".into()),
                 runtime_profile: None,
                 executable_sha256: None,
@@ -174,4 +180,18 @@ impl AssetCatalog {
             .get(id)
             .ok_or_else(|| AssetError::UnknownAsset(id.into()))
     }
+}
+
+pub(super) fn backend_for_digest(sha256: &str) -> Option<String> {
+    let source: SourceCatalog = serde_json::from_str(SOURCE).ok()?;
+    source
+        .assets
+        .into_values()
+        .find(|entry| {
+            entry
+                .executable_sha256
+                .as_deref()
+                .is_some_and(|pin| pin.eq_ignore_ascii_case(sha256))
+        })
+        .and_then(|entry| entry.backend)
 }

@@ -19,6 +19,7 @@ fn profile(directory: &Path) -> EngineProfile {
     std::fs::write(&model, "fake model").unwrap();
     std::fs::write(&config, "").unwrap();
     EngineProfile {
+        human_model: None,
         program,
         model,
         config,

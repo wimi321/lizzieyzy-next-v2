@@ -80,12 +80,7 @@ impl Actor {
                     return Err(GameError::NoAnalysis.into());
                 }
                 let game = self.game.as_mut().ok_or(GameError::NotActive)?;
-                // SplitMix64: an actor-owned, seedable non-cryptographic PRNG.
-                game.random = game.random.wrapping_add(0x9e3779b97f4a7c15);
-                let mut value = game.random;
-                value = (value ^ (value >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-                value = (value ^ (value >> 27)).wrapping_mul(0x94d049bb133111eb);
-                value ^= value >> 31;
+                let value = crate::game::random_u64(&mut game.random);
                 eligible[(value % eligible.len() as u64) as usize]
             } else {
                 best
@@ -144,6 +139,7 @@ impl Actor {
             self.publish_game();
             return Err(GameError::PositionChanged.into());
         }
+        self.finish_coach_summary();
         self.set_game_result(result)?;
         self.document_changed().await?;
         self.publish_game();

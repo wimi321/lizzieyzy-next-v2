@@ -27,6 +27,7 @@ async fn paused_actor(directory: &std::path::Path) -> (Actor, crate::AppSubscrip
     let program = fake_katago::binary_path().unwrap();
     actor
         .apply(Input::ConfigureEngine(Some(EngineProfile {
+            human_model: None,
             model: program.clone(),
             config: program.clone(),
             program,
@@ -187,6 +188,7 @@ async fn invalid_cached_coordinates_disable_storage_without_failing_live_analysi
     let program = fake_katago::binary_path().unwrap();
     actor
         .apply(Input::ConfigureEngine(Some(EngineProfile {
+            human_model: None,
             model: program.clone(),
             config: program.clone(),
             program,

@@ -17,6 +17,7 @@ mod batch;
 mod benchmark;
 mod board_sync;
 mod clear_analysis;
+mod coach;
 mod display;
 mod editing;
 mod engine_settings;
@@ -81,6 +82,7 @@ struct Actor {
     review: review::ReviewState,
     batch: batch::State,
     game: Option<game::Session>,
+    coach: coach::State,
     gtp: gtp::State,
     match_session: Option<match_game::Session>,
     strength: Option<strength::Estimator>,
@@ -135,6 +137,7 @@ pub(crate) async fn run(
         review: review::ReviewState::default(),
         batch: Default::default(),
         game: None,
+        coach: Default::default(),
         gtp: Default::default(),
         match_session: None,
         strength: None,
@@ -174,6 +177,7 @@ pub(crate) async fn run(
                 None => None,
               };
               match command {
+                Some(Command::Coach(request)) => actor.coach_command(request).await,
                 Some(Command::Gtp(request)) => actor.gtp_request(request).await,
                 Some(Command::Match(request, reply)) => { let _ = reply.send(actor.match_command(request).await); }
                 Some(Command::MatchView(reply)) => { let _ = reply.send(actor.match_view()); }
@@ -269,6 +273,7 @@ pub(crate) async fn run(
             line = gtp::receive(&mut actor.gtp) => actor.gtp_line(line),
             signal = next_signal(&mut actor.running) => actor.cache_signal(signal),
             event = game::receive(&mut actor.game) => actor.game_signal(event).await,
+            event = coach::receive(&mut actor.coach) => actor.coach_signal(event).await,
             result = review::receive(&mut actor.review) => actor.review_signal(result).await,
             result = trial::wait(&mut actor.trial) => actor.finish_trial(result).await,
             result = board_sync::receive(&mut actor.board_sync) => actor.board_sync_line(result).await,

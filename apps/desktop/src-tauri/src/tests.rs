@@ -20,6 +20,7 @@ mod batch_analysis;
 mod benchmark;
 mod board_sync;
 mod cache;
+mod coach;
 mod display_settings;
 mod edit;
 mod engine_auto_setup;
@@ -180,7 +181,10 @@ impl Harness {
                     | AppEvent::BoardSyncStatusChanged(_)
                     | AppEvent::MatchUpdated(_)
                     | AppEvent::GtpConsoleLine(_)
-                    | AppEvent::GameUpdated(_) => {}
+                    | AppEvent::GameUpdated(_)
+                    | AppEvent::CoachUpdated(_)
+                    | AppEvent::CoachMoveRated(_)
+                    | AppEvent::CoachSummary(_) => {}
                 }
             }
         })
@@ -251,6 +255,7 @@ fn profile(directory: &Path) -> EngineProfile {
     std::fs::write(&model, b"fake model").unwrap();
     std::fs::write(&config, b"numAnalysisThreads = 1\n").unwrap();
     EngineProfile {
+        human_model: None,
         program,
         model,
         config,

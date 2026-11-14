@@ -8,6 +8,8 @@ use crate::fox_error::FoxFailure;
 #[serde(tag = "type", content = "data")]
 pub enum CommandError {
     #[error("{0}")]
+    Coach(app_core::CoachError),
+    #[error("{0}")]
     Gtp(app_core::GtpError),
     #[error("{0}")]
     Match(app_core::MatchError),
@@ -77,6 +79,7 @@ pub enum PngRequestError {
 impl From<app_core::AppError> for CommandError {
     fn from(error: app_core::AppError) -> Self {
         match error {
+            app_core::AppError::Coach(error) => Self::Coach(error),
             app_core::AppError::Gtp(error) => Self::Gtp(error),
             app_core::AppError::Match(error) => Self::Match(error),
             app_core::AppError::GameRunning => Self::GameRunning,

@@ -28,6 +28,8 @@ pub(super) async fn run(
                     let result = if same { Ok(events.borrow().clone()) } else { Err(AssetError::Busy) };
                     let _ = reply.send(result);
                 }
+                Some(Command::Pause(reply)) => { let _ = reply.send(Err(AssetError::NotApplicable)); }
+                Some(Command::ImportHumanSl(_, reply)) => { let _ = reply.send(Err(AssetError::Busy)); }
                 Some(Command::Cancel(reply)) => {
                     cancel.send_replace(true);
                     finish(events, operation.await);

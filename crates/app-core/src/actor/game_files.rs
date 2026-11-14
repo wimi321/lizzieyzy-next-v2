@@ -109,7 +109,7 @@ impl Actor {
     }
 
     pub(super) fn publish_saved_focus(&self) {
-        if self.config.analysis.pure_network {
+        if self.config.analysis.pure_network || self.coach_hides_analysis() {
             return;
         }
         let node = self.document.current().0;
@@ -217,6 +217,9 @@ fn response_from_saved(saved: &SavedAnalysis, position: &GamePosition) -> Analys
             score_lead: saved.score_lead.unwrap_or(0.0),
             utility: 0.0,
             current_player: to_play,
+            human_winrate: None,
+            human_score_mean: None,
+            human_score_stdev: None,
             score_selfplay: None,
             score_stdev: saved.score_stdev,
             weight: None,
@@ -243,6 +246,7 @@ fn response_from_saved(saved: &SavedAnalysis, position: &GamePosition) -> Analys
                 score_mean: candidate.score_lead,
                 score_stdev: candidate.score_stdev,
                 prior: candidate.prior,
+                human_prior: None,
                 order: candidate.order,
                 pv: candidate.pv.clone(),
                 edge_visits: candidate.edge_visits,
@@ -261,6 +265,7 @@ fn response_from_saved(saved: &SavedAnalysis, position: &GamePosition) -> Analys
             values.len() == usize::from(size.width) * usize::from(size.height)
         }),
         policy: None,
+        human_policy: None,
     }
 }
 

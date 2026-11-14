@@ -12,6 +12,9 @@ struct Mailbox {
     review: Option<(u64, AppEvent)>,
     batch: Option<(u64, AppEvent)>,
     game: Option<(u64, AppEvent)>,
+    coach: Option<(u64, AppEvent)>,
+    coach_rating: Option<(u64, AppEvent)>,
+    coach_summary: Option<(u64, AppEvent)>,
     match_game: Option<(u64, AppEvent)>,
     console: std::collections::VecDeque<(u64, AppEvent)>,
     board_sync: Option<(u64, AppEvent)>,
@@ -26,7 +29,7 @@ pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 13],
+    read: [Option<u64>; 16],
     console_read: u64,
 }
 
@@ -36,7 +39,7 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 13],
+            read: [None; 16],
             console_read: 0,
         },
     )
@@ -52,6 +55,14 @@ impl Delivery {
                     .is_some_and(|(_, previous)| previous == &event)
             {
                 return false;
+            }
+            if let AppEvent::CoachUpdated(view) = &event {
+                if view.summary.is_none() {
+                    mailbox.coach_summary = None;
+                }
+                if view.last_rating.is_none() {
+                    mailbox.coach_rating = None;
+                }
             }
             mailbox.serial = mailbox.serial.wrapping_add(1);
             if matches!(event, AppEvent::GtpConsoleLine(_)) {
@@ -72,6 +83,9 @@ impl Delivery {
                 AppEvent::WholeGameProgress(_) => &mut mailbox.review,
                 AppEvent::BatchAnalysisProgress(_) => &mut mailbox.batch,
                 AppEvent::GameUpdated(_) => &mut mailbox.game,
+                AppEvent::CoachUpdated(_) => &mut mailbox.coach,
+                AppEvent::CoachMoveRated(_) => &mut mailbox.coach_rating,
+                AppEvent::CoachSummary(_) => &mut mailbox.coach_summary,
                 AppEvent::BoardSyncStatusChanged(_) => &mut mailbox.board_sync,
                 AppEvent::BenchmarkProgress(_) => &mut mailbox.benchmark,
                 AppEvent::AnalysisStateChanged(_) => &mut mailbox.analysis_state,
@@ -125,6 +139,9 @@ impl AppSubscription {
                     &mailbox.batch,
                     &mailbox.game,
                     &mailbox.match_game,
+                    &mailbox.coach,
+                    &mailbox.coach_rating,
+                    &mailbox.coach_summary,
                 ]
                 .into_iter()
                 .enumerate()

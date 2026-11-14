@@ -6,6 +6,7 @@ pub enum DownloadPhase {
     #[default]
     Idle,
     Downloading,
+    Paused,
     Installing,
     Completed,
     Cancelled,
@@ -115,4 +116,25 @@ pub struct RuntimeInstallation {
     pub missing: Vec<String>,
     #[ts(optional = nullable)]
     pub error: Option<String>,
+}
+
+/// HumanSL uses the same managed weights directory and trusted download pins.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "type", content = "data")]
+pub enum HumanSlModelStatus {
+    #[default]
+    Missing,
+    Downloading {
+        #[ts(as = "Option<f64>", optional)]
+        downloaded_bytes: u64,
+        #[ts(as = "Option<f64>", optional)]
+        total_bytes: u64,
+        #[ts(as = "Option<bool>", optional)]
+        paused: bool,
+    },
+    Ready {
+        #[ts(as = "Option<std::path::PathBuf>", optional)]
+        path: std::path::PathBuf,
+    },
+    Corrupt,
 }

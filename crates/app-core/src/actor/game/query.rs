@@ -90,7 +90,7 @@ impl Actor {
             .await
         }
     }
-    pub(super) fn game_engine(&self) -> Result<EngineHandle, GameError> {
+    pub(in crate::actor) fn game_engine(&self) -> Result<EngineHandle, GameError> {
         if let Some(engine) = self.match_engine_for_turn() {
             return Ok(engine);
         }
@@ -113,6 +113,7 @@ impl Actor {
         Ok(())
     }
     pub(in crate::actor) async fn cancel_game_query(&mut self) -> Result<(), AppError> {
+        self.cancel_coach_queries().await;
         self.cancel_gtp_query().await?;
         if let Some(query) = self.game.as_mut().and_then(|game| game.query.take()) {
             query
@@ -131,6 +132,20 @@ impl Actor {
             return Ok(());
         }
         let scoring = game.scoring;
+        if !scoring {
+            match Box::pin(self.begin_coach_turn()).await {
+                Ok(true) => {
+                    self.publish_game();
+                    return Ok(());
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    self.fail_game_query(error.to_string()).await;
+                    return Ok(());
+                }
+            }
+        }
+        let game = self.require_game()?;
         let gtp = match game.player(game.color()) {
             Player::Ai(crate::AiPlayer::Gtp { engine_id, time }) => {
                 Some((engine_id.clone(), time.clone()))
@@ -154,7 +169,8 @@ impl Actor {
             None
         } else {
             match game.player(game.color()) {
-                Player::Human | Player::Ai(crate::AiPlayer::Gtp { .. }) => None,
+                Player::Human
+                | Player::Ai(crate::AiPlayer::Gtp { .. } | crate::AiPlayer::HumanSl(_)) => None,
                 Player::Ai(crate::AiPlayer::KataGo(play)) => Some(play.clone()),
             }
         };
@@ -345,6 +361,9 @@ impl Actor {
         Ok(())
     }
     fn publish_game_analysis(&mut self, response: AnalysisResponse) -> Result<(), AppError> {
+        if self.coach_hides_analysis() {
+            return Ok(());
+        }
         let game = self.require_game()?;
         let query = game.query.as_ref().ok_or(GameError::NotActive)?;
         let position = self.document.position_at(query.node)?;
@@ -397,7 +416,7 @@ impl Actor {
             Ok(())
         }
     }
-    async fn fail_game_query(&mut self, reason: String) {
+    pub(in crate::actor) async fn fail_game_query(&mut self, reason: String) {
         if self.match_active() {
             let _ = self.finish_game(None, GameEndReason::EngineError).await;
             if let Some(game) = &mut self.game {

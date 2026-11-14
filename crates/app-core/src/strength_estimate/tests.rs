@@ -19,6 +19,7 @@ async fn whole_game_completion_exposes_default_and_custom_phases_and_invalidates
     // deadlines. This integration exercises engine delivery, not SQLite I/O.
     Settings {
         engine: Some(EngineProfile {
+            human_model: None,
             canonical_model_name: None,
             model: program.clone(),
             config: program.clone(),

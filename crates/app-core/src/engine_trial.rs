@@ -46,6 +46,7 @@ impl EngineSetupProfile {
             None => default_config(directory.to_owned(), source).await?,
         };
         Ok(EngineProfile {
+            human_model: None,
             program: self.program,
             model: self.model,
             config,
