@@ -22,6 +22,14 @@ pub enum SshAuthConfig {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum RemoteEngineConfig {
+    Zhizi {
+        #[serde(default)]
+        #[ts(as = "Option<crate::ZhiziEngineOptions>", optional)]
+        options: crate::ZhiziEngineOptions,
+        #[serde(default)]
+        #[ts(optional = nullable)]
+        version: Option<String>,
+    },
     WebSocket {
         #[ts(as = "Option<String>", optional)]
         host: String,
@@ -93,6 +101,14 @@ impl std::fmt::Debug for RemoteEngineInput {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS, thiserror::Error)]
 #[serde(tag = "type", content = "data")]
 pub enum RemoteEngineError {
+    #[error("请先登录智子")]
+    ZhiziLoginRequired,
+    #[error("Zhizi access denied")]
+    ZhiziAccessDenied,
+    #[error("Zhizi balance is insufficient")]
+    ZhiziBalance,
+    #[error("Zhizi VIP is unavailable")]
+    ZhiziVip,
     #[error("remote engine does not support this operation")]
     Unsupported,
     #[error("invalid remote engine configuration")]
@@ -200,11 +216,14 @@ impl RemoteEngineConfig {
     }
     pub(crate) fn set_version(&mut self, value: Option<String>) {
         match self {
-            Self::WebSocket { version, .. } | Self::Ssh { version, .. } => *version = value,
+            Self::WebSocket { version, .. }
+            | Self::Ssh { version, .. }
+            | Self::Zhizi { version, .. } => *version = value,
         }
     }
     pub(crate) fn validate(&self) -> Result<(), RemoteEngineError> {
         let valid = match self {
+            Self::Zhizi { .. } => true,
             Self::WebSocket {
                 host,
                 port,
@@ -284,6 +303,10 @@ impl From<engine_session::RemoteTransportError> for RemoteEngineError {
             },
             E::Protocol => Self::Protocol,
             E::HandshakeTimeout => Self::HandshakeTimeout,
+            E::ReadyTimeout => Self::HandshakeTimeout,
+            E::ZhiziAccessDenied => Self::ZhiziAccessDenied,
+            E::ZhiziBalance => Self::ZhiziBalance,
+            E::ZhiziVip => Self::ZhiziVip,
         }
     }
 }

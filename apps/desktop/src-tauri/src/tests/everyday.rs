@@ -101,6 +101,43 @@ async fn empty_clipboard_keeps_its_typed_ipc_error() {
 }
 
 #[tokio::test]
+async fn clipboard_link_returns_only_a_validated_link_from_the_injected_clipboard() {
+    let clipboard = Arc::new(FakeClipboard::default());
+    let harness = Harness::with_config(app_core::AppConfig {
+        clipboard: Some(clipboard.clone()),
+        ..Default::default()
+    })
+    .await;
+    for (text, expected) in [
+        (
+            Some(" \"https://example.invalid/game.sgf?move=42#position\" \n"),
+            json!("https://example.invalid/game.sgf?move=42#position"),
+        ),
+        (
+            Some("http://example.invalid/game.gib"),
+            json!("http://example.invalid/game.gib"),
+        ),
+        (Some("ordinary clipboard text"), json!(null)),
+        (
+            Some("https://user:secret@example.invalid/game.sgf"),
+            json!(null),
+        ),
+        (None, json!(null)),
+    ] {
+        *clipboard.text.lock().unwrap() = text.map(str::to_owned);
+        assert_eq!(harness.invoke("clipboard_link", json!({})).await, expected);
+    }
+    harness.finish().await;
+
+    let unavailable = Harness::new().await;
+    assert_eq!(
+        unavailable.invoke("clipboard_link", json!({})).await,
+        json!(null)
+    );
+    unavailable.finish().await;
+}
+
+#[tokio::test]
 async fn everyday_commands_are_restricted_to_the_local_main_window() {
     let harness = Harness::new().await;
     let other =
@@ -114,6 +151,7 @@ async fn everyday_commands_are_restricted_to_the_local_main_window() {
         for command in [
             "copy_sgf",
             "paste_sgf",
+            "clipboard_link",
             "save_clean_sgf",
             "save_png",
             "copy_png",

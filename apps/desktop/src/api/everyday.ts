@@ -8,6 +8,7 @@ export type { BoardTransform };
 export interface EverydayCommands {
   copySgf(): Promise<void>;
   pasteSgf(): Promise<Revision>;
+  clipboardLink?(): Promise<string | null>;
   saveCleanSgf(path: string, keepComments: boolean, currentBranch: boolean): Promise<void>;
   savePng(path: string, bytes: Uint8Array): Promise<void>;
   copyPng(bytes: Uint8Array): Promise<void>;
@@ -22,6 +23,7 @@ export interface EverydayCommands {
 
 export const copySgf: EverydayCommands["copySgf"] = () => invoke("copy_sgf");
 export const pasteSgf: EverydayCommands["pasteSgf"] = () => invoke("paste_sgf");
+export const clipboardLink: NonNullable<EverydayCommands["clipboardLink"]> = () => invoke("clipboard_link");
 export const saveCleanSgf: EverydayCommands["saveCleanSgf"] = (path, keepComments, currentBranch) =>
   invoke("save_clean_sgf", { path, keepComments, currentBranch });
 export const savePng: EverydayCommands["savePng"] = (path, bytes) =>

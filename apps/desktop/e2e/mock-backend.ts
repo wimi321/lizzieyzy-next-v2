@@ -1,9 +1,11 @@
+import { fillZhiziDefaults } from "./fixtures";
 import type { CommentaryUpdated, CommentarySettings, CommentaryKeyStatus, CoachView, CoachHint, HumanSlModelStatus, GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 import { fillRemoteProfileDefaults, fillCommentaryKeyDefaults, defaultCommentarySettings, fillCommentarySettingsDefaults, fillCommentaryDefaults, defaultCoachSetup, fillCoachSetupDefaults, fillCoachDefaults, fillCoachRatingDefaults, fillCoachSummaryDefaults, fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 import type { TencentPage } from "../src/api/backend";
 import { fillTencentPageDefaults } from "./fixtures";
 
 export type {
+  ZhiziCommands, ZhiziStatus, ZhiziVerificationPurpose, ZhiziCodeDelivery, ZhiziOverview, ZhiziUsagePage, ZhiziCreditPage, ZhiziEngineOptions, ZhiziPlan, ZhiziWeight, ZhiziError, ZhiziErrorKind,
   TencentCommands, TencentQuery, TencentPage, TencentGame, TencentPlayer, TencentRank, TencentFailure, OpenUrlFailure,
   RemoteCommands, RemoteEngineInput, RemoteSshAuth, SshAuthConfig, RemoteEngineConfig, RemoteEngineError, RemoteLinkError,
   CommentaryCommands, CommentaryUpdatedListener, CommentaryRequest, CommentarySettings, CommentaryUpdated, CommentaryKeyStatus, CommentaryMode, CommentaryPhase, CommentaryPosition, CommentaryError,
@@ -325,6 +327,7 @@ async function command<K extends CommandName>(
     defaultField(engine, "auto_check_alive", true);
     defaultField(engine, "report_interval_ms", 100);
   }
+  fillZhiziDefaults(next.command, cloned);
   if (["addRemoteEngine", "updateRemoteEngine", "switchToLocalEngine"].includes(next.command)) {
     const settings = cloned as Settings;
     if (settings.engine) fillRemoteProfileDefaults(settings.engine);
@@ -501,7 +504,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "gameView" | "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound">(
+function query<K extends "gameView" | "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound" | "clipboardLink">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
@@ -531,6 +534,17 @@ function mainLineTree(): VariationTreeView {
 }
 
 export const addEngine: Backend["addEngine"] = (name, profile) => command("addEngine", [name, profile]);
+export const zhiziStatus: NonNullable<Backend["zhiziStatus"]> = () => command("zhiziStatus", []);
+export const zhiziLoginPassword: NonNullable<Backend["zhiziLoginPassword"]> = (account, password, remember) => command("zhiziLoginPassword", [account, password, remember]);
+export const zhiziLoginCode: NonNullable<Backend["zhiziLoginCode"]> = (account, code, remember) => command("zhiziLoginCode", [account, code, remember]);
+export const zhiziSendCode: NonNullable<Backend["zhiziSendCode"]> = (account, purpose) => command("zhiziSendCode", [account, purpose]);
+export const zhiziResetPassword: NonNullable<Backend["zhiziResetPassword"]> = (account, code, password, remember) => command("zhiziResetPassword", [account, code, password, remember]);
+export const zhiziLogout: NonNullable<Backend["zhiziLogout"]> = () => command("zhiziLogout", []);
+export const zhiziOverview: NonNullable<Backend["zhiziOverview"]> = (force) => command("zhiziOverview", [force]);
+export const zhiziUsages: NonNullable<Backend["zhiziUsages"]> = (page) => command("zhiziUsages", [page]);
+export const zhiziCredits: NonNullable<Backend["zhiziCredits"]> = (page) => command("zhiziCredits", [page]);
+export const zhiziWebsite: NonNullable<Backend["zhiziWebsite"]> = () => command("zhiziWebsite", []);
+export const openZhiziWebsite: NonNullable<Backend["openZhiziWebsite"]> = () => command("openZhiziWebsite", []);
 export const addRemoteEngine: NonNullable<Backend["addRemoteEngine"]> = (name, entry) => command("addRemoteEngine", [name, entry]);
 export const updateRemoteEngine: NonNullable<Backend["updateRemoteEngine"]> = (id, name, entry) => command("updateRemoteEngine", [id, name, entry]);
 export const testRemoteEngine: NonNullable<Backend["testRemoteEngine"]> = (entry) => command("testRemoteEngine", [entry]);
@@ -661,6 +675,7 @@ export const clearAnalysis: Backend["clearAnalysis"] = (all) => command("clearAn
 export const settings: Backend["settings"] = () => command("settings", []);
 export const copySgf: NonNullable<Backend["copySgf"]> = () => command("copySgf", []);
 export const pasteSgf: NonNullable<Backend["pasteSgf"]> = () => command("pasteSgf", []);
+export const clipboardLink: NonNullable<Backend["clipboardLink"]> = () => query("clipboardLink", [], () => null);
 export const saveCleanSgf: NonNullable<Backend["saveCleanSgf"]> = (path, keepComments, currentBranch) => command("saveCleanSgf", [path, keepComments, currentBranch]);
 // Preserve the same binary arguments as production; structuredClone records the bytes without JSON expansion.
 export const savePng: NonNullable<Backend["savePng"]> = (path: string, bytes: Uint8Array) => command("savePng", [path, bytes]);

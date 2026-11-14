@@ -43,6 +43,7 @@ mod tencent;
 mod trial;
 mod tsumego;
 mod weights;
+mod zhizi;
 use trial::PendingTrial;
 
 mod messages;
@@ -88,6 +89,8 @@ struct Actor {
     coach: coach::State,
     commentary: commentary::State,
     remote: crate::remote::RemoteSecrets,
+    zhizi: crate::zhizi::ZhiziService,
+    startup_local_fallback: bool,
     gtp: gtp::State,
     match_session: Option<match_game::Session>,
     strength: Option<strength::Estimator>,
@@ -148,6 +151,11 @@ pub(crate) async fn run(
             &settings.commentary,
         ),
         remote: crate::remote::RemoteSecrets::new(config.commentary_key_store.clone()),
+        zhizi: crate::zhizi::ZhiziService::spawn(
+            config.zhizi_client.clone(),
+            config.commentary_key_store.clone(),
+        ),
+        startup_local_fallback: false,
         gtp: Default::default(),
         match_session: None,
         strength: None,
@@ -174,7 +182,7 @@ pub(crate) async fn run(
     if let Err(error) = actor.publish_document() {
         actor.failed(error.to_string());
     }
-    actor.start_engine().await;
+    actor.start_initial_engine().await;
     actor.publish_sync();
     actor.publish_analysis_state();
     loop {
@@ -187,6 +195,8 @@ pub(crate) async fn run(
                 None => None,
               };
               match command {
+                Some(Command::ZhiziService(reply)) => { let _ = reply.send(actor.zhizi.clone()); }
+                Some(Command::ZhiziCredentialsChanged(reply)) => { let _ = reply.send(actor.zhizi_credentials_changed().await); }
                 Some(Command::Remote(request)) => actor.remote_command(request).await,
                 Some(Command::Commentary(request)) => actor.commentary_command(request).await,
                 Some(Command::Coach(request)) => actor.coach_command(request).await,
@@ -244,6 +254,7 @@ pub(crate) async fn run(
                 Some(Command::ReviewResult(node, reply)) => { let _ = reply.send(actor.review_view(node)); }
                 Some(Command::ReviewAnalysis(node, reply)) => { let _ = reply.send(actor.stored_analysis(node)); }
                 Some(Command::VariationTree(reply)) => { let _ = reply.send(actor.tree.clone()); }
+                Some(Command::ClipboardLink(reply)) => { let _ = reply.send(actor.clipboard_link().await); }
                 Some(Command::StoneOrigin(point, reply)) => { let _ = reply.send(actor.stone_origin(point)); }
                 Some(Command::PreviewVariation(node_id, moves, reply)) => {
                     let result = VariationPreviewView::from_document(
@@ -621,7 +632,7 @@ impl Actor {
         if changed {
             self.flush_cached_focus().await;
         }
-        let restart_review = changed && self.review_running();
+        let restart_review = changed && self.review_running() && !self.zhizi_review_owns_engine();
         if restart_review && let Err(error) = self.stop_review_query().await {
             self.analysis_failed(error.to_string());
         }
@@ -677,53 +688,6 @@ impl Actor {
         config.cache_enabled = self.settings.cache_enabled;
         config.limits = self.settings.analysis_limits.into();
         Ok(analysis::spawn(engine.clone(), config)?)
-    }
-
-    async fn start_engine(&mut self) {
-        let Some(profile) = self.settings.engine.clone() else {
-            self.set_summary_fingerprint(None);
-            self.output
-                .send(AppEvent::EngineStatusChanged(EngineStatus::Stopped));
-            self.publish_saved_focus();
-            return;
-        };
-        if profile.remote.is_some() {
-            self.start_remote_engine(profile).await;
-            return;
-        }
-        let prepared = self.prepare_engine_transport(&profile).await;
-        let (transport, fingerprint) = match prepared {
-            Ok(prepared) => prepared,
-            Err(error) => {
-                self.set_summary_fingerprint(None);
-                self.failed(error.to_string());
-                self.publish_saved_focus();
-                return;
-            }
-        };
-        self.set_summary_fingerprint(Some(fingerprint.clone()));
-        let engine = engine_session::spawn(transport, self.session_config());
-        match self.coordinator(&engine, &fingerprint) {
-            Ok((coordinator, snapshots)) => {
-                let engine_status = engine.status();
-                self.output.send(AppEvent::EngineStatusChanged(
-                    engine_status.borrow().clone().into(),
-                ));
-                self.running = Some(Running {
-                    engine,
-                    analysis_status: coordinator.status(),
-                    coordinator,
-                    snapshots,
-                    engine_status,
-                    fingerprint,
-                });
-                self.update_focus().await;
-            }
-            Err(error) => {
-                let _ = engine.shutdown().await;
-                self.failed(error.to_string());
-            }
-        }
     }
 
     fn set_summary_fingerprint(&mut self, fingerprint: Option<String>) {
