@@ -38,6 +38,8 @@ test("远程算力: log in to 智子, see the account, and make a pay-as-you-go 
     { command: "zhiziStatus", result: { logged_in: false, store_available: true } },
     { command: "zhiziLoginPassword", result: { logged_in: true, remembered: false, store_available: true } },
     { command: "zhiziOverview", result: OVERVIEW },
+    { command: "openZhiziWebsite", result: undefined, error: { type: "BrowserUnavailable" } },
+    { command: "zhiziWebsite", result: "https://www.zhizigo.com/" },
     { command: "addEngine", result: { ...SETTINGS, engines: [LOCAL, ZHIZI] } },
     { command: "selectMainEngine", result: { ...SETTINGS, engine: ZHIZI_PROFILE, engines: [LOCAL, ZHIZI], main_engine_id: "z1" } },
   ]);
@@ -53,6 +55,9 @@ test("远程算力: log in to 智子, see the account, and make a pay-as-you-go 
   await expect(dialog.getByTestId("zhizi-balance")).toHaveText("余额 ¥36.80 · 昨日消费 ¥2.40");
   await dialog.getByTestId("zhizi-plan").selectOption("OnDemand1x");
   await expect(dialog).toHaveScreenshot("zhizi-account.png");
+  // 充值 opens the official site; without a browser the address is shown instead.
+  await dialog.getByTestId("zhizi-recharge").click();
+  await expect(dialog.locator(".remote-failure")).toHaveText("无法打开浏览器，请手动打开智子官网：https://www.zhizigo.com/");
 
   await dialog.getByTestId("zhizi-connect").click();
   await expect(dialog.getByTestId("remote-current")).toHaveText("当前使用：智子云");
@@ -62,6 +67,8 @@ test("远程算力: log in to 智子, see the account, and make a pay-as-you-go 
     { command: "zhiziStatus", args: [] },
     { command: "zhiziLoginPassword", args: ["13800000000", "demo password", false] },
     { command: "zhiziOverview", args: [false] },
+    { command: "openZhiziWebsite", args: [] },
+    { command: "zhiziWebsite", args: [] },
     { command: "addEngine", args: ["智子云", ZHIZI_PROFILE] },
     { command: "selectMainEngine", args: ["z1"] },
   ]);

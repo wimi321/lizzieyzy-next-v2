@@ -1709,6 +1709,7 @@
     "backToLocal": "Switch to the local engine",
     "unsupported": "Not available with a remote engine",
     "requestId": "Request id: {id}",
+    "browserFailed": "The browser could not be opened. Open Zhizi's site yourself: {url}",
     "kinds": {
       "Zhizi": "Zhizi",
       "WebSocket": "Self-hosted",

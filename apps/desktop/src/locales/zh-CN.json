@@ -1709,6 +1709,7 @@
     "backToLocal": "切换到本地引擎",
     "unsupported": "远程引擎不支持此功能",
     "requestId": "请求编号：{id}",
+    "browserFailed": "无法打开浏览器，请手动打开智子官网：{url}",
     "kinds": {
       "Zhizi": "智子云",
       "WebSocket": "自建算力",

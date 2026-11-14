@@ -1709,6 +1709,7 @@
     "backToLocal": "로컬 엔진으로 전환",
     "unsupported": "원격 엔진에서는 사용할 수 없습니다",
     "requestId": "요청 ID: {id}",
+    "browserFailed": "브라우저를 열 수 없습니다. 즈쯔 공식 사이트를 직접 여세요: {url}",
     "kinds": {
       "Zhizi": "즈쯔 클라우드",
       "WebSocket": "자체 호스팅",

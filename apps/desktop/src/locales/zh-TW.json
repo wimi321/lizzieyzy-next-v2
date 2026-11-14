@@ -1709,6 +1709,7 @@
     "backToLocal": "切換到本機引擎",
     "unsupported": "遠端引擎不支援此功能",
     "requestId": "請求編號：{id}",
+    "browserFailed": "無法開啟瀏覽器，請手動開啟智子官網：{url}",
     "kinds": {
       "Zhizi": "智子雲",
       "WebSocket": "自建算力",

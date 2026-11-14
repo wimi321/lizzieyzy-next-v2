@@ -1709,6 +1709,7 @@
     "backToLocal": "สลับไปใช้เอนจินในเครื่อง",
     "unsupported": "ใช้ไม่ได้กับเอนจินระยะไกล",
     "requestId": "รหัสคำขอ: {id}",
+    "browserFailed": "เปิดเบราว์เซอร์ไม่ได้ โปรดเปิดเว็บไซต์ Zhizi เอง: {url}",
     "kinds": {
       "Zhizi": "Zhizi Cloud",
       "WebSocket": "โฮสต์เอง",

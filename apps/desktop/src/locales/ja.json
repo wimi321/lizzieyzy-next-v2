@@ -1709,6 +1709,7 @@
     "backToLocal": "ローカルエンジンに切り替え",
     "unsupported": "リモートエンジンでは使えません",
     "requestId": "リクエスト ID: {id}",
+    "browserFailed": "ブラウザーを開けません。智子の公式サイトを手動で開いてください: {url}",
     "kinds": {
       "Zhizi": "智子クラウド",
       "WebSocket": "セルフホスト",

@@ -7,7 +7,7 @@ import { TencentDialog } from "./TencentDialog";
 
 type OnlineBackend = Pick<
   Backend,
-  "settings" | "foxSearch" | "foxNextPage" | "foxOpenGame" | "foxClearHistory" | "tencentSearch" | "tencentNextPage" | "tencentOpenGame" | "tencentClearHistory" | "openUrl"
+  "settings" | "foxSearch" | "foxNextPage" | "foxOpenGame" | "foxClearHistory" | "tencentSearch" | "tencentNextPage" | "tencentOpenGame" | "tencentClearHistory" | "openUrl" | "clipboardLink"
 >;
 
 function report(error: unknown) {
@@ -30,6 +30,7 @@ export function useOnline(backend: OnlineBackend, messages: Pick<typeof en, "fox
   const [fox, setFox] = useState(CLOSED);
   const [tencent, setTencent] = useState(CLOSED);
   const [urlOpen, setUrlOpen] = useState(false);
+  const [urlInitial, setUrlInitial] = useState("");
   const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
   const [tencentHistory, setTencentHistory] = useState<string[]>([]);
 
@@ -44,7 +45,18 @@ export function useOnline(backend: OnlineBackend, messages: Pick<typeof en, "fox
   const closeFox = useCallback(() => setFox((window) => ({ ...window, open: false })), []);
   const closeTencent = useCallback(() => setTencent((window) => ({ ...window, open: false })), []);
   const closeUrl = useCallback(() => setUrlOpen(false), []);
-  const openUrl = () => setUrlOpen(true);
+  // As in Java, a link on the clipboard fills the box. Rust hands over only a checked http(s) link.
+  const openUrl = () => {
+    const show = (link: string | null) => {
+      setUrlInitial(link ?? "");
+      setUrlOpen(true);
+    };
+    if (!backend.clipboardLink) return show(null);
+    backend
+      .clipboardLink()
+      .then(show)
+      .catch(() => show(null));
+  };
 
   const dialogs = (
     <>
@@ -60,7 +72,7 @@ export function useOnline(backend: OnlineBackend, messages: Pick<typeof en, "fox
           onClose={closeTencent}
         />
       ) : null}
-      {urlOpen ? <OpenUrlDialog backend={backend} labels={messages.online.url} onClose={closeUrl} /> : null}
+      {urlOpen ? <OpenUrlDialog backend={backend} labels={messages.online.url} initial={urlInitial} onClose={closeUrl} /> : null}
     </>
   );
 

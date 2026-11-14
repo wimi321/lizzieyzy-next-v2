@@ -67,15 +67,16 @@ test("腾讯棋谱 lists an account's games in Java's columns, its wins in red; 
   ]);
 });
 
-test("文件 → 打开在线链接 says why a link was refused, then opens a good one; Q opens it too", async ({ page }) => {
+test("文件 → 打开在线链接 starts with the clipboard's link, says why it was refused, then opens a good one; Q opens it too", async ({ page }) => {
   await start(page, [
+    { command: "clipboardLink", result: "https://home.yikeweiqi.com/#/live/room/1" },
     { command: "openUrl", result: 0, error: { type: "OpenUrl", data: { type: "UnsupportedYike" } } },
     { command: "openUrl", result: 2, events: [documentChanged(analysedGame(), 2)] },
   ]);
   await page.getByTestId("menubar").locator('[data-menu-id="fileMenu"]').click();
   await row(page, "openUrl").click();
   const dialog = page.getByTestId("url-dialog");
-  await dialog.getByTestId("url-input").fill("https://home.yikeweiqi.com/#/live/room/1");
+  await expect(dialog.getByTestId("url-input")).toHaveValue("https://home.yikeweiqi.com/#/live/room/1");
   await dialog.getByTestId("url-open").click();
   await expect(dialog.getByTestId("url-error")).toHaveText("暂不支持弈客链接");
   await expect(dialog).toHaveScreenshot("open-url-error.png");
@@ -85,6 +86,7 @@ test("文件 → 打开在线链接 says why a link was refused, then opens a go
   await expect(dialog).toBeHidden();
   expect(await calls(page)).toEqual([
     { command: "settings", args: [] },
+    { command: "clipboardLink", args: [] },
     { command: "openUrl", args: ["https://home.yikeweiqi.com/#/live/room/1"] },
     { command: "openUrl", args: ["https://example.org/games/demo.sgf"] },
   ]);

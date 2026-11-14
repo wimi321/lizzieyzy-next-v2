@@ -31,10 +31,9 @@ type RemoteBackend = Pick<
   | "addEngine"
   | "updateEngine"
   | "selectMainEngine"
-> & {
-  /** P3-22: opens 智子's official site in the system browser (recharge, VIP). */
-  openZhiziWebsite?(): Promise<void>;
-};
+  | "openZhiziWebsite"
+  | "zhiziWebsite"
+>;
 
 export interface RemoteEngines {
   engines: readonly Engine[];
@@ -103,6 +102,14 @@ export function useRemote(backend: RemoteBackend, labels: typeof en.remote, engi
     const settings = await backend.addRemoteEngine!(labels.self.engineName, entry);
     await select(settings, added(settings, engines.engines, "WebSocket"));
   };
+  // 充值 and 开通 VIP: Rust opens the fixed official site; without a browser, the address is shown.
+  const openWebsite = () => {
+    setFailure(null);
+    backend
+      .openZhiziWebsite?.()
+      .catch(() => backend.zhiziWebsite?.().then((url) => setFailure(labels.browserFailed.replace("{url}", url))))
+      .catch(report);
+  };
   const toLocal = () => {
     setFailure(null);
     backend
@@ -145,7 +152,7 @@ export function useRemote(backend: RemoteBackend, labels: typeof en.remote, engi
               weight={options?.weight ?? "10b512t"}
               active={kind === "Zhizi"}
               onConnect={connectZhizi}
-              onWebsite={() => void backend.openZhiziWebsite?.().catch(report)}
+              onWebsite={openWebsite}
               onLoggedOut={setZhizi}
             />
           ) : (
