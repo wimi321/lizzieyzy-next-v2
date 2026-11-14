@@ -1,20 +1,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod common;
+
 use app_core::{
     AnalysisSource, AnalysisView, AppConfig, AppCore, AppError, AppEvent, AppSubscription,
     DocumentView, EngineProfile, EngineStatus, WholeGameError, WholeGameOptions, WholeGameProgress,
     WholeGameStatus,
 };
+use common::within;
 use serde_json::Value;
-use std::{collections::BTreeSet, future::Future, path::Path, time::Duration};
+use std::{collections::BTreeSet, path::Path, time::Duration};
 use tempfile::TempDir;
-use tokio::time::timeout;
-
-async fn within<T>(future: impl Future<Output = T>) -> T {
-    timeout(Duration::from_secs(5), future)
-        .await
-        .expect("whole-game operation exceeded safety deadline")
-}
 
 fn profile(directory: &Path, visits_per_second: u64, args: &[&str]) -> EngineProfile {
     let model = directory.join("model.bin");
@@ -81,36 +77,47 @@ async fn document(output: &mut AppSubscription, revision: u64) -> DocumentView {
 }
 
 async fn completed(output: &mut AppSubscription, initial: &WholeGameProgress) -> WholeGameProgress {
-    within(async {
-        let mut previous = initial.completed;
-        loop {
-            match output
-                .recv()
-                .await
-                .expect("application event stream closed")
-            {
-                AppEvent::WholeGameProgress(progress) => {
-                    assert_eq!(progress.total, initial.total);
-                    assert!(progress.completed >= previous, "progress moved backwards");
-                    assert!(progress.completed <= progress.total);
-                    previous = progress.completed;
-                    match progress.status {
-                        WholeGameStatus::Completed => {
-                            assert_eq!(progress.completed, progress.total);
-                            return progress;
+    let mut previous = initial.completed;
+    loop {
+        // A deadline covers actual progress, not the whole game's accumulated
+        // search time. Unrelated events and repeated counts cannot renew it.
+        let progress = within(async {
+            loop {
+                match output
+                    .recv()
+                    .await
+                    .expect("application event stream closed")
+                {
+                    AppEvent::WholeGameProgress(progress) => {
+                        assert_eq!(progress.total, initial.total);
+                        assert!(progress.completed >= previous, "progress moved backwards");
+                        assert!(progress.completed <= progress.total);
+                        match progress.status {
+                            WholeGameStatus::Completed => {
+                                assert_eq!(progress.completed, progress.total);
+                                return progress;
+                            }
+                            WholeGameStatus::Running => {
+                                if progress.completed > previous {
+                                    return progress;
+                                }
+                            }
+                            other => panic!("unexpected review state: {other:?}"),
                         }
-                        WholeGameStatus::Running => {}
-                        other => panic!("unexpected review state: {other:?}"),
                     }
+                    AppEvent::EngineStatusChanged(EngineStatus::Failed { reason, .. }) => {
+                        panic!("unexpected engine failure: {reason}")
+                    }
+                    _ => {}
                 }
-                AppEvent::EngineStatusChanged(EngineStatus::Failed { reason, .. }) => {
-                    panic!("unexpected engine failure: {reason}")
-                }
-                _ => {}
             }
+        })
+        .await;
+        if progress.status == WholeGameStatus::Completed {
+            return progress;
         }
-    })
-    .await
+        previous = progress.completed;
+    }
 }
 
 fn line(view: &DocumentView) -> Vec<u32> {
@@ -400,7 +407,9 @@ async fn live_analysis_keeps_producing_results_during_review_and_after_navigatio
     let directory = TempDir::new().unwrap();
     let engine = profile(directory.path(), 20_000, &[]);
     let (handle, mut output) = app(directory.path(), 1_000_000).await;
-    let revision = within(handle.open_bytes(pass_game(12))).await.unwrap();
+    // Four moves retain the third-node navigation and enough background work
+    // to observe successive live updates without analyzing a long game.
+    let revision = within(handle.open_bytes(pass_game(4))).await.unwrap();
     let initial = document(&mut output, revision).await;
     within(handle.configure_engine(Some(engine))).await.unwrap();
     let started = within(handle.start_whole_game_analysis(WholeGameOptions {
@@ -456,7 +465,9 @@ async fn pause_resume_submits_only_missing_turns_and_cancel_reaches_engine() {
     let engine = profile(directory.path(), 5_000, &[]);
     let (handle, mut output) = app(directory.path(), 10_000).await;
     within(handle.set_pondering(false)).await.unwrap();
-    let revision = within(handle.open_bytes(pass_game(20))).await.unwrap();
+    // Eight moves retain both completed and pending turns at the pause, so
+    // resume still has to skip saved results and submit the missing turns.
+    let revision = within(handle.open_bytes(pass_game(8))).await.unwrap();
     let initial = document(&mut output, revision).await;
     within(handle.configure_engine(Some(engine))).await.unwrap();
     within(handle.start_whole_game_analysis(WholeGameOptions {

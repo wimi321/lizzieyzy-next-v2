@@ -1,20 +1,17 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod common;
+
 use app_core::{
     AppConfig, AppCore, AppEvent, AppSubscription, ColorView, DocumentView, EngineProfile,
     EngineStatus, MoveRank, MoveRankEvaluationMode, MoveRankSettings, ProblemMoveSort,
     ProblemMovesQuery, ProblemMovesView, Settings, WholeGameOptions, WholeGameStatus,
 };
+use common::within;
 use document::{GameDocument, NodeId};
 use go_core::Color;
 use serde_json::Value;
-use std::{future::Future, path::Path, time::Duration};
-
-async fn within<T>(future: impl Future<Output = T>) -> T {
-    tokio::time::timeout(Duration::from_secs(5), future)
-        .await
-        .expect("problem-moves operation exceeded safety deadline")
-}
+use std::{path::Path, time::Duration};
 
 async fn app(directory: &Path) -> (AppCore, AppSubscription) {
     let mut config = AppConfig::default();
@@ -24,9 +21,14 @@ async fn app(directory: &Path) -> (AppCore, AppSubscription) {
     config.session.response_timeout = Duration::from_secs(60);
     config.session.write_timeout = Duration::from_secs(60);
     config.session.shutdown_timeout = Duration::from_secs(60);
-    within(app_core::spawn_with_config(directory, config))
+    let (handle, output) = within(app_core::spawn_with_config(directory, config))
         .await
-        .unwrap()
+        .unwrap();
+    // These tests exercise manual review results, not automatic-review takeover.
+    within(handle.set_auto_quick_analyze_on_load(false))
+        .await
+        .unwrap();
+    (handle, output)
 }
 
 fn profile(directory: &Path, speed: u64) -> EngineProfile {
@@ -77,29 +79,45 @@ async fn document(output: &mut AppSubscription, revision: u64) -> DocumentView {
 }
 
 async fn completed(output: &mut AppSubscription) {
-    within(async {
-        loop {
-            match output
-                .recv()
-                .await
-                .expect("application event stream closed")
-            {
-                AppEvent::WholeGameProgress(progress) => match progress.status {
-                    WholeGameStatus::Completed => {
-                        assert_eq!(progress.completed, progress.total);
-                        return;
+    let mut previous = 0;
+    let mut total = None;
+    loop {
+        // Each deadline covers real progress, not the remaining game length.
+        // Unrelated events and duplicate progress never renew the safety net.
+        let progress = within(async {
+            loop {
+                match output
+                    .recv()
+                    .await
+                    .expect("application event stream closed")
+                {
+                    AppEvent::WholeGameProgress(progress) => {
+                        assert_eq!(progress.total, *total.get_or_insert(progress.total));
+                        assert!(progress.completed <= progress.total);
+                        assert!(progress.completed >= previous, "progress moved backwards");
+                        if progress.completed > previous
+                            || progress.status != WholeGameStatus::Running
+                        {
+                            return progress;
+                        }
                     }
-                    WholeGameStatus::Running => {}
-                    other => panic!("unexpected whole-game state: {other:?}"),
-                },
-                AppEvent::EngineStatusChanged(EngineStatus::Failed { reason, .. }) => {
-                    panic!("unexpected fake engine failure: {reason}")
+                    AppEvent::EngineStatusChanged(EngineStatus::Failed { reason, .. }) => {
+                        panic!("unexpected fake engine failure: {reason}")
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
+        })
+        .await;
+        match progress.status {
+            WholeGameStatus::Completed => {
+                assert_eq!(progress.completed, progress.total);
+                return;
+            }
+            WholeGameStatus::Running => previous = progress.completed,
+            other => panic!("unexpected whole-game state: {other:?}"),
         }
-    })
-    .await;
+    }
 }
 
 fn all_moves() -> ProblemMovesQuery {

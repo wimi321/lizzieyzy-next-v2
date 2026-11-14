@@ -1,21 +1,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod common;
+
 use app_core::{
     AnalysisLimitSettings, AnalysisPauseReason, AnalysisSource, AnalysisState, AnalysisView,
     AppConfig, AppCore, AppEvent, AppSubscription, EngineProfile, EngineStatus, Settings,
     WholeGameOptions, WholeGameSource, WholeGameStatus,
 };
+use common::within;
 use document::{Command, GameDocument};
 use go_core::{Color, Move, Point};
 use serde_json::Value;
-use std::{future::Future, path::Path, time::Duration};
+use std::{path::Path, time::Duration};
 use tempfile::TempDir;
-
-async fn within<T>(future: impl Future<Output = T>) -> T {
-    tokio::time::timeout(Duration::from_secs(5), future)
-        .await
-        .expect("analysis-limit operation exceeded safety deadline")
-}
 
 fn config() -> AppConfig {
     let mut config = AppConfig::default();
@@ -398,7 +395,9 @@ async fn user_pause_is_distinct_and_playing_does_not_resume_it() {
 async fn manual_and_automatic_whole_game_analysis_complete_despite_live_limit_pause() {
     for automatic in [false, true] {
         let directory = TempDir::new().unwrap();
-        let engine = profile(directory.path(), if automatic { 1_000 } else { 10_000 });
+        // Automatic review needs to remain active when the live limit fires.
+        // At 20 visits/s the short review still spans multiple live reports.
+        let engine = profile(directory.path(), if automatic { 20 } else { 10_000 });
         let (app, mut events) = app(directory.path()).await;
         within(app.set_auto_quick_analyze_on_load(automatic))
             .await
@@ -406,7 +405,9 @@ async fn manual_and_automatic_whole_game_analysis_complete_despite_live_limit_pa
         within(app.set_analysis_limits(visit_limit()))
             .await
             .unwrap();
-        let moves = if automatic { 80 } else { 3 };
+        // Eight moves exercise automatic completion past the live limit without
+        // making the safety deadline depend on an 80-move replay.
+        let moves = if automatic { 8 } else { 3 };
         let mut source = String::from("(;SZ[9]");
         for index in 0..moves {
             source.push_str(if index % 2 == 0 { ";B[]" } else { ";W[]" });
@@ -416,6 +417,15 @@ async fn manual_and_automatic_whole_game_analysis_complete_despite_live_limit_pa
         within(app.configure_engine(Some(engine))).await.unwrap();
         stopped(&mut events, AnalysisPauseReason::PlayoutLimit).await;
         let expected_source = if automatic {
+            assert_eq!(
+                within(app.whole_game_progress())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .status,
+                WholeGameStatus::Running,
+                "automatic review must still be running when live analysis is limited"
+            );
             WholeGameSource::AutomaticQuick
         } else {
             within(app.start_whole_game_analysis(WholeGameOptions {
