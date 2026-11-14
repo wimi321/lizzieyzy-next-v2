@@ -27,6 +27,9 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     app_core::UpdateCheck::export_all_to(directory)?;
     app_core::BoardSyncOptions::export_all_to(directory)?;
     MoveView::export_all_to(directory)?;
+    app_core::GtpEngineInfo::export_all_to(directory)?;
+    app_core::MatchSetup::export_all_to(directory)?;
+    app_core::MatchSide::export_all_to(directory)?;
     app_core::GameSetup::export_all_to(directory)?;
     app_core::GameView::export_all_to(directory)?;
     app_core::PvPick::export_all_to(directory)?;

@@ -2,6 +2,8 @@ import type {
   AnalysisView,
   GameSetup,
   GameView,
+  MatchView,
+  GtpConsoleLine,
   BatchAnalysisStatus,
   FlashAnalysisSettings,
   AppEvent,
@@ -616,4 +618,34 @@ export function fillGameDefaults(view: GameView): void {
 
 function gameDefaultField<T extends object, K extends keyof T>(target: T, key: K, value: T[K]): void {
   if (target[key] === undefined) Object.defineProperty(target, key, { value, writable: true, configurable: true });
+}
+
+
+export const defaultMatchView: Required<MatchView> = {
+  phase: "Running", games: 1, completed: 0, current_game: 0, a_is_black: true,
+  a: { total: 0, black: 0, white: 0 }, b: { total: 0, black: 0, white: 0 },
+  draws: 0, unscored: {}, openings: [], current_opening: null, elo: null, error: null, save_directory: null,
+};
+export function fillMatchDefaults(view: MatchView): void {
+  for (const key of Object.keys(defaultMatchView) as (keyof MatchView)[]) gameDefaultField(view, key, structuredClone(defaultMatchView[key]));
+  for (const side of [view.a, view.b]) {
+    if (side) for (const key of ["total", "black", "white"] as const) gameDefaultField(side, key, 0);
+  }
+  for (const opening of view.openings ?? []) {
+    gameDefaultField(opening, "opening", ""); gameDefaultField(opening, "completed", 0);
+    gameDefaultField(opening, "draws", 0); gameDefaultField(opening, "unscored", {});
+    gameDefaultField(opening, "a", { total: 0, black: 0, white: 0 });
+    gameDefaultField(opening, "b", { total: 0, black: 0, white: 0 });
+    for (const side of [opening.a, opening.b]) {
+      if (side) for (const key of ["total", "black", "white"] as const) gameDefaultField(side, key, 0);
+    }
+  }
+  if (view.elo) {
+    gameDefaultField(view.elo, "elo", 0);
+    gameDefaultField(view.elo, "lower", null); gameDefaultField(view.elo, "upper", null);
+  }
+}
+export function fillGtpLineDefaults(line: GtpConsoleLine): void {
+  gameDefaultField(line, "engine_id", ""); gameDefaultField(line, "sequence", 0);
+  gameDefaultField(line, "direction", "Received"); gameDefaultField(line, "text", "");
 }

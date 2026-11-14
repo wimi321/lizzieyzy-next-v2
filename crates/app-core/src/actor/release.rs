@@ -58,6 +58,8 @@ impl Actor {
             self.stop_batch(Some("application update is installing".into()))
                 .await;
         }
+        self.shutdown_match().await;
+        self.shutdown_gtp().await;
         self.auto_setup.cancel();
         self.cancel_trial().await;
         if let Some(assets) = &self.assets.handle {
@@ -147,6 +149,18 @@ impl Actor {
             Command::BoardSync(crate::board_sync::Request::Status, _) => Some(command),
             Command::BoardSync(_, reply) => reject!(reply),
             Command::Game(_, reply) => reject!(reply),
+            Command::Match(_, reply) => reject!(reply),
+            Command::Gtp(request) => {
+                use crate::gtp_engines::Request;
+                match request {
+                    Request::Add(_, reply)
+                    | Request::Update(_, reply)
+                    | Request::Remove(_, reply) => reject!(reply),
+                    Request::Test(_, reply) => reject!(reply),
+                    Request::Send(_, _, reply) => reject!(reply),
+                    request @ Request::Console(_, _) => Some(Command::Gtp(request)),
+                }
+            }
             Command::SetAiPlayer(_, _, reply) => reject!(reply),
             Command::PlayBestMove(_, reply) => reject!(reply),
             Command::Review(_, reply) => reject!(reply),

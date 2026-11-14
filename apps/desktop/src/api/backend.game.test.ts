@@ -89,7 +89,7 @@ test("mock game setting defaults preserve explicit limits and directory", async 
   expect(explicit.game_setup?.ponder).toBe(false);
   expect(explicit.game_setup?.human_clock?.main_seconds).toBe(1200);
   const white = explicit.game_setup?.white;
-  expect(white?.type === "Ai" && white.data.data.seconds).toBeNull();
-  expect(white?.type === "Ai" && white.data.data.visits).toBe(7);
-  expect(white?.type === "Ai" && white.data.data.resign).toBeNull();
+  expect(white?.type === "Ai" && white.data.type === "KataGo" && white.data.data.seconds).toBeNull();
+  expect(white?.type === "Ai" && white.data.type === "KataGo" && white.data.data.visits).toBe(7);
+  expect(white?.type === "Ai" && white.data.type === "KataGo" && white.data.data.resign).toBeNull();
 });

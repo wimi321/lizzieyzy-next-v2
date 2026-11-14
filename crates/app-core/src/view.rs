@@ -454,6 +454,8 @@ impl From<engine_session::EngineStatus> for EngineStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum AppEvent {
+    MatchUpdated(crate::MatchView),
+    GtpConsoleLine(crate::GtpConsoleLine),
     GameUpdated(crate::GameView),
     BatchAnalysisProgress(crate::BatchAnalysisStatus),
     UpdateDownloadProgress(crate::updates::UpdateDownloadStatus),

@@ -11,6 +11,7 @@ document = { path = "../document" }
 engine-session = { path = "../engine-session" }
 fox-kifu = { path = "../fox-kifu" }
 go-core = { path = "../go-core" }
+gtp = { path = "../gtp" }
 sgf = { path = "../sgf" }
 strength = { path = "../strength" }
 readboard = { path = "../readboard" }

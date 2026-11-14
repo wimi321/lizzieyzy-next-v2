@@ -25,8 +25,10 @@ pub mod fox;
 mod game;
 mod game_api;
 mod graph;
+mod gtp_engines;
 mod inspection;
 mod java_import;
+mod match_game;
 mod move_editing;
 mod move_rank;
 mod preferences;
@@ -77,10 +79,12 @@ pub use everyday::{
 pub use flash_analysis::FlashAnalysisSettings;
 pub use game::*;
 pub use graph::{AnalysisSummary, GraphPointView, GraphView};
+pub use gtp_engines::*;
 pub use inspection::{
     GameInfoView, PreviewStoneView, VariationNodeView, VariationPreviewView, VariationTreeView,
 };
 pub use java_import::{JavaImportPreview, JavaImportedEngine};
+pub use match_game::*;
 pub use move_editing::{StoneOriginView, TrialError};
 pub use move_rank::*;
 pub use preferences::UiLanguage;
@@ -99,6 +103,10 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    Gtp(#[from] GtpError),
+    #[error(transparent)]
+    Match(#[from] MatchError),
     #[error("game is running")]
     GameRunning,
     #[error(transparent)]
@@ -177,6 +185,7 @@ pub enum AppError {
 pub struct AppConfig {
     pub games_directory: Option<PathBuf>,
     pub game_random_seed: Option<u64>,
+    pub gtp_session: engine_session::gtp::GtpSessionConfig,
     pub game_query_timeout: std::time::Duration,
     pub batch_clock: std::sync::Arc<dyn BatchClock>,
     /// Native host adapter; headless callers and tests never access the system clipboard.
@@ -201,6 +210,7 @@ impl Default for AppConfig {
         Self {
             games_directory: None,
             game_random_seed: None,
+            gtp_session: Default::default(),
             game_query_timeout: std::time::Duration::from_secs(120),
             batch_clock: std::sync::Arc::new(LocalBatchClock),
             clipboard: None,

@@ -87,7 +87,7 @@ async fn forward(mut subscription: AppSubscription, mut requests: mpsc::Receiver
             // mailbox while disconnected, including a completed final result.
             event = subscription.recv(), if active.is_some() => {
                 let Some(event) = event else { break };
-                if !matches!(event, AppEvent::AnalysisUpdated(_) | AppEvent::OpenFailed { .. }) {
+                if !matches!(event, AppEvent::AnalysisUpdated(_) | AppEvent::GtpConsoleLine(_) | AppEvent::OpenFailed { .. }) {
                     replay.retain(|cached| std::mem::discriminant(cached) != std::mem::discriminant(&event));
                     replay.push(event.clone());
                 }

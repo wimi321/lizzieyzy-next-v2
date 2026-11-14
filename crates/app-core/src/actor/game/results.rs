@@ -9,7 +9,11 @@ pub(super) fn win(winner: Color, suffix: &str) -> String {
     )
 }
 impl Actor {
-    pub(super) fn ai_resigns(&mut self, play: &KataGoPlay, response: &AnalysisResponse) -> bool {
+    pub(in crate::actor) fn ai_resigns(
+        &mut self,
+        play: &KataGoPlay,
+        response: &AnalysisResponse,
+    ) -> bool {
         let Some(game) = &mut self.game else {
             return false;
         };
@@ -33,7 +37,7 @@ impl Actor {
         }
         game.low_winrates[index(color)] >= rule.consecutive
     }
-    pub(super) fn select_game_move(
+    pub(in crate::actor) fn select_game_move(
         &mut self,
         play: &KataGoPlay,
         response: &AnalysisResponse,
@@ -95,7 +99,10 @@ impl Actor {
         board.play(mv).map_err(|_| GameError::InvalidPv)?;
         Ok(mv)
     }
-    pub(super) fn set_game_result(&mut self, result: Option<String>) -> Result<(), AppError> {
+    pub(in crate::actor) fn set_game_result(
+        &mut self,
+        result: Option<String>,
+    ) -> Result<(), AppError> {
         let info = self.document.game_info()?;
         let before = self.document.content_revision();
         self.document
@@ -115,7 +122,7 @@ impl Actor {
         }
         Ok(())
     }
-    pub(super) async fn finish_game(
+    pub(in crate::actor) async fn finish_game(
         &mut self,
         result: Option<String>,
         reason: GameEndReason,

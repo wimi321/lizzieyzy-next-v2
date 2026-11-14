@@ -2,6 +2,7 @@
 
 mod actor;
 mod delivery;
+pub mod gtp;
 mod request;
 mod transport;
 

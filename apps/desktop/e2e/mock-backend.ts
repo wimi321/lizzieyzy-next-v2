@@ -1,7 +1,8 @@
-import type { GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
-import { fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
+import type { GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import { fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 
 export type {
+  GtpCommands, GtpConsoleListener, GtpEngineEntry, GtpEngineInfo, GtpConsoleLine, GtpTime, MatchCommands, MatchUpdatedListener, MatchSetup, MatchView, MatchPlayer, MatchSide,
   GameCommands, GameUpdatedListener, GameSetup, GameView, GameStart, GamePhase, GameEndReason, GameError, AiPlayer, Player, KataGoPlay, HumanClock, HumanClockView, RandomOpening, ResignRule, PvPick,
   Backend, AppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings, EventListener,
   AnalysisSource, AnalysisSummary, AnalysisView, BoardView, CandidateView, ColorView, DocumentView,
@@ -39,7 +40,7 @@ export type {
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
+type CommandName = Exclude<keyof Backend, "subscribeMatchUpdated" | "subscribeGtpConsole" | "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -169,6 +170,8 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       for (const listener of [...listeners.values()]) {
         try {
           const cloned = structuredClone(event);
+          if (cloned.type === "MatchUpdated") fillMatchDefaults(cloned.data);
+          if (cloned.type === "GtpConsoleLine") fillGtpLineDefaults(cloned.data);
           if (cloned.type === "GameUpdated") fillGameDefaults(cloned.data);
           if (cloned.type === "BatchAnalysisProgress") fillBatchDefaults(cloned.data);
           if (cloned.type === "DocumentChanged") fillDocumentDefaults(cloned.data.view);
@@ -281,6 +284,7 @@ async function command<K extends CommandName>(
     defaultField(settings, "game_setup", structuredClone(defaultGameSetup));
     fillGameSetupDefaults(settings.game_setup!);
     defaultField(settings, "games_directory", null);
+    defaultField(settings, "gtp_engines", []);
     defaultField(settings, "recent_files", []);
     // As Rust's normalize_engines: an old single engine is a one-item list, and the main one.
     const legacy = settings.engine ? [{ id: "legacy-engine", name: "KataGo", profile: settings.engine }] : [];
@@ -307,6 +311,12 @@ async function command<K extends CommandName>(
   if (["startBatchAnalysis", "pauseBatchAnalysis", "resumeBatchAnalysis", "stopBatchAnalysis", "addBatchAnalysisFiles", "removeBatchAnalysisItem", "moveBatchAnalysisItem", "clearBatchAnalysis", "batchAnalysisStatus"].includes(next.command)) {
     fillBatchDefaults(cloned as BatchAnalysisStatus);
     lastBatchStatus = { ...defaultBatchAnalysisStatus, ...cloned as BatchAnalysisStatus };
+  }
+  if (["startMatch", "pauseMatch", "resumeMatch", "stopMatch", "setMatchGames", "matchPlayNow", "matchResign", "setMatchSideParams", "matchView"].includes(next.command) && cloned) fillMatchDefaults(cloned as MatchView);
+  if (next.command === "gtpConsole" && cloned) (cloned as GtpConsoleLine[]).forEach(fillGtpLineDefaults);
+  if (next.command === "testGtpEngine" && cloned) {
+    const info = cloned as GtpEngineInfo;
+    defaultField(info, "name", ""); defaultField(info, "version", ""); defaultField(info, "commands", []);
   }
   if (["startGame", "pauseGame", "resumeGame", "stopGame", "resignGame", "takeBack", "continueGame", "setAiPlayer", "gameView"].includes(next.command) && cloned) {
     fillGameDefaults(cloned as GameView);
@@ -641,7 +651,7 @@ export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+    if (event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
   });
   pushEvents([]);
   return id;
@@ -808,6 +818,35 @@ export const gameView: NonNullable<Backend["gameView"]> = () => query("gameView"
 export const subscribeGameUpdated: NonNullable<Backend["subscribeGameUpdated"]> = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => { if (event.type === "GameUpdated") listener(event.data); });
+  pushEvents([]);
+  return id;
+};
+
+export const addGtpEngine: NonNullable<Backend["addGtpEngine"]> = (entry) => command("addGtpEngine", [entry]);
+export const updateGtpEngine: NonNullable<Backend["updateGtpEngine"]> = (entry) => command("updateGtpEngine", [entry]);
+export const removeGtpEngine: NonNullable<Backend["removeGtpEngine"]> = (id) => command("removeGtpEngine", [id]);
+export const testGtpEngine: NonNullable<Backend["testGtpEngine"]> = (id) => command("testGtpEngine", [id]);
+export const gtpConsole: NonNullable<Backend["gtpConsole"]> = (engineId) => command("gtpConsole", [engineId]);
+export const gtpConsoleSend: NonNullable<Backend["gtpConsoleSend"]> = (engineId, text) => command("gtpConsoleSend", [engineId, text]);
+export const startMatch: NonNullable<Backend["startMatch"]> = (setup) => command("startMatch", [setup]);
+export const pauseMatch: NonNullable<Backend["pauseMatch"]> = () => command("pauseMatch", []);
+export const resumeMatch: NonNullable<Backend["resumeMatch"]> = () => command("resumeMatch", []);
+export const stopMatch: NonNullable<Backend["stopMatch"]> = () => command("stopMatch", []);
+export const setMatchGames: NonNullable<Backend["setMatchGames"]> = (n) => command("setMatchGames", [n]);
+export const matchPlayNow: NonNullable<Backend["matchPlayNow"]> = () => command("matchPlayNow", []);
+export const matchResign: NonNullable<Backend["matchResign"]> = (color) => command("matchResign", [color]);
+export const setMatchSideParams: NonNullable<Backend["setMatchSideParams"]> = (side, wrn, pda) => command("setMatchSideParams", [side, wrn, pda]);
+export const matchView: NonNullable<Backend["matchView"]> = () => command("matchView", []);
+export const subscribeMatchUpdated: NonNullable<Backend["subscribeMatchUpdated"]> = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => { if (event.type === "MatchUpdated") listener(event.data); });
+  pushEvents([]);
+  return id;
+};
+
+export const subscribeGtpConsole: NonNullable<Backend["subscribeGtpConsole"]> = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => { if (event.type === "GtpConsoleLine") listener(event.data); });
   pushEvents([]);
   return id;
 };

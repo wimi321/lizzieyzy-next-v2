@@ -11,10 +11,13 @@ pub(super) struct Query {
     key: AnalysisKey,
     play: Option<KataGoPlay>,
     deadline: Instant,
+    latest: Option<AnalysisResponse>,
 }
 pub(in crate::actor) enum Event {
     Query(Box<Option<QueryEvent>>),
     Tick,
+    Gtp(Box<super::gtp::Outcome>),
+    GtpFailed(GameError),
 }
 
 pub(in crate::actor) async fn receive(session: &mut Option<Session>) -> Event {
@@ -36,13 +39,61 @@ pub(in crate::actor) async fn receive(session: &mut Option<Session>) -> Event {
         (Some(a), None) | (None, Some(a)) => Some(a),
         (None, None) => None,
     };
+    let states = game
+        .gtp_players
+        .values()
+        .filter(|state| {
+            [&game.setup.black, &game.setup.white].iter().any(|p| {
+                matches!(p,
+            Player::Ai(crate::AiPlayer::Gtp { engine_id, .. }) if engine_id == &state.id)
+            })
+        })
+        .map(|state| (state.id.clone(), state.handle.status(), state.initialized))
+        .collect();
     tokio::select! {
+        error = super::gtp::failure(states) => Event::GtpFailed(error),
+        answer = async {match &mut game.gtp_query {Some(query)=>query.future.as_mut().await,None=>pending().await}} => Event::Gtp(Box::new(answer)),
         event = async { match &mut game.query {Some(query)=>query.subscription.recv().await,None=>pending().await} } => Event::Query(Box::new(event)),
         () = async {match deadline {Some(deadline)=>tokio::time::sleep_until(deadline).await,None=>pending().await}} => Event::Tick,
     }
 }
 impl Actor {
+    pub(in crate::actor) async fn game_play_now(&mut self) -> Result<(), AppError> {
+        let game = self.require_game()?;
+        if !self.game_playing() {
+            return Err(GameError::NotActive.into());
+        }
+        if matches!(
+            game.player(game.color()),
+            Player::Ai(crate::AiPlayer::Gtp { .. })
+        ) {
+            return Err(GameError::GtpPlayNowUnsupported.into());
+        }
+        let query = game.query.as_ref().ok_or(GameError::NoAnalysis)?;
+        let play = query.play.clone().ok_or(GameError::NoAnalysis)?;
+        let response = query.latest.clone().ok_or(GameError::NoAnalysis)?;
+        let resigns = self.ai_resigns(&play, &response);
+        let mv = if resigns {
+            None
+        } else {
+            Some(self.select_game_move(&play, &response)?)
+        };
+        self.cancel_game_query().await?;
+        if let Some(mv) = mv {
+            self.append_game_move(mv, false).await
+        } else {
+            let color = self.require_game()?.color();
+            self.finish_game(
+                Some(results::win(opponent(color), "R")),
+                GameEndReason::Resignation,
+            )
+            .await
+        }
+    }
     pub(super) fn game_engine(&self) -> Result<EngineHandle, GameError> {
+        if let Some(engine) = self.match_engine_for_turn() {
+            return Ok(engine);
+        }
         let running = self.running.as_ref().ok_or(GameError::NoEngine)?;
         if matches!(
             *running.engine_status.borrow(),
@@ -52,7 +103,7 @@ impl Actor {
         }
         Ok(running.engine.clone())
     }
-    pub(super) async fn clear_game_live_query(&mut self) -> Result<(), AppError> {
+    pub(in crate::actor) async fn clear_game_live_query(&mut self) -> Result<(), AppError> {
         self.flush_cached_focus().await;
         if let Some(running) = &self.running {
             running.coordinator.clear_focus().await?;
@@ -62,6 +113,7 @@ impl Actor {
         Ok(())
     }
     pub(in crate::actor) async fn cancel_game_query(&mut self) -> Result<(), AppError> {
+        self.cancel_gtp_query().await?;
         if let Some(query) = self.game.as_mut().and_then(|game| game.query.take()) {
             query
                 .engine
@@ -71,16 +123,38 @@ impl Actor {
         Ok(())
     }
     pub(super) async fn begin_game_turn(&mut self) -> Result<(), AppError> {
+        if self.match_move_limit_reached().await? {
+            return Ok(());
+        }
         let game = self.require_game()?;
         if game.view.phase != GamePhase::Playing {
             return Ok(());
         }
         let scoring = game.scoring;
+        let gtp = match game.player(game.color()) {
+            Player::Ai(crate::AiPlayer::Gtp { engine_id, time }) => {
+                Some((engine_id.clone(), time.clone()))
+            }
+            _ => None,
+        };
+        if scoring && self.score_gtp_game().await? {
+            self.publish_game();
+            return Ok(());
+        }
+        if !scoring && let Some((id, time)) = gtp {
+            if let Err(error) = self.submit_gtp_turn(id, Some(time)).await {
+                self.finish_game(None, GameEndReason::EngineError).await?;
+                self.record_game_error(error);
+            }
+            self.publish_game();
+            return Ok(());
+        }
+        let game = self.require_game()?;
         let play = if scoring {
             None
         } else {
             match game.player(game.color()) {
-                Player::Human => None,
+                Player::Human | Player::Ai(crate::AiPlayer::Gtp { .. }) => None,
                 Player::Ai(crate::AiPlayer::KataGo(play)) => Some(play.clone()),
             }
         };
@@ -118,7 +192,8 @@ impl Actor {
         // A play result must describe the actual SGF rules and komi.
         live.query_rules = None;
         live.query_komi = None;
-        let request = analysis::play_request(&position, &live, visits, seconds, pure)?;
+        let mut request = analysis::play_request(&position, &live, visits, seconds, pure)?;
+        self.match_override_settings(&mut request);
         let subscription = engine.submit(request).await?;
         let deadline = Instant::now()
             + seconds.map(Duration::from_secs_f64).unwrap_or_default()
@@ -131,6 +206,7 @@ impl Actor {
                 key: position.analysis_key(),
                 play,
                 deadline,
+                latest: None,
             });
         }
         Ok(())
@@ -167,6 +243,9 @@ impl Actor {
                 }
                 return;
             }
+            if self.game_playing() && self.match_active() {
+                let _ = self.finish_game(None, GameEndReason::EngineError).await;
+            }
             if self.game_playing() {
                 let _ = self.cancel_game_query().await;
                 if let Some(game) = &mut self.game {
@@ -182,6 +261,12 @@ impl Actor {
         }
         let event = match event {
             Event::Query(event) => *event,
+            Event::Gtp(outcome) => return self.receive_gtp_answer(*outcome).await,
+            Event::GtpFailed(error) => {
+                self.finish_game(None, GameEndReason::EngineError).await?;
+                self.record_game_error(error.into());
+                return Ok(());
+            }
             Event::Tick => {
                 if self.update_game_clock().await? {
                     return Ok(());
@@ -210,6 +295,9 @@ impl Actor {
                     && query.play.is_some()
                 {
                     query.deadline = Instant::now() + self.config.game_query_timeout;
+                }
+                if let Some(query) = self.game.as_mut().and_then(|game| game.query.as_mut()) {
+                    query.latest = Some(response.clone());
                 }
                 self.publish_game_analysis(response)?;
             }
@@ -242,7 +330,12 @@ impl Actor {
                     self.finish_game(result, reason).await?;
                 }
             }
-            Some(QueryEvent::Restarted) => {}
+            Some(QueryEvent::Restarted) => {
+                if self.match_active() {
+                    self.game_query_failed("engine restarted during match".into())
+                        .await?;
+                }
+            }
             Some(QueryEvent::Failed(error)) => self.game_query_failed(error.to_string()).await?,
             Some(QueryEvent::Terminated) | None => {
                 self.game_query_failed("query ended without a result".into())
@@ -286,7 +379,9 @@ impl Actor {
                 }
             })
             .or_insert(latest);
-        self.persist_analysis(&snapshot);
+        if !self.match_active() {
+            self.persist_analysis(&snapshot);
+        }
         if self.document.current() == snapshot.node_id {
             self.output.send(AppEvent::AnalysisUpdated(view));
         } else {
@@ -303,6 +398,14 @@ impl Actor {
         }
     }
     async fn fail_game_query(&mut self, reason: String) {
+        if self.match_active() {
+            let _ = self.finish_game(None, GameEndReason::EngineError).await;
+            if let Some(game) = &mut self.game {
+                game.view.error = Some(GameError::Engine(reason));
+            }
+            self.publish_game();
+            return;
+        }
         let _ = self.cancel_game_query().await;
         if let Some(game) = &mut self.game {
             game.view.phase = GamePhase::Paused;

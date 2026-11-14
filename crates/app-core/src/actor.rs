@@ -26,7 +26,9 @@ mod fox;
 mod game;
 mod game_files;
 mod graph_analysis;
+mod gtp;
 mod java_import;
+mod match_game;
 mod move_editing;
 mod preferences;
 mod problem_moves;
@@ -79,6 +81,8 @@ struct Actor {
     review: review::ReviewState,
     batch: batch::State,
     game: Option<game::Session>,
+    gtp: gtp::State,
+    match_session: Option<match_game::Session>,
     strength: Option<strength::Estimator>,
     summary_fingerprint: Option<String>,
     revision: u64,
@@ -131,6 +135,8 @@ pub(crate) async fn run(
         review: review::ReviewState::default(),
         batch: Default::default(),
         game: None,
+        gtp: Default::default(),
+        match_session: None,
         strength: None,
         summary_fingerprint: None,
         revision: 0,
@@ -160,13 +166,17 @@ pub(crate) async fn run(
     actor.publish_analysis_state();
     loop {
         tokio::select! {
+            () = std::future::ready(()), if actor.match_needs_advance() => actor.advance_match().await,
             () = std::future::ready(()), if actor.batch_needs_advance() => actor.advance_batch().await,
             command = commands.recv() => {
               let command = match command {
-                Some(command) => match actor.update_guard(command).and_then(|command| actor.batch_guard(command)).and_then(|command| actor.game_guard(command)) { Some(command) => Some(command), None => continue },
+                Some(command) => match actor.update_guard(command).and_then(|command| actor.batch_guard(command)).and_then(|command| actor.match_guard(command)).and_then(|command| actor.game_guard(command)) { Some(command) => Some(command), None => continue },
                 None => None,
               };
               match command {
+                Some(Command::Gtp(request)) => actor.gtp_request(request).await,
+                Some(Command::Match(request, reply)) => { let _ = reply.send(actor.match_command(request).await); }
+                Some(Command::MatchView(reply)) => { let _ = reply.send(actor.match_view()); }
                 Some(Command::Game(request, reply)) => { let _ = reply.send(actor.game_command(request).await); }
                 Some(Command::GameView(reply)) => { let _ = reply.send(actor.game_view()); }
                 Some(Command::SetAiPlayer(color, player, reply)) => { let _ = reply.send(actor.set_ai_player(color, player).await); }
@@ -232,6 +242,8 @@ pub(crate) async fn run(
                 Some(Command::TryAutoEngine(trial, reply)) => actor.begin_auto_trial(trial, reply).await,
                 Some(Command::Apply(Input::Shutdown, reply)) => {
                     if actor.batch_active() { actor.stop_batch(None).await; }
+                    actor.shutdown_match().await;
+                    actor.shutdown_gtp().await;
                     actor.auto_setup.cancel();
                     actor.cancel_trial().await;
                     let updates_result = actor.updates.shutdown().await;
@@ -254,6 +266,7 @@ pub(crate) async fn run(
                 None => { if actor.batch_active() { actor.stop_batch(None).await; } actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
               }
             },
+            line = gtp::receive(&mut actor.gtp) => actor.gtp_line(line),
             signal = next_signal(&mut actor.running) => actor.cache_signal(signal),
             event = game::receive(&mut actor.game) => actor.game_signal(event).await,
             result = review::receive(&mut actor.review) => actor.review_signal(result).await,
@@ -269,6 +282,8 @@ pub(crate) async fn run(
         }
         actor.publish_analysis_state();
     }
+    actor.shutdown_match().await;
+    actor.shutdown_gtp().await;
     let _ = actor.updates.shutdown().await;
     if let Some(support) = actor.support.take() {
         let _ = support.shutdown().await;
@@ -550,7 +565,7 @@ impl Actor {
 
     async fn update_focus_with_resume(&mut self, resume_limited: bool) {
         self.publish_saved_focus();
-        if self.game_owns_query() {
+        if self.match_active() || self.game_owns_query() {
             return;
         }
         if self.running.is_none() {

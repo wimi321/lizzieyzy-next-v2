@@ -27,6 +27,7 @@ mod engines;
 mod everyday;
 mod frame;
 mod game;
+mod gtp_match;
 mod move_editing;
 mod preferences;
 mod problem_moves;
@@ -177,6 +178,8 @@ impl Harness {
                     | AppEvent::AssetDownloadProgress(_)
                     | AppEvent::AnalysisStateChanged(_)
                     | AppEvent::BoardSyncStatusChanged(_)
+                    | AppEvent::MatchUpdated(_)
+                    | AppEvent::GtpConsoleLine(_)
                     | AppEvent::GameUpdated(_) => {}
                 }
             }
