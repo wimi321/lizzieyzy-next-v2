@@ -1,5 +1,5 @@
 //! Thin account adapters; credentials stay in the core service and secret store.
-use crate::{DesktopState, error::CommandError};
+use crate::{DesktopState, error::CommandError, zhizi_website::ZhiziWebsite};
 use app_core::zhizi::*;
 use tauri::State;
 
@@ -86,4 +86,11 @@ pub async fn zhizi_credits(
 #[tauri::command]
 pub fn zhizi_website() -> String {
     website_url().to_owned()
+}
+
+#[tauri::command]
+pub(crate) async fn open_zhizi_website(
+    website: State<'_, ZhiziWebsite>,
+) -> Result<(), CommandError> {
+    website.open().await
 }

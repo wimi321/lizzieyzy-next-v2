@@ -137,6 +137,7 @@ pub(crate) enum Command {
     ReviewResult(u32, oneshot::Sender<Result<Option<AnalysisView>, AppError>>),
     ReviewAnalysis(u32, oneshot::Sender<Option<crate::StoredAnalysis>>),
     VariationTree(oneshot::Sender<VariationTreeView>),
+    ClipboardLink(oneshot::Sender<Option<String>>),
     StoneOrigin(
         go_core::Point,
         oneshot::Sender<Result<Option<crate::StoneOriginView>, AppError>>,

@@ -56,6 +56,8 @@ pub enum CommandError {
     RevealOutsideDataDirectory,
     #[error("cannot reveal this path: {0}")]
     RevealUnavailable(String),
+    #[error("cannot open the Zhizi website in the system browser")]
+    BrowserUnavailable,
     #[error("{0}")]
     App(String),
     #[error("{0}")]

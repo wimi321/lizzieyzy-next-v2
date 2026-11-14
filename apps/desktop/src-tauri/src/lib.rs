@@ -16,6 +16,7 @@ mod system_open;
 pub mod tencent_error;
 pub mod updater;
 mod window_preferences;
+mod zhizi_website;
 
 use app_core::{AppCore, AppSubscription};
 use std::path::PathBuf;
@@ -46,6 +47,7 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::document::save,
             commands::everyday::copy_sgf,
             commands::everyday::paste_sgf,
+            commands::everyday::clipboard_link,
             commands::everyday::save_clean_sgf,
             commands::everyday::save_png,
             commands::everyday::copy_png,
@@ -84,6 +86,7 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::zhizi::zhizi_usages,
             commands::zhizi::zhizi_credits,
             commands::zhizi::zhizi_website,
+            commands::zhizi::open_zhizi_website,
             commands::remote::add_remote_engine,
             commands::remote::update_remote_engine,
             commands::remote::test_remote_engine,
@@ -259,6 +262,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(move |app| {
             app.manage(reveal::RevealService::default());
+            app.manage(zhizi_website::ZhiziWebsite::default());
             app.manage(engine_setup::SetupEnvironment::for_app(app.handle())?);
             app.manage(board_sync::BoardSyncEnvironment::for_app(app.handle())?);
             let default_dir = match &options.config_dir {
