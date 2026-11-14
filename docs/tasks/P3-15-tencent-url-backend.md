@@ -31,9 +31,9 @@ P3 第 6 批：在线棋谱的第一部分。Java 参考在 `../lizzieyzy-next`�
    - 查询 `TencentQuery`：昵称，或者纯数字 UID（纯数字时同时作为 `srcuid` 传）。
    - 列表：`GET https://cgi.huanle.qq.com/cgi-bin/CommonMobileCGI/TXWQFetchChessList`，参数 `type=7`、`lastCode=<0 或上一批最后一局的 chessid>`、`username`、`srcuid`、`txwqsession=lizzieyzy-next`、`fetchnum=100`。
      - `result` 为 0、且 `ret` 不存在或为 0 才算成功；否则返回类型化错误，带上 `resultstr`。
-     - 每局取：`chessid`；开始时间（`starttime`，没有就取 `gamestarttime`，单位秒）；黑白双方的 UID、名字（依次取 `blacknick`、`blackenname`、`blackname`，白方同理）、段位；手数 `movenum`；胜方 `winner`（1 黑、2 白）；`point`（分数 ×100；-1 中盘胜，-2 超时胜）；`rule` 为 1 时按数子，单位是「子」。
+     - 每局取：`chessid`；开始时间（先取整数秒的 `gamestarttime`；没有时取 `starttime`，可以是整数秒或北京时间的 `YYYY-MM-DD HH:MM:SS`；都解析不了时为空，这一局照常列出）；黑白双方的 UID、名字（依次取 `blacknick`、`blackenname`、`blackname`，白方同理）、段位；手数 `movenum`；胜方 `winner`（1 黑、2 白）；`point`（分数 ×100；-1 中盘胜，-2 超时胜）；`rule` 为 1 时按数子，单位是「子」。
      - 段位换算照 Java（`TencentKifuDownload.java:742`）：n ≥ 100 为职业 `P(n-99)`；n-17 > 0 为 `(n-17)` 段；否则 `(|n-17|+1)` 级。和野狐一样，界面只拿到结构化的段位，文案由界面本地化。
-     - 翻页：每批最多 100 局，不足 100 局表示没有下一页；游标是本批最后一局的 `chessid`；游标重复时报错。
+     - 翻页：游标是本批最后一局的 `chessid`。2026-11-14 的检查中 `fetchnum=100` 只返回了 50 局，服务端每批的上限不确定，所以本批不为空就提供下一页，下一批为空才算到底；游标重复时报错。
    - 下载：`GET https://happyapp.huanle.qq.com/cgi-bin/CommonMobileCGI/TXWQFetchChess?chessid=…`，返回 `{result:0, chess:"<SGF>"}`。整理沿用野狐的规则（去 BOM、去掉属性值外的反斜杠等）。
 3. **app-core**：
    - 新命令 `tencent_search(query)`、`tencent_next_page(query, cursor)`、`tencent_open_game(chessid)`、`tencent_clear_history()`，照 `fox_*` 的做法：网络请求不占用 app actor，下载成功后走 `open_bytes` 的打开流程，失败时保留当前棋谱。
@@ -58,7 +58,7 @@ P3 第 6 批：在线棋谱的第一部分。Java 参考在 `../lizzieyzy-next`�
 ## 验收标准
 
 1. 汇报里写明第 1 条的结果：两个接口都还能用。
-2. 腾讯客户端：查询、分页（包括不足 100 局和游标重复）、段位换算的三种情况、结果的四种情况（点数、子数、中盘、超时）、下载和整理、非零 `result` 和网络错误的分类，都有测试，用录制的数据和本地假 HTTP 服务。
+2. 腾讯客户端：查询、开始时间的几种格式、分页（包括空批和游标重复）、段位换算的三种情况、结果的四种情况（点数、子数、中盘、超时）、下载和整理、非零 `result` 和网络错误的分类，都有测试，用录制的数据和本地假 HTTP 服务。
 3. app-core：搜索、下一页、打开（失败时保留当前棋谱）、历史记录的去重和上限、清空，各有测试。
 4. `open_url`：非 http/https 被拒、野狐分享链接走 `download`、弈客链接返回暂不支持、普通链接打开、不是棋谱时报错且不打开、超过大小上限、跳转到非 http 被拒，各有测试。
 5. `scripts/verify.sh --e2e` 通过；新依赖每个写一行理由；`docs/ARCHITECTURE.md` 的 4.9 节补上腾讯棋谱和打开在线链接。
