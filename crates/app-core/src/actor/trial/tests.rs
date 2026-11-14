@@ -24,6 +24,12 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
             coach: Default::default(),
             commentary: super::super::commentary::State::new(None, &Default::default()),
             remote: Default::default(),
+            zhizi: if tokio::runtime::Handle::try_current().is_ok() {
+                crate::zhizi::ZhiziService::spawn(None, None)
+            } else {
+                crate::zhizi::ZhiziService::inactive_for_test()
+            },
+            startup_local_fallback: false,
             game: None,
             gtp: Default::default(),
             match_session: None,

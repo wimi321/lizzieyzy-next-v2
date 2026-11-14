@@ -8,7 +8,8 @@ impl Actor {
     pub(super) fn analysis_state(&self) -> AnalysisState {
         let pause_reason = if !self.pondering() {
             // Benchmark is a separate temporary operation, not a user pause.
-            (!self.benchmark_active()).then_some(AnalysisPauseReason::User)
+            (!self.benchmark_active() && !self.zhizi_review_owns_engine())
+                .then_some(AnalysisPauseReason::User)
         } else {
             self.limit_reason().map(|reason| match reason {
                 LimitReason::Time => AnalysisPauseReason::TimeLimit,
@@ -72,19 +73,19 @@ impl Actor {
             }
             // Automatic stopping itself never clears the last analysis event.
             self.output.clear_analysis();
-            if enabled && self.review_running() {
+            if enabled && self.review_running() && !self.zhizi_review_owns_engine() {
                 self.stop_review_query().await?;
             }
             if let Some(running) = &self.running {
                 running
                     .coordinator
-                    .set_pondering(enabled && self.focus.is_some())
+                    .set_pondering(self.pondering() && self.focus.is_some())
                     .await?;
-                if enabled && limited && self.focus.is_some() {
+                if enabled && limited && self.focus.is_some() && !self.zhizi_review_owns_engine() {
                     running.coordinator.resume().await?;
                 }
             }
-            if enabled {
+            if enabled && !self.zhizi_review_owns_engine() {
                 self.continue_review().await;
             }
             self.publish_saved_focus();
