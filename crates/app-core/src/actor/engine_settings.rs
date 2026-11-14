@@ -3,6 +3,20 @@ use crate::{AppError, EngineSettings};
 use std::time::Duration;
 
 impl Actor {
+    pub(super) fn ensure_local_engine(&self) -> Result<(), AppError> {
+        let profile = self.settings.engine.as_ref().or_else(|| {
+            self.settings
+                .engines
+                .iter()
+                .find(|entry| Some(&entry.id) == self.settings.main_engine_id.as_ref())
+                .map(|entry| &entry.profile)
+        });
+        if profile.is_some_and(|profile| profile.remote.is_some()) {
+            return Err(crate::RemoteEngineError::Unsupported.into());
+        }
+        Ok(())
+    }
+
     pub(super) fn session_config(&self) -> engine_session::SessionConfig {
         let mut config = self.config.session.clone();
         config.auto_check_alive = self.settings.engine_settings.auto_check_alive;

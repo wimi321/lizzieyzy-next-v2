@@ -4,6 +4,7 @@ use super::*;
 
 fn profile(model: &str, canonical: Option<&str>) -> EngineProfile {
     EngineProfile {
+        remote: None,
         human_model: None,
         program: "unused-katago".into(),
         model: model.into(),

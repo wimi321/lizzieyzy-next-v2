@@ -12,11 +12,14 @@ pub type KeyStoreFuture<'a, T> =
 #[error("system credential store is unavailable")]
 pub struct KeyStoreUnavailable;
 
-pub trait CommentaryKeyStore: std::fmt::Debug + Send + Sync {
+pub trait SecretStore: std::fmt::Debug + Send + Sync {
     fn read(&self, account: String) -> KeyStoreFuture<'_, Option<String>>;
     fn write(&self, account: String, key: String) -> KeyStoreFuture<'_, ()>;
     fn delete(&self, account: String) -> KeyStoreFuture<'_, ()>;
 }
+
+/// Compatibility name for the P3-16 caller; all secrets share this boundary.
+pub use SecretStore as CommentaryKeyStore;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct CommentaryKeyStatus {
@@ -200,7 +203,7 @@ impl CommentaryKeys {
 #[derive(Debug)]
 pub struct SystemKeyStore;
 
-impl CommentaryKeyStore for SystemKeyStore {
+impl SecretStore for SystemKeyStore {
     fn read(&self, account: String) -> KeyStoreFuture<'_, Option<String>> {
         Box::pin(async move {
             tokio::task::spawn_blocking(move || native::read(&account))

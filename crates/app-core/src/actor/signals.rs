@@ -3,6 +3,8 @@ use crate::{AnalysisView, AppEvent};
 use analysis::AnalysisStatus;
 use document::NodeId;
 
+mod remote_identity;
+
 impl Actor {
     pub(super) fn signal(&mut self, signal: Signal) {
         match signal {

@@ -27,6 +27,7 @@ async fn paused_actor(directory: &std::path::Path) -> (Actor, crate::AppSubscrip
     let program = fake_katago::binary_path().unwrap();
     actor
         .apply(Input::ConfigureEngine(Some(EngineProfile {
+            remote: None,
             human_model: None,
             model: program.clone(),
             config: program.clone(),
@@ -40,16 +41,18 @@ async fn paused_actor(directory: &std::path::Path) -> (Actor, crate::AppSubscrip
     (actor, events)
 }
 
-fn queue_latest(actor: &mut Actor, visits: u64) -> AnalysisResponse {
+async fn queue_latest(actor: &mut Actor, visits: u64) -> AnalysisResponse {
     // Keep the actual coordinator paused while supplying deterministic live
     // snapshots through the same acceptance/write path as the application.
     actor.settings.pondering = true;
     let earlier = crate::actor::tests::snapshot(actor, visits - 1, 0.5);
-    actor.cache_signal(Signal::Snapshot(Box::new(earlier)));
+    actor
+        .cache_signal(Signal::Snapshot(Box::new(earlier)))
+        .await;
     let mut latest = crate::actor::tests::snapshot(actor, visits, 0.7);
     latest.response.ownership = Some(vec![0.25; 81]);
     let response = latest.response.clone();
-    actor.cache_signal(Signal::Snapshot(Box::new(latest)));
+    actor.cache_signal(Signal::Snapshot(Box::new(latest))).await;
     actor.settings.pondering = false;
     assert_eq!(
         actor.review.results[&actor.document.current()].response,
@@ -77,7 +80,7 @@ async fn navigation_and_same_node_key_changes_flush_the_latest_pending_snapshot(
     );
     let fingerprint = actor.cache_fingerprint().unwrap();
     let root = actor.focus.as_ref().unwrap().key;
-    let latest = queue_latest(&mut actor, 100);
+    let latest = queue_latest(&mut actor, 100).await;
     assert_eq!(
         actor.cache.as_ref().unwrap().get(root, &fingerprint).await,
         Some(latest.clone())
@@ -91,7 +94,7 @@ async fn navigation_and_same_node_key_changes_flush_the_latest_pending_snapshot(
 
     let node = actor.document.current();
     let old_key = actor.focus.as_ref().unwrap().key;
-    let latest = queue_latest(&mut actor, 200);
+    let latest = queue_latest(&mut actor, 200).await;
     assert_eq!(
         actor
             .cache
@@ -147,7 +150,7 @@ async fn replacing_the_same_document_flushes_the_latest_pending_snapshot() {
     let fingerprint = actor.cache_fingerprint().unwrap();
     let node = actor.document.current();
     let key = actor.focus.as_ref().unwrap().key;
-    let latest = queue_latest(&mut actor, 300);
+    let latest = queue_latest(&mut actor, 300).await;
     assert_eq!(
         actor.cache.as_ref().unwrap().get(key, &fingerprint).await,
         Some(latest.clone())
@@ -188,6 +191,7 @@ async fn invalid_cached_coordinates_disable_storage_without_failing_live_analysi
     let program = fake_katago::binary_path().unwrap();
     actor
         .apply(Input::ConfigureEngine(Some(EngineProfile {
+            remote: None,
             human_model: None,
             model: program.clone(),
             config: program.clone(),
@@ -211,7 +215,7 @@ async fn invalid_cached_coordinates_disable_storage_without_failing_live_analysi
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             tokio::select! {
-                signal = next_signal(&mut actor.running) => actor.cache_signal(signal),
+                signal = next_signal(&mut actor.running) => actor.cache_signal(signal).await,
                 event = events.recv() => match event.unwrap() {
                     AppEvent::AnalysisUpdated(view) if view.source == crate::AnalysisSource::Live && !view.is_during_search => {
                         assert_eq!(view.visits, 5);

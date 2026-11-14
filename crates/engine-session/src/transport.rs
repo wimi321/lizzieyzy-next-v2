@@ -16,6 +16,8 @@ use tokio::time::{Instant, sleep_until, timeout};
 use crate::{SessionConfig, TransportSpec};
 
 mod spawn;
+mod ssh;
+mod websocket;
 pub use spawn::spawn_process;
 
 pub(crate) const CHANNEL_CAPACITY: usize = 64;
@@ -30,6 +32,7 @@ pub(crate) enum Output {
 pub(crate) struct Exit {
     pub status: Result<ExitStatus, String>,
     pub stderr_tail: Vec<String>,
+    pub reason: Option<String>,
 }
 
 pub(crate) struct Transport {
@@ -43,12 +46,22 @@ pub(crate) struct Transport {
 type Writer = Pin<Box<dyn Future<Output = Result<(), String>> + Send>>;
 
 pub(crate) async fn start(spec: &TransportSpec, cfg: &SessionConfig) -> io::Result<Transport> {
+    match spec {
+        TransportSpec::WebSocket { url } => {
+            return websocket::start(url, cfg).await.map_err(io::Error::other);
+        }
+        TransportSpec::Ssh { .. } => return ssh::start(spec, cfg).await.map_err(io::Error::other),
+        TransportSpec::LocalProcess { .. } => {}
+    }
     let TransportSpec::LocalProcess {
         program,
         args,
         cwd,
         env,
-    } = spec;
+    } = spec
+    else {
+        return Err(io::Error::other("unsupported transport"));
+    };
     let mut command = Command::new(program);
     command
         .args(args)
@@ -209,6 +222,7 @@ async fn drive(
     Exit {
         status: status.unwrap_or_else(|| Err("child exit status unavailable".into())),
         stderr_tail: stderr_tail.into(),
+        reason: None,
     }
 }
 

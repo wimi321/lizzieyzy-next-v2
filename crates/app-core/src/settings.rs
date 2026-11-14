@@ -17,6 +17,9 @@ pub const SETTINGS_VERSION: u32 = 1;
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default)]
 pub struct EngineProfile {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub remote: Option<crate::RemoteEngineConfig>,
     pub program: PathBuf,
     pub model: PathBuf,
     // Optional HumanSL model; missing files never prevent ordinary analysis.
@@ -248,6 +251,10 @@ impl EngineProfile {
     /// Identity is inexpensive even for multi-gigabyte models. The caller must
     /// replace the coordinator when this value changes; it is not a file digest.
     pub async fn fingerprint(&self) -> Result<String, SettingsError> {
+        if let Some(remote) = &self.remote {
+            let encoded = serde_json::to_vec(&("lizzieyzy-next2:remote:v1", remote))?;
+            return Ok(blake3::hash(&encoded).to_hex().to_string());
+        }
         let mut files = Vec::new();
         for (kind, path) in [
             ("engine program", &self.program),
@@ -318,6 +325,11 @@ impl EngineProfile {
         &self,
         benchmark: Option<&crate::BenchmarkResult>,
     ) -> Result<TransportSpec, SettingsError> {
+        if self.remote.is_some() {
+            return Err(SettingsError::InvalidProfile(
+                "remote credentials require the application secret store".into(),
+            ));
+        }
         let (overrides, extra_args) = self.prepare_extra_args()?;
         let overrides = if let Some(benchmark) = benchmark {
             if !benchmark.valid() {

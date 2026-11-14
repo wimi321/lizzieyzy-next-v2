@@ -57,7 +57,10 @@ impl Process {
             args,
             cwd,
             mut env,
-        } = benchmark_transport(profile)?;
+        } = benchmark_transport(profile)?
+        else {
+            return Err(failed("remote engine does not support benchmark"));
+        };
         env.extend(environment);
         let (explicit_batch, explicit_server) = explicit_gpu_overrides(&args);
         let mut command = Command::new(program);
@@ -243,7 +246,10 @@ fn benchmark_transport(profile: &EngineProfile) -> Result<TransportSpec, Benchma
         args,
         cwd,
         env,
-    } = profile.transport().map_err(failed)?;
+    } = profile.transport().map_err(failed)?
+    else {
+        return Err(failed("remote engine does not support benchmark"));
+    };
     let mut benchmark_args = vec![OsString::from("benchmark")];
     let mut overrides = Vec::new();
     let mut args = args.into_iter().skip(1);

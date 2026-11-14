@@ -31,6 +31,7 @@ struct Pending {
 }
 
 struct Actor {
+    remote: bool,
     cfg: SessionConfig,
     commands: mpsc::Receiver<Command>,
     status: watch::Sender<EngineStatus>,
@@ -62,6 +63,7 @@ pub(crate) async fn run(
     status: watch::Sender<EngineStatus>,
 ) {
     let mut actor = Actor {
+        remote: spec.is_remote(),
         cfg,
         commands,
         status,
@@ -109,18 +111,55 @@ impl Actor {
     async fn run_processes(&mut self, spec: TransportSpec) {
         loop {
             let startup_deadline = Instant::now() + self.cfg.startup_timeout;
-            let started =
-                tokio::time::timeout_at(startup_deadline, transport::start(&spec, &self.cfg))
-                    .await
-                    .unwrap_or_else(|_| {
-                        Err(std::io::Error::new(
-                            std::io::ErrorKind::TimedOut,
-                            "engine process startup timed out",
-                        ))
-                    });
+            let cfg = self.cfg.clone();
+            let starting = tokio::time::timeout_at(startup_deadline, transport::start(&spec, &cfg));
+            tokio::pin!(starting);
+            let started = if self.remote {
+                loop {
+                    tokio::select! {
+                        result = &mut starting => break result,
+                        command = self.commands.recv() => {
+                            self.command(command);
+                            if self.stopping { return; }
+                        }
+                    }
+                }
+            } else {
+                starting.await
+            }
+            .unwrap_or_else(|_| {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "engine process startup timed out",
+                ))
+            });
             let mut process = match started {
                 Ok(process) => process,
                 Err(error) => {
+                    let reconnectable = self.remote
+                        && self.attempt > 0
+                        && (error.kind() == std::io::ErrorKind::TimedOut
+                            || error
+                                .get_ref()
+                                .and_then(|error| {
+                                    error.downcast_ref::<crate::RemoteTransportError>()
+                                })
+                                .is_some_and(|error| {
+                                    matches!(
+                                        error,
+                                        crate::RemoteTransportError::Connect
+                                            | crate::RemoteTransportError::ConnectTimeout
+                                    )
+                                }));
+                    if reconnectable && self.attempt < self.cfg.max_restarts {
+                        if !self
+                            .backoff(format!("could not reconnect engine: {error}"))
+                            .await
+                        {
+                            return;
+                        }
+                        continue;
+                    }
                     self.fail(format!("could not start engine: {error}"), Vec::new());
                     self.wait_failed().await;
                     return;
@@ -136,10 +175,10 @@ impl Actor {
             let outcome = self.drive(&mut process, startup_deadline).await;
             let (reason, fatal, exit) = match outcome {
                 Outcome::Exited(exit) => {
-                    let reason = match &exit.status {
+                    let reason = exit.reason.clone().unwrap_or_else(|| match &exit.status {
                         Ok(status) => format!("engine exited: {status}"),
                         Err(error) => error.clone(),
-                    };
+                    });
                     (reason, !self.ready, exit)
                 }
                 Outcome::Fault { reason, fatal } => {
@@ -168,29 +207,36 @@ impl Actor {
                 self.wait_failed().await;
                 return;
             }
-            self.attempt += 1;
-            self.ready = false;
-            self.status.send_replace(EngineStatus::Restarting {
-                attempt: self.attempt,
-                reason: reason.clone(),
-            });
-            tracing::warn!(attempt = self.attempt, %reason, "restarting engine");
-            let delay = self
-                .cfg
-                .restart_backoff
-                .saturating_mul(1u32 << (self.attempt - 1))
-                .min(self.cfg.max_restart_backoff);
-            let deadline = Instant::now() + delay;
-            loop {
-                tokio::select! {
-                    _ = sleep_until(deadline) => break,
-                    command = self.commands.recv() => {
-                        self.command(command);
-                        if self.stopping { return; }
-                    }
+            if !self.backoff(reason).await {
+                return;
+            }
+        }
+    }
+
+    async fn backoff(&mut self, reason: String) -> bool {
+        self.attempt += 1;
+        self.ready = false;
+        self.status.send_replace(EngineStatus::Restarting {
+            attempt: self.attempt,
+            reason: reason.clone(),
+        });
+        tracing::warn!(attempt = self.attempt, %reason, "restarting engine");
+        let delay = self
+            .cfg
+            .restart_backoff
+            .saturating_mul(1u32 << (self.attempt - 1))
+            .min(self.cfg.max_restart_backoff);
+        let deadline = Instant::now() + delay;
+        loop {
+            tokio::select! {
+                _ = sleep_until(deadline) => break,
+                command = self.commands.recv() => {
+                    self.command(command);
+                    if self.stopping { return false; }
                 }
             }
         }
+        true
     }
 
     async fn drive(
@@ -219,7 +265,7 @@ impl Actor {
                     // order. All already-enqueued final lines must be applied.
                     while let Ok(output) = process.incoming.try_recv() { self.output(output, true); }
                     return Outcome::Exited(exit.unwrap_or_else(|_| transport::Exit {
-                        status: Err("transport exited without an exit report".into()), stderr_tail: Vec::new(),
+                        status: Err("transport exited without an exit report".into()), stderr_tail: Vec::new(), reason: None,
                     }));
                 }
                 command = self.commands.recv() => {
@@ -340,9 +386,15 @@ impl Actor {
         let Some(pending) = self.pending.get_mut(stable_id) else {
             return;
         };
-        let query = pending
+        let mut query = pending
             .request
             .query(pending.wire_id.clone(), &pending.remaining);
+        if self.remote {
+            query.override_settings.get_or_insert_default().insert(
+                "reportAnalysisWinratesAs".into(),
+                serde_json::Value::String("BLACK".into()),
+            );
+        }
         match serde_json::to_string(&Request::Analysis(Box::new(query))) {
             Ok(line) => {
                 pending.submitted = true;
@@ -381,7 +433,17 @@ impl Actor {
             Err(error) => {
                 self.bad_lines = self.bad_lines.saturating_add(1);
                 self.total_bad_lines = self.total_bad_lines.saturating_add(1);
-                tracing::warn!(consecutive = self.bad_lines, total = self.total_bad_lines, %error, "invalid engine output");
+                if self.remote {
+                    // Serde type errors can quote arbitrary remote values,
+                    // including a credential echoed in a numeric field.
+                    tracing::warn!(
+                        consecutive = self.bad_lines,
+                        total = self.total_bad_lines,
+                        "invalid remote engine output"
+                    );
+                } else {
+                    tracing::warn!(consecutive = self.bad_lines, total = self.total_bad_lines, %error, "invalid engine output");
+                }
                 return (self.bad_lines > self.cfg.max_consecutive_bad_lines).then(|| {
                     Outcome::Fault {
                         reason: format!("too many consecutive malformed lines: {}", self.bad_lines),
@@ -533,7 +595,7 @@ impl Actor {
                 exit = &mut process.exited => {
                     while let Ok(output) = process.incoming.try_recv() { self.output(output, false); }
                     return exit.unwrap_or_else(|_| transport::Exit {
-                        status: Err("transport lost exit report".into()), stderr_tail: Vec::new(),
+                        status: Err("transport lost exit report".into()), stderr_tail: Vec::new(), reason: None,
                     });
                 }
             }

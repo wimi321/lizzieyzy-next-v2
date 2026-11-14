@@ -87,6 +87,7 @@ async fn harness_with_args(model_present: bool, extra_args: &[&str]) -> Harness 
             model,
             config,
             // A missing remembered optional file must not prevent main-engine startup.
+            remote: None,
             human_model: (!model_present).then_some(human),
             canonical_model_name: None,
             extra_args: [

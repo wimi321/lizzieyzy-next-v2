@@ -23,6 +23,7 @@ fn profile(dir: &Path, extra: &[&str]) -> EngineProfile {
     ];
     args.extend(extra.iter().map(|s| (*s).to_owned()));
     EngineProfile {
+        remote: None,
         human_model: None,
         program,
         model,

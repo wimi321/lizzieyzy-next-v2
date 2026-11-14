@@ -39,6 +39,8 @@ mod move_rank;
 mod preferences;
 mod problem_moves;
 mod release;
+mod remote;
+mod remote_link;
 mod review;
 mod runtime;
 mod settings;
@@ -51,6 +53,10 @@ mod tsumego;
 pub mod updates;
 mod view;
 mod weights;
+
+#[cfg(test)]
+#[path = "../tests/common/mod.rs"]
+mod test_support;
 
 pub use analysis_extras::AnalysisExtras;
 pub use analysis_limit::{AnalysisLimitSettings, AnalysisPauseReason, AnalysisState};
@@ -98,6 +104,10 @@ pub use move_editing::{StoneOriginView, TrialError};
 pub use move_rank::*;
 pub use preferences::UiLanguage;
 pub use problem_moves::*;
+pub use remote::{
+    RemoteEngineConfig, RemoteEngineError, RemoteEngineInput, RemoteSshAuth, SshAuthConfig,
+};
+pub use remote_link::{RemoteLinkError, normalize_remote_link, read_remote_link_qr};
 pub use review::*;
 pub use settings::{EngineProfile, Settings, SettingsError};
 pub use setup_markup::{MarkupKindView, MarkupView};
@@ -112,6 +122,10 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    Remote(#[from] RemoteEngineError),
+    #[error(transparent)]
+    RemoteLink(#[from] RemoteLinkError),
     #[error(transparent)]
     Commentary(#[from] CommentaryError),
     #[error(transparent)]
@@ -200,7 +214,8 @@ pub enum AppError {
 /// coordinator/session defaults, including the long first-start deadline.
 #[derive(Clone, Debug)]
 pub struct AppConfig {
-    pub commentary_key_store: Option<std::sync::Arc<dyn commentary_keys::CommentaryKeyStore>>,
+    /// Shared secret-store adapter; the P3-16 field name remains source compatible.
+    pub commentary_key_store: Option<std::sync::Arc<dyn commentary_keys::SecretStore>>,
     pub games_directory: Option<PathBuf>,
     pub game_random_seed: Option<u64>,
     pub gtp_session: engine_session::gtp::GtpSessionConfig,

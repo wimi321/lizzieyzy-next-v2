@@ -111,6 +111,7 @@ pub(super) async fn harness(script: Value, human_loaded: bool) -> Harness {
         model,
         config,
         extra_args: args,
+        remote: None,
         human_model: human_loaded.then_some(human),
         canonical_model_name: None,
     })))

@@ -42,6 +42,7 @@ async fn live_results_completing_review_terminate_the_still_pending_batch() {
     actor.directory = directory.path().to_owned();
     actor.settings.pondering = false;
     actor.settings.engine = Some(EngineProfile {
+        remote: None,
         human_model: None,
         canonical_model_name: None,
         model: program.clone(),
@@ -158,6 +159,7 @@ async fn batch_boundary_omits_later_turns_that_live_analysis_already_completed()
     actor.directory = directory.path().to_owned();
     actor.settings.pondering = false;
     actor.settings.engine = Some(EngineProfile {
+        remote: None,
         human_model: None,
         canonical_model_name: None,
         model: program.clone(),
@@ -334,6 +336,7 @@ async fn forced_review_resume_only_skips_finals_from_this_run() {
     actor.settings.pondering = false;
     actor.settings.cache_enabled = false;
     actor.settings.engine = Some(EngineProfile {
+        remote: None,
         human_model: None,
         canonical_model_name: None,
         model: program.clone(),

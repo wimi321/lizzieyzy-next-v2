@@ -1,4 +1,5 @@
 import type {
+  EngineProfile,
   CommentarySettings,
   CommentaryUpdated,
   CommentaryKeyStatus,
@@ -38,6 +39,25 @@ import type {
 } from "../src/api/backend";
 
 type Stone = [x: number, y: number, color: ColorView];
+
+/** Optional remote settings are fixture data; connection logic stays in Rust. */
+export function fillRemoteProfileDefaults(profile: EngineProfile): void {
+  gameDefaultField(profile, "remote", undefined);
+  const remote = profile.remote;
+  if (!remote) return;
+  gameDefaultField(remote.data, "host", "");
+  gameDefaultField(remote.data, "port", remote.type === "Ssh" ? 22 : remote.data.secure ? 443 : 80);
+  gameDefaultField(remote.data, "version", null);
+  if (remote.type === "WebSocket") {
+    gameDefaultField(remote.data, "secure", false);
+    gameDefaultField(remote.data, "identity", "");
+  } else {
+    gameDefaultField(remote.data, "user", "");
+    gameDefaultField(remote.data, "command", "");
+    gameDefaultField(remote.data, "auth", { type: "Password" });
+    if (remote.data.auth?.type === "PrivateKey") gameDefaultField(remote.data.auth.data, "path", "");
+  }
+}
 
 /** P2-09 fixture default; cache behavior remains in Rust. */
 export const defaultCacheEnabled = true;

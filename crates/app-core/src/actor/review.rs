@@ -446,6 +446,9 @@ impl Actor {
         &mut self,
         result: Option<Result<Vec<ReviewResult>, analysis::AnalysisError>>,
     ) {
+        if !self.refresh_remote_identity().await {
+            return;
+        }
         if !self.review_running() {
             return;
         }

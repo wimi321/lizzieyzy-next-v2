@@ -37,6 +37,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             game: None,
             coach: Default::default(),
             commentary: commentary::State::new(None, &Default::default()),
+            remote: Default::default(),
             gtp: Default::default(),
             match_session: None,
             strength: None,
@@ -119,6 +120,7 @@ async fn lru_eviction_restores_persistent_analysis_with_the_previous_best_summar
     let directory = tempfile::tempdir().unwrap();
     let program = fake_katago::binary_path().unwrap();
     let profile = EngineProfile {
+        remote: None,
         human_model: None,
         canonical_model_name: None,
         model: program.clone(),

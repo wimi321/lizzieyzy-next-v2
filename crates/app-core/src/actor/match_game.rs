@@ -150,6 +150,13 @@ impl Actor {
             Command::Review(_, reply) => reject!(reply),
             Command::Batch(_, reply) => reject!(reply),
             Command::SetEngineSettings(_, reply) => reject!(reply),
+            Command::Remote(
+                crate::remote::Request::Add(_, _, reply)
+                | crate::remote::Request::Update(_, _, _, reply)
+                | crate::remote::Request::Local(reply),
+            ) => {
+                reject!(reply)
+            }
             Command::ReplaceMainEngine(_, _, _, reply) | Command::Engines(_, reply) => {
                 reject!(reply)
             }

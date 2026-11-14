@@ -61,6 +61,7 @@ pub struct Query {
     pub script: PlayScript,
     pub human_model: bool,
     pub human_profile: Option<String>,
+    report_perspective: Option<ReportPerspective>,
     allow_moves: Vec<humansl::Allowance>,
     pub interval: Option<f64>,
     pub first_report: f64,
@@ -154,6 +155,16 @@ impl Query {
             return Err(invalid("overrideSettings"));
         }
         let max_time = number(&v["overrideSettings"], "maxTime", false)?;
+        let report_perspective = match v["overrideSettings"].get("reportAnalysisWinratesAs") {
+            None => None,
+            Some(Value::String(value)) => Some(match value.as_str() {
+                "BLACK" => ReportPerspective::Black,
+                "WHITE" => ReportPerspective::White,
+                "SIDETOMOVE" => ReportPerspective::ToPlay,
+                _ => return Err(invalid("overrideSettings")),
+            }),
+            _ => return Err(invalid("overrideSettings")),
+        };
         let allow_suicide = rules
             .as_str()
             .is_some_and(|r| matches!(r, "new-zealand" | "tromp-taylor"))
@@ -172,6 +183,7 @@ impl Query {
             script: PlayScript::default(),
             human_model: false,
             human_profile: humansl::profile(v)?,
+            report_perspective,
             allow_moves: humansl::allowances(v, width, height)?,
             interval,
             first_report,
@@ -334,7 +346,7 @@ impl Query {
         }
         self.apply_human_policy(&mut result, &board, &legal, hash, turn);
         self.restrict_moves(&mut result, &board, &legal, player, visits);
-        let white = match perspective {
+        let white = match self.report_perspective.unwrap_or(perspective) {
             ReportPerspective::Black => false,
             ReportPerspective::White => true,
             ReportPerspective::ToPlay => player == 2,
@@ -567,3 +579,6 @@ impl Board {
         true
     }
 }
+
+#[cfg(test)]
+mod tests;

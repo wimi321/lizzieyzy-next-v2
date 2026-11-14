@@ -51,7 +51,7 @@ impl Actor {
             status: self.running.as_ref().map(|r| r.engine.status()),
             deadline: Instant::now() + self.config.engine_setup_timeout,
             phase: StartupPhase::Loading {
-                restore: prepared.restore,
+                restore: prepared.restore.map(Box::new),
             },
             error,
         });
@@ -73,7 +73,7 @@ impl Actor {
                 // configure_engine restores both the selected list entry and the
                 // legacy profile, persists them, then restarts the sole owner.
                 self.coach.preparing = true;
-                let error = self.configure_engine(Some(profile)).await.err();
+                let error = self.configure_engine(Some(*profile)).await.err();
                 self.coach.preparing = false;
                 starting.phase = StartupPhase::Restoring { reason };
                 starting.error = error;

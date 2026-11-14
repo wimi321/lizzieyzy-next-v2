@@ -308,6 +308,7 @@ async fn fake_engine_clear_undo_and_redo_preserve_automatic_time_and_playout_sto
         .unwrap();
         core.open_bytes(JAVA.to_vec()).await.unwrap();
         core.configure_engine(Some(crate::EngineProfile {
+            remote: None,
             human_model: None,
             program: program.clone(),
             model: program.clone(),
@@ -369,6 +370,7 @@ async fn new_live_after_clear_survives_coordinator_eviction_without_reviving_dee
     ));
     actor
         .apply(Input::ConfigureEngine(Some(crate::EngineProfile {
+            remote: None,
             human_model: None,
             program: program.clone(),
             model: program.clone(),

@@ -22,6 +22,7 @@ async fn initialize(directory: &Path, cache_enabled: bool) {
     std::fs::write(&config, b"numAnalysisThreads = 2").unwrap();
     Settings {
         engine: Some(EngineProfile {
+            remote: None,
             human_model: None,
             program: fake_katago::binary_path().unwrap(),
             model,

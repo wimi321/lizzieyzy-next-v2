@@ -420,6 +420,7 @@ fn engine_profile(directory: &Path) -> EngineProfile {
     std::fs::write(&model, "fake model").unwrap();
     std::fs::write(&config, "reportAnalysisWinratesAs = BLACK\n").unwrap();
     EngineProfile {
+        remote: None,
         human_model: None,
         canonical_model_name: None,
         program,

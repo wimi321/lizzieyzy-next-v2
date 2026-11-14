@@ -291,6 +291,7 @@ async fn fake_engine_strictly_deeper_result_replaces_file_data_and_is_saved() {
         AnalysisSource::Saved
     );
     core.configure_engine(Some(crate::EngineProfile {
+        remote: None,
         human_model: None,
         program,
         model,
