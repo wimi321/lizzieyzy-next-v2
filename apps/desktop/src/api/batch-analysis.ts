@@ -13,32 +13,32 @@ export type BatchAnalysisProgressListener = (status: BatchAnalysisStatus) => voi
 
 /** Queue order, state transitions and file naming belong to the Rust actor. */
 export interface BatchAnalysisCommands {
-  startBatchAnalysis?(options: BatchOptions): Promise<BatchAnalysisStatus>;
-  pauseBatchAnalysis?(): Promise<BatchAnalysisStatus>;
-  resumeBatchAnalysis?(): Promise<BatchAnalysisStatus>;
-  stopBatchAnalysis?(): Promise<BatchAnalysisStatus>;
-  addBatchAnalysisFiles?(files: string[]): Promise<BatchAnalysisStatus>;
-  removeBatchAnalysisItem?(id: number): Promise<BatchAnalysisStatus>;
-  moveBatchAnalysisItem?(id: number, direction: BatchMove): Promise<BatchAnalysisStatus>;
-  clearBatchAnalysis?(): Promise<BatchAnalysisStatus>;
-  batchAnalysisStatus?(): Promise<BatchAnalysisStatus>;
+  startBatchAnalysis(options: BatchOptions): Promise<BatchAnalysisStatus>;
+  pauseBatchAnalysis(): Promise<BatchAnalysisStatus>;
+  resumeBatchAnalysis(): Promise<BatchAnalysisStatus>;
+  stopBatchAnalysis(): Promise<BatchAnalysisStatus>;
+  addBatchAnalysisFiles(files: string[]): Promise<BatchAnalysisStatus>;
+  removeBatchAnalysisItem(id: number): Promise<BatchAnalysisStatus>;
+  moveBatchAnalysisItem(id: number, direction: BatchMove): Promise<BatchAnalysisStatus>;
+  clearBatchAnalysis(): Promise<BatchAnalysisStatus>;
+  batchAnalysisStatus(): Promise<BatchAnalysisStatus>;
 }
 
-export const startBatchAnalysis: NonNullable<BatchAnalysisCommands["startBatchAnalysis"]> =
+export const startBatchAnalysis: BatchAnalysisCommands["startBatchAnalysis"] =
   (options) => invoke("start_batch_analysis", { options });
-export const pauseBatchAnalysis: NonNullable<BatchAnalysisCommands["pauseBatchAnalysis"]> =
+export const pauseBatchAnalysis: BatchAnalysisCommands["pauseBatchAnalysis"] =
   () => invoke("pause_batch_analysis");
-export const resumeBatchAnalysis: NonNullable<BatchAnalysisCommands["resumeBatchAnalysis"]> =
+export const resumeBatchAnalysis: BatchAnalysisCommands["resumeBatchAnalysis"] =
   () => invoke("resume_batch_analysis");
-export const stopBatchAnalysis: NonNullable<BatchAnalysisCommands["stopBatchAnalysis"]> =
+export const stopBatchAnalysis: BatchAnalysisCommands["stopBatchAnalysis"] =
   () => invoke("stop_batch_analysis");
-export const addBatchAnalysisFiles: NonNullable<BatchAnalysisCommands["addBatchAnalysisFiles"]> =
+export const addBatchAnalysisFiles: BatchAnalysisCommands["addBatchAnalysisFiles"] =
   (files) => invoke("add_batch_analysis_files", { files });
-export const removeBatchAnalysisItem: NonNullable<BatchAnalysisCommands["removeBatchAnalysisItem"]> =
+export const removeBatchAnalysisItem: BatchAnalysisCommands["removeBatchAnalysisItem"] =
   (id) => invoke("remove_batch_analysis_item", { id });
-export const moveBatchAnalysisItem: NonNullable<BatchAnalysisCommands["moveBatchAnalysisItem"]> =
+export const moveBatchAnalysisItem: BatchAnalysisCommands["moveBatchAnalysisItem"] =
   (id, direction) => invoke("move_batch_analysis_item", { id, direction });
-export const clearBatchAnalysis: NonNullable<BatchAnalysisCommands["clearBatchAnalysis"]> =
+export const clearBatchAnalysis: BatchAnalysisCommands["clearBatchAnalysis"] =
   () => invoke("clear_batch_analysis");
-export const batchAnalysisStatus: NonNullable<BatchAnalysisCommands["batchAnalysisStatus"]> =
+export const batchAnalysisStatus: BatchAnalysisCommands["batchAnalysisStatus"] =
   () => invoke("batch_analysis_status");

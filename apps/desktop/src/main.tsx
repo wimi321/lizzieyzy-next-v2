@@ -5,6 +5,7 @@ import { getMessages } from "./locales";
 import "./styles/app.css";
 import "./styles/frame.css";
 import "./styles/side.css";
+import "./styles/batch.css";
 
 const root = document.getElementById("root");
 if (!root) {

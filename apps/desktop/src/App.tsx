@@ -38,6 +38,7 @@ import { ToolsPanel, ToolsTabs } from "./engines/EngineTools";
 import { useEngines } from "./engines/useEngines";
 import { useRelease } from "./release/useRelease";
 import { useEveryday } from "./everyday/useEveryday";
+import { useBatch } from "./batch/useBatch";
 import { type ToolsTab, useEngineTools } from "./engines/useEngineTools";
 import { BenchmarkChip } from "./benchmark/BenchmarkChip";
 import { BenchmarkDialog } from "./benchmark/BenchmarkDialog";
@@ -126,7 +127,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   // A row of the candidate list under the pointer previews like a hovered candidate.
   const [listHover, setListHover] = useState<PointView | null>(null);
   const { tree, live: liveTree } = useVariationTree(backend, document);
-  const wholeGame = useWholeGame(backend);
+  const plainWholeGame = useWholeGame(backend);
+  // 批量分析 and 精析; while a batch runs, the whole-game controls steer it.
+  const batch = useBatch(backend, plainWholeGame, { hasDocument: document !== null, modified: document?.modified ?? false }, messages.batch);
+  const wholeGame = batch.controls;
+  const loadBatch = batch.load;
   // LizzieYzy Next draws the graph with a one-visit pass when a game opens; that pass stays quiet.
   const [autoCurve, setAutoCurve] = useState(true);
   const [cacheOn, setCacheOn] = useState(true);
@@ -177,6 +182,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         loadDisplay(settings.display);
         loadRelease(settings);
         loadEveryday(settings);
+        loadBatch(settings);
         await loadEngines(settings, () => active);
       })
       .catch(report);
@@ -184,7 +190,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       active = false;
     };
     // A state setter: the settings are read once.
-  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease, loadEveryday]);
+  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease, loadEveryday, loadBatch]);
 
   // A comment being edited is saved before the app moves to another move by itself.
   const comment = useCommentEdit(backend, document);
@@ -304,7 +310,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     setNotesTab("problems");
     if (!shown.show_comment) display.set({ show_comment: true });
   };
-  const bindings: MenuBindings = {
+  const bindings: MenuBindings = batch.guard({
     ...menuBindings(
       {
         hasDocument: document !== null,
@@ -377,13 +383,14 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...clearing.bindings,
     ...release.bindings,
     ...everyday.bindings,
+    ...batch.bindings,
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
     hawkEye2: { run: toggleHawkEye, enabled: document !== null },
-  };
+  });
   useShortcuts(
     bindings,
-    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen),
   );
   const frame = messages.frame;
   const engineLabel = engines.label === "" ? null : engines.label;
@@ -434,6 +441,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         tray={
           <>
             {release.tray(messages.release)}
+            {batch.tray()}
             {editing.trialChip}
             {modes.chip}
             {tsumego.status ? <TsumegoChip status={tsumego.status} labels={messages.tsumego} onExit={tsumego.exit} /> : null}
@@ -471,7 +479,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onFox={openFox}
           onStrength={() => setStrengthOpen(true)}
           onAutoSetup={() => setToolsTab("overview")}
-          onFlash={() => wholeGame.start(1)}
+          onFlash={() => batch.bindings.flashAnalyzeAllGame?.run?.()}
           onBackMain={() => bindings.backToMainBranch?.run?.()}
           onPass={pass}
           onTsumego={() => tsumego.setOpen(true)}
@@ -659,6 +667,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {clearing.dialog}
       {release.dialogs(messages.release)}
       {everyday.dialogs(messages.everyday, messages.display)}
+      {batch.dialogs(messages.review)}
       {modes.dialog}
       {boardMenu.menu}
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}

@@ -1,0 +1,258 @@
+/* 分析 → 批量分析, 批量分析进度表, 局部精析, 精析设置 */
+
+.batch-dialog {
+  width: min(34rem, 100%);
+}
+
+.batch-form,
+.flash-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.batch-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-1);
+}
+
+.batch-files span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+
+.batch-files .batch-waiting {
+  flex-basis: 100%;
+  color: var(--accent);
+}
+
+.batch-form .dialog-subhead {
+  margin: 8px 0 0;
+}
+
+.batch-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.batch-options .settings-hint {
+  margin: 0;
+}
+
+.batch-range .text-input {
+  width: 6.5rem;
+  height: 26px;
+}
+
+.batch-folder {
+  min-width: 0;
+}
+
+.batch-folder-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.batch-folder .secondary-button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.batch-flash-visits,
+.batch-invalid {
+  margin: 0;
+}
+
+/* The progress table stays open beside the board, as Java's window did. */
+.batch-table {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  width: min(46rem, calc(100vw - 32px));
+  max-height: min(34rem, calc(100vh - 96px));
+}
+
+.batch-table .dialog-header {
+  gap: 10px;
+}
+
+.batch-phase {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.batch-phase[data-phase="Running"] {
+  color: var(--accent);
+}
+
+.batch-phase[data-phase="Completed"] {
+  color: var(--good);
+}
+
+.batch-rows {
+  flex: 1;
+  min-height: 0;
+  margin-top: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.batch-row {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1.5fr) minmax(0, 1.3fr) minmax(0, 1.4fr);
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  color: var(--text-1);
+  border-top: 1px solid var(--line);
+  cursor: default;
+}
+
+.batch-row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 8px;
+}
+
+.batch-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: 28px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  background: var(--bg-raised);
+  border-top: 0;
+}
+
+.batch-row:not(.batch-head):hover {
+  background: var(--bg-hover);
+}
+
+.batch-row[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+
+.batch-state {
+  position: relative;
+}
+
+.batch-state > span:not(.batch-bar) {
+  position: relative;
+}
+
+.batch-bar {
+  position: absolute;
+  inset: 4px auto 4px 0;
+  background: var(--accent-soft);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.batch-row[data-state="Running"] .batch-state {
+  color: var(--accent-strong);
+}
+
+.batch-row[data-state="Completed"] .batch-state {
+  color: var(--good);
+}
+
+.batch-row[data-state="Failed"] .batch-state {
+  color: var(--bad);
+}
+
+.batch-row[data-state="Waiting"] .batch-state {
+  color: var(--text-3);
+}
+
+.batch-output .link-button {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-empty {
+  margin: 0;
+  padding: 14px 12px;
+}
+
+.batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.batch-actions button {
+  white-space: nowrap;
+}
+
+.batch-spacer {
+  flex: 1;
+}
+
+.batch-chip {
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  font: 600 12px var(--jf-font);
+  color: var(--jf-text);
+  background: #fff6e4;
+  border-color: #e7c891;
+}
+
+.batch-chip .progress-fill {
+  background: rgba(216, 170, 94, 0.32);
+}
+
+.flash-dialog {
+  width: min(24rem, 100%);
+}
+
+.flash-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8rem;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-1);
+}
+
+.flash-form .settings-hint {
+  margin: 0;
+}
