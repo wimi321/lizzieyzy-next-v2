@@ -6,12 +6,12 @@ mod support;
 
 use app_core::{
     AppError, AppEvent, ColorView, GameError, GamePhase, GameSetup, GameStart, NewGameOptions,
-    Player, PvPick,
+    Player, PvPick, WholeGameOptions,
 };
 use common::within;
 use go_core::{Color, Move, Point};
 use serde_json::json;
-use support::{ai, document, game, harness, moves, query, requests, setup};
+use support::{ai, document, game, harness, moves, query, requests, requests_before, setup};
 
 fn play(color: Color, x: u8, y: u8) -> Move {
     Move::Play(color, Point { x, y })
@@ -306,12 +306,18 @@ async fn pausing_cancels_ai_and_resume_starts_one_new_query_for_same_latest_node
     assert_eq!(resumed.phase, GamePhase::Playing);
     assert_eq!(resumed.latest_node, paused.latest_node);
     moves(&h.app, 2).await;
-    let query_count = requests(h.directory.path())
+    assert_eq!(within(h.app.variation_tree()).await.unwrap().nodes.len(), 3);
+    // The next AI request follows every request from the resumed turn on the wire.
+    within(h.app.play(play(Color::Black, 1, 0))).await.unwrap();
+    let recorded = requests_before(h.directory.path(), |q| {
+        q["moves"].as_array().is_some_and(|m| m.len() == 3)
+    })
+    .await;
+    let query_count = recorded
         .into_iter()
         .filter(|q| q["moves"].as_array().is_some_and(|m| m.len() == 1))
         .count();
     assert_eq!(query_count, 2);
-    assert_eq!(within(h.app.variation_tree()).await.unwrap().nodes.len(), 3);
     within(h.app.shutdown()).await.unwrap();
 }
 
@@ -336,11 +342,6 @@ async fn changing_ai_limit_preserves_active_request_and_applies_on_next_ai_turn(
     let current = game(&h.app).await;
     assert!(current.ai_thinking);
     assert_eq!(current.move_number, 1);
-    assert!(
-        !requests(h.directory.path())
-            .iter()
-            .any(|q| q["terminateId"] == first["id"])
-    );
     std::fs::write(gate, "release").unwrap();
     moves(&h.app, 2).await;
     within(h.app.play(play(Color::Black, 1, 0))).await.unwrap();
@@ -349,6 +350,9 @@ async fn changing_ai_limit_preserves_active_request_and_applies_on_next_ai_turn(
     })
     .await;
     assert_eq!(next["maxVisits"], 23);
+    // A later request is a wire barrier for any cancellation of the first turn.
+    let recorded = requests_before(h.directory.path(), |q| q["id"] == next["id"]).await;
+    assert!(!recorded.iter().any(|q| q["terminateId"] == first["id"]));
     moves(&h.app, 4).await;
     assert_eq!(
         within(h.app.settings()).await.unwrap().game_setup.white,
@@ -621,6 +625,17 @@ async fn paused_position_edits_are_allowed_but_invalidated_game_cannot_resume() 
     within(h.app.play(play(Color::Black, 0, 0))).await.unwrap();
     let paused = within(h.app.pause_game()).await.unwrap();
     within(h.app.delete_node(paused.latest_node)).await.unwrap();
+    // Review requests share the engine FIFO without cancelling the live slot.
+    within(h.app.start_whole_game_analysis(WholeGameOptions {
+        visits: 997,
+        ..WholeGameOptions::default()
+    }))
+    .await
+    .unwrap();
+    query(h.directory.path(), |q| {
+        q["priority"] == -100 && q["maxVisits"] == 997
+    })
+    .await;
     let queries = requests(h.directory.path())
         .into_iter()
         .filter(|q| q.get("moves").is_some())
@@ -631,8 +646,19 @@ async fn paused_position_edits_are_allowed_but_invalidated_game_cannot_resume() 
     ));
     assert_eq!(game(&h.app).await.phase, GamePhase::Paused);
     assert_eq!(within(h.app.variation_tree()).await.unwrap().nodes.len(), 1);
+    // A higher visit bound cannot be satisfied by the first review's result.
+    within(h.app.start_whole_game_analysis(WholeGameOptions {
+        visits: 998,
+        ..WholeGameOptions::default()
+    }))
+    .await
+    .unwrap();
+    let recorded = requests_before(h.directory.path(), |q| {
+        q["priority"] == -100 && q["maxVisits"] == 998
+    })
+    .await;
     assert_eq!(
-        requests(h.directory.path())
+        recorded
             .into_iter()
             .filter(|q| q.get("moves").is_some())
             .count(),
