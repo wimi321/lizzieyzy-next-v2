@@ -12,6 +12,7 @@ async fn within<T>(future: impl Future<Output = T>) -> T {
 fn profile(extra_args: Vec<String>) -> EngineProfile {
     let program = fake_katago::binary_path().unwrap();
     EngineProfile {
+        human_model: None,
         model: program.clone(),
         config: program.clone(),
         program,
@@ -23,6 +24,7 @@ fn profile(extra_args: Vec<String>) -> EngineProfile {
 #[test]
 fn quick_arguments_use_analysis_config_with_gtp_alias_and_product_limits() {
     let profile = EngineProfile {
+        human_model: None,
         program: "program with spaces".into(),
         model: "model with spaces".into(),
         config: "config with spaces".into(),

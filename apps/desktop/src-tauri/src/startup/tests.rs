@@ -15,6 +15,43 @@ async fn within<T>(future: impl Future<Output = T>) -> T {
         .expect("startup operation exceeded safety deadline")
 }
 
+#[tokio::test]
+async fn unresolved_optional_directories_use_settings_and_do_not_block_startup() {
+    let directory = tempdir().unwrap();
+    let config_directory = directory.path().join("settings");
+    let (data, games) = optional_directories(&config_directory, None, None);
+    assert_eq!(data, config_directory);
+    assert!(games.is_none());
+    let (core, _) = within(start_with_clipboard(
+        StartupOptions::default(),
+        config_directory.clone(),
+        data,
+        games,
+        None,
+    ))
+    .await
+    .unwrap();
+    assert_eq!(
+        core.settings().await.unwrap().games_directory,
+        Some(config_directory.join("MyGames"))
+    );
+    assert_eq!(
+        core.humansl_model_status().await.unwrap(),
+        app_core::HumanSlModelStatus::Missing
+    );
+    core.shutdown().await.unwrap();
+    let (data, games) = optional_directories(
+        &config_directory,
+        Some(directory.path().join("data")),
+        Some(directory.path().join("documents")),
+    );
+    assert_eq!(data, directory.path().join("data"));
+    assert_eq!(
+        games,
+        Some(directory.path().join("documents/LizzieYzy Next 2/MyGames"))
+    );
+}
+
 #[test]
 fn parses_portable_directory_and_one_document_in_either_order() {
     let expected = StartupOptions {

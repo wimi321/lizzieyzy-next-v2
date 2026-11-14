@@ -13,6 +13,8 @@ pub struct AnalysisResponse {
     pub ownership: Option<Vec<f64>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy: Option<Vec<f64>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub human_policy: Option<Vec<f64>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -33,6 +35,8 @@ pub struct MoveInfo {
     pub winrate: f64,
     pub score_lead: f64,
     pub prior: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub human_prior: Option<f64>,
     pub order: u32,
     pub pv: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -69,6 +73,12 @@ pub struct RootInfo {
     pub score_lead: f64,
     pub utility: f64,
     pub current_player: Player,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub human_winrate: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub human_score_mean: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub human_score_stdev: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub score_selfplay: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

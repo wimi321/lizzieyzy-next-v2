@@ -5,6 +5,9 @@ import type { AssetDownloadStatus } from "./AssetDownloadStatus";
 import type { BatchAnalysisStatus } from "./BatchAnalysisStatus";
 import type { BenchmarkStatus } from "./BenchmarkStatus";
 import type { BoardSyncStatus } from "./BoardSyncStatus";
+import type { CoachMoveRated } from "./CoachMoveRated";
+import type { CoachSummary } from "./CoachSummary";
+import type { CoachView } from "./CoachView";
 import type { DocumentView } from "./DocumentView";
 import type { EngineStatus } from "./EngineStatus";
 import type { GameView } from "./GameView";
@@ -13,4 +16,4 @@ import type { MatchView } from "./MatchView";
 import type { UpdateDownloadStatus } from "./UpdateDownloadStatus";
 import type { WholeGameProgress } from "./WholeGameProgress";
 
-export type AppEvent = { "type": "MatchUpdated", "data": MatchView } | { "type": "GtpConsoleLine", "data": GtpConsoleLine } | { "type": "GameUpdated", "data": GameView } | { "type": "BatchAnalysisProgress", "data": BatchAnalysisStatus } | { "type": "UpdateDownloadProgress", "data": UpdateDownloadStatus } | { "type": "AssetDownloadProgress", "data": AssetDownloadStatus } | { "type": "OpenFailed", "data": { path: string, reason: string, } } | { "type": "AnalysisStateChanged", "data": AnalysisState } | { "type": "BenchmarkProgress", "data": BenchmarkStatus } | { "type": "BoardSyncStatusChanged", "data": BoardSyncStatus } | { "type": "DocumentChanged", "data": { revision: number, view: DocumentView, } } | { "type": "AnalysisUpdated", "data": AnalysisView } | { "type": "EngineStatusChanged", "data": EngineStatus } | { "type": "WholeGameProgress", "data": WholeGameProgress };
+export type AppEvent = { "type": "CoachMoveRated", "data": CoachMoveRated } | { "type": "CoachSummary", "data": CoachSummary } | { "type": "CoachUpdated", "data": CoachView } | { "type": "MatchUpdated", "data": MatchView } | { "type": "GtpConsoleLine", "data": GtpConsoleLine } | { "type": "GameUpdated", "data": GameView } | { "type": "BatchAnalysisProgress", "data": BatchAnalysisStatus } | { "type": "UpdateDownloadProgress", "data": UpdateDownloadStatus } | { "type": "AssetDownloadProgress", "data": AssetDownloadStatus } | { "type": "OpenFailed", "data": { path: string, reason: string, } } | { "type": "AnalysisStateChanged", "data": AnalysisState } | { "type": "BenchmarkProgress", "data": BenchmarkStatus } | { "type": "BoardSyncStatusChanged", "data": BoardSyncStatus } | { "type": "DocumentChanged", "data": { revision: number, view: DocumentView, } } | { "type": "AnalysisUpdated", "data": AnalysisView } | { "type": "EngineStatusChanged", "data": EngineStatus } | { "type": "WholeGameProgress", "data": WholeGameProgress };

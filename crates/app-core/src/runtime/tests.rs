@@ -69,6 +69,7 @@ async fn fake_engine_child_observes_installed_runtime_path_and_parent_is_unchang
     let observed = directory.path().join("child-path.txt");
     let before = std::env::var_os("PATH");
     let profile = crate::EngineProfile {
+        human_model: None,
         program: binary.clone(),
         model: binary.clone(),
         config: binary.clone(),
@@ -158,6 +159,7 @@ async fn runtime_repair_installs_then_switches_the_pinned_engine_and_rediagnoses
     std::fs::write(&model, b"tiny model").unwrap();
     std::fs::write(&config, b"numSearchThreadsPerAnalysisThread = 1\n").unwrap();
     let profile = crate::EngineProfile {
+        human_model: None,
         program: external.clone(),
         model,
         config,

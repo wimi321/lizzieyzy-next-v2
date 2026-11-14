@@ -257,6 +257,7 @@ fn catalog_hashes_rank_renamed_b11_before_b28_b18_and_other_tiers() {
         catalog.models.insert(
             id.into(),
             CatalogModel {
+                purpose: String::new(),
                 file_name: if id == "b11" {
                     canonical.into()
                 } else {
@@ -312,4 +313,30 @@ fn program_found_via_path_keeps_its_later_installation_association() {
         [other_program.clone(), alias.clone()]
     );
     assert_eq!(detected.programs_for_model(&model), [alias, other_program]);
+}
+
+#[test]
+fn human_style_model_is_never_discovered_as_a_main_model_even_renamed() {
+    use sha2::{Digest, Sha256};
+    let temp = tempfile::tempdir().unwrap();
+    let install = temp.path().join("katago");
+    let main = file(install.join("ordinary.bin.gz"));
+    let human = file(install.join("renamed.bin.gz"));
+    fs::write(&human, b"tiny pinned human model").unwrap();
+    file(install.join("b18c384nbt-humanv0.bin.gz"));
+    let mut catalog = catalog::ModelCatalog::bundled();
+    let spec = catalog.models.get_mut("human-sl").unwrap();
+    spec.size_bytes = b"tiny pinned human model".len() as u64;
+    spec.sha256 = format!("{:x}", Sha256::digest(b"tiny pinned human model"));
+    let roots = SearchRoots {
+        application_dirs: vec![temp.path().into()],
+        ..Default::default()
+    };
+    let discovered = detect_with_catalog(&roots, &catalog);
+    assert_eq!(discovered.discovery.models, [main]);
+    assert_eq!(discovered.catalog_models[&human].purpose, "human-style");
+    assert_eq!(
+        discovered.catalog_models[&human].minimum_katago_version,
+        "1.15.0"
+    );
 }

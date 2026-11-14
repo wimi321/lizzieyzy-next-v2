@@ -2,7 +2,8 @@ use super::*;
 use crate::actor::{Command, Input};
 impl Actor {
     pub(in crate::actor) fn game_guard(&self, command: Command) -> Option<Command> {
-        if !self.game_playing() {
+        let starting = self.coach.is_starting();
+        if !self.game_playing() && !starting {
             return Some(command);
         }
         macro_rules! reject {
@@ -12,6 +13,12 @@ impl Actor {
             }};
         }
         match command {
+            Command::Game(_, reply) if starting => reject!(reply),
+            Command::Match(_, reply) if starting => reject!(reply),
+            Command::SetAiPlayer(_, _, reply) if starting => reject!(reply),
+            Command::Apply(input, reply) if starting && !matches!(input, Input::Shutdown) => {
+                reject!(reply)
+            }
             Command::Apply(input, reply) if blocked(&input) => reject!(reply),
             Command::PlayBestMove(_, reply) => reject!(reply),
             Command::Review(_, reply) => reject!(reply),

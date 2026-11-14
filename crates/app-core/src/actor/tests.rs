@@ -35,6 +35,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             review: Default::default(),
             batch: Default::default(),
             game: None,
+            coach: Default::default(),
             gtp: Default::default(),
             match_session: None,
             strength: None,
@@ -117,6 +118,7 @@ async fn lru_eviction_restores_persistent_analysis_with_the_previous_best_summar
     let directory = tempfile::tempdir().unwrap();
     let program = fake_katago::binary_path().unwrap();
     let profile = EngineProfile {
+        human_model: None,
         canonical_model_name: None,
         model: program.clone(),
         config: program.clone(),
@@ -292,6 +294,9 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                 | AppEvent::BenchmarkProgress(_)
                 | AppEvent::UpdateDownloadProgress(_)
                 | AppEvent::AssetDownloadProgress(_)
+                | AppEvent::CoachMoveRated(_)
+                | AppEvent::CoachSummary(_)
+                | AppEvent::CoachUpdated(_)
                 | AppEvent::AnalysisStateChanged(_) => {}
             }
         }

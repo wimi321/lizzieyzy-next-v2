@@ -2,7 +2,7 @@
 
 use std::{
     ffi::{OsStr, OsString},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use app_core::{AppCore, AppError, AppSubscription};
@@ -39,6 +39,20 @@ impl From<AppError> for StartupError {
     fn from(error: AppError) -> Self {
         Self::Core(Box::new(error))
     }
+}
+
+/// Data and Documents locations are optional platform conveniences. Settings
+/// remain usable when the OS cannot resolve either directory; AppCore supplies
+/// its settings-relative MyGames fallback when no Documents directory exists.
+pub(crate) fn optional_directories(
+    settings_directory: &Path,
+    data_directory: Option<PathBuf>,
+    documents_directory: Option<PathBuf>,
+) -> (PathBuf, Option<PathBuf>) {
+    (
+        data_directory.unwrap_or_else(|| settings_directory.to_owned()),
+        documents_directory.map(|directory| directory.join("LizzieYzy Next 2").join("MyGames")),
+    )
 }
 
 impl StartupOptions {

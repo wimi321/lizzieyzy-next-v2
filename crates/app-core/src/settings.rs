@@ -19,6 +19,10 @@ pub const SETTINGS_VERSION: u32 = 1;
 pub struct EngineProfile {
     pub program: PathBuf,
     pub model: PathBuf,
+    // Optional HumanSL model; missing files never prevent ordinary analysis.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub human_model: Option<PathBuf>,
     pub config: PathBuf,
     pub extra_args: Vec<String>,
     // Catalog identity verified by size and SHA-256; display metadata only.
@@ -55,6 +59,8 @@ pub struct Settings {
     pub engine_settings: crate::EngineSettings,
     #[ts(as = "Option<crate::GameSetup>", optional)]
     pub game_setup: crate::GameSetup,
+    #[ts(as = "Option<crate::CoachSetup>", optional)]
+    pub coach_setup: crate::CoachSetup,
     #[ts(optional = nullable)]
     pub games_directory: Option<PathBuf>,
     pub pondering: bool,
@@ -93,6 +99,7 @@ impl Default for Settings {
             main_engine_id: None,
             engine_settings: crate::EngineSettings::default(),
             game_setup: crate::GameSetup::default(),
+            coach_setup: crate::CoachSetup::default(),
             games_directory: None,
             pondering: true,
             cache_enabled: true,
@@ -199,6 +206,10 @@ impl Settings {
         self.analysis_limits.validate()?;
         self.flash_analysis.validate()?;
         self.game_setup.validate()?;
+        self.coach_setup
+            .validate()
+            .map_err(|e| SettingsError::InvalidProfile(e.to_string()))?;
+        self.coach_setup.from_current_position = false;
         if self
             .games_directory
             .as_ref()
@@ -263,10 +274,28 @@ impl EngineProfile {
                 age.subsec_nanos(),
             ));
         }
+        let human_identity = match &self.human_model {
+            Some(path) => tokio::fs::metadata(path)
+                .await
+                .ok()
+                .filter(|m| m.is_file())
+                .and_then(|metadata| {
+                    metadata.modified().ok().map(|modified| {
+                        let (before, age) = match modified.duration_since(UNIX_EPOCH) {
+                            Ok(age) => (false, age),
+                            Err(error) => (true, error.duration()),
+                        };
+                        (metadata.len(), before, age.as_secs(), age.subsec_nanos())
+                    })
+                }),
+            None => None,
+        };
         let encoded = serde_json::to_vec(&(
-            "lizzieyzy-next2:engine-profile:v2-two-search-slots",
+            "lizzieyzy-next2:engine-profile:v3-human-model",
             files,
             &self.extra_args,
+            &self.human_model,
+            human_identity,
         ))?;
         Ok(blake3::hash(&encoded).to_hex().to_string())
     }
@@ -334,6 +363,10 @@ impl EngineProfile {
             OsString::from("-override-config"),
             OsString::from(overrides),
         ];
+        if let Some(path) = self.human_model.as_ref().filter(|path| path.is_file()) {
+            args.push(OsString::from("-human-model"));
+            args.push(path.as_os_str().to_owned());
+        }
         args.extend(extra_args);
         Ok(TransportSpec::LocalProcess {
             program: self.program.clone(),
@@ -352,7 +385,7 @@ impl EngineProfile {
         let mut args = self.extra_args.iter();
         while let Some(arg) = args.next() {
             let flag = arg.split_once('=').map_or(arg.as_str(), |(flag, _)| flag);
-            if matches!(flag, "-config" | "-model") {
+            if matches!(flag, "-config" | "-model" | "-human-model") {
                 return Err(SettingsError::InvalidProfile(format!(
                     "extra arguments cannot replace {flag}; edit the profile path instead"
                 )));

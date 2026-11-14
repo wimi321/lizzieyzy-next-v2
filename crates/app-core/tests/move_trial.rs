@@ -288,6 +288,7 @@ async fn trial_analysis_and_restoration_use_distinct_namespaces_for_identical_no
     std::fs::write(&model, "fake").unwrap();
     std::fs::write(&engine_config, "fake").unwrap();
     let profile = app_core::EngineProfile {
+        human_model: None,
         program: fake_katago::binary_path().unwrap(),
         model,
         config: engine_config,

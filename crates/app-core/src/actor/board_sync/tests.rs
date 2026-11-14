@@ -44,6 +44,7 @@ async fn engine_actor(
     actor.directory = directory.to_owned();
     actor.settings.pondering = false;
     actor.settings.engine = Some(EngineProfile {
+        human_model: None,
         canonical_model_name: None,
         model: program.clone(),
         config: program.clone(),
@@ -367,6 +368,9 @@ async fn synchronization_analyzes_remote_latest_without_overpainting_a_browsed_p
                 | AppEvent::MatchUpdated(_)
                 | AppEvent::GtpConsoleLine(_)
                 | AppEvent::GameUpdated(_)
+                | AppEvent::CoachMoveRated(_)
+                | AppEvent::CoachSummary(_)
+                | AppEvent::CoachUpdated(_)
                 | AppEvent::BenchmarkProgress(_) => {}
             }
         }

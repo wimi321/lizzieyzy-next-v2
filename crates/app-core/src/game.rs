@@ -23,6 +23,7 @@ pub enum Player {
 #[serde(tag = "type", content = "data")]
 pub enum AiPlayer {
     KataGo(KataGoPlay),
+    HumanSl(crate::HumanSlPlay),
     Gtp { engine_id: String, time: GtpTime },
 }
 
@@ -36,6 +37,10 @@ impl AiPlayer {
     pub fn validate(&self) -> Result<(), GameError> {
         match self {
             Self::KataGo(play) => play.validate(),
+            Self::HumanSl(play) => play
+                .rank
+                .validate()
+                .map_err(|e| GameError::InvalidSetup(e.to_string())),
             Self::Gtp { engine_id, time } => {
                 if engine_id.trim().is_empty() {
                     return Err(GameError::InvalidSetup("GTP engine ID is empty".into()));
@@ -392,3 +397,15 @@ pub enum GameError {
 
 #[cfg(test)]
 mod tests;
+
+/// SplitMix64 is shared by ordinary play and HumanSL, with actor-owned state.
+pub(crate) fn random_u64(state: &mut u64) -> u64 {
+    *state = state.wrapping_add(0x9e3779b97f4a7c15);
+    let mut value = *state;
+    value = (value ^ (value >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94d049bb133111eb);
+    value ^ (value >> 31)
+}
+pub(crate) fn random_unit(state: &mut u64) -> f64 {
+    (random_u64(state) >> 11) as f64 / ((1_u64 << 53) as f64)
+}

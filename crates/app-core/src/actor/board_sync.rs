@@ -31,7 +31,7 @@ impl Actor {
     }
 
     pub(super) fn pondering(&self) -> bool {
-        if self.match_active() {
+        if self.match_active() || self.coach_hides_analysis() {
             return false;
         }
         if let Some(ponder) = self.game_pondering() {

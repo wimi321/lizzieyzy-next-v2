@@ -10,6 +10,8 @@ mod auto_setup;
 mod batch;
 mod benchmark;
 mod board_sync;
+mod coach;
+mod coach_api;
 mod delivery;
 mod diagnostics;
 mod display;
@@ -50,7 +52,7 @@ pub use analysis_extras::AnalysisExtras;
 pub use analysis_limit::{AnalysisLimitSettings, AnalysisPauseReason, AnalysisState};
 pub use assets::{
     AccelerationPlan, AccelerationReason, AssetDownloadStatus, AssetError, DownloadPhase,
-    OfficialWeight,
+    HumanSlModelStatus, OfficialWeight,
 };
 pub use auto_setup::{AutoSetupAttempt, AutoSetupError};
 pub use batch::*;
@@ -58,6 +60,7 @@ pub use benchmark::*;
 pub use board_sync::{
     BoardSyncError, BoardSyncLanguage, BoardSyncOptions, BoardSyncPhase, BoardSyncStatus,
 };
+pub use coach::*;
 pub use delivery::AppSubscription;
 pub use diagnostics::{
     DiagnosticCheck, DiagnosticKind, DiagnosticRepair, DiagnosticStatus, EngineDiagnostics,
@@ -103,6 +106,8 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    Coach(#[from] CoachError),
     #[error(transparent)]
     Gtp(#[from] GtpError),
     #[error(transparent)]

@@ -21,6 +21,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
     config.session.shutdown_timeout = Duration::from_secs(60);
     (
         Actor {
+            coach: Default::default(),
             game: None,
             gtp: Default::default(),
             match_session: None,

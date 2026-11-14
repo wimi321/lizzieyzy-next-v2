@@ -39,6 +39,7 @@ fn profile(directory: &Path, speed: &str) -> EngineProfile {
     std::fs::write(&model, "fake model").unwrap();
     std::fs::write(&config, "numAnalysisThreads = 1\n").unwrap();
     EngineProfile {
+        human_model: None,
         program,
         model,
         config,

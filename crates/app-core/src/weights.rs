@@ -27,6 +27,21 @@ impl AppCore {
         Ok(self.asset_handle().await?.start(asset_id).await?)
     }
 
+    pub async fn pause_asset_download(&self) -> Result<AssetDownloadStatus, AppError> {
+        Ok(self.asset_handle().await?.pause().await?)
+    }
+
+    pub async fn humansl_model_status(&self) -> Result<crate::HumanSlModelStatus, AppError> {
+        Ok(self.asset_handle().await?.humansl_status().await?)
+    }
+
+    pub async fn import_humansl_model(
+        &self,
+        path: std::path::PathBuf,
+    ) -> Result<crate::HumanSlModelStatus, AppError> {
+        Ok(self.asset_handle().await?.import_humansl(path).await?)
+    }
+
     pub async fn cancel_asset_download(&self) -> Result<AssetDownloadStatus, AppError> {
         Ok(self.asset_handle().await?.cancel().await?)
     }

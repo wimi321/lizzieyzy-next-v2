@@ -255,6 +255,37 @@ fn optional_move_ownership_and_policy_round_trip_without_changing_perspective() 
     assert_eq!(serde_json::to_value(old).unwrap(), minimal_analysis());
 }
 
+#[test]
+fn optional_humansl_fields_round_trip_and_legacy_responses_still_parse() {
+    // Hand-authored protocol golden: Black values remain Black even with White to play.
+    let fixture = include_str!("../fixtures/humansl-response.json");
+    let EngineLine::Analysis(response) = parse_line(fixture).unwrap() else {
+        panic!("expected HumanSL response");
+    };
+    assert_eq!(
+        response.human_policy,
+        Some(vec![0.12, 0.23, 0.31, 0.33, 0.01])
+    );
+    assert_eq!(response.move_infos[0].human_prior, Some(0.12));
+    assert_eq!(response.root_info.human_winrate, Some(0.55));
+    assert_eq!(response.root_info.human_score_mean, Some(1.5));
+    assert_eq!(response.root_info.human_score_stdev, Some(11.0));
+    assert_eq!(
+        serde_json::to_value(&response).unwrap(),
+        serde_json::from_str::<Value>(fixture).unwrap()
+    );
+
+    let EngineLine::Analysis(old) = parse_line(&minimal_analysis().to_string()).unwrap() else {
+        panic!("expected legacy response");
+    };
+    assert!(old.human_policy.is_none());
+    assert!(old.move_infos[0].human_prior.is_none());
+    assert!(old.root_info.human_winrate.is_none());
+    assert!(old.root_info.human_score_mean.is_none());
+    assert!(old.root_info.human_score_stdev.is_none());
+    assert_eq!(serde_json::to_value(old).unwrap(), minimal_analysis());
+}
+
 proptest! {
     #[test]
     fn arbitrary_text_never_panics(text in prop::collection::vec(any::<char>(), 0..2048)) {
@@ -297,6 +328,11 @@ proptest! {
         value["rootInfo"]["visits"] = json!(visits);
         value["rootInfo"]["winrate"] = json!(winrate);
         value["rootInfo"]["scoreLead"] = json!(score);
+        value["rootInfo"]["humanWinrate"] = json!(winrate);
+        value["rootInfo"]["humanScoreMean"] = json!(score);
+        value["rootInfo"]["humanScoreStdev"] = json!(score.abs());
+        value["humanPolicy"] = json!([winrate, 1.0 - winrate]);
+        value["moveInfos"][0]["humanPrior"] = json!(winrate);
         value["moveInfos"][0]["scoreLead"] = json!(score);
         value["isDuringSearch"] = json!(during);
         value["turnNumber"] = json!(turn);

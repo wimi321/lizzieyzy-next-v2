@@ -12,6 +12,7 @@ use thiserror::Error;
 pub struct PlayScript {
     default: Option<Turn>,
     turns: BTreeMap<usize, Turn>,
+    profiles: BTreeMap<String, PlayScript>,
 }
 
 #[derive(Clone, Default)]
@@ -22,6 +23,11 @@ pub struct Turn {
     winrate: Option<f64>,
     score_lead: Option<f64>,
     candidates: Option<Vec<Candidate>>,
+    policy: Option<Vec<f64>>,
+    pub human_policy: Option<Vec<f64>>,
+    human_winrate: Option<f64>,
+    human_score_mean: Option<f64>,
+    human_score_stdev: Option<f64>,
 }
 
 #[derive(Clone)]
@@ -30,6 +36,7 @@ struct Candidate {
     winrate: Option<f64>,
     score_lead: Option<f64>,
     visit_share: f64,
+    human_prior: Option<f64>,
     pv: Vec<String>,
 }
 
@@ -63,7 +70,26 @@ impl PlayScript {
                 turns.insert(turn, Turn::parse(entry)?);
             }
         }
-        Ok(Self { default, turns })
+        let mut profiles = BTreeMap::new();
+        if let Some(entries) = value.get("profiles") {
+            for (profile, entry) in entries
+                .as_object()
+                .ok_or(ScriptError::Invalid("profiles"))?
+            {
+                profiles.insert(profile.clone(), Self::parse(entry)?);
+            }
+        }
+        Ok(Self {
+            default,
+            turns,
+            profiles,
+        })
+    }
+
+    pub fn for_profile(&self, profile: Option<&str>) -> &Self {
+        profile
+            .and_then(|name| self.profiles.get(name))
+            .unwrap_or(self)
     }
 
     pub fn turn(&self, turn: usize) -> Option<&Turn> {
@@ -75,6 +101,7 @@ impl PlayScript {
             .iter()
             .chain(self.turns.values())
             .any(|turn| turn.gate_file.is_some())
+            || self.profiles.values().any(Self::has_gate)
     }
 }
 
@@ -122,6 +149,11 @@ impl Turn {
             winrate: probability(value, "winrate")?,
             score_lead: number(value, "scoreLead")?,
             candidates,
+            policy: policy(value, "policy")?,
+            human_policy: policy(value, "humanPolicy")?,
+            human_winrate: probability(value, "humanWinrate")?,
+            human_score_mean: number(value, "humanScoreMean")?,
+            human_score_stdev: number(value, "humanScoreStdev")?,
         })
     }
 
@@ -130,6 +162,9 @@ impl Turn {
     }
 
     pub fn apply(&self, response: &mut Value, visits: u64) {
+        if let Some(policy) = &self.policy {
+            response["policy"] = json!(policy);
+        }
         let root = &mut response["rootInfo"];
         override_info(root, self.winrate, self.score_lead);
         if let Some(candidates) = &self.candidates {
@@ -161,6 +196,26 @@ impl Turn {
             }
         }
     }
+
+    pub fn apply_human_root(&self, response: &mut Value) {
+        for (name, value) in [
+            ("humanWinrate", self.human_winrate),
+            ("humanScoreMean", self.human_score_mean),
+            ("humanScoreStdev", self.human_score_stdev),
+        ] {
+            if let Some(value) = value {
+                response["rootInfo"][name] = json!(value);
+            }
+        }
+    }
+
+    pub fn human_prior(&self, coordinate: &str) -> Option<f64> {
+        self.candidates
+            .as_ref()?
+            .iter()
+            .find(|candidate| candidate.coordinate.eq_ignore_ascii_case(coordinate))?
+            .human_prior
+    }
 }
 
 impl Candidate {
@@ -188,9 +243,27 @@ impl Candidate {
             winrate: probability(value, "winrate")?,
             score_lead: number(value, "scoreLead")?,
             visit_share: probability(value, "visitShare")?.unwrap_or(1.0),
+            human_prior: probability(value, "humanPrior")?,
             pv,
         })
     }
+}
+
+fn policy(value: &Value, field: &'static str) -> Result<Option<Vec<f64>>, ScriptError> {
+    value
+        .get(field)
+        .map(|v| {
+            v.as_array()
+                .ok_or(ScriptError::Invalid(field))?
+                .iter()
+                .map(|v| {
+                    v.as_f64()
+                        .filter(|v| *v == -1.0 || (0.0..=1.0).contains(v))
+                        .ok_or(ScriptError::Invalid(field))
+                })
+                .collect()
+        })
+        .transpose()
 }
 
 fn number(value: &Value, field: &'static str) -> Result<Option<f64>, ScriptError> {

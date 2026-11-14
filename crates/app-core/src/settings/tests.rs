@@ -5,6 +5,7 @@ use std::{fs, time::Duration};
 
 fn profile(directory: &Path) -> EngineProfile {
     let profile = EngineProfile {
+        human_model: None,
         canonical_model_name: None,
         program: directory.join("engine"),
         model: directory.join("model.bin"),
@@ -175,6 +176,7 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
         display: crate::DisplaySettings::default(),
         pondering: false,
         game_setup: crate::GameSetup::default(),
+        coach_setup: crate::CoachSetup::default(),
         games_directory: None,
         cache_enabled: true,
         auto_quick_analyze_on_load: true,
@@ -404,6 +406,7 @@ async fn missing_model_and_non_file_config_have_readable_errors() {
 #[test]
 fn local_transport_forces_black_and_preserves_argument_boundaries() {
     let profile = EngineProfile {
+        human_model: None,
         canonical_model_name: None,
         program: "path with spaces/katago".into(),
         model: "model with spaces.bin".into(),
@@ -622,5 +625,31 @@ async fn invalid_engine_lists_are_rejected_without_changing_saved_bytes() {
         fs::write(&path, &bytes).unwrap();
         assert!(Settings::load(directory.path()).await.is_err());
         assert_eq!(fs::read(&path).unwrap(), bytes);
+    }
+}
+
+#[tokio::test]
+async fn human_model_transport_fingerprint_and_missing_optional_file() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut profile = profile(directory.path());
+    let original = profile.fingerprint().await.unwrap();
+    let human = directory.path().join("human.bin.gz");
+    profile.human_model = Some(human.clone());
+    let missing = profile.fingerprint().await.unwrap();
+    assert_ne!(original, missing);
+    let TransportSpec::LocalProcess { args, .. } = profile.transport().unwrap();
+    assert!(!args.iter().any(|arg| arg == "-human-model"));
+    fs::write(&human, b"human test model").unwrap();
+    let loaded = profile.fingerprint().await.unwrap();
+    assert_ne!(loaded, missing);
+    let TransportSpec::LocalProcess { args, .. } = profile.transport().unwrap();
+    let index = args.iter().position(|arg| arg == "-human-model").unwrap();
+    assert_eq!(args[index + 1], human.as_os_str());
+    assert_eq!(args.iter().filter(|arg| *arg == "-human-model").count(), 1);
+    fs::write(&human, b"different human test model").unwrap();
+    assert_ne!(loaded, profile.fingerprint().await.unwrap());
+    for argument in ["-human-model", "-human-model=unverified"] {
+        profile.extra_args = vec![argument.into(), "override.bin.gz".into()];
+        assert!(profile.transport().is_err());
     }
 }

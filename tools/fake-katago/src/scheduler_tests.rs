@@ -67,3 +67,32 @@ fn malformed_max_time_is_an_analysis_error_instead_of_an_unbounded_search() {
         assert!(engine.pending.is_empty());
     }
 }
+
+#[test]
+fn human_query_requires_loaded_model_but_normal_query_does_not() {
+    let mut human = query(1, 10.0);
+    human["includePolicy"] = json!(true);
+    human["overrideSettings"]["humanSLProfile"] = json!("rank_3d");
+    let mut engine = engine();
+    engine.receive(&human.to_string()).unwrap();
+    let error: Value = serde_json::from_slice(&engine.output).unwrap();
+    assert_eq!(error["field"], "humanSLProfile");
+    assert!(engine.pending.is_empty());
+    engine.output.clear();
+    engine.options.human_model = true;
+    engine.receive(&human.to_string()).unwrap();
+    assert!(engine.output.is_empty());
+    assert!(engine.pending[0].query.human_model);
+    engine.start_pending();
+    engine.running[0].start = 0.0;
+    engine.advance_at(1.0).unwrap();
+    let response: Value = serde_json::from_slice(&engine.output).unwrap();
+    assert_eq!(response["humanPolicy"].as_array().unwrap().len(), 362);
+    engine.output.clear();
+    engine.receive(&query(1, 10.0).to_string()).unwrap();
+    engine.start_pending();
+    engine.running[0].start = 0.0;
+    engine.advance_at(1.0).unwrap();
+    let normal: Value = serde_json::from_slice(&engine.output).unwrap();
+    assert!(normal.get("humanPolicy").is_none());
+}

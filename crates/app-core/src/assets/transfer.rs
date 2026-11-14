@@ -4,7 +4,7 @@ use reqwest::Client;
 use sha2::{Digest, Sha256};
 use tokio::{
     fs::File,
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
     sync::watch,
 };
 
@@ -63,15 +63,67 @@ pub(super) async fn transfer(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(error.into()),
     }
-    let mut response = client()?.get(&spec.url).send().await?.error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|size| size != spec.size)
-    {
+    // A paused transfer keeps its private temporary file. Rehash that prefix
+    // before a Range request, so resumed bytes never bypass the trusted pin.
+    file.flush().await?;
+    let mut total = file.metadata().await?.len();
+    if total > spec.size {
         return Err(AssetError::Verification);
     }
     let mut digest = Sha256::new();
-    let mut total = 0u64;
+    file.seek(std::io::SeekFrom::Start(0)).await?;
+    let mut left = total;
+    let mut buffer = [0; 64 * 1024];
+    while left > 0 {
+        let count = file
+            .read(&mut buffer[..left.min(64 * 1024) as usize])
+            .await?;
+        if count == 0 {
+            return Err(AssetError::Verification);
+        }
+        digest.update(&buffer[..count]);
+        left -= count as u64;
+    }
+    if total == spec.size {
+        return if format!("{:x}", digest.finalize()).eq_ignore_ascii_case(&spec.sha256) {
+            file.sync_all().await?;
+            Ok(true)
+        } else {
+            Err(AssetError::Verification)
+        };
+    }
+    let mut request = client()?.get(&spec.url);
+    if total > 0 {
+        request = request.header(reqwest::header::RANGE, format!("bytes={total}-"));
+    }
+    let mut response = request.send().await?.error_for_status()?;
+    if response.status() == reqwest::StatusCode::PARTIAL_CONTENT {
+        let expected = format!("bytes {}-{}/{}", total, spec.size - 1, spec.size);
+        if response
+            .headers()
+            .get(reqwest::header::CONTENT_RANGE)
+            .and_then(|header| header.to_str().ok())
+            != Some(expected.as_str())
+        {
+            return Err(AssetError::Verification);
+        }
+    } else if response.status() == reqwest::StatusCode::OK {
+        // Servers may ignore Range. Restart safely instead of appending a full
+        // body to the retained prefix.
+        total = 0;
+        digest = Sha256::new();
+        file.set_len(0).await?;
+        file.seek(std::io::SeekFrom::Start(0)).await?;
+        events.send_modify(|status| status.downloaded_bytes = 0);
+    } else {
+        return Err(AssetError::Verification);
+    }
+    if response
+        .content_length()
+        .is_some_and(|size| size != spec.size - total)
+    {
+        return Err(AssetError::Verification);
+    }
     while let Some(bytes) = response.chunk().await? {
         total = total
             .checked_add(bytes.len() as u64)

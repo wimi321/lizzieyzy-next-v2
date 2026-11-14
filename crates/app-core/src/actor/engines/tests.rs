@@ -21,6 +21,7 @@ fn setup() -> (tempfile::TempDir, Actor, AppSubscription, EngineProfile) {
     actor.config.session.write_timeout = Duration::from_secs(60);
     actor.config.session.shutdown_timeout = Duration::from_secs(60);
     let profile = EngineProfile {
+        human_model: None,
         program: binary.clone(),
         model: binary.clone(),
         config: binary,

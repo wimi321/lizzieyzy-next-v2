@@ -20,6 +20,7 @@ fn profile(directory: &Path, program: PathBuf) -> EngineProfile {
     std::fs::write(&model, b"tiny fake model").unwrap();
     std::fs::write(&config, CONFIG).unwrap();
     EngineProfile {
+        human_model: None,
         program,
         model,
         config,
@@ -112,6 +113,7 @@ async fn missing_engine_is_empty_and_each_missing_path_has_an_error() {
     let directory = directory();
     let missing = directory.path().join("missing");
     let profile = EngineProfile {
+        human_model: None,
         program: missing.clone(),
         model: missing.clone(),
         config: missing,
@@ -367,6 +369,7 @@ fn tiny_catalog(bytes: &[u8]) -> ModelCatalog {
         models: BTreeMap::from([(
             "test".into(),
             CatalogModel {
+                purpose: String::new(),
                 file_name: "canonical.bin.gz".into(),
                 size_bytes: bytes.len() as u64,
                 sha256: format!("{:x}", Sha256::digest(bytes)),

@@ -28,6 +28,7 @@ async fn old_program_never_trials_b11_and_catalog_name_is_persisted() {
         models: BTreeMap::from([(
             "b11".into(),
             CatalogModel {
+                purpose: String::new(),
                 file_name: name.into(),
                 size_bytes: bytes.len() as u64,
                 sha256: format!("{:x}", Sha256::digest(bytes)),
@@ -192,4 +193,35 @@ async fn startup_and_total_deadlines_stop_hung_trials_without_saving() {
         assert!(core.settings().await.unwrap().engine.is_none());
         within(core.shutdown()).await.unwrap();
     }
+}
+
+#[tokio::test]
+async fn one_click_setup_never_trials_a_human_style_model() {
+    let dir = tempdir().unwrap();
+    program(dir.path(), "1.18.2-fake", false);
+    let bytes = b"tiny human model";
+    std::fs::write(dir.path().join("renamed.bin.gz"), bytes).unwrap();
+    let mut catalog = ModelCatalog::bundled();
+    let model = catalog.models.get_mut("human-sl").unwrap();
+    model.size_bytes = bytes.len() as u64;
+    model.sha256 = format!("{:x}", Sha256::digest(bytes));
+    let roots = SearchRoots {
+        windows_dirs: vec![dir.path().into()],
+        ..Default::default()
+    };
+    let (core, _) = crate::spawn_with_config(dir.path().join("settings"), config())
+        .await
+        .unwrap();
+    let result = within(core.auto_configure_using(
+        move || detect_with_catalog(&roots, &catalog),
+        template(dir.path()),
+    ))
+    .await;
+    assert!(matches!(
+        result,
+        Err(AppError::AutoSetup(AutoSetupError::NoModels))
+    ));
+    assert!(!dir.path().join("trials").exists());
+    assert!(core.settings().await.unwrap().engine.is_none());
+    within(core.shutdown()).await.unwrap();
 }
