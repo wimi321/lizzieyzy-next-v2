@@ -89,6 +89,8 @@ export interface TopToolbarProps {
   onTencent(): void;
   onStrength(): void;
   onAutoSetup(): void;
+  /** Why 一键设置 is greyed out (a remote main engine), or undefined when it works. */
+  autoSetupBlocked?: string;
   onFlash(): void;
   onBackMain(): void;
   onPass(): void;
@@ -228,7 +230,7 @@ export function TopToolbar({
         <ToolButton role="primary" label={labels.tencent} title={labels.tencentTip} enabled={!trial} testId="open-tencent" onClick={on.onTencent} />
         <ToolButton role="primary" label={labels.strength} title={labels.strengthTip} testId="open-strength" onClick={on.onStrength} />
         <ToolSeparator />
-        <ToolButton role="primary" label={labels.autoSetup} title={labels.autoSetupTip} testId="tool-auto-setup" onClick={on.onAutoSetup} />
+        <ToolButton role="primary" label={labels.autoSetup} title={on.autoSetupBlocked ?? labels.autoSetupTip} enabled={on.autoSetupBlocked === undefined} testId="tool-auto-setup" onClick={on.onAutoSetup} />
         <ToolButton icon={icon.flash} title={labels.flash} enabled={hasDocument} testId="tool-flash" onClick={on.onFlash} />
         <ToolButton
           className="jt-search"

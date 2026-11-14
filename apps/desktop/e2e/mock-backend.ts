@@ -713,6 +713,8 @@ export const pickSavePath: Backend["pickSavePath"] = (defaultName?: string) =>
   command("pickSavePath", defaultName === undefined ? [] : [defaultName]);
 export const pickImagePath: Backend["pickImagePath"] = (defaultName: string) => command("pickImagePath", [defaultName]);
 export const pickEngineFile: Backend["pickEngineFile"] = (kind) => command("pickEngineFile", [kind]);
+export const pickQrImage: Backend["pickQrImage"] = () => command("pickQrImage", []);
+export const pickKeyFile: Backend["pickKeyFile"] = () => command("pickKeyFile", []);
 export const quit: Backend["quit"] = () => command("quit", []);
 /** The title is presentation, not a command: tests read `document.title` instead. */
 export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
