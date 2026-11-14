@@ -2,6 +2,7 @@ import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { AnalysisView, BoardView, MarkupView, MoveRank, PointView, VariationPreviewView } from "@/api/backend";
 import { useBoardAssets, useElementSize } from "./assets";
 import { drawGoban, drawOverlay, drawStones, type Names, type NextMove, prepare } from "./draw";
+import { drawEstimate, type Estimate, underStones } from "./estimate";
 import { computeGeometry, pixelToPoint, pointIndex } from "./geometry";
 import { drawMarkup } from "./markup";
 import { moveLabels, type MoveWindow, type NumberRule, rankedStones } from "./moveMarks";
@@ -20,7 +21,14 @@ export interface BoardProps {
   board: BoardView;
   analysis: AnalysisView | null;
   coordinates: boolean;
-  ownership: boolean;
+  /** Kata形势 on this board: the root's ownership in the chosen style, or null. */
+  estimate: Estimate | null;
+  /** 按选点显示评估: over a hovered candidate, show that move's ownership instead. */
+  movesOwnership?: boolean;
+  /** 策略网络 / 纯网络: the policy heat to draw. */
+  policy?: readonly number[] | null;
+  /** 纯网络: the policy replaces the candidates. */
+  pure?: boolean;
   maxCandidates: number;
   label: string;
   /** A candidate picked outside the board, e.g. a table row; the pointer still wins. */
@@ -67,7 +75,10 @@ export function Board({
   board,
   analysis,
   coordinates,
-  ownership,
+  estimate,
+  movesOwnership = false,
+  policy = null,
+  pure = false,
   maxCandidates,
   label,
   preview = null,
@@ -89,6 +100,7 @@ export function Board({
 }: BoardProps) {
   const container = useRef<HTMLDivElement>(null);
   const gobanCanvas = useRef<HTMLCanvasElement>(null);
+  const underCanvas = useRef<HTMLCanvasElement>(null);
   const stoneCanvas = useRef<HTMLCanvasElement>(null);
   const overlayCanvas = useRef<HTMLCanvasElement>(null);
   const size = useElementSize(container);
@@ -116,12 +128,22 @@ export function Board({
     [marks, shown, numbered, board],
   );
   const lastRankShown = marks && marks.rankWindow === 0 ? null : lastRank;
+  // Over a previewed candidate, its own ownership when KataGo sent one.
+  const hovered = shown && target && movesOwnership ? analysis?.candidates.find((c) => c.point?.x === target.x && c.point?.y === target.y) : undefined;
+  const shownEstimate = useMemo(() => (estimate && hovered?.ownership ? { ...estimate, values: hovered.ownership } : estimate), [estimate, hovered]);
 
   useEffect(() => {
     const canvas = gobanCanvas.current;
     const context = canvas && images && prepare(canvas, geometry);
     if (context && images) drawGoban(context, geometry, images, { coordinates, names, toPlay: board.to_play, dpr: geometry.dpr });
   }, [geometry, images, fonts, coordinates, names, board.to_play]);
+
+  // 以棋子下大面积方块表示占有率: under the stones, over the wood.
+  useEffect(() => {
+    const canvas = underCanvas.current;
+    const context = canvas && prepare(canvas, geometry);
+    if (context && shownEstimate && underStones(shownEstimate)) drawEstimate(context, geometry, stones, shownEstimate);
+  }, [geometry, stones, shownEstimate]);
 
   useEffect(() => {
     const canvas = stoneCanvas.current;
@@ -138,7 +160,9 @@ export function Board({
       drawOverlay(context, geometry, images, {
         board,
         analysis,
-        ownership,
+        estimate: shownEstimate,
+        policy,
+        pure,
         maxCandidates,
         hover: target,
         variation: shown,
@@ -159,7 +183,7 @@ export function Board({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [geometry, images, fonts, board, analysis, ownership, maxCandidates, target, shown, lastRankShown, numbered, labels, dots, next, nextHint, style, passLabel, emptyHint, markup]);
+  }, [geometry, images, fonts, board, analysis, shownEstimate, policy, pure, maxCandidates, target, shown, lastRankShown, numbered, labels, dots, next, nextHint, style, passLabel, emptyHint, markup]);
 
   const pointAt = (event: MouseEvent<HTMLElement>): PointView | null => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -199,6 +223,8 @@ export function Board({
       data-columns={board.width}
       data-rows={board.height}
       data-ready={images && fonts > 0 ? "true" : "false"}
+      data-estimate={shownEstimate?.style ?? ""}
+      data-policy={policy ? "true" : undefined}
       data-editing={editing || undefined}
       // What the analysis layer was given, so E2E can wait for it before comparing pixels.
       data-last-rank={lastRankShown ?? ""}
@@ -220,6 +246,7 @@ export function Board({
       }}
     >
       <canvas ref={gobanCanvas} className="board-layer" />
+      <canvas ref={underCanvas} className="board-layer" />
       <canvas ref={stoneCanvas} className="board-layer" />
       <canvas ref={overlayCanvas} className="board-layer" data-testid="board-analysis" />
     </div>

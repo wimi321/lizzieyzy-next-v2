@@ -119,7 +119,6 @@ function actions(): MenuActions {
     alternate: vi.fn(),
     insertMode: vi.fn(),
     quit: vi.fn(),
-    setOwnership: vi.fn(),
     togglePondering: vi.fn(),
     openAutoAnalysis: vi.fn(),
     flashAnalyze: vi.fn(),
@@ -142,7 +141,6 @@ function actions(): MenuActions {
 const IDLE: MenuState = {
   hasDocument: true,
   hasBoard: true,
-  ownership: false,
   wholeGameActive: false,
   hasBestMove: true,
   engineConfigured: true,
@@ -188,15 +186,11 @@ describe("what the menu can do now", () => {
   test("checks follow the board, and entries wait for what they need", () => {
     const run = actions();
     const idle = menuBindings(IDLE, run);
-    expect(idle.kataEstimateClose?.checked).toBe(true);
-    expect(idle.kataEstimateOnMainBoard?.checked).toBe(false);
     expect(idle.stopAutoAnalyze?.enabled).toBe(false);
     expect(idle.jumpToLeft?.enabled).toBe(false);
     idle.save?.run?.();
     expect(run.save).toHaveBeenCalledTimes(1);
     expect(run.saveAs).not.toHaveBeenCalled();
-    idle.kataEstimateOnMainBoard?.run?.();
-    expect(run.setOwnership).toHaveBeenCalledWith(true);
 
     const busy = menuBindings({ ...IDLE, wholeGameActive: true, hasDocument: false }, run);
     expect(busy.stopAutoAnalyze?.enabled).toBe(true);

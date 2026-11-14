@@ -3,6 +3,7 @@ import { type BoardImages, type Context, disc, NUMBER_FONT, text, UI_FONT, wood 
 import { columnLabel, forMover, rowLabel } from "./format";
 import { DEFAULT_SUGGESTION_STYLE, drawSuggestionText, scoreLabel, type SuggestionStyle } from "./suggestionText";
 import { type Geometry, pointIndex, pointToPixel, starPoints } from "./geometry";
+import { drawEstimate, drawPolicy, type Estimate, underStones } from "./estimate";
 import {
   blunderLevel,
   css,
@@ -277,7 +278,12 @@ export interface NextMove {
 export interface OverlayLayer {
   board: BoardView;
   analysis: AnalysisView | null;
-  ownership: boolean;
+  /** Kata形势 to draw over the stones, or null. 以棋子下大面积方块 is drawn under them instead. */
+  estimate: Estimate | null;
+  /** 策略网络 / 纯网络: the policy for the side to move, drawn as heat. */
+  policy?: readonly number[] | null;
+  /** 纯网络: the network's raw output; the policy stands in for the candidates. */
+  pure?: boolean;
   maxCandidates: number;
   hover: PointView | null;
   /** Rust's replay of the hovered candidate's line; null while not hovering or not yet answered. */
@@ -303,42 +309,22 @@ const same = (a: PointView | null | undefined, b: PointView | null | undefined) 
 export function drawOverlay(context: Context, geometry: Geometry, images: BoardImages, layer: OverlayLayer) {
   if (geometry.cell <= 0) return;
   const { board, analysis } = layer;
-  if (layer.variation && layer.hover) {
+  const previewing = layer.variation !== null && layer.hover !== null;
+  // Over a previewed line the estimate is the hovered move's own (按选点显示评估), on its stones.
+  if (layer.estimate && !underStones(layer.estimate)) drawEstimate(context, geometry, previewing && layer.variation ? layer.variation.board : board, layer.estimate);
+  if (previewing && layer.variation) {
     drawVariation(context, geometry, images, layer, layer.variation);
     return;
   }
-  if (layer.ownership && analysis?.ownership) drawEstimate(context, geometry, board, analysis.ownership);
+  if (layer.policy) drawPolicy(context, geometry, board, layer.policy);
   drawLastMove(context, geometry, layer);
-  const candidates = analysis ? shownSuggestions(analysis, layer.maxCandidates) : [];
+  const candidates = analysis && !layer.pure ? shownSuggestions(analysis, layer.maxCandidates) : [];
   const hint = layer.nextHint ?? { mode: "Evaluation", minVisits: 30 };
   const main = layer.next[0];
   if (hint.mode === "Evaluation" && main && analysis && candidates.length > 0) drawNextMoveBlunder(context, geometry, images, layer, candidates, main, hint.minVisits);
   drawSuggestions(context, geometry, images, layer, candidates);
   if (hint.mode !== "None") drawNextMoves(context, geometry, layer);
   if (layer.emptyHint && candidates.length === 0) drawEmptyHint(context, geometry, layer.emptyHint, layer.dpr);
-}
-
-/** `drawKataEstimateByTransparent`: small squares, darker or lighter with the owner's certainty. */
-function drawEstimate(context: Context, geometry: Geometry, board: BoardView, ownership: number[]) {
-  const { cell } = geometry;
-  const blackHalf = Math.round(cell / 8);
-  const whiteHalf = Math.round(cell / 6);
-  ownership.forEach((value, index) => {
-    const alpha = Math.min(255, Math.trunc(Math.abs(value) * 255));
-    if (alpha <= 0) return;
-    const center = pointToPixel(geometry, { x: index % board.width, y: Math.floor(index / board.width) });
-    const x = center.x - 0.5;
-    const y = center.y - 0.5;
-    if (value > 0) {
-      const onBlack = board.stones[index] === "Black";
-      const gray = 127 - Math.trunc((alpha - 1) / 2);
-      context.fillStyle = onBlack ? `rgb(${gray}, ${gray}, ${gray})` : `rgba(0, 0, 0, ${alpha / 255})`;
-      context.fillRect(x - blackHalf, y - blackHalf, blackHalf * 2, blackHalf * 2);
-    } else {
-      context.fillStyle = `rgba(255, 255, 255, ${alpha / 255})`;
-      context.fillRect(x - whiteHalf, y - whiteHalf, whiteHalf * 2, whiteHalf * 2);
-    }
-  });
 }
 
 /** The move-rank mark: a disc in the rank's colour inside a ring of the opposite stone colour. */

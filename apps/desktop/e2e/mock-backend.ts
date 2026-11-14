@@ -432,7 +432,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound">(
+function query<K extends "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
@@ -536,8 +536,9 @@ export const strengthEstimate: Backend["strengthEstimate"] = (bounds) =>
     // Nothing analysed: every move of the displayed line is still to do.
     total_moves: Math.max(0, (lastDocument?.view.graph.points.length ?? 1) - 1),
   });
-export const setAnalysisExtras: NonNullable<Backend["setAnalysisExtras"]> = (extras) => command("setAnalysisExtras", [extras]);
-export const setPureNetwork: NonNullable<Backend["setPureNetwork"]> = (enabled) => command("setPureNetwork", [enabled]);
+// The interface sends this by itself whenever the display changes: a query, so tests need not script it.
+export const setAnalysisExtras: Backend["setAnalysisExtras"] = (extras) => query("setAnalysisExtras", [extras], () => undefined);
+export const setPureNetwork: Backend["setPureNetwork"] = (enabled) => command("setPureNetwork", [enabled]);
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
 export const analysisLimits: Backend["analysisLimits"] = () =>
   query("analysisLimits", [], () => lastAnalysisLimits);

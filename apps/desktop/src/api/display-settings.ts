@@ -2,10 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { DisplaySettings as DisplaySettingsPayload } from "./generated/DisplaySettings";
 
 export type { DisplaySettingsPayload };
-// Compatibility for P3-07: the existing UI uses Required<DisplaySettings> for
-// its older defaults. IPC always accepts/returns the complete generated DTO.
-export type DisplaySettings = DisplaySettingsPayload | Omit<DisplaySettingsPayload,
-  "estimate_location" | "estimate_style" | "pure_estimate_style" | "remember_estimate" | "moves_ownership" | "estimate_shortcut" | "sub_board_heat" | "sub_board_raw" | "top_toolbar_layout" | "top_toolbar_wrap" | "top_toolbar_hidden" | "bottom_toolbar_hidden">;
+export type DisplaySettings = DisplaySettingsPayload;
 export type { EstimateLocation } from "./generated/EstimateLocation";
 export type { EstimateStyle } from "./generated/EstimateStyle";
 export type { SubBoardHeat } from "./generated/SubBoardHeat";

@@ -120,6 +120,9 @@ export const MENUS: readonly MenuSubmenu[] = [
           check("showAnalyzeController", "Menu.showAnalyzeController"),
           check("showCandidateController", "Menu.showCandidateController"),
           check("showCandidateInfoController", "Menu.showCandidateInfoController"),
+          // Java #709: PDA and 广度 (WRN), each on its own.
+          check("showPdaInToolbar", null, undefined, "PDA"),
+          check("showWrnInToolbar", null, undefined, "WRN"),
           check("showRuleMenu", "Menu.showRuleMenu"),
           check("showTsumeGoMenu", "Menu.showTsumeGoMenu"),
           check("showParamMenu", "Menu.showParamMenu"),

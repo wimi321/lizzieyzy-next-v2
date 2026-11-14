@@ -782,7 +782,11 @@
       "tsumego": "Tsumego",
       "params": "Params",
       "goban": "Goban",
-      "saveLoad": "Save"
+      "saveLoad": "Save",
+      "timeLimit": "Time",
+      "playoutLimit": "V",
+      "switchLayout": "Combine/Separate tool bar button",
+      "seconds": "s"
     },
     "bottom": {
       "analyse": "Analyze",
@@ -809,7 +813,14 @@
       "forward10": "Forward ten moves",
       "last": "Last move",
       "tryPlay": "Try",
-      "tryBack": "Restore"
+      "tryBack": "Restore",
+      "open": "Open",
+      "save": "Save",
+      "hawkEye": "Hawk eye",
+      "list": "Candidates",
+      "refresh": "Refresh",
+      "backMain": "Back to main",
+      "moveRank": "Move rating"
     },
     "status": {
       "analyzing": "Analyzing",

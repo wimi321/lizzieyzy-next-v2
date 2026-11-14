@@ -3,11 +3,11 @@ import type { AnalysisExtras } from "./generated/AnalysisExtras";
 
 export type { AnalysisExtras };
 export interface AnalysisExtrasCommands {
-  setAnalysisExtras?(extras: AnalysisExtras): Promise<void>;
-  setPureNetwork?(enabled: boolean): Promise<void>;
+  setAnalysisExtras(extras: AnalysisExtras): Promise<void>;
+  setPureNetwork(enabled: boolean): Promise<void>;
 }
 
-export const setAnalysisExtras: NonNullable<AnalysisExtrasCommands["setAnalysisExtras"]> = (extras) =>
+export const setAnalysisExtras: AnalysisExtrasCommands["setAnalysisExtras"] = (extras) =>
   invoke("set_analysis_extras", { extras });
-export const setPureNetwork: NonNullable<AnalysisExtrasCommands["setPureNetwork"]> = (enabled) =>
+export const setPureNetwork: AnalysisExtrasCommands["setPureNetwork"] = (enabled) =>
   invoke("set_pure_network", { enabled });

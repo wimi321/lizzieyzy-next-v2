@@ -782,7 +782,11 @@
       "tsumego": "사활",
       "params": "변수",
       "goban": "바둑판",
-      "saveLoad": "저장"
+      "saveLoad": "저장",
+      "timeLimit": "시간",
+      "playoutLimit": "뷔",
+      "switchLayout": "툴바 결합/분리 버튼",
+      "seconds": "초"
     },
     "bottom": {
       "analyse": "분석 계속",
@@ -809,7 +813,14 @@
       "forward10": "10수 뒤",
       "last": "마지막 수",
       "tryPlay": "놓아보기시작",
-      "tryBack": "복귀"
+      "tryBack": "복귀",
+      "open": "열기",
+      "save": "저장",
+      "hawkEye": "통계",
+      "list": "후보수목록",
+      "refresh": "갱신",
+      "backMain": "주 변화로",
+      "moveRank": "수순등급"
     },
     "status": {
       "analyzing": "분석 중",

@@ -1,5 +1,16 @@
 import type { MenuBinding } from "../menu/bindings";
+import type { EstimateStyle } from "@/api/backend";
+import { BOTTOM_ITEMS, shown, switchItem, TOP_ITEMS } from "../frame/toolbarItems";
 import { type Display, nextMoveNumbers, nextRankMarks } from "./settings";
+
+/** The Kata形势显示 entries' suffixes, after kataEstimate / pureEstimate. */
+const STYLE_IDS: Readonly<Record<string, EstimateStyle>> = {
+  ByTransparentSmall: "TransparentSmall",
+  ByTransparent: "Transparent",
+  ByTransparentNotOnLive: "TransparentOffStones",
+  ByBigSquare: "BigSquare",
+  BySize: "BySize",
+};
 
 /** The 显示 entries that ask for a number. */
 export type DisplayPrompt = "numbers" | "ranks" | "minVisits";
@@ -16,6 +27,12 @@ export function displayBindings(display: Display, set: (patch: Partial<Display>)
     run: () => set({ [key]: value } as Partial<Display>),
     checked: display[key] === value,
   });
+  const items = (key: "top_toolbar_hidden" | "bottom_toolbar_hidden", defaults: Readonly<Record<string, boolean>>) =>
+    Object.fromEntries(
+      Object.keys(defaults).map((id) => [id, { run: () => set({ [key]: switchItem(display[key], id) }), checked: shown(defaults, display[key], id) }]),
+    );
+  const styles = (prefix: "kataEstimate" | "pureEstimate", key: "estimate_style" | "pure_estimate_style") =>
+    Object.fromEntries(Object.entries(STYLE_IDS).map(([suffix, style]) => [`${prefix}${suffix}`, choose(key, style)]));
   return {
     subboard: toggle("show_sub_board"),
     winrateGraph: toggle("show_winrate_graph"),
@@ -24,9 +41,18 @@ export function displayBindings(display: Display, set: (patch: Partial<Display>)
     listPane: toggle("show_list_pane"),
     informationPane: toggle("show_information_panel"),
     statusPanel: toggle("show_status_bar"),
-    // One top toolbar layout here: Java's separated and combined rows are the same toolbar.
-    topToolBarSeparated: choose("show_top_toolbar", true),
+    topToolBarSeparated: {
+      run: () => set({ show_top_toolbar: true, top_toolbar_layout: "Separate" }),
+      checked: display.show_top_toolbar && display.top_toolbar_layout === "Separate",
+    },
+    topToolBarCombined: {
+      run: () => set({ show_top_toolbar: true, top_toolbar_layout: "Combined" }),
+      checked: display.show_top_toolbar && display.top_toolbar_layout === "Combined",
+    },
     topToolBarInVisible: choose("show_top_toolbar", false),
+    autoWrap: { ...toggle("top_toolbar_wrap"), enabled: display.show_top_toolbar && display.top_toolbar_layout === "Separate" },
+    ...items("top_toolbar_hidden", TOP_ITEMS),
+    ...items("bottom_toolbar_hidden", BOTTOM_ITEMS),
     bottomToolbarVisible: choose("show_bottom_toolbar", true),
     bottomToolbarInVisible: choose("show_bottom_toolbar", false),
 
@@ -69,6 +95,27 @@ export function displayBindings(display: Display, set: (patch: Partial<Display>)
     showBothLine: choose("winrate_graph_mode", "Both"),
     showWinrateGraphFill: toggle("fill_winrate_graph"),
     showBlunderBar: toggle("show_blunder_bar"),
+
+    // KataGo相关设置 → Kata形势显示.
+    kataEstimateClose: choose("estimate_location", "Off"),
+    kataEstimateCloseView: choose("estimate_location", "Hidden"),
+    kataEstimateOnMainBoard: choose("estimate_location", "Main"),
+    kataEstimateOnSubBoard: choose("estimate_location", "Sub"),
+    kataEstimateOnBothBoard: choose("estimate_location", "Both"),
+    kataEstimateSaveState: toggle("remember_estimate"),
+    ...styles("kataEstimate", "estimate_style"),
+    ...styles("pureEstimate", "pure_estimate_style"),
+    useMovesOwnership: toggle("moves_ownership"),
+    useKataEstimateShortcut: toggle("estimate_shortcut"),
+    // 小棋盘设置: a heatmap, the line, or the position's stones alone.
+    showHeat: { run: () => set({ sub_board_heat: "Policy", sub_board_raw: false }), checked: display.sub_board_heat === "Policy" },
+    showHeatAfterCalc: { run: () => set({ sub_board_heat: "AfterSearch", sub_board_raw: false }), checked: display.sub_board_heat === "AfterSearch" },
+    notShowHeat: choose("sub_board_heat", "None"),
+    subBoardShowVar: {
+      run: () => set({ sub_board_heat: "None", sub_board_raw: false }),
+      checked: display.sub_board_heat === "None" && !display.sub_board_raw,
+    },
+    subBoardShowRaw: { run: () => set({ sub_board_heat: "None", sub_board_raw: true }), checked: display.sub_board_raw },
 
     leadWithKomi: choose("score_lead_includes_komi", true),
     leadWithoutKomi: choose("score_lead_includes_komi", false),

@@ -782,7 +782,11 @@
       "tsumego": "死活",
       "params": "参数",
       "goban": "棋盘",
-      "saveLoad": "存档"
+      "saveLoad": "存档",
+      "timeLimit": "时间",
+      "playoutLimit": "计算",
+      "switchLayout": "独立/合并工具栏按钮",
+      "seconds": "秒"
     },
     "bottom": {
       "analyse": "继续分析",
@@ -809,7 +813,14 @@
       "forward10": "前进十手",
       "last": "最后一手",
       "tryPlay": "试下",
-      "tryBack": "恢复"
+      "tryBack": "恢复",
+      "open": "打开",
+      "save": "保存",
+      "hawkEye": "超级鹰眼",
+      "list": "选点列表",
+      "refresh": "刷新",
+      "backMain": "返回主分支",
+      "moveRank": "落子评价"
     },
     "status": {
       "analyzing": "分析中",
