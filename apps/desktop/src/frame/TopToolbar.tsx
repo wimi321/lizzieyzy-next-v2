@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode, useRef, useState } from "react";
+import type { GameToolbar } from "../play/usePlay";
 import type { AnalysisLimitSettings } from "@/api/backend";
 import { JAVA_ICONS } from "./icons";
 import { ToolButton, ToolSeparator } from "./ToolButton";
@@ -102,6 +103,8 @@ export interface TopToolbarProps {
   /** The per-move analysis limits, for the time and visit fields. */
   limits?: AnalysisLimitSettings | null;
   onLimits?(limits: AnalysisLimitSettings): void;
+  /** 新对局 and, during a game, its controls. */
+  game?: GameToolbar;
 }
 
 /** Java's default groups, for callers that do not customise the toolbar. */
@@ -201,6 +204,7 @@ export function TopToolbar({
   combined = false,
   wrap = false,
   limits = null,
+  game,
   ...on
 }: TopToolbarProps) {
   const icon = JAVA_ICONS;
@@ -273,8 +277,21 @@ export function TopToolbar({
   add(
     "showGameController",
     <>
-      <ToolButton role="primary" label={labels.newGame} title={labels.newGame} enabled={false} />
-      <ToolButton label={labels.pauseGame} title={labels.pauseGame} enabled={false} />
+      <ToolButton role="primary" label={labels.newGame} title={labels.newGame} enabled={game?.canStart ?? false} testId="tool-new-game" onClick={game?.onNew} />
+      {game?.active ? (
+        <>
+          {game.paused ? (
+            <ToolButton label={game.labels.resume} title={game.labels.resume} testId="tool-resume-game" onClick={game.onResume} />
+          ) : (
+            <ToolButton label={labels.pauseGame} title={labels.pauseGame} testId="tool-pause-game" onClick={game.onPause} />
+          )}
+          <ToolButton label={game.labels.takeBack} title={game.labels.takeBack} testId="tool-take-back" onClick={game.onTakeBack} />
+          <ToolButton role="danger" label={game.labels.resignGame} title={game.labels.resignGame} testId="tool-resign" onClick={game.onResign} />
+          <ToolButton label={game.labels.endGame} title={game.labels.endGame} testId="tool-end-game" onClick={game.onEnd} />
+        </>
+      ) : (
+        <ToolButton label={labels.pauseGame} title={labels.pauseGame} enabled={false} />
+      )}
     </>,
   );
   const limitsReady = limits !== null && on.onLimits !== undefined;

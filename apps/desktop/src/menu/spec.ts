@@ -543,6 +543,18 @@ export function withJavaImport(menus: readonly MenuSubmenu[], label: string): Me
   );
 }
 
+/** 设置 gains GTP 引擎…, after Java's 引擎设置: the third-party engines for games and matches. */
+export function withGtpEngines(menus: readonly MenuSubmenu[], label: string): MenuSubmenu[] {
+  return menus.map((menu) =>
+    menu.id !== "settings"
+      ? menu
+      : {
+          ...menu,
+          items: menu.items.flatMap((entry) => (entry.kind !== "separator" && entry.id === "engineConfig" ? [entry, item("gtpEngines", null, undefined, label)] : [entry])),
+        },
+  );
+}
+
 /** The menus as Java builds them on this platform. */
 export function menusFor(windows: boolean): readonly MenuSubmenu[] {
   return windows ? MENUS : MENUS.map((menu) => without(menu, WINDOWS_ONLY));

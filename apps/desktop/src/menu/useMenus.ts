@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { engineMenu, type EditingMenuText, menusFor, type MenuSubmenu, withDisplayValues, withEditing, withJavaImport } from "./spec";
+import { engineMenu, type EditingMenuText, menusFor, type MenuSubmenu, withDisplayValues, withEditing, withGtpEngines, withJavaImport } from "./spec";
 
 /**
  * The menu strip's menus for this platform and this moment: Java's menus with the recent games
@@ -16,13 +16,15 @@ export function useMenus(
   /** Every configured engine's menu name, and which one is the main engine. */
   engines: { names: readonly string[]; main: number } | null = null,
   importLabel: string | null = null,
+  gtpLabel: string | null = null,
 ): readonly MenuSubmenu[] {
   const names = engines?.names.join("\n");
   const main = engines?.main ?? 0;
   return useMemo(() => {
     const java = withDisplayValues(withEditing(menusFor(windows), recent, text), { rankMarks, minVisits });
-    const menus = importLabel === null ? java : withJavaImport(java, importLabel);
+    const imported = importLabel === null ? java : withJavaImport(java, importLabel);
+    const menus = gtpLabel === null ? imported : withGtpEngines(imported, gtpLabel);
     const list = names === undefined ? undefined : names ? names.split("\n") : [];
     return [...menus, engineMenu(engine, list ?? (engine === null ? [] : [engine]), main)];
-  }, [windows, recent, text, engine, rankMarks, minVisits, names, main, importLabel]);
+  }, [windows, recent, text, engine, rankMarks, minVisits, names, main, importLabel, gtpLabel]);
 }
