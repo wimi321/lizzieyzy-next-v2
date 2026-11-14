@@ -169,3 +169,20 @@ pub async fn query(directory: &Path, predicate: impl Fn(&Value) -> bool) -> Valu
     })
     .await
 }
+
+// A command reply only acknowledges enqueueing. For absence/count assertions,
+// wait for a later request on the same engine's FIFO and inspect the complete
+// prefix before that marker, excluding the marker itself.
+pub async fn requests_before(directory: &Path, predicate: impl Fn(&Value) -> bool) -> Vec<Value> {
+    within(async {
+        loop {
+            let mut recorded = requests(directory);
+            if let Some(index) = recorded.iter().position(&predicate) {
+                recorded.truncate(index);
+                return recorded;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+}

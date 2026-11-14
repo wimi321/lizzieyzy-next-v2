@@ -12,7 +12,7 @@ use app_core::{
 use common::within;
 use go_core::{Color, Move, Point};
 use serde_json::{Value, json};
-use support::{ai, document, harness, moves, query, requests, setup};
+use support::{ai, document, harness, moves, query, requests, requests_before, setup};
 
 fn black_ai(play: KataGoPlay) -> GameSetup {
     GameSetup {
@@ -42,12 +42,13 @@ fn last_move(view: &app_core::DocumentView) -> MoveView {
 
 #[tokio::test]
 async fn seconds_visits_and_pure_network_finish_one_ai_move_with_the_requested_bound() {
-    let mut h = harness(vec![]).await;
     for (seconds, visits, pure, expected_visits, wire_visits) in [
         (Some(0.002), None, false, 200, u64::from(u32::MAX)),
         (None, Some(173), false, 173, 173),
         (None, None, true, 1, 1),
     ] {
+        let mut h = harness(vec![]).await;
+        // Ready has already observed the startup request; no game has run yet.
         let before = requests(h.directory.path()).len();
         let started = within(h.app.start_game(black_ai(KataGoPlay {
             seconds,
@@ -69,7 +70,15 @@ async fn seconds_visits_and_pure_network_finish_one_ai_move_with_the_requested_b
             .unwrap()
             .unwrap();
         assert_eq!(result.visits, expected_visits);
-        let recorded = requests(h.directory.path());
+        // The next AI request fences both this AI move and the following human
+        // turn, including any unwanted live query queued after the move result.
+        within(h.app.play(Move::Play(Color::White, Point { x: 0, y: 0 })))
+            .await
+            .unwrap();
+        let recorded = requests_before(h.directory.path(), |q| {
+            q["moves"].as_array().is_some_and(|m| m.len() == 2)
+        })
+        .await;
         let queries: Vec<_> = recorded[before..]
             .iter()
             .filter(|request| request.get("moves").is_some())
@@ -78,8 +87,8 @@ async fn seconds_visits_and_pure_network_finish_one_ai_move_with_the_requested_b
         assert_eq!(queries[0]["maxVisits"], wire_visits);
         assert_eq!(queries[0]["overrideSettings"]["maxTime"].as_f64(), seconds);
         within(h.app.stop_game()).await.unwrap();
+        within(h.app.shutdown()).await.unwrap();
     }
-    within(h.app.shutdown()).await.unwrap();
 }
 
 #[tokio::test]
@@ -263,7 +272,15 @@ async fn ponder_off_suppresses_human_queries_when_the_saved_analysis_intent_is_o
     within(h.app.set_pondering(true)).await.unwrap();
     let ordinary = query(h.directory.path(), |q| q.get("moves").is_some()).await;
     within(h.app.start_game(setup())).await.unwrap();
-    let game_start = requests(h.directory.path());
+    query(h.directory.path(), |q| q["terminateId"] == ordinary["id"]).await;
+    within(h.app.play(Move::Play(Color::Black, Point { x: 0, y: 0 })))
+        .await
+        .unwrap();
+    // The AI request closes the initial human turn's request-log interval.
+    let game_start = requests_before(h.directory.path(), |q| {
+        q["moves"].as_array().is_some_and(|m| m.len() == 1)
+    })
+    .await;
     let cancelled = game_start
         .iter()
         .position(|q| q["terminateId"] == ordinary["id"])
@@ -274,11 +291,15 @@ async fn ponder_off_suppresses_human_queries_when_the_saved_analysis_intent_is_o
             .all(|q| q.get("moves").is_none()),
         "starting a ponder-off human turn must not submit a replacement live search"
     );
-    within(h.app.play(Move::Play(Color::Black, Point { x: 0, y: 0 })))
+    moves(&h.app, 2).await;
+    within(h.app.play(Move::Play(Color::Black, Point { x: 1, y: 0 })))
         .await
         .unwrap();
-    moves(&h.app, 2).await;
-    let recorded = requests(h.directory.path());
+    // Fence the second human turn too; exclude this next AI request itself.
+    let recorded = requests_before(h.directory.path(), |q| {
+        q["moves"].as_array().is_some_and(|m| m.len() == 3)
+    })
+    .await;
     let queries: Vec<_> = recorded[cancelled + 1..]
         .iter()
         .filter(|q| q.get("moves").is_some())
@@ -318,7 +339,14 @@ async fn ponder_off_suppresses_supplemental_queries_before_and_during_human_turn
         .await
         .unwrap();
     moves(&h.app, 2).await;
-    let recorded = requests(h.directory.path());
+    within(h.app.play(Move::Play(Color::Black, Point { x: 1, y: 0 })))
+        .await
+        .unwrap();
+    // Wait past both human turns before asserting that neither sent extras.
+    let recorded = requests_before(h.directory.path(), |q| {
+        q["moves"].as_array().is_some_and(|m| m.len() == 3)
+    })
+    .await;
     let queries: Vec<_> = recorded[before..]
         .iter()
         .filter(|q| q.get("moves").is_some() && q["id"] != supplement["id"])
@@ -403,8 +431,7 @@ async fn pure_network_is_mutually_exclusive_and_start_or_resume_cancels_whole_ga
             .status,
         WholeGameStatus::Cancelled
     );
-    let recorded = requests(h.directory.path());
-    assert!(recorded.iter().any(|q| q["terminateId"] == review["id"]));
+    query(h.directory.path(), |q| q["terminateId"] == review["id"]).await;
     assert!(matches!(
         within(h.app.set_pure_network(true)).await,
         Err(AppError::GameRunning)
@@ -423,6 +450,10 @@ async fn pure_network_is_mutually_exclusive_and_start_or_resume_cancels_whole_ga
     within(h.app.start_whole_game_analysis(options))
         .await
         .unwrap();
+    let resumed_review = query(h.directory.path(), |q| {
+        q["priority"] == -100 && q["id"] != review["id"]
+    })
+    .await;
     within(h.app.resume_game()).await.unwrap();
     assert_eq!(
         within(h.app.whole_game_progress())
@@ -432,6 +463,10 @@ async fn pure_network_is_mutually_exclusive_and_start_or_resume_cancels_whole_ga
             .status,
         WholeGameStatus::Cancelled
     );
+    query(h.directory.path(), |q| {
+        q["terminateId"] == resumed_review["id"]
+    })
+    .await;
     within(h.app.shutdown()).await.unwrap();
 }
 
@@ -515,6 +550,7 @@ async fn ai_queries_replace_live_queries_and_late_cancelled_results_cannot_play_
     .await
     .unwrap();
     let first = query(h.directory.path(), |q| q["maxVisits"] == 123).await;
+    query(h.directory.path(), |q| q["terminateId"] == ordinary["id"]).await;
     within(h.app.go_to(2)).await.unwrap();
     document(&mut h.events, 2).await;
     // Changing payload preferences during the AI turn cannot reopen the
@@ -525,14 +561,6 @@ async fn ai_queries_replace_live_queries_and_late_cancelled_results_cannot_play_
     }))
     .await
     .unwrap();
-    let log = requests(h.directory.path());
-    let first_index = log.iter().position(|q| q["id"] == first["id"]).unwrap();
-    let cancelled = log
-        .iter()
-        .position(|q| q["terminateId"] == ordinary["id"])
-        .unwrap();
-    assert!(cancelled < first_index);
-    assert_eq!(log.iter().filter(|q| q.get("moves").is_some()).count(), 2);
     std::fs::write(&gate0, "released").unwrap();
     let first_move = moves(&h.app, 1).await;
     assert_ne!(first_move.latest_node, 2);
@@ -552,6 +580,15 @@ async fn ai_queries_replace_live_queries_and_late_cancelled_results_cannot_play_
     })
     .await;
     let human_query = query(h.directory.path(), |q| q["moves"] == json!([["B", "D4"]])).await;
+    // The following human request also fences the extras change during AI play.
+    let log = requests_before(h.directory.path(), |q| q["id"] == human_query["id"]).await;
+    let first_index = log.iter().position(|q| q["id"] == first["id"]).unwrap();
+    let cancelled = log
+        .iter()
+        .position(|q| q["terminateId"] == ordinary["id"])
+        .unwrap();
+    assert!(cancelled < first_index);
+    assert_eq!(log.iter().filter(|q| q.get("moves").is_some()).count(), 2);
     within(h.app.go_to(first_move.latest_node)).await.unwrap();
     within(h.app.play(Move::Play(Color::White, Point { x: 15, y: 3 })))
         .await
@@ -560,17 +597,10 @@ async fn ai_queries_replace_live_queries_and_late_cancelled_results_cannot_play_
         q["moves"] == json!([["B", "D4"], ["W", "Q16"]]) && q["maxVisits"] == 123
     })
     .await;
-    let log = requests(h.directory.path());
-    let human_cancelled = log
-        .iter()
-        .position(|q| q["terminateId"] == human_query["id"])
-        .unwrap();
-    let second_index = log.iter().position(|q| q["id"] == second["id"]).unwrap();
-    assert!(human_cancelled < second_index);
-    assert_eq!(
-        log.iter().filter(|q| q["moves"] == second["moves"]).count(),
-        1
-    );
+    query(h.directory.path(), |q| {
+        q["terminateId"] == human_query["id"]
+    })
+    .await;
     std::fs::write(&gate1, "old position released").unwrap();
     std::fs::write(&gate2, "current position released").unwrap();
     let final_state = moves(&h.app, 3).await;
@@ -587,6 +617,21 @@ async fn ai_queries_replace_live_queries_and_late_cancelled_results_cannot_play_
         view.board.unwrap().stones[15 * 19 + 15],
         None,
         "cancelled Q4 candidate was not played"
+    );
+    // A later human-turn request closes the second AI turn's interval.
+    let log = requests_before(h.directory.path(), |q| {
+        q["moves"] == json!([["B", "D4"], ["W", "Q16"], ["B", "D16"]])
+    })
+    .await;
+    let human_cancelled = log
+        .iter()
+        .position(|q| q["terminateId"] == human_query["id"])
+        .unwrap();
+    let second_index = log.iter().position(|q| q["id"] == second["id"]).unwrap();
+    assert!(human_cancelled < second_index);
+    assert_eq!(
+        log.iter().filter(|q| q["moves"] == second["moves"]).count(),
+        1
     );
     within(h.app.shutdown()).await.unwrap();
 }
