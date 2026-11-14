@@ -63,7 +63,7 @@ test("the toolbars hold Java's buttons in Java's order; what the new app lacks s
   // The menu strip: the engine as Java captions it, then AI 陪练 and AI 解说, not built yet.
   const strip = page.locator(".menubar-row");
   await expect(page.getByTestId("menubar").getByRole("menuitem").last()).toHaveText("[1]: kata1-tf3-b11c768");
-  await expect(strip.getByRole("button", { name: "AI 陪练" })).toBeDisabled();
+  await expect(strip.getByRole("button", { name: "AI 陪练" })).toBeEnabled();
   await expect(strip.getByRole("button", { name: "AI 解说" })).toBeDisabled();
 
   await expect(page.getByTestId("top-toolbar")).toHaveScreenshot("top-toolbar.png");
