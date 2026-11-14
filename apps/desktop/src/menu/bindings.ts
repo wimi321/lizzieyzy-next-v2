@@ -81,6 +81,8 @@ export interface MenuActions {
   step(steps: number): void;
   goTo(node: number): void;
   openFox(): void;
+  openTencent(): void;
+  openUrl(): void;
   startBoardSync(): void;
   toggleSyncOption(key: "always_sync" | "always_goto_last"): void;
   openTsumego(): void;
@@ -174,6 +176,8 @@ export function menuBindings(state: MenuState, actions: MenuActions): MenuBindin
     forward10: step(10),
 
     foxKifu: when(free, actions.openFox),
+    tencentKifu: when(free, actions.openTencent),
+    openUrl: when(free, actions.openUrl),
     // Started once; readboard's own window stops it, as does the toolbar chip.
     readBoard: when(free && state.windows && (state.syncPhase === "Stopped" || state.syncPhase === "Failed"), actions.startBoardSync),
     alwaysKeepBoardStatSync: { run: () => actions.toggleSyncOption("always_sync"), checked: state.syncOptions.always_sync },

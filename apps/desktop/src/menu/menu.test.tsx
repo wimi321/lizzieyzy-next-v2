@@ -129,6 +129,8 @@ function actions(): MenuActions {
     step: vi.fn(),
     goTo: vi.fn(),
     openFox: vi.fn(),
+    openTencent: vi.fn(),
+    openUrl: vi.fn(),
     startBoardSync: vi.fn(),
     toggleSyncOption: vi.fn(),
     openTsumego: vi.fn(),
@@ -265,10 +267,9 @@ describe("the menu strip", () => {
     expect(popups()).toHaveLength(1);
     expect(row("open").querySelector(".menu-label")?.textContent).toBe("打开棋谱");
     expect(row("open").querySelector(".menu-hint")?.textContent).toBe("O");
-    expect(row("openUrl").getAttribute("aria-disabled")).toBe("true");
     expect(row("openRecent").getAttribute("aria-disabled")).toBe("true");
 
-    fireEvent.click(row("openUrl"));
+    fireEvent.click(row("openRecent"));
     expect(popups()).toHaveLength(1);
     fireEvent.click(row("open"));
     expect(user.open).toHaveBeenCalledTimes(1);
@@ -294,8 +295,12 @@ describe("the menu strip", () => {
     const key = (name: string) => fireEvent.keyDown(document.activeElement ?? document.body, { key: name });
     key("ArrowDown");
     expect(row("open").dataset.active).toBe("true");
+    // 最近打开 is greyed out with no recent games, so 打开在线链接 comes next.
+    key("ArrowDown");
+    expect(row("openUrl").dataset.active).toBe("true");
     key("ArrowDown");
     expect(row("save").dataset.active).toBe("true");
+    key("ArrowUp");
     key("ArrowUp");
     key("ArrowUp");
     key("ArrowUp");

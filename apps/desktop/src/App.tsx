@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
-import type { AnalysisLimitSettings, ColorView, EngineStatus, FoxAccount, MoveRank, PointView, ProblemMoveSort, ProblemMovesQuery } from "@/api/backend";
+import type { AnalysisLimitSettings, ColorView, EngineStatus, MoveRank, PointView, ProblemMoveSort, ProblemMovesQuery } from "@/api/backend";
 import { Board } from "./board/Board";
 import type { NextMove } from "./board/draw";
 import { SubBoard } from "./board/SubBoard";
@@ -12,7 +12,8 @@ import { useCommentEdit } from "./edit/useCommentEdit";
 import { useBoardMenu } from "./edit/BoardMenu";
 import { useBoardModes } from "./edit/useBoardModes";
 import { useEditing } from "./edit/useEditing";
-import { FoxDialog } from "./fox/FoxDialog";
+import { useCommentary } from "./commentary/useCommentary";
+import { useOnline } from "./online/useOnline";
 import { CurveProgress } from "./graph/CurveProgress";
 import { liveGraph } from "./graph/scale";
 import { WinrateGraph } from "./graph/WinrateGraph";
@@ -64,7 +65,6 @@ import { MainPanel } from "./frame/MainPanel";
 import { MessageBox } from "./frame/MessageBox";
 import { StatusLine } from "./frame/StatusLine";
 import { statusLine } from "./frame/status";
-import { ToolButton } from "./frame/ToolButton";
 import { TopToolbar } from "./frame/TopToolbar";
 import { useOpenFailed } from "./frame/useOpenFailed";
 import { useWindowTitle } from "./frame/useWindowTitle";
@@ -101,9 +101,6 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const chinese = release.locale.toLowerCase().startsWith("zh");
   const loadRelease = release.load;
   const [pondering, setPondering] = useState(true);
-  const [foxOpen, setFoxOpen] = useState(false);
-  // Mounted on first use and then only hidden, so a minimized window keeps its list.
-  const [foxUsed, setFoxUsed] = useState(false);
   const [strengthOpen, setStrengthOpen] = useState(false);
   const [strengthBounds, setStrengthBounds] = useState<[number, number] | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -131,7 +128,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   );
   const loadEveryday = everyday.load;
   const wheel = useRef(0);
-  const [foxHistory, setFoxHistory] = useState<FoxAccount[]>([]);
+  // 野狐棋谱, 腾讯棋谱 and 打开在线链接; AI 解说.
+  const online = useOnline(backend, messages);
+  const loadOnline = online.load;
+  const commentary = useCommentary(backend, messages.commentary, { board: document?.board ?? null, jump: (node) => jump(node) });
+  const loadCommentary = commentary.load;
   const [boardHover, setBoardHover] = useState<PointView | null>(null);
   // A row of the candidate list under the pointer previews like a hovered candidate.
   const [listHover, setListHover] = useState<PointView | null>(null);
@@ -186,7 +187,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         setPondering(settings.pondering);
         setAutoCurve(settings.auto_quick_analyze_on_load ?? true);
         setCacheOn(settings.cache_enabled ?? true);
-        setFoxHistory(settings.fox_history);
+        loadOnline(settings);
+        loadCommentary(settings);
         setTsumegoOptions(settings.tsumego);
         loadDisplay(settings.display);
         loadRelease(settings);
@@ -199,7 +201,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       active = false;
     };
     // A state setter: the settings are read once.
-  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease, loadEveryday, loadBatch]);
+  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease, loadEveryday, loadBatch, loadOnline, loadCommentary]);
 
   // A comment being edited is saved before the app moves to another move by itself.
   const comment = useCommentEdit(backend, document);
@@ -292,23 +294,12 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   useEffect(() => {
     backend.analysisLimits().then(setLimits).catch(report);
   }, []);
-  // The backend records searches in the settings; read them back rather than guess.
-  const refreshFoxHistory = () => {
-    backend
-      .settings()
-      .then((settings) => setFoxHistory(settings.fox_history))
-      .catch(report);
-  };
   const jump = (nodeId: number) => {
     comment.commit();
     backend.goTo(nodeId).catch(report);
   };
   const pass = () => {
     if (board) backend.play({ type: "Pass", data: { color: board.to_play } }).catch(report);
-  };
-  const openFox = () => {
-    setFoxUsed(true);
-    setFoxOpen(true);
   };
   const current = document?.tree.current ?? null;
   const best = analysis && analysis.node_id === current ? analysis.candidates[0] : undefined;
@@ -376,7 +367,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         pass,
         step,
         goTo: jump,
-        openFox,
+        openFox: online.openFox,
+        openTencent: online.openTencent,
+        openUrl: online.openUrl,
         startBoardSync: () => sync.start({ ...syncOptions, language: chinese ? "Cn" : "En" }),
         toggleSyncOption: (key) => setSyncOptions((options) => ({ ...options, [key]: !options[key] })),
         openTsumego: () => tsumego.setOpen(true),
@@ -394,13 +387,14 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...estimate.bindings,
     ...games.bindings(analysis, hovered),
     ...coach.bindings,
+    ...commentary.bindings,
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
     hawkEye2: { run: toggleHawkEye, enabled: document !== null },
   });
   useShortcuts(
     bindings,
-    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || online.dialogOpen || commentary.dialogOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen),
   );
   const frame = messages.frame;
   const engineLabel = engines.label === "" ? null : engines.label;
@@ -461,7 +455,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       onAlternate={modes.exit}
       onOpen={() => void openFile().catch(report)}
       onSave={editing.save}
-      onFox={openFox}
+      onFox={online.openFox}
+      onTencent={online.openTencent}
       onStrength={() => setStrengthOpen(true)}
       onAutoSetup={() => setToolsTab("overview")}
       onFlash={() => batch.bindings.flashAnalyzeAllGame?.run?.()}
@@ -490,7 +485,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           <>
             {shown.show_top_toolbar && combinedTop ? topToolbar : null}
             {coach.button(frame.menu)}
-            <ToolButton label={frame.menu.aiCommentary} enabled={false} />
+            {commentary.button(frame.menu)}
           </>
         }
         tray={
@@ -733,16 +728,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onClose={() => setStrengthOpen(false)}
         />
       ) : null}
-      {foxUsed ? (
-        <FoxDialog
-          open={foxOpen}
-          backend={backend}
-          labels={messages.fox}
-          history={foxHistory}
-          onHistoryChanged={refreshFoxHistory}
-          onClose={() => setFoxOpen(false)}
-        />
-      ) : null}
+      {online.dialogs}
+      {commentary.windows}
       {aboutOpen ? <AboutDialog name={messages.app.title} labels={messages.about} onClose={() => setAboutOpen(false)} /> : null}
       {settingsOpen && limits ? (
         <SettingsDialog
