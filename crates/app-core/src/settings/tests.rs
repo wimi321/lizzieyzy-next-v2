@@ -185,6 +185,7 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
         flash_analysis: crate::FlashAnalysisSettings::default(),
         engine: Some(profile(directory.path())),
         recent_files: Vec::new(),
+        tencent_history: Vec::new(),
         fox_history: vec![
             latest.clone(),
             crate::fox::FoxAccount {

@@ -2,7 +2,10 @@
 
 mod error;
 mod normalize;
+pub mod online;
 mod parse;
+pub mod tencent;
+mod transport;
 mod types;
 
 pub use error::FoxError;
@@ -11,13 +14,12 @@ pub use types::*;
 
 use std::time::Duration;
 
-use reqwest::{Client, Request, RequestBuilder, Url};
+use reqwest::{Client, RequestBuilder};
 use serde_json::Value;
 
 const MOBILE_USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(3 * 60);
-const MAX_TRANSPORT_ATTEMPTS: u32 = 3;
 
 /// Full endpoint URLs, injectable for local HTTP replay. All but the last SGF
 /// endpoint receive a POST form; the last receives the legacy H5 GET request.
@@ -45,6 +47,7 @@ impl Default for FoxEndpoints {
 #[derive(Clone, Debug)]
 pub struct FoxClient {
     http: Client,
+    online_http: Client,
     endpoints: FoxEndpoints,
 }
 
@@ -70,29 +73,15 @@ impl FoxClient {
             .into_iter()
             .chain(endpoints.sgf_urls.iter())
         {
-            let url = Url::parse(endpoint).map_err(|_| FoxError::InvalidConfiguration)?;
-            if !matches!(url.scheme(), "https" | "http")
-                || url.host_str().is_none()
-                || !url.username().is_empty()
-                || url.password().is_some()
-            {
-                return Err(FoxError::InvalidConfiguration);
-            }
+            transport::validate_endpoint(endpoint)?;
         }
-        // reqwest's no-provider feature requires a runtime provider. A previous
-        // installation is harmless and is retained for other rustls clients.
-        let _ = rustls::crypto::ring::default_provider().install_default();
-        let http = Client::builder()
-            .tls_backend_rustls()
-            .user_agent(MOBILE_USER_AGENT)
-            .connect_timeout(Duration::from_secs(20))
-            .read_timeout(read_timeout)
-            .timeout(REQUEST_TOTAL_TIMEOUT)
-            // Count all transport retries here, including protocol NACKs.
-            .retry(reqwest::retry::never())
-            .redirect(reqwest::redirect::Policy::limited(5))
-            .build()?;
-        Ok(Self { http, endpoints })
+        let http = transport::client(read_timeout, reqwest::redirect::Policy::limited(5))?;
+        let online_http = transport::client(read_timeout, reqwest::redirect::Policy::none())?;
+        Ok(Self {
+            http,
+            online_http,
+            endpoints,
+        })
     }
 
     pub async fn search(&self, query: &FoxQuery) -> Result<FoxSearchResult, FoxError> {
@@ -188,50 +177,7 @@ impl FoxClient {
     }
 
     async fn json(&self, request: RequestBuilder) -> Result<Value, FoxError> {
-        let request = request
-            .header("Accept", "application/json,text/plain,*/*")
-            .build()?;
-        tokio::time::timeout(REQUEST_TOTAL_TIMEOUT, self.json_with_retries(request))
-            .await
-            .map_err(|_| FoxError::Timeout)?
-    }
-
-    async fn json_with_retries(&self, request: Request) -> Result<Value, FoxError> {
-        for attempt in 1..=MAX_TRANSPORT_ATTEMPTS {
-            let request = request.try_clone().ok_or(FoxError::InvalidConfiguration)?;
-            match self.json_once(request).await {
-                Err(error)
-                    if error.is_retryable_transport() && attempt < MAX_TRANSPORT_ATTEMPTS =>
-                {
-                    tokio::time::sleep(Duration::from_millis(350 * u64::from(attempt))).await;
-                }
-                result => return result,
-            }
-        }
-        Err(FoxError::InvalidConfiguration)
-    }
-
-    async fn json_once(&self, request: Request) -> Result<Value, FoxError> {
-        let mut response = self.http.execute(request).await?;
-        if !response.status().is_success() {
-            return Err(FoxError::Http {
-                status: response.status().as_u16(),
-            });
-        }
-        if response
-            .content_length()
-            .is_some_and(|length| length > MAX_RESPONSE_BYTES as u64)
-        {
-            return Err(FoxError::ResponseTooLarge);
-        }
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response.chunk().await? {
-            if bytes.len() + chunk.len() > MAX_RESPONSE_BYTES {
-                return Err(FoxError::ResponseTooLarge);
-            }
-            bytes.extend_from_slice(&chunk);
-        }
-        Ok(serde_json::from_slice(&bytes)?)
+        transport::json(&self.http, request).await
     }
 }
 
@@ -261,3 +207,6 @@ mod tests;
 
 #[cfg(test)]
 mod transport_tests;
+
+#[cfg(test)]
+mod test_http;

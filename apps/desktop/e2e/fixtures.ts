@@ -20,6 +20,7 @@ import type {
   DocumentView,
   GraphView,
   FoxSearchResult,
+  TencentPage,
   MoveView,
   PhaseReport,
   PointView,
@@ -629,6 +630,26 @@ export function fillGameDefaults(view: GameView): void {
 
 function gameDefaultField<T extends object, K extends keyof T>(target: T, key: K, value: T[K]): void {
   if (target[key] === undefined) Object.defineProperty(target, key, { value, writable: true, configurable: true });
+}
+
+/** Fixed mock DTO defaults; Tencent parsing and rank conversion stay in Rust. */
+export function fillTencentPageDefaults(page: TencentPage): void {
+  gameDefaultField(page, "games", []);
+  gameDefaultField(page, "next_cursor", null);
+  for (const game of page.games ?? []) {
+    gameDefaultField(game, "id", "");
+    gameDefaultField(game, "start_time", null);
+    gameDefaultField(game, "move_count", 0);
+    gameDefaultField(game, "black", {});
+    gameDefaultField(game, "white", {});
+    gameDefaultField(game, "result", { winner: null, kind: "Other", score: null, unit: null });
+    for (const player of [game.black, game.white]) {
+      if (!player) continue;
+      gameDefaultField(player, "uid", "");
+      gameDefaultField(player, "nickname", "");
+      gameDefaultField(player, "rank", { type: "Kyu", data: 18 });
+    }
+  }
 }
 
 

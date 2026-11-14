@@ -38,6 +38,7 @@ mod release;
 mod review;
 mod signals;
 mod strength_estimate;
+mod tencent;
 mod trial;
 mod tsumego;
 mod weights;
@@ -228,6 +229,7 @@ pub(crate) async fn run(
                 Some(Command::TsumegoStatus(reply)) => { let _ = reply.send(actor.tsumego_status()); }
                 Some(Command::StrengthEstimate(bounds, reply)) => { let _ = reply.send(actor.strength_estimate(bounds)); }
                 Some(Command::Fox(request)) => actor.fox_request(request).await,
+                Some(Command::Tencent(request)) => actor.tencent_request(request).await,
                 Some(Command::ProblemMoves(query, reply)) => { let _ = reply.send(actor.problem_moves(query)); }
                 Some(Command::SetMoveRankSettings(settings, reply)) => { let _ = reply.send(actor.set_move_rank_settings(settings).await); }
                 Some(Command::Review(input, reply)) => {

@@ -13,6 +13,7 @@ mod release_startup;
 mod reveal;
 pub mod startup;
 mod system_open;
+pub mod tencent_error;
 pub mod updater;
 mod window_preferences;
 
@@ -187,6 +188,11 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::fox::fox_next_page,
             commands::fox::fox_open_game,
             commands::fox::fox_clear_history,
+            commands::tencent::tencent_search,
+            commands::tencent::tencent_next_page,
+            commands::tencent::tencent_open_game,
+            commands::tencent::tencent_clear_history,
+            commands::tencent::open_url,
             commands::settings::settings,
             commands::preferences::always_on_top,
             commands::preferences::set_always_on_top,

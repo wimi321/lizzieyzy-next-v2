@@ -98,6 +98,7 @@ fn private_key(key: &str) -> bool {
                 | "extraargs"
                 | "arguments"
                 | "foxhistory"
+                | "tencenthistory"
                 | "mainengineid"
                 | "sgf"
                 | "moves"
