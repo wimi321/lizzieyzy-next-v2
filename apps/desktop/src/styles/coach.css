@@ -1,0 +1,470 @@
+/* AI 陪练: the setup dialog, the coach panel in the right column, hints, the 恶手 choice, the summary */
+
+.play-dialog.coach-dialog {
+  width: min(42rem, 100%);
+}
+
+.coach-rank-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.coach-rank-control input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.coach-step {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.coach-rank-name {
+  min-width: 3.5rem;
+  font-size: 15px;
+  text-align: right;
+  color: var(--accent);
+}
+
+.coach-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.coach-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px;
+  text-align: left;
+  color: var(--text-1);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.coach-mode strong {
+  font-size: 13px;
+}
+
+.coach-mode span {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.coach-mode:hover {
+  border-color: var(--line-strong);
+}
+
+.coach-mode[aria-checked="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.coach-model {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.coach-model-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--status-busy);
+}
+
+.coach-model-dot.ready {
+  background: var(--status-ready);
+}
+
+.coach-model[data-state="Corrupt"] .coach-model-dot {
+  background: var(--status-failed);
+}
+
+.coach-model-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.coach-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coach-progress small {
+  flex: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+
+.coach-bar {
+  flex: 1 1 auto;
+  height: 6px;
+  overflow: hidden;
+  background: var(--bg-active);
+  border-radius: 3px;
+}
+
+.coach-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+.coach-model-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.coach-error {
+  white-space: normal;
+}
+
+/* The panel takes the candidate list's place in the right column. */
+.coach-panel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px 12px;
+  color: var(--text-1);
+  font-size: 12.5px;
+}
+
+.coach-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.coach-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.coach-head p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.coach-state {
+  flex: none;
+  padding: 2px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+}
+
+.coach-state[data-state="human"] {
+  color: var(--good);
+  border-color: var(--good);
+}
+
+.coach-state[data-state="thinking"] {
+  color: #b4a3f0;
+  border-color: #7e68c8;
+}
+
+.coach-state[data-state="deciding"] {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.coach-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.coach-clock {
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.coach-curve-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.coach-caption {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.coach-curve {
+  width: 100%;
+  height: 64px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.coach-curve.empty {
+  display: block;
+}
+
+.coach-curve-mid {
+  stroke: var(--line-strong);
+  stroke-dasharray: 3 3;
+  stroke-width: 1;
+}
+
+.coach-curve-line {
+  fill: none;
+  stroke: var(--graph-winrate);
+  stroke-width: 1.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.coach-curve-blunder {
+  fill: var(--rank-blunder);
+}
+
+.coach-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 11px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.coach-card > strong {
+  font-size: 13px;
+}
+
+.coach-blunder {
+  border-color: var(--rank-blunder);
+  box-shadow: inset 3px 0 0 var(--rank-blunder);
+}
+
+.coach-hint {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.coach-rating-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.coach-rating-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.coach-best {
+  margin: 0;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.coach-verdict {
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  color: var(--text-1);
+  background: var(--bg-active);
+}
+
+.coach-verdict[data-verdict="Brilliant"] {
+  color: #10131a;
+  background: var(--rank-best);
+}
+
+.coach-verdict[data-verdict="Good"] {
+  color: #10131a;
+  background: var(--rank-good);
+}
+
+.coach-verdict[data-verdict="Slow"] {
+  color: #10131a;
+  background: var(--rank-inaccuracy);
+}
+
+.coach-verdict[data-verdict="Problem"] {
+  color: #fff;
+  background: var(--rank-mistake);
+}
+
+.coach-verdict[data-verdict="Blunder"] {
+  color: #fff;
+  background: var(--rank-blunder);
+}
+
+.coach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.coach-history h3,
+.coach-summary h3 {
+  margin: 4px 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.coach-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.coach-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coach-recent li {
+  display: grid;
+  grid-template-columns: 2.5rem auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--line);
+}
+
+.coach-loss {
+  justify-self: end;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.coach-buttons {
+  position: sticky;
+  bottom: -12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: auto -12px -12px;
+  padding: 8px 12px 12px;
+  background: var(--panel-bg);
+  border-top: 1px solid var(--line);
+}
+
+.coach-buttons .danger-link {
+  margin-left: auto;
+}
+
+.coach-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.coach-headline {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.coach-result {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.coach-stats {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.coach-worst {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coach-worst button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 9px;
+  font: inherit;
+  color: var(--text-1);
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.coach-worst button:hover {
+  border-color: var(--accent);
+}
+
+.coach-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 64px;
+  z-index: 45;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--text-1);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  transform: translateX(-50%);
+}
+
+.coach-buttons .secondary-button {
+  min-height: 26px;
+  padding: 2px 9px;
+  font-size: 12px;
+}
+
+.coach-buttons .danger-link {
+  font-size: 12px;
+}

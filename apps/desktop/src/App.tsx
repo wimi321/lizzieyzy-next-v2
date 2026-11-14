@@ -41,6 +41,7 @@ import { useEveryday } from "./everyday/useEveryday";
 import { useBatch } from "./batch/useBatch";
 import { useEstimate } from "./estimate/useEstimate";
 import { usePlay } from "./play/usePlay";
+import { useCoach } from "./coach/useCoach";
 import { BOTTOM_ITEMS, itemFilter, TOP_ITEMS } from "./frame/toolbarItems";
 import { type ToolsTab, useEngineTools } from "./engines/useEngineTools";
 import { BenchmarkChip } from "./benchmark/BenchmarkChip";
@@ -118,7 +119,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const loadEngines = engines.load;
   // 人机对局, 引擎对局 and GTP engines; 对弈模式 hides what the engine thinks during a game.
   const games = usePlay(backend, engines.settings, engines.apply, { hasDocument: document !== null, hasStones: document?.board?.stones.some(Boolean) ?? false }, messages);
-  const shown = games.shown(display.display);
+  // AI 陪练; pass and jump are defined below and only called later, from the panel.
+  const coach = useCoach(backend, messages, { hasStones: document?.board?.stones.some(Boolean) ?? false, board: document?.board ?? null, tree: document?.tree ?? null, pass: () => pass(), jump: (node) => jump(node) });
+  const shown = coach.shown(games.shown(display.display));
   // Kata形势, 纯网络 and 策略网络 on both boards.
   const estimate = useEstimate(backend, shown, display.set, analysis);
   const everyday = useEveryday(
@@ -390,13 +393,14 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...batch.bindings,
     ...estimate.bindings,
     ...games.bindings(analysis, hovered),
+    ...coach.bindings,
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
     hawkEye2: { run: toggleHawkEye, enabled: document !== null },
   });
   useShortcuts(
     bindings,
-    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || foxOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen),
   );
   const frame = messages.frame;
   const engineLabel = engines.label === "" ? null : engines.label;
@@ -485,7 +489,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         actions={
           <>
             {shown.show_top_toolbar && combinedTop ? topToolbar : null}
-            <ToolButton className="jt-coach" label={frame.menu.aiCoach} title={frame.menu.aiCoachTip} enabled={false} />
+            {coach.button(frame.menu)}
             <ToolButton label={frame.menu.aiCommentary} enabled={false} />
           </>
         }
@@ -593,7 +597,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               analysis={analysis}
               coordinates={shown.show_coordinates}
               {...estimate.board}
-              maxCandidates={games.hideCandidates ? 0 : shown.max_suggestions > 0 ? shown.max_suggestions : board.width * board.height}
+              maxCandidates={games.hideCandidates || coach.hidesAnalysis ? 0 : shown.max_suggestions > 0 ? shown.max_suggestions : board.width * board.height}
               label={messages.board.label}
               preview={listHover}
               variation={variation}
@@ -605,7 +609,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               style={style}
               passLabel={messages.board.pass}
               emptyHint={emptyGame ? messages.board.emptyHint : null}
-              markup={document?.markup ?? undefined}
+              markup={coach.markup(document?.markup ?? undefined)}
               editing={modes.editing}
               onPoint={modes.onPoint}
               onContextMenu={(point, x, y) => {
@@ -619,7 +623,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               {document?.position_error ? messages.board.positionError.replace("{reason}", document.position_error) : messages.board.loading}
             </p>
           ),
-          list: (
+          list: coach.panel() ?? (
             <CandidateList
               analysis={analysis && analysis.node_id === current ? analysis : null}
               toPlay={board?.to_play ?? "Black"}
@@ -701,6 +705,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {everyday.dialogs(messages.everyday, messages.display)}
       {batch.dialogs(messages.review)}
       {games.dialogs()}
+      {coach.dialogs()}
       {modes.dialog}
       {boardMenu.menu}
       {limitTips === "open" ? <LimitDialog labels={messages.limit} onClose={() => setLimitTips("done")} /> : null}
