@@ -58,6 +58,8 @@ mod zhizi_api;
 mod zhizi_engine;
 
 #[cfg(test)]
+mod fake_gtp_tests;
+#[cfg(test)]
 #[path = "../tests/common/mod.rs"]
 mod test_support;
 

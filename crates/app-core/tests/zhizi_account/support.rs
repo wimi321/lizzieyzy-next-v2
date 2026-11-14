@@ -44,13 +44,13 @@ pub struct Server {
 }
 impl Server {
     pub async fn new(mut stubs: Vec<Stub>) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener = within(TcpListener::bind("127.0.0.1:0")).await.unwrap();
         let base = format!("http://{}", listener.local_addr().unwrap());
         let (sent, requests) = mpsc::unbounded_channel();
         let task = tokio::spawn(async move {
             let mut active = JoinSet::new();
             while !stubs.is_empty() {
-                let (mut stream, _) = listener.accept().await.unwrap();
+                let (mut stream, _) = within(listener.accept()).await.unwrap();
                 let request = read_request(&mut stream).await;
                 let path = request
                     .lines()
@@ -66,12 +66,12 @@ impl Server {
                 let stub = stubs.remove(index);
                 sent.send(request).unwrap();
                 active.spawn(async move {
-                    if let Some(gate) = stub.gate { gate.wait().await; }
+                    if let Some(gate) = stub.gate { within(gate.wait()).await; }
                     let response = format!("HTTP/1.1 {} Test\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n{}", stub.status, stub.body.len(), stub.headers, stub.body);
-                    stream.write_all(response.as_bytes()).await.unwrap();
+                    within(stream.write_all(response.as_bytes())).await.unwrap();
                 });
             }
-            while let Some(result) = active.join_next().await {
+            while let Some(result) = within(active.join_next()).await {
                 result.unwrap();
             }
         });
@@ -94,7 +94,7 @@ async fn read_request(stream: &mut TcpStream) -> String {
     let mut bytes = Vec::new();
     loop {
         let mut chunk = [0; 4096];
-        let count = stream.read(&mut chunk).await.unwrap();
+        let count = within(stream.read(&mut chunk)).await.unwrap();
         assert!(count > 0);
         bytes.extend_from_slice(&chunk[..count]);
         if let Some(end) = bytes.windows(4).position(|v| v == b"\r\n\r\n") {
@@ -141,7 +141,7 @@ impl Store {
         tokio::spawn(async move {
             let mut keys = BTreeMap::new();
             let mut available = true;
-            while let Some(command) = rx.recv().await {
+            while let Some(command) = within(rx.recv()).await {
                 match command {
                     StoreCommand::Read(key, tx) => {
                         let _ = tx.send(if available {
@@ -198,7 +198,7 @@ impl SecretStore for Store {
             self.commands
                 .send(StoreCommand::Read(key, tx))
                 .map_err(|_| KeyStoreUnavailable)?;
-            rx.await.map_err(|_| KeyStoreUnavailable)?
+            within(rx).await.map_err(|_| KeyStoreUnavailable)?
         })
     }
     fn write(&self, key: String, value: String) -> KeyStoreFuture<'_, ()> {
@@ -207,7 +207,7 @@ impl SecretStore for Store {
             self.commands
                 .send(StoreCommand::Write(key, value, tx))
                 .map_err(|_| KeyStoreUnavailable)?;
-            rx.await.map_err(|_| KeyStoreUnavailable)?
+            within(rx).await.map_err(|_| KeyStoreUnavailable)?
         })
     }
     fn delete(&self, key: String) -> KeyStoreFuture<'_, ()> {
@@ -216,7 +216,7 @@ impl SecretStore for Store {
             self.commands
                 .send(StoreCommand::Delete(key, tx))
                 .map_err(|_| KeyStoreUnavailable)?;
-            rx.await.map_err(|_| KeyStoreUnavailable)?
+            within(rx).await.map_err(|_| KeyStoreUnavailable)?
         })
     }
 }
@@ -225,13 +225,26 @@ impl SecretStore for Store {
 pub struct HangingStore {
     pub phase: &'static str,
     pub operations: mpsc::UnboundedSender<&'static str>,
+    pub release: tokio::sync::watch::Receiver<bool>,
+}
+impl HangingStore {
+    async fn stalled(&self) {
+        let mut release = self.release.clone();
+        within(async {
+            while !*release.borrow_and_update() {
+                within(release.changed()).await.unwrap();
+            }
+        })
+        .await;
+    }
 }
 impl SecretStore for HangingStore {
     fn read(&self, _: String) -> KeyStoreFuture<'_, Option<String>> {
         Box::pin(async move {
             self.operations.send("read").unwrap();
             if self.phase == "read" {
-                std::future::pending().await
+                self.stalled().await;
+                Err(KeyStoreUnavailable)
             } else {
                 Ok(None)
             }
@@ -241,7 +254,8 @@ impl SecretStore for HangingStore {
         Box::pin(async move {
             self.operations.send("write").unwrap();
             if self.phase == "write" {
-                std::future::pending().await
+                self.stalled().await;
+                Err(KeyStoreUnavailable)
             } else {
                 Ok(())
             }
@@ -251,7 +265,8 @@ impl SecretStore for HangingStore {
         Box::pin(async move {
             self.operations.send("delete").unwrap();
             if self.phase == "delete" {
-                std::future::pending().await
+                self.stalled().await;
+                Err(KeyStoreUnavailable)
             } else {
                 Ok(())
             }
@@ -274,7 +289,7 @@ impl SecretStore for DelayedNativeStore {
     fn delete(&self, account: String) -> KeyStoreFuture<'_, ()> {
         Box::pin(async move {
             self.operations.send("delete").unwrap();
-            self.inner.delete(account).await
+            within(self.inner.delete(account)).await
         })
     }
     fn write(&self, account: String, token: String) -> KeyStoreFuture<'_, ()> {
@@ -282,14 +297,14 @@ impl SecretStore for DelayedNativeStore {
         let mut gate = self.gate.clone();
         let operations = self.operations.clone();
         Box::pin(async move {
-            tokio::spawn(async move {
+            within(tokio::spawn(async move {
                 operations.send("write-start").unwrap();
                 while !*gate.borrow_and_update() {
-                    gate.changed().await.unwrap();
+                    within(gate.changed()).await.unwrap();
                 }
-                inner.write(account, token).await.unwrap();
+                within(inner.write(account, token)).await.unwrap();
                 operations.send("write-done").unwrap();
-            })
+            }))
             .await
             .map_err(|_| KeyStoreUnavailable)?;
             Ok(())

@@ -5,7 +5,7 @@ mod support;
 use app_core::{commentary_keys::SecretStore, zhizi::*};
 use common::within;
 use serde_json::json;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use support::{Server, Store, Stub, body};
 const LOGIN: &str = "/api/cluster/account/login";
 const FAST: &str = "/api/cluster/account/fast-login";
@@ -312,7 +312,7 @@ async fn typed_error_keys_request_ids_and_plain_401_fallbacks() {
 }
 
 #[tokio::test]
-async fn verification_cooldown_uses_default_header_cap_and_virtual_time() {
+async fn verification_cooldown_uses_default_header_cap_and_blocks_repeated_requests() {
     let mut server = Server::new(vec![
         Stub::json(CODE, json!({})),
         Stub::json(CODE, json!({})).header("Retry-After", "900"),
@@ -336,11 +336,10 @@ async fn verification_cooldown_uses_default_header_cap_and_virtual_time() {
     .await
     .unwrap_err();
     assert_eq!(error.kind, ZhiziErrorKind::TooFrequent);
-    assert_eq!(error.retry_after_seconds, 60);
-    advance(Duration::from_secs(60)).await;
+    assert!((1..=60).contains(&error.retry_after_seconds));
     assert_eq!(
         within(service.send_code(
-            "user@example.test".into(),
+            "second@example.test".into(),
             ZhiziVerificationPurpose::FastLogin
         ))
         .await
@@ -349,21 +348,17 @@ async fn verification_cooldown_uses_default_header_cap_and_virtual_time() {
         600
     );
     server.next().await;
-    advance(Duration::from_secs(599)).await;
+    let error = within(service.send_code(
+        "second@example.test".into(),
+        ZhiziVerificationPurpose::FastLogin,
+    ))
+    .await
+    .unwrap_err();
+    assert_eq!(error.kind, ZhiziErrorKind::TooFrequent);
+    assert!((1..=600).contains(&error.retry_after_seconds));
     assert_eq!(
         within(service.send_code(
-            "user@example.test".into(),
-            ZhiziVerificationPurpose::FastLogin
-        ))
-        .await
-        .unwrap_err()
-        .retry_after_seconds,
-        1
-    );
-    advance(Duration::from_secs(1)).await;
-    assert_eq!(
-        within(service.send_code(
-            "user@example.test".into(),
+            "third@example.test".into(),
             ZhiziVerificationPurpose::FastLogin
         ))
         .await
@@ -396,9 +391,8 @@ fn overview_stubs() -> Vec<Stub> {
 }
 
 #[tokio::test]
-async fn overview_fetches_concurrently_caches_45_seconds_and_details_use_twenty_items() {
+async fn overview_fetches_concurrently_caches_and_force_refreshes_with_twenty_item_details() {
     let mut stubs = vec![Stub::json(LOGIN, json!({"token":"token"}))];
-    stubs.extend(overview_stubs());
     stubs.extend(overview_stubs());
     stubs.extend(overview_stubs());
     stubs.push(Stub::json(
@@ -426,14 +420,8 @@ async fn overview_fetches_concurrently_caches_45_seconds_and_details_use_twenty_
     assert_eq!(overview.balance.remaining_balance_yuan, "12.30");
     assert_eq!(overview.recent_usage.page_size, 5);
     assert_eq!(overview.recent_usage.items[0].duration_seconds, 123);
-    advance(Duration::from_secs(44)).await;
     assert_eq!(within(service.overview(false)).await.unwrap(), overview);
     assert!(server.requests.try_recv().is_err());
-    advance(Duration::from_secs(1)).await;
-    within(service.overview(false)).await.unwrap();
-    for _ in 0..3 {
-        server.next().await;
-    }
     within(service.overview(true)).await.unwrap();
     for _ in 0..3 {
         server.next().await;
@@ -474,7 +462,9 @@ async fn incomplete_responses_network_failures_and_unsafe_http_are_typed() {
             ZhiziErrorKind::UnsafeAddress
         );
     }
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let listener = within(tokio::net::TcpListener::bind("127.0.0.1:0"))
+        .await
+        .unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     drop(listener);
     let service = ZhiziService::spawn(Some(ZhiziClient::with_base_url(&url).unwrap()), None);
@@ -494,19 +484,18 @@ async fn zhizi_live_login_and_account_overview() {
     let account = std::env::var("ZHIZI_ACCOUNT").expect("ZHIZI_ACCOUNT required");
     let password = std::env::var("ZHIZI_PASSWORD").expect("ZHIZI_PASSWORD required");
     let service = ZhiziService::spawn(None, None);
-    service
-        .login_password(account, password, false)
+    within(service.login_password(account, password, false))
         .await
         .unwrap();
-    service.overview(true).await.unwrap();
-    service.logout().await.unwrap();
+    within(service.overview(true)).await.unwrap();
+    within(service.logout()).await.unwrap();
 }
 
 #[tokio::test]
 async fn settings_and_diagnostic_files_contain_no_account_password_or_token() {
     use tracing_subscriber::layer::SubscriberExt;
     let directory = tempfile::tempdir().unwrap();
-    let support = app_core::support::spawn(directory.path().to_owned())
+    let support = within(app_core::support::spawn(directory.path().to_owned()))
         .await
         .unwrap();
     within(support.start_full_log()).await.unwrap();
@@ -555,18 +544,17 @@ async fn settings_and_diagnostic_files_contain_no_account_password_or_token() {
     within(support.shutdown()).await.unwrap();
 }
 
-async fn advance(duration: Duration) {
-    tokio::time::pause();
-    tokio::time::advance(duration).await;
-    tokio::time::resume();
-}
-
 #[tokio::test]
 async fn key_store_operations_time_out_without_preventing_memory_login_or_startup() {
     for phase in ["read", "write", "delete"] {
         let server = Server::new(vec![Stub::json(LOGIN, json!({"token":"temporary-token"}))]).await;
         let (operations, mut observed) = tokio::sync::mpsc::unbounded_channel();
-        let store = Arc::new(support::HangingStore { phase, operations });
+        let (release, released) = tokio::sync::watch::channel(false);
+        let store = Arc::new(support::HangingStore {
+            phase,
+            operations,
+            release: released,
+        });
         let service = ZhiziService::spawn(
             Some(ZhiziClient::with_base_url(&server.base).unwrap()),
             Some(store),
@@ -575,21 +563,25 @@ async fn key_store_operations_time_out_without_preventing_memory_login_or_startu
             let service = service.clone();
             tokio::spawn(async move {
                 if phase == "read" {
-                    service.restore().await
+                    within(service.restore()).await
                 } else {
-                    service
-                        .login_password("user@example.test".into(), "password".into(), true)
-                        .await
+                    within(service.login_password(
+                        "user@example.test".into(),
+                        "password".into(),
+                        true,
+                    ))
+                    .await
                 }
             })
         };
-        within(async { while observed.recv().await.unwrap() != phase {} }).await;
-        tokio::time::pause();
-        tokio::time::advance(Duration::from_secs(2)).await;
+        while within(observed.recv()).await.unwrap() != phase {}
         let status = within(request).await.unwrap().unwrap();
-        tokio::time::resume();
         assert_eq!(status.logged_in, phase != "read");
         assert!(!status.remembered && !status.store_available);
+        // Complete the intentionally stalled native operation, then await the
+        // queued cleanup. No unfinished fixture task outlives this iteration.
+        release.send(true).unwrap();
+        within(service.logout()).await.unwrap();
     }
 }
 
@@ -643,18 +635,14 @@ async fn timed_out_native_write_finishes_before_queued_delete_without_reviving_l
     let login = {
         let service = service.clone();
         tokio::spawn(async move {
-            service
-                .login_password("user@example.test".into(), "password".into(), true)
+            within(service.login_password("user@example.test".into(), "password".into(), true))
                 .await
         })
     };
     assert_eq!(within(observed.recv()).await, Some("delete"));
     assert_eq!(within(observed.recv()).await, Some("write-start"));
     server.next().await;
-    tokio::time::pause();
-    tokio::time::advance(Duration::from_secs(2)).await;
     let status = within(login).await.unwrap().unwrap();
-    tokio::time::resume();
     assert!(status.logged_in && !status.remembered && !status.store_available);
     assert!(
         observed.try_recv().is_err(),

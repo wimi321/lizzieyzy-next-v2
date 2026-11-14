@@ -1,11 +1,14 @@
 use super::*;
 use crate::commentary_keys::{KeyStoreFuture, KeyStoreUnavailable, SecretStore};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::{
     sync::{mpsc, oneshot, watch},
     time::Instant,
 };
 use tracing::instrument::WithSubscriber;
+
+mod timing;
+use timing::AccountTiming;
 
 const TOKEN_ACCOUNT: &str = "zhizi:login";
 type Reply<T> = oneshot::Sender<Result<T, ZhiziError>>;
@@ -82,8 +85,7 @@ impl ZhiziService {
                 send_status,
                 loaded: false,
                 pending_delete: false,
-                overview: None,
-                cooldowns: HashMap::new(),
+                timing: AccountTiming::default(),
             }
             .run(receive)
             .with_current_subscriber(),
@@ -188,8 +190,7 @@ struct State {
     send_status: watch::Sender<ZhiziStatus>,
     loaded: bool,
     pending_delete: bool,
-    overview: Option<(Instant, ZhiziOverview)>,
-    cooldowns: HashMap<String, Instant>,
+    timing: AccountTiming,
 }
 
 impl State {
@@ -314,7 +315,7 @@ impl State {
     async fn clear(&mut self) {
         self.token = None;
         self.account = None;
-        self.overview = None;
+        self.timing.clear_overview();
         self.loaded = true;
         self.status.logged_in = false;
         self.status.may_register_account = false;
@@ -356,7 +357,7 @@ impl State {
         self.token = Some(token.clone());
         self.account = Some(account.trim().to_owned());
         self.loaded = true;
-        self.overview = None;
+        self.timing.clear_overview();
         self.status.logged_in = true;
         self.status.may_register_account = may_register;
         if remember
@@ -406,21 +407,7 @@ impl State {
     ) -> Result<ZhiziCodeDelivery, ZhiziError> {
         client::identifier(&account)?;
         let identity = blake3::hash(account.trim().as_bytes()).to_hex().to_string();
-        let now = Instant::now();
-        self.cooldowns.retain(|_, deadline| *deadline > now);
-        if let Some(deadline) = self.cooldowns.get(&identity) {
-            let remaining = (*deadline - now).as_secs_f64().ceil() as u32;
-            return Err(ZhiziError {
-                retry_after_seconds: remaining,
-                ..ZhiziError::new(ZhiziErrorKind::TooFrequent)
-            });
-        }
-        if self.cooldowns.len() >= 128 {
-            return Err(ZhiziError {
-                retry_after_seconds: 600,
-                ..ZhiziError::new(ZhiziErrorKind::TooFrequent)
-            });
-        }
+        self.timing.check_code(&identity, Instant::now())?;
         let mut result = self.client()?.send_code(&account, purpose).await;
         if let Err(error) = &mut result
             && error.kind == ZhiziErrorKind::TooFrequent
@@ -440,19 +427,13 @@ impl State {
             _ => None,
         };
         if let Some(delay) = delay {
-            self.cooldowns.insert(
-                identity,
-                Instant::now() + Duration::from_secs(u64::from(delay)),
-            );
+            self.timing.remember_code(identity, delay, Instant::now());
         }
         self.checked(result).await
     }
     async fn overview(&mut self, force: bool) -> Result<ZhiziOverview, ZhiziError> {
-        if !force
-            && let Some((loaded, overview)) = &self.overview
-            && loaded.elapsed() < Duration::from_secs(45)
-        {
-            return Ok(overview.clone());
+        if let Some(overview) = self.timing.cached_overview(force, Instant::now()) {
+            return Ok(overview);
         }
         let (client, token) = self.credentials()?;
         let (account, balance, usage) = tokio::join!(
@@ -479,7 +460,7 @@ impl State {
             balance: balance?,
             recent_usage: usage?,
         };
-        self.overview = Some((Instant::now(), overview.clone()));
+        self.timing.cache_overview(overview.clone(), Instant::now());
         Ok(overview)
     }
 }
