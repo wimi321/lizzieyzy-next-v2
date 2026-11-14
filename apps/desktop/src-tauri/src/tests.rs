@@ -13,6 +13,7 @@ use tauri::{
 use tempfile::TempDir;
 use tokio::sync::{mpsc, oneshot};
 
+mod analysis_extras;
 mod analysis_limits;
 mod auto_curve;
 mod batch_analysis;

@@ -83,6 +83,7 @@ async fn analysis_state_pause_reason_and_toggle_survive_ipc_and_reconnect() {
     let first = harness.subscribe(39).await;
     harness.document(39, 0).await;
     let paused = AnalysisState {
+        pure_network: false,
         pondering: false,
         pause_reason: Some(AnalysisPauseReason::User),
     };
@@ -99,6 +100,7 @@ async fn analysis_state_pause_reason_and_toggle_survive_ipc_and_reconnect() {
     harness.subscribe(40).await;
     next_state(&mut harness, 40, paused).await;
     let enabled = AnalysisState {
+        pure_network: false,
         pondering: true,
         pause_reason: None,
     };
@@ -135,6 +137,7 @@ async fn automatic_limit_reason_is_queryable_and_space_resume_keeps_saved_ponder
         )
         .await;
     let paused = AnalysisState {
+        pure_network: false,
         pondering: false,
         pause_reason: Some(AnalysisPauseReason::PlayoutLimit),
     };
@@ -163,6 +166,7 @@ async fn automatic_limit_reason_is_queryable_and_space_resume_keeps_saved_ponder
         json!(paused)
     );
     let resumed = AnalysisState {
+        pure_network: false,
         pondering: true,
         pause_reason: None,
     };

@@ -18,6 +18,7 @@ export type {
   BenchmarkCommands, BenchmarkStatus, BenchmarkPhase, BenchmarkProgress,
   BenchmarkMeasurement, BenchmarkResult, BenchmarkProgressListener,
   AnalysisLimitSettings, AnalysisState, AnalysisPauseReason, AnalysisLimitCommands, AnalysisStateListener,
+  AnalysisExtras, AnalysisExtrasCommands,
   MoveRank, MoveRankEvaluationMode, MoveRankSettings, MoveLoss, ProblemMovesQuery,
   ProblemMovesView, ProblemMoveSort, ProblemMoveView, MistakeBarPoint,
   StrengthEstimateView, StrengthReport, SideReport, PhaseReport, Confidence, Sample, MoveCategory,
@@ -26,7 +27,7 @@ export type {
   EditCommands, GameInfoEdit, NewGameOptions,
   SetupMarkupCommands, MarkupKindView, MarkupView,
   MoveEditingCommands, StoneOriginView,
-  DisplaySettings, DisplaySettingsCommands, AnalysisCacheCommands,
+  DisplaySettings, DisplaySettingsPayload, EstimateLocation, EstimateStyle, SubBoardHeat, TopToolbarLayout, DisplaySettingsCommands, AnalysisCacheCommands,
   EngineCommands, EngineEntry, EngineSettings, EngineRules, EngineCustomRules, JavaImportPreview, JavaImportedEngine,
   WeightCommands, OfficialWeight, AssetDownloadStatus, AssetDownloadProgressListener, AccelerationPlan, DiagnosticRepair, EngineDiagnostics,
   AccelerationReason, DownloadPhase, DiagnosticCheck, DiagnosticKind, DiagnosticStatus,
@@ -167,6 +168,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
           if (cloned.type === "BatchAnalysisProgress") fillBatchDefaults(cloned.data);
           if (cloned.type === "DocumentChanged") fillDocumentDefaults(cloned.data.view);
           if (cloned.type === "AnalysisUpdated") fillAnalysisDefaults(cloned.data);
+          if (cloned.type === "AnalysisStateChanged") defaultField(cloned.data, "pure_network", false);
           if (cloned.type === "AssetDownloadProgress") fillDownloadDefaults(cloned.data);
           if (cloned.type === "UpdateDownloadProgress") fillUpdateDownloadDefaults(cloned.data);
           listener(cloned);
@@ -221,6 +223,8 @@ async function command<K extends CommandName>(
     lastAnalysisState = structuredClone(next.result);
   }
   const cloned = structuredClone(result);
+  if (next.command === "analysisState" || next.command === "togglePondering") defaultField(cloned as AnalysisState, "pure_network", false);
+  if (next.command === "setDisplaySettings") fillDisplayDefaults(cloned as NonNullable<Settings["display"]>);
   if (next.command === "wholeGameResult" && cloned) fillAnalysisDefaults(cloned as AnalysisView);
   if (next.command === "problemMoves" && cloned) fillLossDefaults(cloned as ProblemMovesView);
   if (next.command === "variationTree") fillTreeDefaults(cloned as VariationTreeView);
@@ -265,6 +269,7 @@ async function command<K extends CommandName>(
   }
   if (next.command === "settings") {
     const settings = cloned as Settings;
+    fillDisplayDefaults(settings.display!);
     defaultField(settings, "flash_analysis", structuredClone(defaultFlashAnalysisSettings));
     fillFlashDefaults(settings.flash_analysis!);
     lastFlashSettings = { ...defaultFlashAnalysisSettings, ...settings.flash_analysis };
@@ -308,6 +313,12 @@ function defaultField<T extends object, K extends keyof T>(target: T, key: K, va
   }
 }
 
+function fillDisplayDefaults(display: NonNullable<Settings["display"]>): void {
+  for (const key of Object.getOwnPropertyNames(defaultDisplaySettings) as (keyof typeof defaultDisplaySettings)[]) {
+    defaultField(display, key, structuredClone(defaultDisplaySettings[key]));
+  }
+}
+
 function fillBatchDefaults(status: BatchAnalysisStatus): void {
   for (const key of Object.keys(defaultBatchAnalysisStatus) as (keyof BatchAnalysisStatus)[]) defaultField(status, key, defaultBatchAnalysisStatus[key]);
   for (const item of status.items ?? []) {
@@ -347,6 +358,8 @@ function fillDocumentDefaults(view: DocumentView): void {
 }
 
 function fillAnalysisDefaults(view: AnalysisView): void {
+  defaultField(view, "policy", null);
+  for (const candidate of view.candidates) defaultField(candidate, "ownership", null);
   defaultField(view.summary, "score_lead_available", true);
   for (const candidate of view.candidates) defaultField(candidate, "score_lead_available", true);
 }
@@ -523,13 +536,18 @@ export const strengthEstimate: Backend["strengthEstimate"] = (bounds) =>
     // Nothing analysed: every move of the displayed line is still to do.
     total_moves: Math.max(0, (lastDocument?.view.graph.points.length ?? 1) - 1),
   });
+export const setAnalysisExtras: NonNullable<Backend["setAnalysisExtras"]> = (extras) => command("setAnalysisExtras", [extras]);
+export const setPureNetwork: NonNullable<Backend["setPureNetwork"]> = (enabled) => command("setPureNetwork", [enabled]);
 export const setPondering: Backend["setPondering"] = (enabled) => command("setPondering", [enabled]);
 export const analysisLimits: Backend["analysisLimits"] = () =>
   query("analysisLimits", [], () => lastAnalysisLimits);
 export const setAnalysisLimits: Backend["setAnalysisLimits"] = (settings) =>
   command("setAnalysisLimits", [settings]);
-export const analysisState: Backend["analysisState"] = () =>
-  query("analysisState", [], () => lastAnalysisState);
+export const analysisState: Backend["analysisState"] = async () => {
+  const state = await query("analysisState", [], () => lastAnalysisState);
+  defaultField(state, "pure_network", false);
+  return state;
+};
 export const togglePondering: Backend["togglePondering"] = () => command("togglePondering", []);
 export const autoQuickAnalyzeOnLoad: Backend["autoQuickAnalyzeOnLoad"] = () =>
   query("autoQuickAnalyzeOnLoad", [], () => lastAutoQuickAnalyzeOnLoad);

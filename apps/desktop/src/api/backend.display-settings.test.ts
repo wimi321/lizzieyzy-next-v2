@@ -1,6 +1,6 @@
 import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
 import { boardView, defaultDisplaySettings, documentView } from "../../e2e/fixtures";
-import type { DisplaySettings, VariationPreviewView, WireAppEvent } from "./backend";
+import type { DisplaySettingsPayload, DisplaySettings, VariationPreviewView, WireAppEvent } from "./backend";
 
 const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc.invoke, Channel: class {} }));
@@ -14,7 +14,7 @@ test("the display command carries every field, the candidate list's switch inclu
   const full: Required<DisplaySettings> = defaultDisplaySettings;
   expect(full.show_list_pane).toBe(true);
   const backend = await import("./backend");
-  expectTypeOf(backend.setDisplaySettings).returns.toEqualTypeOf<Promise<DisplaySettings>>();
+  expectTypeOf(backend.setDisplaySettings).returns.toEqualTypeOf<Promise<DisplaySettingsPayload>>();
   ipc.invoke.mockResolvedValueOnce({ ...full, show_list_pane: false });
   expect((await backend.setDisplaySettings({ ...full, show_list_pane: false })).show_list_pane).toBe(false);
   expect(ipc.invoke).toHaveBeenLastCalledWith("set_display_settings", { display: { ...full, show_list_pane: false } });

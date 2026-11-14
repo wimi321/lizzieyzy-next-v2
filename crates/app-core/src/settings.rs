@@ -144,7 +144,11 @@ impl Settings {
             }
         };
         let settings: Self = serde_json::from_slice(&bytes)?;
-        settings.normalized()
+        let mut settings = settings.normalized()?;
+        if !settings.display.remember_estimate {
+            settings.display.estimate_location = crate::EstimateLocation::Off;
+        }
+        Ok(settings)
     }
 
     pub async fn save(&self, directory: &Path) -> Result<(), SettingsError> {
@@ -183,6 +187,7 @@ impl Settings {
         self.analysis_limits.validate()?;
         self.flash_analysis.validate()?;
         self.display.validate()?;
+        self.display.normalize_toolbar_items();
         if self
             .benchmarks
             .iter()

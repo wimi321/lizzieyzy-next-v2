@@ -80,6 +80,8 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::variation::variation_tree,
             commands::variation::preview_variation,
             commands::analysis::set_pondering,
+            commands::analysis::set_analysis_extras,
+            commands::analysis::set_pure_network,
             commands::analysis::analysis_state,
             commands::analysis::toggle_pondering,
             commands::settings::flash_analysis,

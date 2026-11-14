@@ -60,7 +60,7 @@ fn defaults_describe_the_current_empty_position_and_live_reporting() {
     assert_eq!(request.report_during_search_every, Some(0.15));
     assert_eq!(request.first_report_during_search_after, Some(0.15));
     assert_eq!(request.include_ownership, Some(true));
-    assert_eq!(request.include_policy, Some(false));
+    assert_eq!(request.include_policy, None);
     assert_eq!(request.analyze_turns, None);
     assert_eq!(request.priority, Some(0));
     assert_eq!(request.priorities, None);

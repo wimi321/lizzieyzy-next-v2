@@ -7,7 +7,6 @@ import type {
   CandidateView,
   ColorView,
   DocumentView,
-  DisplaySettings,
   GraphView,
   FoxSearchResult,
   MoveView,
@@ -43,7 +42,19 @@ export const defaultFullLogStatus: Required<FullLogStatus> = {
 };
 
 /** P2-06 fixture defaults; Rust owns validation and persistence. */
-export const defaultDisplaySettings: Required<DisplaySettings> = {
+export const defaultDisplaySettings: Required<import("../src/api/backend").DisplaySettingsPayload> = {
+  estimate_location: "Off",
+  estimate_style: "TransparentSmall",
+  pure_estimate_style: "BigSquare",
+  remember_estimate: false,
+  moves_ownership: true,
+  estimate_shortcut: false,
+  sub_board_heat: "None",
+  sub_board_raw: false,
+  top_toolbar_layout: "Separate",
+  top_toolbar_wrap: false,
+  top_toolbar_hidden: [],
+  bottom_toolbar_hidden: [],
   show_coordinates: true,
   move_numbers: "None",
   last_move_numbers: 1,
@@ -80,6 +91,14 @@ export const defaultDisplaySettings: Required<DisplaySettings> = {
   confirm_overwrite: true,
   show_names_below_board: true,
 };
+
+// Preserve the enumerable shape used by the existing P2 UI scripts. New
+// property reads still see defaults; explicit P3 scripted values stay enumerable.
+for (const key of [
+  "estimate_location", "estimate_style", "pure_estimate_style", "remember_estimate",
+  "moves_ownership", "estimate_shortcut", "sub_board_heat", "sub_board_raw",
+  "top_toolbar_layout", "top_toolbar_wrap", "top_toolbar_hidden", "bottom_toolbar_hidden",
+] as const) Object.defineProperty(defaultDisplaySettings, key, { enumerable: false });
 
 /** Scripted Fox reply for UI tests; network parsing remains in Rust. */
 export function foxSearchResult(): FoxSearchResult {

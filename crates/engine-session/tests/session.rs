@@ -537,8 +537,54 @@ async fn request_extensions_cannot_forge_protocol_ids_or_actions() {
     for extra in [json!({"id": "forged"}), json!({"action": "query_version"})] {
         assert!(engine.submit(request(extra)).await.is_err());
     }
+    let mut forged = request(json!({}));
+    forged
+        .extensions
+        .insert("includeMovesOwnership".into(), json!(true));
+    assert!(engine.submit(forged).await.is_err());
     let mut valid = engine.submit(request(json!({}))).await.unwrap();
     final_result(&mut valid).await;
+    stop(engine, &mut status).await;
+}
+
+#[tokio::test]
+async fn optional_analysis_extras_survive_session_submission() {
+    let engine = engine(&[], configuration());
+    let mut status = engine.status();
+    ready(&mut status).await;
+    for enabled in [true, false] {
+        let mut query = request(json!({
+            "boardXSize": 5, "boardYSize": 3, "maxVisits": 1,
+            "moves": [["B", "A3"]]
+        }));
+        query.include_policy = enabled.then_some(true);
+        query.include_moves_ownership = enabled.then_some(true);
+        let mut subscription = engine.submit(query).await.unwrap();
+        let result = final_result(&mut subscription).await;
+        assert_eq!(result.root_info.visits, 1);
+        if enabled {
+            let policy = result.policy.unwrap();
+            assert_eq!(policy.len(), 16);
+            assert_eq!(policy[0], -1.0);
+            assert!(policy[15] > 0.0);
+            for candidate in result.move_infos {
+                let ownership = candidate.ownership.unwrap();
+                assert_eq!(ownership.len(), 15);
+                assert_eq!(
+                    ownership[0], 1.0,
+                    "black stone remains positive with White to play"
+                );
+            }
+        } else {
+            assert!(result.policy.is_none());
+            assert!(
+                result
+                    .move_infos
+                    .iter()
+                    .all(|candidate| candidate.ownership.is_none())
+            );
+        }
+    }
     stop(engine, &mut status).await;
 }
 

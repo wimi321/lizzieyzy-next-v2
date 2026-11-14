@@ -3,6 +3,7 @@ import type { AutoSetupError } from "./AutoSetupError";
 import type { BatchError } from "./BatchError";
 import type { BoardSyncError } from "./BoardSyncError";
 import type { ClipboardError } from "./ClipboardError";
+import type { DisplaySettingsError } from "./DisplaySettingsError";
 import type { FoxFailure } from "./FoxFailure";
 import type { PngError } from "./PngError";
 import type { PngRequestError } from "./PngRequestError";
@@ -10,4 +11,4 @@ import type { PngRequestError } from "./PngRequestError";
 /**
  * Serializable IPC failures. Domain errors are rendered only at this boundary.
  */
-export type CommandError = { "type": "InvalidWholeGameRange", "data": { first_move: number, last_move: number, last_available: number, } } | { "type": "BatchAnalysisRunning" } | { "type": "Batch", "data": BatchError } | { "type": "Clipboard", "data": ClipboardError } | { "type": "Png", "data": PngError } | { "type": "PngRequest", "data": PngRequestError } | { "type": "WindowUnavailable", "data": string } | { "type": "UpdateSigningNotConfigured" } | { "type": "RevealOutsideDataDirectory" } | { "type": "RevealUnavailable", "data": string } | { "type": "App", "data": string } | { "type": "Fox", "data": FoxFailure } | { "type": "AutoSetup", "data": AutoSetupError } | { "type": "BoardSync", "data": BoardSyncError } | { "type": "StreamClosed" } | { "type": "SubscriptionLimit" } | { "type": "Channel", "data": string };
+export type CommandError = { "type": "DisplaySettings", "data": DisplaySettingsError } | { "type": "PureNetworkActive" } | { "type": "WholeGameAnalysisActive" } | { "type": "InvalidWholeGameRange", "data": { first_move: number, last_move: number, last_available: number, } } | { "type": "BatchAnalysisRunning" } | { "type": "Batch", "data": BatchError } | { "type": "Clipboard", "data": ClipboardError } | { "type": "Png", "data": PngError } | { "type": "PngRequest", "data": PngRequestError } | { "type": "WindowUnavailable", "data": string } | { "type": "UpdateSigningNotConfigured" } | { "type": "RevealOutsideDataDirectory" } | { "type": "RevealUnavailable", "data": string } | { "type": "App", "data": string } | { "type": "Fox", "data": FoxFailure } | { "type": "AutoSetup", "data": AutoSetupError } | { "type": "BoardSync", "data": BoardSyncError } | { "type": "StreamClosed" } | { "type": "SubscriptionLimit" } | { "type": "Channel", "data": string };

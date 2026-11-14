@@ -297,6 +297,10 @@ pub struct CandidateView {
     pub score_lead_available: bool,
     pub prior: f64,
     pub order: u32,
+    /// Black-perspective ownership after this candidate, in board row order.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub ownership: Option<Vec<f64>>,
     /// Starts with the current player; colors alternate after every move/pass.
     pub pv: Vec<MoveView>,
 }
@@ -331,6 +335,10 @@ pub struct AnalysisView {
     /// `PointView { x: i % width, y: i / width }`. y = 0 is the top row:
     /// SGF row `a`, GTP row 19 on a 19x19 board, or row `height` on a rectangle.
     pub ownership: Option<Vec<f64>>,
+    /// Raw to-play probabilities, row-major plus pass; illegal points are -1.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub policy: Option<Vec<f64>>,
     pub is_during_search: bool,
     pub source: AnalysisSource,
 }
@@ -370,6 +378,9 @@ impl AnalysisView {
                 score_lead_available: true,
                 prior: candidate.prior,
                 order: candidate.order,
+                ownership: candidate.ownership.filter(|values| {
+                    values.len() == usize::from(size.width) * usize::from(size.height)
+                }),
                 pv,
             });
         }
@@ -388,10 +399,15 @@ impl AnalysisView {
             },
             candidates,
             ownership: response.ownership,
+            policy: response.policy.filter(|values| {
+                values.len() == usize::from(size.width) * usize::from(size.height) + 1
+            }),
             is_during_search: response.is_during_search,
             source: match value.source {
                 analysis::SnapshotSource::Cache => AnalysisSource::Cache,
-                analysis::SnapshotSource::Live => AnalysisSource::Live,
+                analysis::SnapshotSource::Live
+                | analysis::SnapshotSource::Extras
+                | analysis::SnapshotSource::PureNetwork => AnalysisSource::Live,
             },
         })
     }

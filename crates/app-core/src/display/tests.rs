@@ -7,9 +7,7 @@ fn defaults_match_java_config_and_maintainer_overrides() {
     // Menu.setMoveNumber maps allow-move-number 0/-1/positive to off/all/last N.
     // Bottom toolbar uses persisted ui.main-window-other[0] (default height 26).
     // kataScolreLead maps Java false to the komi-adjusted score, hence true here.
-    assert_eq!(
-        serde_json::to_value(DisplaySettings::default()).unwrap(),
-        json!({
+    let mut expected = json!({
             "show_coordinates": true,
             "move_numbers": "None",
             "last_move_numbers": 1,
@@ -45,8 +43,121 @@ fn defaults_match_java_config_and_maintainer_overrides() {
             "confirm_new_board": true,
             "confirm_overwrite": true,
             "show_names_below_board": true,
-        }),
+    });
+    let extras = json!({
+            "estimate_location": "Off",
+            "estimate_style": "TransparentSmall",
+            "pure_estimate_style": "BigSquare",
+            "remember_estimate": false,
+            "moves_ownership": true,
+            "estimate_shortcut": false,
+            "sub_board_heat": "None",
+            "sub_board_raw": false,
+            "top_toolbar_layout": "Separate",
+            "top_toolbar_wrap": false,
+            "top_toolbar_hidden": [],
+            "bottom_toolbar_hidden": [],
+    });
+    expected
+        .as_object_mut()
+        .unwrap()
+        .extend(extras.as_object().unwrap().clone());
+    assert_eq!(
+        serde_json::to_value(DisplaySettings::default()).unwrap(),
+        expected,
     );
+}
+
+#[test]
+fn estimate_modes_round_trip_and_invalid_json_is_rejected() {
+    for (field, modes) in [
+        (
+            "estimate_location",
+            vec!["Off", "Hidden", "Main", "Sub", "Both"],
+        ),
+        (
+            "estimate_style",
+            vec![
+                "TransparentSmall",
+                "Transparent",
+                "TransparentOffStones",
+                "BigSquare",
+                "BySize",
+            ],
+        ),
+        (
+            "pure_estimate_style",
+            vec![
+                "TransparentSmall",
+                "Transparent",
+                "TransparentOffStones",
+                "BigSquare",
+                "BySize",
+            ],
+        ),
+        ("sub_board_heat", vec!["None", "Policy", "AfterSearch"]),
+        ("top_toolbar_layout", vec!["Separate", "Combined"]),
+    ] {
+        for mode in modes {
+            let display: DisplaySettings = serde_json::from_value(json!({field: mode})).unwrap();
+            display.validate().unwrap();
+            assert_eq!(serde_json::to_value(display).unwrap()[field], mode);
+        }
+        for invalid in [json!("Unknown"), json!(0), json!(null)] {
+            assert!(serde_json::from_value::<DisplaySettings>(json!({field: invalid})).is_err());
+        }
+    }
+    for field in [
+        "remember_estimate",
+        "moves_ownership",
+        "estimate_shortcut",
+        "sub_board_raw",
+        "top_toolbar_wrap",
+    ] {
+        for invalid in [json!("true"), json!(1), json!(null)] {
+            assert!(serde_json::from_value::<DisplaySettings>(json!({field: invalid})).is_err());
+        }
+    }
+}
+
+#[test]
+fn toolbar_item_format_and_count_limits_are_checked_before_deduplication() {
+    for field in ["top_toolbar_hidden", "bottom_toolbar_hidden"] {
+        let mut valid = json!({field: ["AZaz09-_", "x".repeat(64)]});
+        let display: DisplaySettings = serde_json::from_value(valid.clone()).unwrap();
+        display.validate().unwrap();
+        valid[field] = json!(
+            (0..64)
+                .map(|index| format!("item-{index}"))
+                .collect::<Vec<_>>()
+        );
+        serde_json::from_value::<DisplaySettings>(valid.clone())
+            .unwrap()
+            .validate()
+            .unwrap();
+        for invalid in [
+            "".to_owned(),
+            "x".repeat(65),
+            "two words".into(),
+            "点".into(),
+            "a/b".into(),
+            "a.b".into(),
+            "a\nb".into(),
+        ] {
+            valid[field] = json!(["ok", invalid]);
+            let display: DisplaySettings = serde_json::from_value(valid.clone()).unwrap();
+            assert!(matches!(display.validate(),
+                Err(DisplaySettingsError::InvalidToolbarItem { field: actual, index: 1 }) if actual == field));
+        }
+        valid[field] = json!(vec!["duplicate"; 65]);
+        let display: DisplaySettings = serde_json::from_value(valid.clone()).unwrap();
+        assert!(matches!(display.validate(),
+            Err(DisplaySettingsError::TooManyToolbarItems { field: actual }) if actual == field));
+        for invalid in [json!("item"), json!([1]), json!(null)] {
+            valid[field] = invalid;
+            assert!(serde_json::from_value::<DisplaySettings>(valid.clone()).is_err());
+        }
+    }
 }
 
 #[test]

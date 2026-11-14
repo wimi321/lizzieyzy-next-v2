@@ -209,6 +209,7 @@ fn optional_query_fields_and_custom_rules_preserve_wire_shape() {
         "initialPlayer":"W", "rules":{"ko":"SITUATIONAL","scoring":"AREA"},
         "komi":0.5, "boardXSize":9, "boardYSize":13, "analyzeTurns":[0,1],
         "maxVisits":250, "includeOwnership":false, "includePolicy":true,
+        "includeMovesOwnership":true,
         "reportDuringSearchEvery":0.15, "firstReportDuringSearchAfter":0.01,
         "priority":-5, "priorities":[1,2],
         "overrideSettings":{"reportAnalysisWinratesAs":"BLACK","cpuctExploration":1.2},
@@ -220,6 +221,7 @@ fn optional_query_fields_and_custom_rules_preserve_wire_shape() {
     };
     assert!(matches!(query.rules, Rules::Custom(_)));
     assert_eq!(query.initial_player, Some(Player::White));
+    assert_eq!(query.include_moves_ownership, Some(true));
     assert_eq!(query.extensions["futureOption"], json!({"enabled":true}));
     assert_eq!(serde_json::to_value(request).unwrap(), value);
 
@@ -227,7 +229,30 @@ fn optional_query_fields_and_custom_rules_preserve_wire_shape() {
     let query: AnalysisQuery = serde_json::from_value(minimal.clone()).unwrap();
     assert_eq!(query.max_visits, None);
     assert_eq!(query.komi, None);
+    assert_eq!(query.include_moves_ownership, None);
     assert_eq!(serde_json::to_value(query).unwrap(), minimal);
+}
+
+#[test]
+fn optional_move_ownership_and_policy_round_trip_without_changing_perspective() {
+    let mut value = minimal_analysis();
+    value["rootInfo"]["currentPlayer"] = json!("W");
+    value["ownership"] = json!([0.5, -0.75]);
+    value["policy"] = json!([-1.0, 0.75, 0.25]);
+    value["moveInfos"][0]["ownership"] = json!([0.25, -1.0]);
+    let EngineLine::Analysis(parsed) = parse_line(&value.to_string()).unwrap() else {
+        panic!("expected analysis");
+    };
+    assert_eq!(parsed.move_infos[0].ownership, Some(vec![0.25, -1.0]));
+    assert_eq!(parsed.policy, Some(vec![-1.0, 0.75, 0.25]));
+    assert_eq!(serde_json::to_value(parsed).unwrap(), value);
+
+    let EngineLine::Analysis(old) = parse_line(&minimal_analysis().to_string()).unwrap() else {
+        panic!("expected legacy analysis");
+    };
+    assert_eq!(old.policy, None);
+    assert_eq!(old.move_infos[0].ownership, None);
+    assert_eq!(serde_json::to_value(old).unwrap(), minimal_analysis());
 }
 
 proptest! {
@@ -254,7 +279,7 @@ proptest! {
             rules: Rules::Named("chinese".into()), board_x_size: width, board_y_size: height,
             initial_stones: Some(vec![(Player::Black,"D4".into())]), initial_player: Some(Player::White),
             komi: Some(komi), analyze_turns: Some(turns), max_visits: visits,
-            include_ownership: Some(true), include_policy: Some(false),
+            include_ownership: Some(true), include_policy: Some(false), include_moves_ownership: Some(true),
             report_during_search_every: Some(0.15), first_report_during_search_after: None,
             priority: Some(priority), priorities: None, override_settings: None,
             extensions: Default::default(),

@@ -1,6 +1,7 @@
 use app_core::{
-    AppError, DisplaySettings, MoveNumberMode, MoveRankMarkMode, NextMoveHint, Settings,
-    SettingsError, WinrateGraphMode,
+    AppError, DisplaySettings, DisplaySettingsError, EstimateLocation, EstimateStyle,
+    MoveNumberMode, MoveRankMarkMode, NextMoveHint, Settings, SettingsError, SubBoardHeat,
+    TopToolbarLayout, WinrateGraphMode,
 };
 use serde_json::json;
 
@@ -48,6 +49,18 @@ async fn display_settings_save_restart_and_whole_object_replacement() {
         confirm_new_board: false,
         confirm_overwrite: false,
         show_names_below_board: false,
+        estimate_location: EstimateLocation::Both,
+        estimate_style: EstimateStyle::BySize,
+        pure_estimate_style: EstimateStyle::TransparentOffStones,
+        remember_estimate: true,
+        moves_ownership: false,
+        estimate_shortcut: true,
+        sub_board_heat: SubBoardHeat::AfterSearch,
+        sub_board_raw: true,
+        top_toolbar_layout: TopToolbarLayout::Combined,
+        top_toolbar_wrap: true,
+        top_toolbar_hidden: vec!["Menu-1".into(), "analysis".into()],
+        bottom_toolbar_hidden: vec!["navigation_2".into()],
     };
     assert_eq!(
         app.set_display_settings(display.clone()).await.unwrap(),
@@ -73,6 +86,145 @@ async fn display_settings_save_restart_and_whole_object_replacement() {
     assert!(settings.pondering);
     assert_eq!(settings.version, 1);
     app.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn estimate_location_resets_only_on_load_unless_remembered() {
+    let directory = tempfile::tempdir().unwrap();
+    for remember_estimate in [false, true] {
+        for estimate_location in [
+            EstimateLocation::Off,
+            EstimateLocation::Hidden,
+            EstimateLocation::Main,
+            EstimateLocation::Sub,
+            EstimateLocation::Both,
+        ] {
+            let (app, _events) = app_core::spawn(directory.path()).await.unwrap();
+            let display = DisplaySettings {
+                estimate_location,
+                remember_estimate,
+                ..DisplaySettings::default()
+            };
+            assert_eq!(
+                app.set_display_settings(display.clone()).await.unwrap(),
+                display
+            );
+            assert_eq!(app.settings().await.unwrap().display, display);
+            let stored: Settings = serde_json::from_slice(
+                &tokio::fs::read(directory.path().join("settings.json"))
+                    .await
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(stored.display, display);
+            app.shutdown().await.unwrap();
+            let (app, _events) = app_core::spawn(directory.path()).await.unwrap();
+            let mut expected = display;
+            if !remember_estimate {
+                expected.estimate_location = EstimateLocation::Off;
+            }
+            assert_eq!(app.settings().await.unwrap().display, expected);
+            app.shutdown().await.unwrap();
+        }
+    }
+}
+
+#[tokio::test]
+async fn toolbar_ids_are_deduplicated_in_reply_memory_and_storage() {
+    let directory = tempfile::tempdir().unwrap();
+    let (app, _events) = app_core::spawn(directory.path()).await.unwrap();
+    let mut display = DisplaySettings {
+        top_toolbar_hidden: vec!["z".into(), "a".into(), "z".into(), "a".into()],
+        bottom_toolbar_hidden: vec!["next-step".into(), "next-step".into(), "prev_step".into()],
+        ..DisplaySettings::default()
+    };
+    let saved = app.set_display_settings(display.clone()).await.unwrap();
+    display.top_toolbar_hidden = vec!["z".into(), "a".into()];
+    display.bottom_toolbar_hidden = vec!["next-step".into(), "prev_step".into()];
+    assert_eq!(saved, display);
+    assert_eq!(app.settings().await.unwrap().display, display);
+    let stored: Settings = serde_json::from_slice(
+        &tokio::fs::read(directory.path().join("settings.json"))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(stored.display, display);
+    app.shutdown().await.unwrap();
+    assert_eq!(
+        Settings::load(directory.path()).await.unwrap().display,
+        display
+    );
+    // A hand-written older file is normalized through the same loading path.
+    tokio::fs::write(
+        directory.path().join("settings.json"),
+        br#"{"display":{"top_toolbar_hidden":["b","a","b"],"bottom_toolbar_hidden":["x","x"]}}"#,
+    )
+    .await
+    .unwrap();
+    let loaded = Settings::load(directory.path()).await.unwrap();
+    assert_eq!(loaded.display.top_toolbar_hidden, ["b", "a"]);
+    assert_eq!(loaded.display.bottom_toolbar_hidden, ["x"]);
+}
+
+#[tokio::test]
+async fn invalid_estimate_settings_and_toolbar_ids_return_typed_errors() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("settings.json");
+    let (app, _events) = app_core::spawn(directory.path()).await.unwrap();
+    let original = DisplaySettings::default();
+    app.set_display_settings(original.clone()).await.unwrap();
+    let before = tokio::fs::read(&path).await.unwrap();
+    for field in ["top_toolbar_hidden", "bottom_toolbar_hidden"] {
+        for items in [vec!["bad/id"], vec!["x"; 65]] {
+            let invalid: DisplaySettings = serde_json::from_value(json!({field: items})).unwrap();
+            assert!(matches!(
+                app.set_display_settings(invalid).await,
+                Err(AppError::Settings(SettingsError::Display(
+                    DisplaySettingsError::InvalidToolbarItem { .. }
+                        | DisplaySettingsError::TooManyToolbarItems { .. }
+                )))
+            ));
+            assert_eq!(app.settings().await.unwrap().display, original);
+            assert_eq!(tokio::fs::read(&path).await.unwrap(), before);
+        }
+    }
+    app.shutdown().await.unwrap();
+    for field in [
+        "estimate_location",
+        "estimate_style",
+        "pure_estimate_style",
+        "sub_board_heat",
+        "top_toolbar_layout",
+        "remember_estimate",
+        "moves_ownership",
+        "estimate_shortcut",
+        "sub_board_raw",
+        "top_toolbar_wrap",
+    ] {
+        tokio::fs::write(
+            &path,
+            serde_json::to_vec(&json!({"display": {field: "invalid"}})).unwrap(),
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            Settings::load(directory.path()).await,
+            Err(SettingsError::Json(_))
+        ));
+    }
+    for field in ["top_toolbar_hidden", "bottom_toolbar_hidden"] {
+        tokio::fs::write(
+            &path,
+            serde_json::to_vec(&json!({"display": {field: ["bad/id"]}})).unwrap(),
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            Settings::load(directory.path()).await,
+            Err(SettingsError::Display(_))
+        ));
+    }
 }
 
 #[tokio::test]

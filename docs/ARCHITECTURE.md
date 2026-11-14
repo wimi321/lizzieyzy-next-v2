@@ -125,7 +125,7 @@ strength ← app-core（strength 无 workspace 内部依赖）
 
 ### 4.4 katago-protocol
 
-- 请求 `AnalysisQuery`：`id`、`moves`、`initialStones`、`initialPlayer`、`rules`、`komi`、`boardXSize`、`boardYSize`、`analyzeTurns`、`maxVisits`、`includeOwnership`、`includePolicy`、`reportDuringSearchEvery`、`firstReportDuringSearchAfter`、`priority`、`priorities`、`overrideSettings`（serde 字段名与 KataGo 一致）。`priorities` 与 `analyzeTurns` 一一对应，录制中按优先级依次返回第 1、2、3、4、0 手。
+- 请求 `AnalysisQuery`：`id`、`moves`、`initialStones`、`initialPlayer`、`rules`、`komi`、`boardXSize`、`boardYSize`、`analyzeTurns`、`maxVisits`、`includeOwnership`、`includePolicy`、`includeMovesOwnership`、`reportDuringSearchEvery`、`firstReportDuringSearchAfter`、`priority`、`priorities`、`overrideSettings`（serde 字段名与 KataGo 一致）。`priorities` 与 `analyzeTurns` 一一对应，录制中按优先级依次返回第 1、2、3、4、0 手。
 - `rules` 接受规则名或自定义 JSON 对象；着手为 `(Player, String)`，坐标和合法性留给引擎判断。可选字段用 `Option` 保留是否提供的区别；请求的未知扩展字段保留，以便语义完整地重放录制。
 - `Request` 区分 `Analysis` 和 `Action`；动作包含独立的 `id`：`terminate`（另含 `terminateId`）、`terminate_all`、`query_version`。动作确认由 `ActionResponse` 表达；版本回复还含 `version` 和 `git_hash`（下划线拼写）。
 - 响应 `AnalysisResponse`：`id`、`turnNumber`、`isDuringSearch`、`moveInfos`、`rootInfo`、可选的 `ownership`、`policy`。候选点与根节点保留录制中的统计字段；所有数值原样读取，黑方视角由引擎配置保证。
@@ -319,6 +319,15 @@ pub enum EngineStatus {
 - 坐标变换走现有文档编辑与 Focus 路径，保留结果和持久缓存按变换后的完整 AnalysisKey 查找；原坐标引擎结果不用于新局面。变换前仍有效的文件 Saved 结果按已变换的原属性重新导入，变换历史同时记录这些节点，在撤销/重做时恢复对应方向的 Saved；明确清除的分析不被重新导入。clear_analysis 的删除覆盖不改变 document 原始属性，因此已隐藏但损坏的原 LZ 仍会触发变换的严格拒绝。图表有效性在导入前重新校验，避免旧 summary 残留。
 - `Settings` 新增 `always_on_top=false`、`ui_scale=1.0`、`play_sound=true`，旧 JSON 缺字段补默认，生成 TS 属性可选。每项分别有同名 getter 和 `set_*` setter，修改先原子持久化再替换内存；ui_scale 必须有限且位于 `0.5..=3.0`。字号为相对根字号倍率，Java 小/中/大 12/16/20 可由后续界面映射为 1、4/3、5/3；本卡不改界面或播放声音。`read_komi` 继续由 `settings().engine_settings` 和 `set_engine_settings` 读写。
 - Tauri 主窗口在启动时应用已保存 always_on_top，setter 串行执行保存和原生窗口更新；保存失败不调用窗口；原生窗口更新失败时在同一串行事务中原子回滚之前的偏好，再返回 `WindowUnavailable`。若回滚保存本身也失败，返回包含两次失败及新偏好可能仍已保存的复合错误，不伪称恢复成功。测试注入窗口替身。所有新增命令只授权本地 main；TS 新方法可选，mock 修改入口必须脚本化 command，三个只读设置 getter 是带默认值 query，Settings 缺字段补默认并保留显式值。
+
+### P3-06 形势、热点图与纯网络后端
+
+- `DisplaySettings` 新增 `estimate_location: Off/Hidden/Main/Sub/Both`（默认 Off）、共用五种画法的 `estimate_style`（TransparentSmall）与 `pure_estimate_style`（BigSquare）、`remember_estimate=false`、`moves_ownership=true`、`estimate_shortcut=false`、`sub_board_heat: None/Policy/AfterSearch`（None）、`sub_board_raw=false`、`top_toolbar_layout: Separate/Combined`（Separate）、`top_toolbar_wrap=false` 和上下工具栏的 `*_toolbar_hidden=[]`。Hidden 保留请求意图但不画，显示与隐藏继续用已有工具栏开关。每个 ID 只接受 1–64 个 ASCII 字母、数字、`-`、`_`，输入最多 64 项，保存保留首次顺序去重；不解释 UI 的项目含义。`remember_estimate=false` 只在 Settings::load 时将 location 复位 Off，setter 和保存不会重置运行中的选择。wrap 默认服从本卡 false，与 Java 当前 auto-wrap-tool-bar=true 的默认不同。
+- `set_analysis_extras(AnalysisExtras { policy, moves_ownership })` 和 `set_pure_network(bool)` 是仅存于应用 actor 的运行时命令，不写 Settings；重建协调器沿用本次运行的意图，重启应用回到关闭。新命令沿原 AppCore → Tauri → API，权限仅本地 main，mock 必须有 command 脚本。新设置、`AnalysisState.pure_network`、`AnalysisView.policy`、`CandidateView.ownership` 的生成 TS 属性可选；mock 为旧快照补默认值，显式脚本值原样保留。API 的 DisplaySettings 暂以完整 DTO 与省略本卡字段的旧形状联合兼容范围外 Required 默认表；setter 的参数/回复以及 Settings.display 始终用完整 DisplaySettingsPayload，P3-07 可移除兼容层。
+- 附加开关默认为 false/false；打开时实时请求带 `includePolicy=true` / `includeMovesOwnership=true`，关闭时不发送对应字段。当前结果缺少已请求数据时用同一个实时 active 槽提交 maxVisits=1 查询，先取消被替换的旧请求；补查与纯网络均继续受 revision/node/key 身份检查。暂停、限停或普通查询已达到 maxVisits 时补查不恢复长搜索，也不重置限停原因。旧缓存和文件结果缺两字段仍可读取；补查按候选坐标合并已有深结果，保留其根评估与 visits 下限，不能把浅补查当更深搜索。候选没有出现在这次引擎响应中则仍为 None，不伪造 ownership。
+- `AnalysisView.policy` 保持 KataGo 原值：宽×高+1，逐行从左上到右下，最后是 pass，非法点 -1。这是轮走方的落子概率，**不是胜负值，不转换为黑方视角**。根与候选 ownership 均为宽×高、同棋盘行序的黑方值；按 [KataGo 分析协议](https://github.com/lightvector/KataGo/blob/master/docs/Analysis_Engine.md)，两者都受 reportAnalysisWinratesAs 控制，本应用已经强制 BLACK，因此白棋轮走也不二次翻转。fake 的 SIDETOMOVE/BLACK 对照测试验证这个边界。新增数组长度不匹配时不提供给绘制端。不可分析局面调用协调器 clear_focus，取消包括补查和纯网络在内的活动请求并清空待发结果，保留运行时意图。
+- 纯网络用 maxVisits=1、policy 和根 ownership；根胜率/目差优先使用 rawWinrate/rawLead，旧响应缺少 raw 字段时保留 1 次计算的根值。导航到新的显示局面重新查一次；不修改保存的 pondering，也不将纯网络浅结果写入普通 LRU、文档最佳结果或持久缓存。`AnalysisState.pure_network=true` 时 pondering=false 表示普通搜索暂时被替代；原用户/限停意图保留，关闭后恢复。打开时保守拒绝 Running 或 Paused 的整盘/批量任务；纯网络期间开始或恢复整盘/批量同样返回类型化错误，自动速览意图等待退出后处理，避免模式重叠。无引擎时可以设置运行时意图，配置引擎后按该意图查询。
+- 协调器内部 `SnapshotSource::Extras/PureNetwork` 标记单次查询，AppCore 据此在暂停时接收合法补查，纯网络越过 Saved 深度保护但不污染保存结果；对外仍映射 Live（已有 Saved 合并视图保留来源）。退出纯网络按当前焦点恢复普通结果和搜索状态。两个新模式只使用现有实时查询槽、取消入口和节流邮箱，不创建第二套调度、共享锁或线程。
 
 ### 4.8 strength（棋力评估）
 

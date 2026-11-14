@@ -109,6 +109,9 @@ impl Actor {
     }
 
     pub(super) fn publish_saved_focus(&self) {
+        if self.config.analysis.pure_network {
+            return;
+        }
         let node = self.document.current().0;
         if self
             .stored_analysis(node)
@@ -232,6 +235,7 @@ fn response_from_saved(saved: &SavedAnalysis, position: &GamePosition) -> Analys
             .candidates
             .iter()
             .map(|candidate| MoveInfo {
+                ownership: None,
                 coordinate: candidate.coordinate.clone(),
                 visits: candidate.visits,
                 winrate: candidate.winrate,

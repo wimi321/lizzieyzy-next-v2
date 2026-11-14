@@ -21,4 +21,8 @@ summary: AnalysisSummary, candidates: Array<CandidateView>,
  * `PointView { x: i % width, y: i / width }`. y = 0 is the top row:
  * SGF row `a`, GTP row 19 on a 19x19 board, or row `height` on a rectangle.
  */
-ownership: Array<number> | null, is_during_search: boolean, source: AnalysisSource, };
+ownership: Array<number> | null, 
+/**
+ * Raw to-play probabilities, row-major plus pass; illegal points are -1.
+ */
+policy?: Array<number> | null, is_during_search: boolean, source: AnalysisSource, };

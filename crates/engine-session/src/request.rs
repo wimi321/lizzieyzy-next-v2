@@ -28,6 +28,8 @@ pub struct AnalysisRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub include_policy: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub include_moves_ownership: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub report_during_search_every: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_report_during_search_after: Option<f64>,
@@ -62,6 +64,7 @@ impl AnalysisRequest {
             "maxVisits",
             "includeOwnership",
             "includePolicy",
+            "includeMovesOwnership",
             "reportDuringSearchEvery",
             "firstReportDuringSearchAfter",
             "priority",
@@ -137,6 +140,7 @@ impl AnalysisRequest {
             max_visits: self.max_visits,
             include_ownership: self.include_ownership,
             include_policy: self.include_policy,
+            include_moves_ownership: self.include_moves_ownership,
             report_during_search_every: self.report_during_search_every,
             first_report_during_search_after: self.first_report_during_search_after,
             priority: self.priority,

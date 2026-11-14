@@ -42,6 +42,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "variation_tree",
         "preview_variation",
         "set_pondering",
+        "set_analysis_extras",
+        "set_pure_network",
         "analysis_state",
         "toggle_pondering",
         "analysis_limits",

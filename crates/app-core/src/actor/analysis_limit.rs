@@ -16,7 +16,10 @@ impl Actor {
             })
         };
         AnalysisState {
-            pondering: self.pondering() && pause_reason.is_none(),
+            pure_network: self.config.analysis.pure_network,
+            pondering: !self.config.analysis.pure_network
+                && self.pondering()
+                && pause_reason.is_none(),
             pause_reason,
         }
     }
