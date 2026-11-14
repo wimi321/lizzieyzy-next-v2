@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 analysis = { path = "../analysis" }
+commentary = { path = "../commentary" }
 document = { path = "../document" }
 engine-session = { path = "../engine-session" }
 fox-kifu = { path = "../fox-kifu" }
@@ -32,6 +33,15 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["r
 sys-locale = "0.3"
 png = "0.18"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["windows-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["sync-secret-service", "crypto-rust", "vendored"] }
 
 [dev-dependencies]
 fake-katago = { path = "../../tools/fake-katago" }

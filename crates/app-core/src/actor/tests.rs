@@ -36,6 +36,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
             batch: Default::default(),
             game: None,
             coach: Default::default(),
+            commentary: commentary::State::new(None, &Default::default()),
             gtp: Default::default(),
             match_session: None,
             strength: None,
@@ -283,7 +284,8 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                     assert_eq!(view.graph.points[0].summary, None, "{rejection}");
                 }
                 AppEvent::AnalysisUpdated(_) => panic!("forwarded {rejection} snapshot"),
-                AppEvent::MatchUpdated(_)
+                AppEvent::CommentaryUpdated(_)
+                | AppEvent::MatchUpdated(_)
                 | AppEvent::GtpConsoleLine(_)
                 | AppEvent::GameUpdated(_)
                 | AppEvent::EngineStatusChanged(_)

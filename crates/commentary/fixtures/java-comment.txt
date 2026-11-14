@@ -1,0 +1,8 @@
+User comment
+
+[LizzieYzy AI Commentary BEGIN]
+generatedAt=2026-10-20T12:34:56Z
+model=local-model
+
+Try D4 before extending at Q16.
+[LizzieYzy AI Commentary END]

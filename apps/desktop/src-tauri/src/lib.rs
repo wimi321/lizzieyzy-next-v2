@@ -72,6 +72,14 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::coach::humansl_model_status,
             commands::coach::import_humansl_model,
             commands::coach::pause_asset_download,
+            commands::commentary::start_commentary,
+            commands::commentary::stop_commentary,
+            commands::commentary::commentary_status,
+            commands::commentary::commentary_models,
+            commands::commentary::set_commentary_key,
+            commands::commentary::clear_commentary_key,
+            commands::commentary::commentary_key_status,
+            commands::commentary::set_commentary_settings,
             commands::game::start_game,
             commands::game::pause_game,
             commands::game::resume_game,
@@ -254,6 +262,9 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                     Some(std::sync::Arc::new(clipboard::NativeClipboard(
                         app.handle().clone(),
                     ))),
+                    Some(std::sync::Arc::new(
+                        app_core::commentary_keys::SystemKeyStore,
+                    )),
                 ))?;
             tauri::async_runtime::block_on(release_startup::initialize(app.handle(), &core))?;
             let window_preferences =

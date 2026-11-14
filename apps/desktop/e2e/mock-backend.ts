@@ -1,7 +1,9 @@
-import type { CoachView, CoachHint, HumanSlModelStatus, GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
-import { defaultCoachSetup, fillCoachSetupDefaults, fillCoachDefaults, fillCoachRatingDefaults, fillCoachSummaryDefaults, fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
+import type { CommentaryUpdated, CommentarySettings, CommentaryKeyStatus, CoachView, CoachHint, HumanSlModelStatus, GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import { fillCommentaryKeyDefaults, defaultCommentarySettings, fillCommentarySettingsDefaults, fillCommentaryDefaults, defaultCoachSetup, fillCoachSetupDefaults, fillCoachDefaults, fillCoachRatingDefaults, fillCoachSummaryDefaults, fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 
 export type {
+  CommentaryCommands, CommentaryUpdatedListener, CommentaryRequest, CommentarySettings, CommentaryUpdated, CommentaryKeyStatus, CommentaryMode, CommentaryPhase, CommentaryPosition, CommentaryError,
+  CommentaryStyle, CommentaryTerminology, CommentaryDetail, CommentaryVariations,
   CoachCommands, CoachUpdatedListener, CoachMoveRatedListener, CoachSummaryListener, CoachSetup, CoachView, CoachDecision, CoachHint, CoachMoveRated, CoachSummary, CoachBestMove, CoachWorstMove, CoachVerdict, CoachRank, CoachMode, CoachColor, CoachPace, CoachError, HumanSlModelStatus, HumanSlPlay,
   GtpCommands, GtpConsoleListener, GtpEngineEntry, GtpEngineInfo, GtpConsoleLine, GtpTime, MatchCommands, MatchUpdatedListener, MatchSetup, MatchView, MatchPlayer, MatchSide,
   GameCommands, GameUpdatedListener, GameSetup, GameView, GameStart, GamePhase, GameEndReason, GameError, AiPlayer, Player, KataGoPlay, HumanClock, HumanClockView, RandomOpening, ResignRule, PvPick,
@@ -41,7 +43,7 @@ export type {
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribeCoachUpdated" | "subscribeCoachMoveRated" | "subscribeCoachSummary" | "subscribeMatchUpdated" | "subscribeGtpConsole" | "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
+type CommandName = Exclude<keyof Backend, "subscribeCommentaryUpdated" | "subscribeCoachUpdated" | "subscribeCoachMoveRated" | "subscribeCoachSummary" | "subscribeMatchUpdated" | "subscribeGtpConsole" | "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -173,6 +175,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
           const cloned = structuredClone(event);
           if (cloned.type === "MatchUpdated") fillMatchDefaults(cloned.data);
           if (cloned.type === "GtpConsoleLine") fillGtpLineDefaults(cloned.data);
+          if (cloned.type === "CommentaryUpdated") fillCommentaryDefaults(cloned.data);
           if (cloned.type === "CoachUpdated") fillCoachDefaults(cloned.data);
           if (cloned.type === "CoachMoveRated") fillCoachRatingDefaults(cloned.data);
           if (cloned.type === "CoachSummary") fillCoachSummaryDefaults(cloned.data);
@@ -285,6 +288,8 @@ async function command<K extends CommandName>(
     defaultField(settings, "flash_analysis", structuredClone(defaultFlashAnalysisSettings));
     fillFlashDefaults(settings.flash_analysis!);
     lastFlashSettings = { ...defaultFlashAnalysisSettings, ...settings.flash_analysis };
+    defaultField(settings, "commentary", structuredClone(defaultCommentarySettings));
+    fillCommentarySettingsDefaults(settings.commentary!);
     defaultField(settings, "coach_setup", structuredClone(defaultCoachSetup));
     fillCoachSetupDefaults(settings.coach_setup!);
     if (settings.engine) defaultField(settings.engine, "human_model", undefined);
@@ -348,6 +353,9 @@ async function command<K extends CommandName>(
       defaultField(hint.data, "mv", { type: "Pass", data: { color: "Black" } }); defaultField(hint.data, "human_share", null);
     }
   }
+  if (["startCommentary", "stopCommentary", "commentaryStatus"].includes(next.command)) fillCommentaryDefaults(cloned as CommentaryUpdated);
+  if (next.command === "setCommentarySettings") fillCommentarySettingsDefaults(cloned as CommentarySettings);
+  if (["setCommentaryKey", "clearCommentaryKey", "commentaryKeyStatus"].includes(next.command)) fillCommentaryKeyDefaults(cloned as CommentaryKeyStatus);
   return cloned as Awaited<ReturnType<NonNullable<Backend[K]>>>;
 }
 
@@ -677,7 +685,7 @@ export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+    if (event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
   });
   pushEvents([]);
   return id;
@@ -896,4 +904,19 @@ export const subscribeCoachMoveRated: NonNullable<Backend["subscribeCoachMoveRat
 export const subscribeCoachSummary: NonNullable<Backend["subscribeCoachSummary"]> = async (listener) => {
   const id = ++nextListenerId; listeners.set(id, (event) => { if (event.type === "CoachSummary") listener(event.data); });
   pushEvents([]); return id;
+};
+
+export const startCommentary: NonNullable<Backend["startCommentary"]> = (request) => command("startCommentary", [request]);
+export const commentaryStatus: NonNullable<Backend["commentaryStatus"]> = () => command("commentaryStatus", []);
+export const stopCommentary: NonNullable<Backend["stopCommentary"]> = () => command("stopCommentary", []);
+export const commentaryModels: NonNullable<Backend["commentaryModels"]> = () => command("commentaryModels", []);
+export const setCommentaryKey: NonNullable<Backend["setCommentaryKey"]> = (key, remember) => command("setCommentaryKey", [key, remember]);
+export const clearCommentaryKey: NonNullable<Backend["clearCommentaryKey"]> = () => command("clearCommentaryKey", []);
+export const commentaryKeyStatus: NonNullable<Backend["commentaryKeyStatus"]> = () => command("commentaryKeyStatus", []);
+export const setCommentarySettings: NonNullable<Backend["setCommentarySettings"]> = (settings) => command("setCommentarySettings", [settings]);
+export const subscribeCommentaryUpdated: NonNullable<Backend["subscribeCommentaryUpdated"]> = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => { if (event.type === "CommentaryUpdated") listener(event.data); });
+  pushEvents([]);
+  return id;
 };

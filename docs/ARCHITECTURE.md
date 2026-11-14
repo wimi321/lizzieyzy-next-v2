@@ -21,6 +21,7 @@ crates/
   gtp/                     第三方引擎 GTP 命令与多行回复（纯同步，仅依赖 go-core）
   engine-session/          每个引擎一个 actor：进程、请求表、重启（tokio）
   analysis/                分析协调：焦点变化、过期丢弃、缓存、节流（tokio）
+  commentary/              AI 解说依据、重放、提示词、核对和评论块（纯同步，只依赖 go-core）
   strength/                棋力特征、XGBoost 推理、残差校准与统计（纯同步）
   fox-kifu/                野狐公开账号、分页棋谱及 SGF 的 HTTP 客户端（不依赖工作区 crate）
   readboard/               棋盘同步的纯同步行协议解码和命令编码
@@ -45,6 +46,7 @@ docs/                      ARCHITECTURE / ROADMAP / ACCEPTANCE / decisions / tas
 ```
 go-core ← sgf ← document ←──────────── analysis ← app-core ← lizzieyzy-desktop
 katago-protocol ← engine-session ←───┘
+go-core ← commentary ← app-core
 fox-kifu ← app-core
 go-core ← readboard ← app-core
 go-core ← gtp ← engine-session / app-core
@@ -376,6 +378,18 @@ pub enum EngineStatus {
 - 结束仍走原数子、认输、停止、保存路径；Stopped 表示中途结束。`CoachSummary` 汇总结果、原因、总手数、恶手、提示、悔棋及损失最大的三手（有效节点 ID）；`coach_review` 结束会话、聚焦最终局面并恢复普通实时分析。新增 `CoachUpdated`、`CoachMoveRated`、`CoachSummary` 各占一个有界最新事件槽，沿原 IPC Channel 有序发布，`coach_view` 可补读状态，`CoachView.active` 区分结束后待复盘与已退出陪练；不污染普通分析缓存。Tauri `commands/coach.rs` 是本地 main 的薄适配，TS API/mock 只转发或回放脚本；界面归 P3-13。
 - fake-katago 接受 -human-model，仅有 humanSLProfile 的请求生成对应人类统计；支持 allowMoves 和按 profiles/turns 指定的人类 policy、候选与根统计。验收使用固定种子、请求日志屏障和 Tokio 暂停时间，不运行真实模型/GPU；真实三平台 HumanSL 加载及交互另由维护者验收。
 
+### P3-16 AI 解说后端
+
+- `commentary` 是纯同步 crate，运行时只依赖 go-core。app-core 从 `stored_analysis` 的同一保留结果表按当前 AnalysisKey 读取实时、整盘、批量和 SGF Saved 分析，不为解说请求新的引擎分析。下一手使用当前节点；范围和整盘固定根起第一子主线，每手使用紧邻父节点的分析；无候选返回 `CommentaryError::NoAnalysis`。设置/PL 重置处保守截断实战后续，不把摆子解释成普通着手。
+- 发给 AI 的依据包含棋盘大小、当前轮走方、每块全部棋子和气、根计算量、实际下一手、前三候选及不在前三的实际候选、局部规则重放的实战后续（最多 5 手）与 PV（最多 12 手）、提子、低气块、非法停止和损失。完整棋子库存足以还原当前盘面；不发送对局者姓名、段位、棋谱元信息、文件路径、原用户评论或整份 SGF。用户主动输入的追问和前次回答另作为对话消息发送。内部输入保持黑方评估，只有解说依据明确转换成各局面轮走方视角；UI 原分析数值仍为黑方视角。
+- 范围/整盘最多选 5 个、至少相隔 3 手，最后按手数排序；重要性沿 Java 以目差损失、缺失时胜率百分点损失除 10、再缺失时计算量回退。返回 analyzed/selected/omitted，缺候选节点不伪造分析。完整盘面库存不等于坐标白名单：回答只可引用供给的着手、成功重放前缀和与这些点直接关联的棋块棋子，气点和远处无关棋子不能作为凭空建议。
+- `Settings.commentary` 保存 base_url、model、remember_key、rank（18k..1k / 1d..9d，默认 5k）、style、terminology、detail、variations 和默认开启的 write_to_comment。版本仍为 1，缺字段补默认；整体校验、规范服务地址、原子保存成功才生效。新设置和 DTO 的生成 TS 字段可选。API key 不属于 Settings，永不写入 settings.json；只有生产 Tauri 启动注入 `SystemKeyStore`，无壳和所有测试用内存/假的 trait 实现。
+- 钥匙串账户以规范服务地址区分，macOS 使用 Keychain、Windows 使用凭据管理器、Linux 使用 Secret Service（vendored D-Bus、Rust crypto）。读取惰性进行，不在构造时访问系统。取消记住或更换服务删除旧账户；系统失败保留内存 key、状态 available=false，失败删除在后续显式操作重试。系统交互在 blocking task 内进行，错误不携带 key 或底层自由文本；桌面系统可能要求解锁/授权，CI 只编译真实适配器。
+- `AppCore::{start_commentary,stop_commentary,commentary_status,commentary_models,set_commentary_settings,set_commentary_key,clear_commentary_key,commentary_key_status}` 经独立 Tauri `commands/commentary.rs` 薄适配，只授权本地 main。只有一个解说请求在途；HTTP 由独立可取消 future 执行，模型查询也在 AppCore 调用 future 中执行，主 actor 只准备不可变依据、接收状态和写入。HTTP 使用 Bearer、固定 User-Agent、不跟随跳转、15 秒连接及整个操作 5 分钟期限；只在 chat/completions 的 404/405 时尝试 responses 一次，SSE 必须收到各协议明确终态。错误正文限制 240 字符并去除 key/Bearer；不会自动重试 429。
+- `CommentaryUpdated` 有请求 ID、Preparing/Generating/Verifying/Completed/Failed/Stopped、delta、完整 text、replacement、选中节点、依据全文、覆盖计数、核对问题和类型化错误。独立最新事件槽与原有有序 IPC 共用；完整文本保证慢消费者合并中间帧不丢最终内容，壳重连回放最新完整快照，`commentary_status` 可补读。更正开始清空草稿并设置 replacement，至多一次；仍有问题时完成展示但不写入。跟随未核对前文的追问也不将该前文带入 SGF。
+- 核对成功且保存开启：下一手写捕获的当前节点，范围写范围第一手的节点，整盘写根。经 document 的 `SetComment` 和现有编辑历史写入一次，保持其他用户文字，导航回原浏览节点，整个块可撤销。追问用冻结的同一依据和上次回答，向同一块追加「追问」；写入前再次核对文档内容版本，生成期间编辑则保守拒绝写入，导航可继续。换谱（包括试下/题目/同步重建）取消请求、清前次对话并发布空 Stopped 快照；退出/最后句柄释放取消任务。活动批量、对局、比赛及更新安装时不开始解说。
+- 测试只用监听 127.0.0.1 的脚本 HTTP 服务、分段信号屏障和 trait 内存存储，不访问真实服务/API key/系统钥匙串。联网测试显式 ignore，环境凭据仅在手动运行该测试时读取。P3-20 才接界面；本卡 mock 所有新命令均需脚本，没有前端解说业务。
+
 ### 4.8 strength（棋力评估）
 
 - `strength::Estimator::bundled()` 从编译时嵌入的模型 JSON 构造纯同步估计器，无网络、文件 I/O 或异步运行时。`estimate(&[MoveInput])` 返回黑、白、整体 `StrengthReport`；每手输入包括手数、颜色、坐标、前后根评估的损失及落子前按 order 排序的候选点；app-core 先通过 P1-24 每手损失入口检查有效性。候选点的胜率由 app-core 从黑方概率转换为落子方百分点，目差同样转换到落子方；这只是计算差值的内部输入，对外局面分析仍为黑方视角。
@@ -578,4 +592,4 @@ Windows PowerShell 使用 `Get-AuthenticodeSignature '<installer>.exe'` 和 `sig
 
 ## 9. 暂不做
 
-人机对局界面、陪练界面、远程算力、弈客、HumanSL 棋力评估、AI 解说、死活题屏幕抓取、网页棋盘，见 ROADMAP 的 P3。readboard 本阶段仅实现 4.11 的 Windows 同步后端。
+人机对局界面、陪练界面、远程算力、弈客、HumanSL 棋力评估、AI 解说界面、死活题屏幕抓取、网页棋盘，见 ROADMAP 的 P3。readboard 本阶段仅实现 4.11 的 Windows 同步后端。

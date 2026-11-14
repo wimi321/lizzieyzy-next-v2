@@ -22,6 +22,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
     (
         Actor {
             coach: Default::default(),
+            commentary: super::super::commentary::State::new(None, &Default::default()),
             game: None,
             gtp: Default::default(),
             match_session: None,

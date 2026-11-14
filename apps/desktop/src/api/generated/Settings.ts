@@ -2,6 +2,7 @@
 import type { AnalysisLimitSettings } from "./AnalysisLimitSettings";
 import type { BenchmarkResult } from "./BenchmarkResult";
 import type { CoachSetup } from "./CoachSetup";
+import type { CommentarySettings } from "./CommentarySettings";
 import type { DisplaySettings } from "./DisplaySettings";
 import type { EngineEntry } from "./EngineEntry";
 import type { EngineProfile } from "./EngineProfile";
@@ -14,4 +15,4 @@ import type { MoveRankSettings } from "./MoveRankSettings";
 import type { TsumegoOptions } from "./TsumegoOptions";
 import type { UiLanguage } from "./UiLanguage";
 
-export type Settings = { version: number, language?: UiLanguage, always_on_top?: boolean, ui_scale?: number, play_sound?: boolean, auto_check_updates?: boolean, last_update_check_unix_ms?: number | null, engine: EngineProfile | null, engines?: Array<EngineEntry>, gtp_engines?: Array<GtpEngineEntry>, main_engine_id?: string | null, engine_settings?: EngineSettings, game_setup?: GameSetup, coach_setup?: CoachSetup, games_directory?: string | null, pondering: boolean, cache_enabled?: boolean, display?: DisplaySettings, analysis_limits?: AnalysisLimitSettings, flash_analysis?: FlashAnalysisSettings, auto_quick_analyze_on_load?: boolean, fox_history: Array<FoxAccount>, recent_files?: Array<string>, move_rank: MoveRankSettings, tsumego: TsumegoOptions, benchmarks?: { [key in string]?: BenchmarkResult }, };
+export type Settings = { version: number, commentary?: CommentarySettings, language?: UiLanguage, always_on_top?: boolean, ui_scale?: number, play_sound?: boolean, auto_check_updates?: boolean, last_update_check_unix_ms?: number | null, engine: EngineProfile | null, engines?: Array<EngineEntry>, gtp_engines?: Array<GtpEngineEntry>, main_engine_id?: string | null, engine_settings?: EngineSettings, game_setup?: GameSetup, coach_setup?: CoachSetup, games_directory?: string | null, pondering: boolean, cache_enabled?: boolean, display?: DisplaySettings, analysis_limits?: AnalysisLimitSettings, flash_analysis?: FlashAnalysisSettings, auto_quick_analyze_on_load?: boolean, fox_history: Array<FoxAccount>, recent_files?: Array<string>, move_rank: MoveRankSettings, tsumego: TsumegoOptions, benchmarks?: { [key in string]?: BenchmarkResult }, };
