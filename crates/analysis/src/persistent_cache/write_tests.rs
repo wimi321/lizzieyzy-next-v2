@@ -4,13 +4,7 @@ use std::{future::Future, path::Path, time::Duration};
 
 use tempfile::TempDir;
 
-use super::*;
-
-async fn within<T>(future: impl Future<Output = T>) -> T {
-    tokio::time::timeout(Duration::from_secs(5), future)
-        .await
-        .expect("cache operation exceeded safety deadline")
-}
+use super::{tests::safety_deadline::within, *};
 
 fn response(visits: u64) -> AnalysisResponse {
     serde_json::from_value(serde_json::json!({
@@ -31,15 +25,19 @@ fn cache(directory: &TempDir) -> PersistentCache {
     )
 }
 
-async fn pending_count(store: &PersistentCache) -> usize {
-    let (reply, received) = oneshot::channel();
-    store.commands.send(Command::Barrier(reply)).await.unwrap();
-    within(received).await.unwrap()
+#[track_caller]
+fn pending_count(store: &PersistentCache) -> impl Future<Output = usize> + '_ {
+    within(async move {
+        let (reply, received) = oneshot::channel();
+        store.commands.send(Command::Barrier(reply)).await.unwrap();
+        received.await.unwrap()
+    })
 }
 
-async fn audit_writes(path: &Path, install: bool) -> usize {
+#[track_caller]
+fn audit_writes(path: &Path, install: bool) -> impl Future<Output = usize> {
     let path = path.to_owned();
-    within(tokio::task::spawn_blocking(move || {
+    let operation = within(tokio::task::spawn_blocking(move || {
         let connection = rusqlite::Connection::open(path).unwrap();
         // These counters measure SQL writes, not disk synchronization latency.
         connection
@@ -62,9 +60,8 @@ async fn audit_writes(path: &Path, install: bool) -> usize {
         connection
             .query_row("SELECT n FROM write_audit", [], |row| row.get(0))
             .unwrap()
-    }))
-    .await
-    .unwrap()
+    }));
+    async move { operation.await.unwrap() }
 }
 
 #[tokio::test(start_paused = true)]
@@ -116,15 +113,22 @@ async fn equally_deep_pending_final_preserves_latest_ownership_when_flushed() {
     let directory = TempDir::new().unwrap();
     let store = cache(&directory);
     let key = AnalysisKey([8; 32]);
+    // Separate lazy schema creation from the pending-read and flush deadlines.
+    assert_eq!(within(store.get(key, "model")).await, None);
     let partial = response(100);
     let mut final_response = partial.clone();
     final_response.id = "latest-final".into();
     final_response.is_during_search = false;
     final_response.ownership = Some(vec![0.9, -0.8, 0.7]);
+    // Only the in-memory queue/barrier runs with paused time. Resume before
+    // any SQLite work so its safety deadline still measures real time.
+    tokio::time::pause();
     assert!(store.put(key, "model", partial));
     assert!(store.put(key, "model", final_response.clone()));
     // An older shallower snapshot must not displace the latest final.
     assert!(store.put(key, "model", response(99)));
+    assert_eq!(pending_count(&store).await, 1);
+    tokio::time::resume();
     assert_eq!(
         within(store.get(key, "model")).await,
         Some(final_response.clone())
@@ -144,6 +148,7 @@ async fn equally_deep_final_replaces_already_persisted_partial_on_shutdown() {
     let directory = TempDir::new().unwrap();
     let store = cache(&directory);
     let key = AnalysisKey([9; 32]);
+    assert_eq!(within(store.get(key, "model")).await, None);
     let partial = response(100);
     assert!(store.put(key, "model", partial.clone()));
     within(store.flush()).await;
@@ -227,6 +232,7 @@ async fn position_flush_preserves_final_snapshot_for_all_engines() {
     let directory = TempDir::new().unwrap();
     let store = cache(&directory);
     let key = AnalysisKey([3; 32]);
+    assert_eq!(within(store.get(key, "model-a")).await, None);
     for visits in 1..=100 {
         assert!(store.put(key, "model-a", response(visits)));
         assert!(store.put(key, "model-b", response(visits)));
@@ -245,6 +251,7 @@ async fn disabling_flushes_accepted_writes_and_ignores_subsequent_snapshots() {
     let directory = TempDir::new().unwrap();
     let store = cache(&directory);
     let key = AnalysisKey([4; 32]);
+    assert_eq!(within(store.get(key, "model")).await, None);
     assert!(store.put(key, "model", response(100)));
     within(store.set_enabled(false)).await;
     assert!(store.put(key, "model", response(200)));
@@ -265,11 +272,18 @@ async fn dropping_last_handle_flushes_queued_and_pending_snapshots() {
     let directory = TempDir::new().unwrap();
     let store = cache(&directory);
     let key = AnalysisKey([5; 32]);
+    // Opening the empty database is preparation, not part of the drop flush.
+    assert_eq!(within(store.get(key, "model")).await, None);
     let mut status = store.status();
+    // Freeze just the queue setup, not the database flush or close below.
+    tokio::time::pause();
     assert!(store.put(key, "model", response(100)));
     assert_eq!(pending_count(&store).await, 1);
+    // No await between enqueue and drop: on this current-thread runtime the
+    // first frame is pending in the actor and the second is still in its FIFO.
     assert!(store.put(key, "model", response(200)));
     drop(store);
+    tokio::time::resume();
     within(status.wait_for(|status| *status == CacheStatus::Stopped))
         .await
         .unwrap();
@@ -287,6 +301,7 @@ async fn clear_discards_pending_writes_without_resurrecting_them_at_shutdown() {
     let store = cache(&directory);
     let key = AnalysisKey([6; 32]);
     let other = AnalysisKey([7; 32]);
+    assert_eq!(within(store.get(key, "model-a")).await, None);
     assert!(store.put(key, "model-a", response(100)));
     assert!(store.put(key, "model-b", response(100)));
     assert!(store.put(other, "model", response(100)));
@@ -315,6 +330,7 @@ async fn pending_keys_are_bounded_and_oldest_is_flushed_on_overflow() {
     });
     let directory = TempDir::new().unwrap();
     let store = cache(&directory);
+    assert_eq!(within(store.get(AnalysisKey([0; 32]), "model")).await, None);
     for index in 0..=actor::MAX_PENDING {
         let key = AnalysisKey([u8::try_from(index).unwrap(); 32]);
         assert!(store.put(key, "model", response(100)));
