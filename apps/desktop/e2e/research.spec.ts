@@ -80,7 +80,8 @@ test("自由涂鸦 draws over the board with the left button only; Esc throws th
   await page.getByTestId("paint-blue").click();
   await stroke("left", [[-160, 150], [-60, 170], [60, 140], [170, 160]]);
   await expect(overlay).toHaveAttribute("data-strokes", "2");
-  await expect(page.getByTestId("board-area")).toHaveScreenshot("painting.png");
+  // The strokes and the pens, without the rest of the board: the whole of it is over the file budget.
+  await expect(page).toHaveScreenshot("painting.png", { clip: { x: x - 200, y: box.y, width: box.x + box.width - (x - 200), height: y + 200 - box.y } });
 
   await page.keyboard.press("Escape");
   await expect(overlay).toBeHidden();
