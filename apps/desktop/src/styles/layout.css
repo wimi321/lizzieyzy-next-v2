@@ -40,6 +40,11 @@
   font-size: 13px;
 }
 
+/* Java greys a switch it turns off, its label included. */
+.panel-settings-check:has(input:disabled) {
+  color: var(--text-3);
+}
+
 .panel-settings-position {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 2ch;
