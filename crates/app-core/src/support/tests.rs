@@ -5,6 +5,34 @@ use tracing_subscriber::layer::SubscriberExt;
 
 use super::*;
 
+#[test]
+fn save_slot_payloads_are_redacted_but_the_count_remains() {
+    let value = sanitize::json(json!({
+        "saves": [{"name": "private title", "board": {"stones": ["Black"]}}],
+        "save_slots": [{"node_path": [0, 2], "move_number": 12}],
+        "save_slot_count": 2,
+        "board": {"width": 9, "height": 9},
+        "stones": ["White"],
+        "node_path": [1, 0]
+    }));
+    assert_eq!(value["save_slot_count"], 2);
+    let fields = value.as_object().unwrap();
+    assert_eq!(fields.len(), 6);
+    for (key, field) in fields {
+        if key != "save_slot_count" {
+            // Sensitive key spellings may also be replaced by safe aliases.
+            assert_eq!(field, "<redacted>");
+        }
+    }
+    for line in [
+        "save_slots=[private title]",
+        "node_path=[0,2]",
+        "{\"stones\":[\"Black\"]}",
+    ] {
+        assert_eq!(sanitize::text(line), "<redacted-sensitive-line>");
+    }
+}
+
 fn capture(handle: &SupportHandle, action: impl FnOnce()) {
     let subscriber = tracing_subscriber::registry().with(handle.layer());
     tracing::subscriber::with_default(subscriber, action);

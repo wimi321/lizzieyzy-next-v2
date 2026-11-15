@@ -1,4 +1,5 @@
 import type {
+  SaveSlot,
   EngineProfile,
   CommentarySettings,
   CommentaryUpdated,
@@ -82,6 +83,9 @@ export const defaultFullLogStatus: Required<FullLogStatus> = {
 
 /** P2-06 fixture defaults; Rust owns validation and persistence. */
 export const defaultDisplaySettings: Required<import("../src/api/backend").DisplaySettingsPayload> = {
+  autoplay_interval_ms: 2000,
+  painting_color: "Red",
+  control_panel_bounds: null,
   estimate_location: "Off",
   estimate_style: "TransparentSmall",
   pure_estimate_style: "BigSquare",
@@ -130,6 +134,12 @@ export const defaultDisplaySettings: Required<import("../src/api/backend").Displ
   confirm_overwrite: true,
   show_names_below_board: true,
 };
+
+// P3-26 owns these controls. Keep older UI scripts' enumerable payload shape
+// while making the new Rust defaults available to direct fixture reads.
+for (const field of ["autoplay_interval_ms", "painting_color", "control_panel_bounds"] as const) {
+  Object.defineProperty(defaultDisplaySettings, field, { enumerable: false });
+}
 
 
 /** Scripted Fox reply for UI tests; network parsing remains in Rust. */
@@ -799,5 +809,22 @@ export function fillZhiziDefaults(command: string, value: unknown): void {
     fill(overview.account, { phone: "", email: "", membership: false, membership_expires_at: null, membership_auto_renew: null });
     fill(overview.balance, { remaining_balance_yuan: "", total_cash_amount_yuan: "", yesterday_consumption_yuan: "", total_consumption_yuan: "", total_duration_seconds: 0, last_24_hours_share_duration_seconds: 0, last_24_hours_vip_duration_seconds: 0, current_connections: 0, current_nodes: 0 });
     fillZhiziDefaults("zhiziUsages", overview.recent_usage);
+  }
+}
+
+/** Slot replies are script data; persistence and corruption checks stay in Rust. */
+export function fillSaveSlotDefaults(slot: SaveSlot): void {
+  gameDefaultField(slot, "id", "");
+  gameDefaultField(slot, "name", "");
+  gameDefaultField(slot, "saved_at_unix_ms", 0);
+  gameDefaultField(slot, "node_path", []);
+  gameDefaultField(slot, "move_number", 0);
+  gameDefaultField(slot, "board", null);
+  gameDefaultField(slot, "is_autosave", false);
+  gameDefaultField(slot, "corrupt", false);
+  if (slot.board) {
+    gameDefaultField(slot.board, "width", 19);
+    gameDefaultField(slot.board, "height", 19);
+    gameDefaultField(slot.board, "stones", Array(slot.board.width! * slot.board.height!).fill(null));
   }
 }

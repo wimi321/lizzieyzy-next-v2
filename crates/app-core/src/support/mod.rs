@@ -61,6 +61,7 @@ struct BundleInput {
     settings: Settings,
     diagnostics: EngineDiagnostics,
     version: String,
+    save_slot_count: usize,
 }
 
 enum Message {
@@ -153,12 +154,16 @@ impl SupportHandle {
         diagnostics: EngineDiagnostics,
         version: String,
     ) -> Result<PathBuf, SupportError> {
+        let save_slot_count = crate::saves::SlotStore::new(self.data_directory().await?)
+            .count()
+            .await;
         let (reply, receive) = oneshot::channel();
         self.send(Message::Export(
             Box::new(BundleInput {
                 settings,
                 diagnostics,
                 version,
+                save_slot_count,
             }),
             reply,
         ))

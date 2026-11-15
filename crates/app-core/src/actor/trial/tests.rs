@@ -44,6 +44,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
             gtp: Default::default(),
             match_session: None,
             document: GameDocument::new(),
+            saves: Default::default(),
             file_name: None,
             file_state: crate::actor::editing::FileState::new(&GameDocument::new(), None),
             tsumego: None,

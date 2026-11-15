@@ -28,6 +28,8 @@ pub enum CommandError {
     Game(app_core::GameError),
     #[error("{0}")]
     DisplaySettings(app_core::DisplaySettingsError),
+    #[error("{0}")]
+    SaveSlots(app_core::SaveSlotsError),
     #[error("pure network is active")]
     PureNetworkActive,
     #[error("whole-game analysis is running or paused")]
@@ -94,6 +96,7 @@ pub enum PngRequestError {
 impl From<app_core::AppError> for CommandError {
     fn from(error: app_core::AppError) -> Self {
         match error {
+            app_core::AppError::SaveSlots(error) => Self::SaveSlots(error),
             app_core::AppError::Zhizi(error) => Self::Zhizi(error),
             app_core::AppError::Remote(error) => Self::Remote(error),
             app_core::AppError::RemoteLink(error) => Self::RemoteLink(error),

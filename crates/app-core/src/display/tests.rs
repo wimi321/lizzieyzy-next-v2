@@ -57,6 +57,9 @@ fn defaults_match_java_config_and_maintainer_overrides() {
             "top_toolbar_wrap": false,
             "top_toolbar_hidden": [],
             "bottom_toolbar_hidden": [],
+            "autoplay_interval_ms": 2000,
+            "painting_color": "Red",
+            "control_panel_bounds": null,
     });
     expected
         .as_object_mut()
@@ -247,6 +250,83 @@ fn numeric_ranges_preserve_java_limits_without_magic_disabled_counts() {
     for value in [json!(-1), json!(1.5), json!(4_294_967_296u64)] {
         assert!(
             serde_json::from_value::<DisplaySettings>(json!({"last_move_numbers": value})).is_err()
+        );
+    }
+}
+
+#[test]
+fn research_settings_validate_ranges_and_painting_colors() {
+    for color in ["Blue", "Green", "Red"] {
+        let settings: DisplaySettings =
+            serde_json::from_value(json!({"painting_color": color})).unwrap();
+        settings.validate().unwrap();
+        assert_eq!(
+            serde_json::to_value(settings).unwrap()["painting_color"],
+            color
+        );
+    }
+    for invalid in [json!("Black"), json!("red"), json!(0), json!(null)] {
+        assert!(
+            serde_json::from_value::<DisplaySettings>(json!({"painting_color": invalid})).is_err()
+        );
+    }
+    for interval in [100, 60_000] {
+        DisplaySettings {
+            autoplay_interval_ms: interval,
+            ..DisplaySettings::default()
+        }
+        .validate()
+        .unwrap();
+    }
+    for interval in [0, 99, 60_001, u32::MAX] {
+        assert!(matches!(
+            DisplaySettings {
+                autoplay_interval_ms: interval,
+                ..DisplaySettings::default()
+            }
+            .validate(),
+            Err(DisplaySettingsError::OutOfRange {
+                field: "autoplay_interval_ms",
+                ..
+            })
+        ));
+    }
+    let bounds = ControlPanelBounds {
+        x: -100_000,
+        y: 100_000,
+        width: 1,
+        height: 100_000,
+    };
+    DisplaySettings {
+        control_panel_bounds: Some(bounds),
+        ..DisplaySettings::default()
+    }
+    .validate()
+    .unwrap();
+    for (field, value) in [
+        ("x", -100_001i64),
+        ("x", 100_001),
+        ("y", -100_001),
+        ("y", 100_001),
+        ("width", 0),
+        ("width", 100_001),
+        ("height", 0),
+        ("height", 100_001),
+    ] {
+        let mut value_json = serde_json::to_value(bounds).unwrap();
+        value_json[field] = value.into();
+        let settings: DisplaySettings =
+            serde_json::from_value(json!({"control_panel_bounds": value_json})).unwrap();
+        assert!(matches!(settings.validate(),
+            Err(DisplaySettingsError::InvalidControlPanelBounds { field: actual, .. }) if actual == field));
+    }
+    for invalid in [
+        json!({"x": 0}),
+        json!({"x": 0, "y": 0, "width": 1.5, "height": 400}),
+    ] {
+        assert!(
+            serde_json::from_value::<DisplaySettings>(json!({"control_panel_bounds": invalid}))
+                .is_err()
         );
     }
 }

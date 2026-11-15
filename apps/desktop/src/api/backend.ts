@@ -21,6 +21,7 @@ import type { TsumegoCommands } from "./tsumego";
 import type { EditCommands } from "./edit";
 import type { SetupMarkupCommands } from "./setup-markup";
 import type { MoveEditingCommands } from "./move-editing";
+import type { SaveSlotCommands } from "./save-slots";
 import type { DisplaySettingsCommands } from "./display-settings";
 import type { EngineCommands } from "./engines";
 import type { WeightCommands, AssetDownloadProgressListener } from "./weights";
@@ -71,6 +72,7 @@ export * from "./edit";
 export * from "./setup-markup";
 export * from "./move-editing";
 export * from "./display-settings";
+export * from "./save-slots";
 export * from "./analysis-cache";
 export * from "./engines";
 export * from "./weights";
@@ -113,7 +115,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends ZhiziCommands, RemoteCommands, CommentaryCommands, TencentCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+export interface Backend extends SaveSlotCommands, ZhiziCommands, RemoteCommands, CommentaryCommands, TencentCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
   subscribeCommentaryUpdated?(listener: CommentaryUpdatedListener): Promise<number>;
   subscribeCoachUpdated?(listener: CoachUpdatedListener): Promise<number>;
   subscribeCoachMoveRated?(listener: CoachMoveRatedListener): Promise<number>;
