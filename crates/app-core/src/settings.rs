@@ -37,6 +37,10 @@ pub struct EngineProfile {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default)]
 pub struct Settings {
+    #[ts(optional = nullable)]
+    pub search_params: Option<crate::SearchParams>,
+    #[ts(as = "Option<crate::RestrictionDepthSettings>", optional)]
+    pub restriction_depths: crate::RestrictionDepthSettings,
     pub version: u32,
     #[ts(as = "Option<bool>", optional)]
     pub autosave: bool,
@@ -98,6 +102,8 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             version: SETTINGS_VERSION,
+            search_params: None,
+            restriction_depths: Default::default(),
             autosave: true,
             restore_last_game: false,
             commentary: Default::default(),
@@ -133,6 +139,8 @@ impl Default for Settings {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SettingsError {
+    #[error(transparent)]
+    AnalysisTools(#[from] crate::AnalysisToolsError),
     #[error(transparent)]
     Commentary(#[from] crate::CommentaryError),
     #[error("cannot access {kind} at {path}: {source}")]
@@ -217,6 +225,12 @@ impl Settings {
         self.normalize_engines()?;
         crate::gtp_engines::validate_entries(&self.gtp_engines)?;
         self.engine_settings.validate()?;
+        if let Some(params) = &self.search_params {
+            params.validate()?;
+        }
+        self.search_params = self.search_params.filter(|params| !params.is_empty());
+        self.restriction_depths.allow.validate()?;
+        self.restriction_depths.avoid.validate()?;
         crate::fox::normalize_history(&mut self.fox_history);
         crate::tencent::normalize_history(&mut self.tencent_history);
         crate::edit::normalize_recent_files(&mut self.recent_files);

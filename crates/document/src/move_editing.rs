@@ -244,6 +244,52 @@ impl GameDocument {
             }
         }
     }
+
+    pub(crate) fn prepare_continue_sequence(
+        &self,
+        moves: &[Move],
+    ) -> Result<Option<Edit>, DocError> {
+        if moves.is_empty() {
+            return Ok(None);
+        }
+        let preview = self.preview_variation(self.current, moves)?;
+        if let Some(error) = preview.stop_reason {
+            return Err(error);
+        }
+        let mut position = self.position_at(self.current)?.board;
+        let mut patch = PatchBuilder::new(self);
+        let mut parent = self.current;
+        for &mv in moves {
+            position.play(mv).map_err(|reason| DocError::IllegalMove {
+                node: parent,
+                reason,
+            })?;
+            let mut parent_node = patch.node(parent)?;
+            let mut existing = None;
+            for &child in &parent_node.children {
+                let node = patch.node(child)?;
+                if semantics::recorded_move(child, &node.properties, position.size())
+                    .ok()
+                    .flatten()
+                    == Some(mv)
+                    && self.position_at(child)?.board == position
+                {
+                    existing = Some(child);
+                    break;
+                }
+            }
+            if let Some(child) = existing {
+                parent = child;
+            } else {
+                let properties = vec![move_property(parent, mv, position.size())?];
+                let child = patch.add(parent, properties)?;
+                parent_node.children.push(child);
+                patch.put(parent_node);
+                parent = child;
+            }
+        }
+        Ok(Some(patch.finish(parent)))
+    }
 }
 
 impl<'a> PatchBuilder<'a> {

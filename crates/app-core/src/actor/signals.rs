@@ -10,23 +10,36 @@ impl Actor {
         match signal {
             Signal::Snapshot(snapshot) => {
                 let pure = snapshot.source == analysis::SnapshotSource::PureNetwork;
+                let restricted = snapshot.source == analysis::SnapshotSource::Restricted
+                    || (pure && self.restriction.is_some());
                 let extras = snapshot.source == analysis::SnapshotSource::Extras;
                 if (self.pondering()
                     || snapshot.source == analysis::SnapshotSource::Cache
                     || extras
+                    || restricted
                     || pure)
+                    && (!restricted || self.restriction.is_some())
                     && pure == self.config.analysis.pure_network
                     && let Some(focus) = &self.focus
                     && (focus.revision, focus.node_id, focus.key)
                         == (snapshot.revision, snapshot.node_id.0, snapshot.key)
                 {
-                    if !pure && !extras && self.preserves_saved_analysis(&snapshot) {
+                    if !pure && !extras && !restricted && self.preserves_saved_analysis(&snapshot) {
                         self.publish_saved_focus();
                         return;
                     }
                     match AnalysisView::from_snapshot(*snapshot.clone(), focus.size, focus.to_play)
                     {
                         Ok(mut view) => {
+                            if restricted {
+                                if view.node_id == self.document.current().0 {
+                                    self.restricted_analysis = Some(view);
+                                    if let Err(error) = self.publish_document() {
+                                        self.failed(error.to_string());
+                                    }
+                                }
+                                return;
+                            }
                             if pure {
                                 if view.node_id == self.document.current().0 {
                                     self.output.send(AppEvent::AnalysisUpdated(view));

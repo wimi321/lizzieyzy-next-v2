@@ -63,6 +63,15 @@ impl GameDocument {
             Command::MoveStone { from, to } => self.prepare_stone_edit(from, Some(to), false)?,
             Command::AddVariation(moves) => self.prepare_add_variation(&moves)?,
             Command::PlaySequence(moves) => self.prepare_play_sequence(&moves, true)?,
+            Command::ContinueSequence(moves) => {
+                let edit = self.prepare_continue_sequence(&moves)?;
+                if let Some(edit) = &edit
+                    && matches!(&edit.change, Change::Nodes(patches) if patches.is_empty())
+                {
+                    return Ok(self.navigate(edit.after, next_revision));
+                }
+                edit
+            }
             Command::GoTo(id) => {
                 self.node(id)?;
                 return Ok(self.navigate(id, next_revision));

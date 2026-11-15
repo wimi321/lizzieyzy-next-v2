@@ -478,6 +478,13 @@ impl Actor {
             if let Some(komi) = settings.query_komi {
                 batch.request.komi = Some(komi);
             }
+            if let Some(params) = settings.search_params {
+                batch
+                    .request
+                    .override_settings
+                    .get_or_insert_with(Default::default)
+                    .extend(params.overrides());
+            }
             let interval = settings.report_interval.as_secs_f64();
             batch.request.report_during_search_every = Some(interval);
             batch.request.first_report_during_search_after = Some(interval);

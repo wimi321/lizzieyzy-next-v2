@@ -58,9 +58,10 @@ fn defaults_and_input_validation() {
         .unwrap();
     setup.b = setup.a.clone();
     setup.validate().unwrap();
-    let MatchPlayer::KataGo { play, .. } = &setup.a else {
+    let MatchPlayer::KataGo { play, wrn, pda, .. } = &setup.a else {
         panic!()
     };
+    assert_eq!((*wrn, *pda), (None, None));
     assert_eq!(
         play.resign,
         Some(ResignRule {

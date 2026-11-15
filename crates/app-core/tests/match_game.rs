@@ -43,8 +43,8 @@ async fn setup_match(app: &AppCore) -> MatchSetup {
             resign: None,
             ..Default::default()
         },
-        wrn,
-        pda,
+        wrn: Some(wrn),
+        pda: Some(pda),
     };
     MatchSetup {
         a: side(0.2, 0.1),

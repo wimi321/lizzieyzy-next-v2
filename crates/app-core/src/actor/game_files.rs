@@ -22,6 +22,9 @@ pub(super) fn is_game_file(path: &Path) -> bool {
 
 impl Actor {
     pub(super) fn import_saved_analysis(&mut self) -> Result<(), AppError> {
+        if self.settings.search_params.is_some() {
+            return Ok(());
+        }
         self.import_selected_saved_analysis(None)
     }
 
@@ -29,6 +32,11 @@ impl Actor {
         &mut self,
         selected: Option<&[document::NodeId]>,
     ) -> Result<(), AppError> {
+        // Transform undo/redo enters here directly. File LZ has no complete
+        // search-parameter identity and cannot populate an overridden view.
+        if self.settings.search_params.is_some() {
+            return Ok(());
+        }
         if selected.is_some() {
             self.refresh_graph_analysis();
         }
@@ -109,6 +117,9 @@ impl Actor {
     }
 
     pub(super) fn publish_saved_focus(&self) {
+        if self.restriction.is_some() || self.scoring.is_some() {
+            return;
+        }
         if self.config.analysis.pure_network || self.coach_hides_analysis() {
             return;
         }

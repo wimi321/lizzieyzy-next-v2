@@ -49,6 +49,9 @@ pub enum Command {
     /// Append a fresh branch and advance to its last move. The entire legal
     /// sequence is one undo item; existing matching continuations are kept.
     PlaySequence(Vec<Move>),
+    /// Continue through matching children, creating a branch where necessary.
+    /// All newly created moves form one undoable edit.
+    ContinueSequence(Vec<Move>),
     GoTo(NodeId),
     /// Negative: ancestors. Positive: first children. Stops at either boundary.
     Step(i32),

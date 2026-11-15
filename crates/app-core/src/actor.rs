@@ -11,6 +11,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 mod analysis_cache;
 mod analysis_extras;
 mod analysis_limit;
+mod analysis_tools;
 mod auto_curve;
 mod auto_setup;
 mod batch;
@@ -38,6 +39,7 @@ mod release;
 mod remote;
 mod review;
 mod saves;
+mod scoring;
 mod signals;
 mod strength_estimate;
 mod tencent;
@@ -76,6 +78,9 @@ struct ViewFocus {
 }
 
 struct Actor {
+    restriction: Option<crate::AnalysisRestriction>,
+    restricted_analysis: Option<crate::AnalysisView>,
+    scoring: Option<scoring::Session>,
     document: GameDocument,
     saves: saves::State,
     file_name: Option<String>,
@@ -136,6 +141,9 @@ pub(crate) async fn run(
         settings.cache_enabled,
     );
     let mut actor = Actor {
+        restriction: None,
+        restricted_analysis: None,
+        scoring: None,
         document: GameDocument::new(),
         saves: Default::default(),
         file_name: None,
@@ -209,6 +217,8 @@ pub(crate) async fn run(
                 Some(Command::SaveSlots(request)) => actor.save_slots_command(request).await,
                 Some(Command::ZhiziService(reply)) => { let _ = reply.send(actor.zhizi.clone()); }
                 Some(Command::ZhiziCredentialsChanged(reply)) => { let _ = reply.send(actor.zhizi_credentials_changed().await); }
+                Some(Command::AnalysisTools(request)) => actor.analysis_tools_command(request).await,
+                Some(Command::Scoring(request)) => actor.scoring_command(request).await,
                 Some(Command::Remote(request)) => actor.remote_command(request).await,
                 Some(Command::Commentary(request)) => actor.commentary_command(request).await,
                 Some(Command::Coach(request)) => actor.coach_command(request).await,
@@ -405,6 +415,13 @@ impl Actor {
                 .map(Into::into),
         );
         view.trial = self.move_trial.is_some();
+        view.analysis_restriction = self.restriction.clone();
+        view.restricted_analysis = self
+            .restricted_analysis
+            .clone()
+            .filter(|v| v.revision == self.revision && v.node_id == self.document.current().0)
+            .map(Box::new);
+        view.scoring = self.scoring_view()?.map(Box::new);
         view.tree.comment_revision = self.tree.comment_revision;
         for point in &mut view.graph.points {
             let node = NodeId(point.node_id);
@@ -556,6 +573,9 @@ impl Actor {
         cached: HashMap<AnalysisKey, crate::StoredAnalysis>,
         import_saved: bool,
     ) -> Result<(), AppError> {
+        self.restriction = None;
+        self.restricted_analysis = None;
+        self.scoring = None;
         self.reset_commentary();
         self.invalidate_game_document();
         self.flush_cached_analysis().await;
@@ -601,6 +621,7 @@ impl Actor {
     }
 
     async fn document_changed_with_resume(&mut self, resume_limited: bool) -> Result<(), AppError> {
+        self.exit_scoring_for_document_change().await?;
         self.revision = self.next_revision()?;
         self.output.clear_analysis();
         self.publish_document()?;
@@ -613,6 +634,9 @@ impl Actor {
     }
 
     async fn update_focus_with_resume(&mut self, resume_limited: bool) {
+        if self.scoring.is_some() {
+            return;
+        }
         self.publish_saved_focus();
         if self.match_active() || self.game_owns_query() {
             return;
@@ -659,7 +683,11 @@ impl Actor {
             size: position.board.size(),
             to_play: position.board.to_play(),
         };
-        let cached = self.cached_focus(node_id, &position).await;
+        let cached = if self.restriction.is_some() {
+            None
+        } else {
+            self.cached_focus(node_id, &position).await
+        };
         let focus = Focus {
             revision: self.revision,
             node_id,
@@ -702,6 +730,7 @@ impl Actor {
         config.live = self.live_settings();
         config.pondering = self.pondering();
         config.cache_enabled = self.settings.cache_enabled;
+        config.restriction = self.engine_restriction();
         config.limits = self.settings.analysis_limits.into();
         Ok(analysis::spawn(engine.clone(), config)?)
     }
@@ -723,7 +752,9 @@ impl Actor {
                 .review
                 .results
                 .iter()
-                .filter(|(_, result)| result.saved.is_some())
+                .filter(|(_, result)| {
+                    result.saved.is_some() && self.settings.search_params.is_none()
+                })
                 .map(|(&id, result)| (id, result.clone()))
                 .collect();
             self.invalidate_review();

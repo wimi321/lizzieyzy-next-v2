@@ -298,3 +298,44 @@ async fn public_actor_human_model_load_failure_restores_saved_engine_and_plain_a
     plain_analysis(&mut h).await;
     within(h.app.shutdown()).await.unwrap();
 }
+
+#[tokio::test]
+async fn research_search_settings_reach_humansl_queries_and_active_coach_rejects_tools() {
+    let h = harness(true).await;
+    let params = crate::SearchParams {
+        playout_doubling_advantage: Some(0.3),
+        wide_root_noise: Some(0.4),
+        root_policy_temperature: Some(1.2),
+    };
+    within(h.app.set_search_params(Some(params))).await.unwrap();
+    within(h.app.start_coach(setup())).await.unwrap();
+    assert!(matches!(
+        within(h.app.set_analysis_restriction(
+            crate::RestrictionKind::Allow,
+            vec![crate::PointView { x: 0, y: 0 }]
+        ))
+        .await,
+        Err(AppError::AnalysisTools(
+            crate::AnalysisToolsError::GameActive
+        ))
+    ));
+    assert!(matches!(
+        within(h.app.start_scoring()).await,
+        Err(AppError::Scoring(crate::ScoringError::GameActive))
+    ));
+    within(h.app.play(Move::Play(Color::Black, Point { x: 0, y: 0 })))
+        .await
+        .unwrap();
+    let request = query(h.directory.path(), |r| {
+        r["overrideSettings"]["humanSLProfile"] == "rank_20k"
+            && r["moves"].as_array().is_some_and(|moves| moves.len() == 1)
+    })
+    .await;
+    assert_eq!(request["overrideSettings"]["playoutDoublingAdvantage"], 0.3);
+    assert_eq!(request["overrideSettings"]["wideRootNoise"], 0.4);
+    assert_eq!(request["overrideSettings"]["rootPolicyTemperature"], 1.2);
+    assert_eq!(request["overrideSettings"]["ignorePreRootHistory"], false);
+    within(h.app.stop_game()).await.unwrap();
+    within(h.app.coach_review()).await.unwrap();
+    within(h.app.shutdown()).await.unwrap();
+}

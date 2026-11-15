@@ -26,6 +26,9 @@ impl Actor {
             return Ok(());
         };
         let mut query = request::build(&focus.position, &self.config.live)?;
+        if let Some(restriction) = &self.config.restriction {
+            restriction.apply(&mut query, &focus.position)?;
+        }
         query.include_policy = (self.config.live.include_policy
             || self.config.extras.policy
             || kind == QueryKind::PureNetwork)
@@ -84,7 +87,7 @@ impl Actor {
         let transient = |snapshot: &&AnalysisSnapshot| {
             matches!(
                 snapshot.source,
-                SnapshotSource::Extras | SnapshotSource::PureNetwork
+                SnapshotSource::Extras | SnapshotSource::PureNetwork | SnapshotSource::Restricted
             )
         };
         let pending = self.throttle.pending().filter(transient);
@@ -137,7 +140,11 @@ impl Actor {
             {
                 snapshot.revision = focus.revision;
                 // Restoring a paused ordinary frame is not a new live result.
-                snapshot.source = SnapshotSource::Cache;
+                snapshot.source = if self.config.restriction.is_some() {
+                    SnapshotSource::Restricted
+                } else {
+                    SnapshotSource::Cache
+                };
                 snapshot.visits_per_second = None;
                 self.offer(snapshot);
             } else {
@@ -162,6 +169,8 @@ impl Actor {
         let Some(focus) = &self.focus else { return };
         let source = if kind == QueryKind::PureNetwork {
             SnapshotSource::PureNetwork
+        } else if self.config.restriction.is_some() {
+            SnapshotSource::Restricted
         } else {
             SnapshotSource::Extras
         };

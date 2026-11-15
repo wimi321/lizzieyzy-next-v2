@@ -35,10 +35,11 @@ pub(super) fn profile(value: &Value) -> Result<Option<String>, QueryError> {
 
 pub(super) fn allowances(
     value: &Value,
+    field: &'static str,
     width: usize,
     height: usize,
 ) -> Result<Vec<Allowance>, QueryError> {
-    let Some(values) = value.get("allowMoves") else {
+    let Some(values) = value.get(field) else {
         return Ok(Vec::new());
     };
     let board = Board {
@@ -48,20 +49,21 @@ pub(super) fn allowances(
     };
     values
         .as_array()
-        .ok_or_else(|| invalid("allowMoves"))?
+        .ok_or_else(|| invalid(field))?
         .iter()
         .map(|value| {
-            let player = color(&value["player"]).ok_or_else(|| invalid("allowMoves"))?;
+            let player = color(&value["player"]).ok_or_else(|| invalid(field))?;
             let depth = value["untilDepth"]
                 .as_u64()
-                .ok_or_else(|| invalid("allowMoves"))?;
+                .filter(|depth| *depth > 0)
+                .ok_or_else(|| invalid(field))?;
             let moves = value["moves"]
                 .as_array()
-                .ok_or_else(|| invalid("allowMoves"))?
+                .ok_or_else(|| invalid(field))?
                 .iter()
                 .map(|value| {
-                    let text = value.as_str().ok_or_else(|| invalid("allowMoves"))?;
-                    board.index(text).ok_or_else(|| invalid("allowMoves"))?;
+                    let text = value.as_str().ok_or_else(|| invalid(field))?;
+                    board.index(text).ok_or_else(|| invalid(field))?;
                     Ok(text.to_owned())
                 })
                 .collect::<Result<Vec<_>, QueryError>>()?;
@@ -150,25 +152,57 @@ impl Query {
             .iter()
             .filter(|a| a.player == player && a.depth > 0)
             .collect();
-        if allowances.is_empty() {
+        let avoids: Vec<_> = self
+            .avoid_moves
+            .iter()
+            .filter(|a| a.player == player && a.depth > 0)
+            .collect();
+        if allowances.is_empty() && avoids.is_empty() {
             return;
-        }
-        let mut allowed = Vec::new();
-        for coordinate in allowances.iter().flat_map(|a| &a.moves) {
-            if board
-                .index(coordinate)
-                .is_some_and(|index| index.is_none_or(|index| legal[index]))
-                && !allowed
-                    .iter()
-                    .any(|p: &&String| p.eq_ignore_ascii_case(coordinate))
-            {
-                allowed.push(coordinate);
-            }
         }
         let old = response["moveInfos"]
             .as_array()
             .cloned()
             .unwrap_or_default();
+        let mut candidates: Vec<String> = if allowances.is_empty() {
+            old.iter()
+                .filter_map(|info| info["move"].as_str().map(str::to_owned))
+                .collect()
+        } else {
+            allowances
+                .iter()
+                .flat_map(|a| a.moves.iter().cloned())
+                .collect()
+        };
+        if allowances.is_empty() {
+            candidates.extend(
+                legal
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, allowed)| **allowed)
+                    .map(|(index, _)| board.point(index)),
+            );
+            candidates.push("pass".into());
+        }
+        let mut allowed = Vec::new();
+        for coordinate in candidates {
+            if board
+                .index(&coordinate)
+                .is_some_and(|index| index.is_none_or(|index| legal[index]))
+                && !avoids
+                    .iter()
+                    .flat_map(|a| &a.moves)
+                    .any(|point| point.eq_ignore_ascii_case(&coordinate))
+                && !allowed
+                    .iter()
+                    .any(|point: &String| point.eq_ignore_ascii_case(&coordinate))
+            {
+                allowed.push(coordinate);
+            }
+        }
+        if allowances.is_empty() {
+            allowed.truncate(old.len().max(1));
+        }
         allowed.sort_by_key(|coordinate| {
             old.iter()
                 .position(|info| {

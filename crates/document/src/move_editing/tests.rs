@@ -22,6 +22,87 @@ fn branched() -> GameDocument {
     doc
 }
 
+#[test]
+fn continued_sequence_reuses_prefix_then_branches_and_undoes_once() {
+    let mut doc = document("(;SZ[9];B[aa]C[keep];W[bb];B[cc])");
+    let first = doc.node(doc.root()).unwrap().children()[0];
+    let second = doc.node(first).unwrap().children()[0];
+    let before = doc.snapshot();
+    doc.apply(Command::ContinueSequence(vec![
+        play(Color::Black, 0, 0),
+        play(Color::White, 1, 1),
+        play(Color::Black, 3, 3),
+        play(Color::White, 4, 4),
+    ]))
+    .unwrap();
+    assert_tree(&doc, "(;SZ[9];B[aa]C[keep];W[bb](;B[cc])(;B[dd];W[ee]))");
+    assert_eq!(doc.node(doc.root()).unwrap().children(), &[first]);
+    assert_eq!(doc.node(first).unwrap().children(), &[second]);
+    let after = doc.snapshot();
+    assert_eq!(doc.position_at(doc.current()).unwrap().moves.len(), 4);
+    doc.undo().unwrap();
+    assert_eq!(doc.snapshot(), before);
+    assert!(!doc.can_undo());
+    doc.redo().unwrap();
+    assert_eq!(doc.snapshot(), after);
+}
+
+#[test]
+fn continued_sequence_with_only_existing_children_is_navigation() {
+    let mut doc = document("(;SZ[9];B[aa];W[bb])");
+    let tree = doc.to_sgf();
+    let content_revision = doc.content_revision();
+    doc.apply(Command::ContinueSequence(vec![
+        play(Color::Black, 0, 0),
+        play(Color::White, 1, 1),
+    ]))
+    .unwrap();
+    assert_eq!(doc.to_sgf(), tree);
+    assert_eq!(doc.content_revision(), content_revision);
+    assert_eq!(doc.position_at(doc.current()).unwrap().moves.len(), 2);
+    assert!(!doc.can_undo());
+    let revision = doc.revision();
+    assert_eq!(
+        doc.apply(Command::ContinueSequence(vec![])).unwrap(),
+        revision
+    );
+}
+
+#[test]
+fn invalid_continued_sequence_preserves_tree_focus_and_history() {
+    let mut doc = document("(;SZ[9];B[aa];W[bb])");
+    let before = doc.snapshot();
+    let revision = doc.revision();
+    assert!(
+        doc.apply(Command::ContinueSequence(vec![
+            play(Color::Black, 0, 0),
+            play(Color::White, 1, 1),
+            play(Color::Black, 3, 3),
+            play(Color::White, 3, 3),
+        ]))
+        .is_err()
+    );
+    assert_eq!(doc.snapshot(), before);
+    assert_eq!(doc.revision(), revision);
+    assert!(!doc.can_undo());
+    assert!(!doc.can_redo());
+}
+
+#[test]
+fn continued_sequence_does_not_reuse_a_move_with_different_setup_history() {
+    let mut doc = document("(;SZ[9];B[aa]AW[cc])");
+    doc.apply(Command::ContinueSequence(vec![play(Color::Black, 0, 0)]))
+        .unwrap();
+    assert_tree(&doc, "(;SZ[9](;B[aa]AW[cc])(;B[aa]))");
+    assert_eq!(
+        doc.position_at(doc.current())
+            .unwrap()
+            .board
+            .stone_at(point(2, 2)),
+        None
+    );
+}
+
 fn assert_tree(doc: &GameDocument, expected: &str) {
     assert_eq!(doc.to_sgf(), document(expected).to_sgf());
     // Every retained branch, not only the focus, must remain replayable.
