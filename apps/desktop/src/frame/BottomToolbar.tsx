@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ToolButton } from "./ToolButton";
 import type { ItemFilter } from "./toolbarItems";
 import type { AutoPlayButton } from "../research/useResearch";
+import type { AnalysisBottomBar } from "../analysis/useAnalysisTools";
 
 /** Home / End step size: the backend stops at the first or last move. */
 export const JUMP = 1_000_000;
@@ -57,6 +58,8 @@ export interface BottomToolbarProps {
   autoAnalysis: ReactNode;
   /** 自动播放: pressed while the main board plays on by itself. */
   autoPlay?: AutoPlayButton;
+  /** 更新官方权重 and 更多 → 终局点目. */
+  tools?: AnalysisBottomBar;
   onTogglePondering(): void;
   onToggleOwnership(): void;
   onToggleCoordinates(): void;
@@ -100,7 +103,7 @@ const NAVIGATION: { key: keyof BottomToolbarLabels; text: string; steps: number 
 ];
 
 /** 更多: the buttons Java's bar has no room for at this width (终局点目, 纯网络). */
-function MoreButton({ labels, trial, hasBoard, onTrial, show, pure, onPure }: { labels: BottomToolbarLabels; trial: boolean; hasBoard: boolean; onTrial(): void; show: ItemFilter; pure: boolean; onPure?(): void }) {
+function MoreButton({ labels, trial, hasBoard, onTrial, show, pure, onPure, tools }: { labels: BottomToolbarLabels; trial: boolean; hasBoard: boolean; onTrial(): void; show: ItemFilter; pure: boolean; onPure?(): void; tools?: AnalysisBottomBar }) {
   const [anchor, setAnchor] = useState<{ right: number; bottom: number } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -138,7 +141,17 @@ function MoreButton({ labels, trial, hasBoard, onTrial, show, pure, onPure }: { 
             </button>
           ) : null}
           {show("finalScore") ? (
-            <button type="button" role="menuitem" disabled>
+            <button
+              type="button"
+              role="menuitem"
+              data-on={tools?.scoring ? "true" : undefined}
+              disabled={!tools?.canScore}
+              data-testid="tool-final-score"
+              onClick={() => {
+                setAnchor(null);
+                tools?.onScore();
+              }}
+            >
               {labels.finalScore}
             </button>
           ) : null}
@@ -180,6 +193,7 @@ export function BottomToolbar({
   canBackMain = false,
   rankMarks = false,
   autoPlay,
+  tools,
   ...on
 }: BottomToolbarProps) {
   const more = ["tryPlay", "finalScore", "heatMap"].some(show);
@@ -202,7 +216,7 @@ export function BottomToolbar({
         ) : null}
         {show("batchOpen") ? autoAnalysis : null}
         <ToolButton role="primary" className="jt-optional" label={labels.remote} testId="tool-remote" onClick={on.onRemote} />
-        <ToolButton className="jt-optional" label={labels.downloadWeight} enabled={false} />
+        <ToolButton className="jt-optional" label={labels.downloadWeight} enabled={tools !== undefined} testId="tool-weights" onClick={tools?.onWeights} />
         {show("kataEstimateButton") ? (
           <ToolButton label={labels.kataEstimate} pressed={ownership} enabled={hasBoard} testId="toggle-ownership" onClick={on.onToggleOwnership} />
         ) : null}
@@ -239,7 +253,7 @@ export function BottomToolbar({
         {show("coords") ? <ToolButton label={labels.coords} pressed={coordinates} testId="toggle-coordinates" onClick={on.onToggleCoordinates} /> : null}
         {show("clearButton") ? <ToolButton role="danger" label={labels.clear} enabled={!trial} testId="bottom-clear" onClick={on.onClear} /> : null}
         {show("deleteMove") ? <ToolButton role="danger" label={labels.delete} enabled={canDelete} testId="bottom-delete" onClick={on.onDelete} /> : null}
-        {more ? <MoreButton labels={labels} trial={trial} hasBoard={hasBoard} onTrial={on.onTrial} show={show} pure={pureNetwork} onPure={on.onPureNetwork} /> : null}
+        {more ? <MoreButton labels={labels} trial={trial} hasBoard={hasBoard} onTrial={on.onTrial} show={show} pure={pureNetwork} onPure={on.onPureNetwork} tools={tools} /> : null}
       </div>
     </div>
   );

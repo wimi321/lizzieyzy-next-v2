@@ -21,11 +21,13 @@ interface Opened {
   y: number;
 }
 
-interface Item {
+export interface BoardMenuItem {
   id: string;
   label: string;
   run(): void;
 }
+
+type Item = BoardMenuItem;
 
 function report(error: unknown) {
   console.error("Board menu command failed", error);
@@ -50,6 +52,8 @@ export function boardMenuItems(
     deleteStone(): void;
     review(): void;
   },
+  /** More entries for an empty point, such as 选点限制's. */
+  extra: (point: PointView) => readonly Item[] = () => [],
 ): Item[] {
   const board = document.board;
   if (!board) return [];
@@ -71,6 +75,7 @@ export function boardMenuItems(
     { id: "insert-black", label: labels.insertBlack, run: () => run.insert("Black") },
     { id: "insert-white", label: labels.insertWhite, run: () => run.insert("White") },
     { id: "previous-move", label: labels.previousMove, run: run.previous },
+    ...extra(point),
   ];
 }
 
@@ -82,6 +87,7 @@ export function useBoardMenu(
   revision: number,
   labels: BoardMenuLabels,
   onMove: (from: PointView) => void,
+  extra?: (point: PointView) => readonly Item[],
 ): { open(point: PointView, x: number, y: number): void; menu: ReactNode } {
   const [opened, setOpened] = useState<Opened | null>(null);
 
@@ -125,7 +131,7 @@ export function useBoardMenu(
       deleteStone: () => void backend.deleteStone(point).catch(report),
       // Java's 回看 starts just before the stone was played.
       review: () => origin(point, (node, parent) => void backend.goTo(parent ?? node).catch(report)),
-    });
+    }, extra);
     menu = (
       <div className="menu-popup board-menu" role="menu" data-testid="board-menu" style={{ left: opened.x, top: opened.y }}>
         {items.map((item) => (
