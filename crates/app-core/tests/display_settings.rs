@@ -61,6 +61,14 @@ async fn display_settings_save_restart_and_whole_object_replacement() {
         top_toolbar_wrap: true,
         top_toolbar_hidden: vec!["Menu-1".into(), "analysis".into()],
         bottom_toolbar_hidden: vec!["navigation_2".into()],
+        autoplay_interval_ms: 1_000,
+        painting_color: app_core::PaintingColor::Blue,
+        control_panel_bounds: Some(app_core::ControlPanelBounds {
+            x: -1920,
+            y: 50,
+            width: 640,
+            height: 480,
+        }),
     };
     assert_eq!(
         app.set_display_settings(display.clone()).await.unwrap(),

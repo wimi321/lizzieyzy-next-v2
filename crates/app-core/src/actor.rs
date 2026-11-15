@@ -38,6 +38,7 @@ mod problem_moves;
 mod release;
 mod remote;
 mod review;
+mod saves;
 mod scoring;
 mod signals;
 mod strength_estimate;
@@ -81,6 +82,7 @@ struct Actor {
     restricted_analysis: Option<crate::AnalysisView>,
     scoring: Option<scoring::Session>,
     document: GameDocument,
+    saves: saves::State,
     file_name: Option<String>,
     file_state: editing::FileState,
     tsumego: Option<tsumego::Session>,
@@ -143,6 +145,7 @@ pub(crate) async fn run(
         restricted_analysis: None,
         scoring: None,
         document: GameDocument::new(),
+        saves: Default::default(),
         file_name: None,
         file_state: editing::FileState::new(&GameDocument::new(), None),
         tsumego: None,
@@ -187,14 +190,22 @@ pub(crate) async fn run(
         focus: None,
         output,
     };
+    actor.restore_last_game().await;
     if let Err(error) = actor.publish_document() {
         actor.failed(error.to_string());
     }
     actor.start_initial_engine().await;
     actor.publish_sync();
     actor.publish_analysis_state();
+    let period = actor
+        .config
+        .autosave_interval
+        .max(std::time::Duration::from_millis(1));
+    let mut autosave = tokio::time::interval_at(tokio::time::Instant::now() + period, period);
+    autosave.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
         tokio::select! {
+            _ = autosave.tick() => actor.autosave(false).await,
             () = std::future::ready(()), if actor.match_needs_advance() => actor.advance_match().await,
             () = std::future::ready(()), if actor.batch_needs_advance() => actor.advance_batch().await,
             command = commands.recv() => {
@@ -203,6 +214,7 @@ pub(crate) async fn run(
                 None => None,
               };
               match command {
+                Some(Command::SaveSlots(request)) => actor.save_slots_command(request).await,
                 Some(Command::ZhiziService(reply)) => { let _ = reply.send(actor.zhizi.clone()); }
                 Some(Command::ZhiziCredentialsChanged(reply)) => { let _ = reply.send(actor.zhizi_credentials_changed().await); }
                 Some(Command::AnalysisTools(request)) => actor.analysis_tools_command(request).await,
@@ -279,6 +291,7 @@ pub(crate) async fn run(
                 }
                 Some(Command::TryAutoEngine(trial, reply)) => actor.begin_auto_trial(trial, reply).await,
                 Some(Command::Apply(Input::Shutdown, reply)) => {
+                    actor.autosave(true).await;
                     actor.stop_commentary();
                     if actor.batch_active() { actor.stop_batch(None).await; }
                     actor.shutdown_match().await;
@@ -302,7 +315,7 @@ pub(crate) async fn run(
                     actor.auto_setup.cancel();
                     actor.begin_trial(profile, source, reply).await;
                 }
-                None => { if actor.batch_active() { actor.stop_batch(None).await; } actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
+                None => { actor.autosave(true).await; if actor.batch_active() { actor.stop_batch(None).await; } actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
               }
             },
             progress = commentary::receive(&mut actor.commentary) => actor.commentary_progress(progress).await,
@@ -440,6 +453,9 @@ impl Actor {
             Input::GenerateTsumego(options) => self.generate_tsumego(options).await?,
             Input::ExitTsumego => self.exit_tsumego().await?,
             Input::OpenPath(path) => self.open_path(path).await?,
+            Input::LoadSlot(id) => self.load_slot(&id, false).await?,
+            Input::SetAutosave(enabled) => self.set_save_setting(enabled, false).await?,
+            Input::SetRestoreLastGame(enabled) => self.set_save_setting(enabled, true).await?,
             Input::OpenDroppedPaths(paths) => {
                 if let Err(error) = self.ensure_no_move_trial() {
                     if let Some(path) = paths.iter().find(|path| game_files::is_game_file(path)) {

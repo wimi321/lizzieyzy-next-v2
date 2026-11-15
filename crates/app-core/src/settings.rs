@@ -42,6 +42,10 @@ pub struct Settings {
     #[ts(as = "Option<crate::RestrictionDepthSettings>", optional)]
     pub restriction_depths: crate::RestrictionDepthSettings,
     pub version: u32,
+    #[ts(as = "Option<bool>", optional)]
+    pub autosave: bool,
+    #[ts(as = "Option<bool>", optional)]
+    pub restore_last_game: bool,
     #[ts(as = "Option<crate::CommentarySettings>", optional)]
     pub commentary: crate::CommentarySettings,
     #[ts(as = "Option<crate::UiLanguage>", optional)]
@@ -100,6 +104,8 @@ impl Default for Settings {
             version: SETTINGS_VERSION,
             search_params: None,
             restriction_depths: Default::default(),
+            autosave: true,
+            restore_last_game: false,
             commentary: Default::default(),
             language: crate::UiLanguage::System,
             always_on_top: false,

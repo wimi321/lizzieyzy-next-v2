@@ -36,6 +36,7 @@ mod problem_moves;
 mod release;
 mod remote;
 mod review;
+mod saves;
 mod setup_markup;
 mod strength;
 mod support;

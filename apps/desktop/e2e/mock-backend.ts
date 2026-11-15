@@ -1,5 +1,5 @@
-import { fillZhiziDefaults } from "./fixtures";
-import type { CommentaryUpdated, CommentarySettings, CommentaryKeyStatus, CoachView, CoachHint, HumanSlModelStatus, GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
+import { fillSaveSlotDefaults, fillZhiziDefaults } from "./fixtures";
+import type { SaveSlot, CommentaryUpdated, CommentarySettings, CommentaryKeyStatus, CoachView, CoachHint, HumanSlModelStatus, GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 import { fillRemoteProfileDefaults, fillCommentaryKeyDefaults, defaultCommentarySettings, fillCommentarySettingsDefaults, fillCommentaryDefaults, defaultCoachSetup, fillCoachSetupDefaults, fillCoachDefaults, fillCoachRatingDefaults, fillCoachSummaryDefaults, fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 import type { TencentPage } from "../src/api/backend";
 import { fillTencentPageDefaults } from "./fixtures";
@@ -39,6 +39,7 @@ export type {
   EditCommands, GameInfoEdit, NewGameOptions,
   SetupMarkupCommands, MarkupKindView, MarkupView,
   MoveEditingCommands, StoneOriginView,
+  SaveSlotCommands, SaveSlot, SlotBoard, SaveSlotsError, PaintingColor, ControlPanelBounds,
   DisplaySettings, DisplaySettingsPayload, EstimateLocation, EstimateStyle, SubBoardHeat, TopToolbarLayout, DisplaySettingsCommands, AnalysisCacheCommands,
   EngineCommands, EngineEntry, EngineSettings, EngineRules, EngineCustomRules, JavaImportPreview, JavaImportedEngine,
   WeightCommands, OfficialWeight, AssetDownloadStatus, AssetDownloadProgressListener, AccelerationPlan, DiagnosticRepair, EngineDiagnostics,
@@ -245,6 +246,8 @@ async function command<K extends CommandName>(
     lastAnalysisState = structuredClone(next.result);
   }
   const cloned = structuredClone(result);
+  if (next.command === "saveSlots") (cloned as SaveSlot[]).forEach(fillSaveSlotDefaults);
+  if (["saveToNewSlot", "overwriteSlot", "renameSlot"].includes(next.command)) fillSaveSlotDefaults(cloned as SaveSlot);
   if (next.command === "tencentSearch" || next.command === "tencentNextPage") fillTencentPageDefaults(cloned as TencentPage);
   if (next.command === "analysisState" || next.command === "togglePondering") defaultField(cloned as AnalysisState, "pure_network", false);
   if (next.command === "setDisplaySettings") fillDisplayDefaults(cloned as NonNullable<Settings["display"]>);
@@ -293,6 +296,8 @@ async function command<K extends CommandName>(
   if (next.command === "settings") {
     const settings = cloned as Settings;
     fillDisplayDefaults(settings.display!);
+    defaultField(settings, "autosave", true);
+    defaultField(settings, "restore_last_game", false);
     defaultField(settings, "flash_analysis", structuredClone(defaultFlashAnalysisSettings));
     fillFlashDefaults(settings.flash_analysis!);
     lastFlashSettings = { ...defaultFlashAnalysisSettings, ...settings.flash_analysis };
@@ -391,6 +396,12 @@ function defaultField<T extends object, K extends keyof T>(target: T, key: K, va
 function fillDisplayDefaults(display: NonNullable<Settings["display"]>): void {
   for (const key of Object.getOwnPropertyNames(defaultDisplaySettings) as (keyof typeof defaultDisplaySettings)[]) {
     defaultField(display, key, structuredClone(defaultDisplaySettings[key]));
+  }
+  if (display.control_panel_bounds) {
+    defaultField(display.control_panel_bounds, "x", 0);
+    defaultField(display.control_panel_bounds, "y", 0);
+    defaultField(display.control_panel_bounds, "width", 640);
+    defaultField(display.control_panel_bounds, "height", 480);
   }
 }
 
@@ -981,3 +992,12 @@ export const toggleScoringPoint: NonNullable<Backend["toggleScoringPoint"]> = (p
 export const setScoringRule: NonNullable<Backend["setScoringRule"]> = (rule) => command("setScoringRule", [rule]);
 export const commitScoring: NonNullable<Backend["commitScoring"]> = () => command("commitScoring", []);
 export const cancelScoring: NonNullable<Backend["cancelScoring"]> = () => command("cancelScoring", []);
+export const saveSlots: NonNullable<Backend["saveSlots"]> = () => command("saveSlots", []);
+export const saveToNewSlot: NonNullable<Backend["saveToNewSlot"]> = (name) => command("saveToNewSlot", [name]);
+export const overwriteSlot: NonNullable<Backend["overwriteSlot"]> = (id) => command("overwriteSlot", [id]);
+export const renameSlot: NonNullable<Backend["renameSlot"]> = (id, name) => command("renameSlot", [id, name]);
+export const loadSlot: NonNullable<Backend["loadSlot"]> = (id) => command("loadSlot", [id]);
+export const deleteSlot: NonNullable<Backend["deleteSlot"]> = (id) => command("deleteSlot", [id]);
+export const deleteAllSlots: NonNullable<Backend["deleteAllSlots"]> = () => command("deleteAllSlots", []);
+export const setAutosave: NonNullable<Backend["setAutosave"]> = (enabled) => command("setAutosave", [enabled]);
+export const setRestoreLastGame: NonNullable<Backend["setRestoreLastGame"]> = (enabled) => command("setRestoreLastGame", [enabled]);

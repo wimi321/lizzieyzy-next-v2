@@ -18,6 +18,7 @@ pub mod problem_moves;
 pub mod release;
 pub mod remote;
 pub mod review;
+pub mod saves;
 pub mod settings;
 pub mod setup_markup;
 pub mod strength;

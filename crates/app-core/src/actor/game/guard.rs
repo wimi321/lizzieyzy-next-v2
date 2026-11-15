@@ -56,6 +56,7 @@ fn blocked(input: &Input) -> bool {
         Input::Edit(_)
         | Input::OpenBytes(_)
         | Input::OpenPath(_)
+        | Input::LoadSlot(_)
         | Input::OpenDroppedPaths(_)
         | Input::NewGame(_)
         | Input::PasteSgf

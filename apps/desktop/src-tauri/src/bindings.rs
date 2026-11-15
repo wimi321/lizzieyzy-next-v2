@@ -53,6 +53,7 @@ pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     VariationPreviewView::export_all_to(directory)?;
     app_core::StoneOriginView::export_all_to(directory)?;
     Settings::export_all_to(directory)?;
+    app_core::SaveSlot::export_all_to(directory)?;
     app_core::BoardTransform::export_all_to(directory)?;
     app_core::JavaImportPreview::export_all_to(directory)?;
     app_core::OfficialWeight::export_all_to(directory)?;

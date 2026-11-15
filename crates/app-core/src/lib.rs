@@ -44,6 +44,8 @@ mod remote;
 mod remote_link;
 mod review;
 mod runtime;
+mod save_slots_api;
+mod saves;
 mod scoring;
 mod settings;
 mod setup_markup;
@@ -87,8 +89,9 @@ pub use diagnostics::{
     RepairResources,
 };
 pub use display::{
-    DisplaySettings, DisplaySettingsError, EstimateLocation, EstimateStyle, MoveNumberMode,
-    MoveRankMarkMode, NextMoveHint, SubBoardHeat, TopToolbarLayout, WinrateGraphMode,
+    ControlPanelBounds, DisplaySettings, DisplaySettingsError, EstimateLocation, EstimateStyle,
+    MoveNumberMode, MoveRankMarkMode, NextMoveHint, PaintingColor, SubBoardHeat, TopToolbarLayout,
+    WinrateGraphMode,
 };
 pub use edit::{GameInfoEdit, NewGameOptions};
 pub use engine_display_name::{EngineDisplayName, engine_display_name};
@@ -117,6 +120,7 @@ pub use remote::{
 };
 pub use remote_link::{RemoteLinkError, normalize_remote_link, read_remote_link_qr};
 pub use review::*;
+pub use saves::{SaveSlot, SaveSlotsError, SlotBoard};
 pub use scoring::*;
 pub use settings::{EngineProfile, Settings, SettingsError};
 pub use setup_markup::{MarkupKindView, MarkupView};
@@ -136,6 +140,8 @@ pub enum AppError {
     AnalysisTools(#[from] AnalysisToolsError),
     #[error(transparent)]
     Scoring(#[from] ScoringError),
+    #[error(transparent)]
+    SaveSlots(#[from] SaveSlotsError),
     #[error(transparent)]
     Zhizi(#[from] zhizi::ZhiziError),
     #[error(transparent)]
@@ -230,6 +236,8 @@ pub enum AppError {
 /// coordinator/session defaults, including the long first-start deadline.
 #[derive(Clone, Debug)]
 pub struct AppConfig {
+    /// Periodic save check cadence. Production defaults to sixty seconds.
+    pub autosave_interval: std::time::Duration,
     /// Constructed lazily; tests inject a loopback HTTP endpoint.
     pub zhizi_client: Option<zhizi::ZhiziClient>,
     /// Shared secret-store adapter; the P3-16 field name remains source compatible.
@@ -261,6 +269,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            autosave_interval: std::time::Duration::from_secs(60),
             zhizi_client: None,
             commentary_key_store: None,
             games_directory: None,

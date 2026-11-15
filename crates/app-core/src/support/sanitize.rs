@@ -103,6 +103,11 @@ fn private_key(key: &str) -> bool {
                 | "sgf"
                 | "moves"
                 | "initialstones"
+                | "saves"
+                | "saveslots"
+                | "nodepath"
+                | "stones"
+                | "board"
         )
 }
 
@@ -143,6 +148,12 @@ pub(super) fn text(value: &str) -> String {
         "moves=",
         "\"moves\"",
         "initialstones",
+        "node_path",
+        "nodepath",
+        "save_slots",
+        "saveslots",
+        "stones=",
+        "\"stones\"",
     ]
     .iter()
     .any(|word| lower.contains(word));

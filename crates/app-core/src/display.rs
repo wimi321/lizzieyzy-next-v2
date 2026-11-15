@@ -68,6 +68,26 @@ pub enum TopToolbarLayout {
     Combined,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub enum PaintingColor {
+    Blue,
+    Green,
+    Red,
+}
+
+/// Logical window coordinates; negative origins support secondary displays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct ControlPanelBounds {
+    #[ts(as = "Option<i32>", optional)]
+    pub x: i32,
+    #[ts(as = "Option<i32>", optional)]
+    pub y: i32,
+    #[ts(as = "Option<u32>", optional)]
+    pub width: u32,
+    #[ts(as = "Option<u32>", optional)]
+    pub height: u32,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default)]
 pub struct DisplaySettings {
@@ -171,6 +191,12 @@ pub struct DisplaySettings {
     pub top_toolbar_hidden: Vec<String>,
     #[ts(as = "Option<Vec<String>>", optional)]
     pub bottom_toolbar_hidden: Vec<String>,
+    #[ts(as = "Option<u32>", optional)]
+    pub autoplay_interval_ms: u32,
+    #[ts(as = "Option<PaintingColor>", optional)]
+    pub painting_color: PaintingColor,
+    #[ts(optional = nullable)]
+    pub control_panel_bounds: Option<ControlPanelBounds>,
 }
 
 impl Default for DisplaySettings {
@@ -224,6 +250,9 @@ impl Default for DisplaySettings {
             top_toolbar_wrap: false,
             top_toolbar_hidden: Vec::new(),
             bottom_toolbar_hidden: Vec::new(),
+            autoplay_interval_ms: 2_000,
+            painting_color: PaintingColor::Red,
+            control_panel_bounds: None,
         }
     }
 }
@@ -231,6 +260,12 @@ impl Default for DisplaySettings {
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error, Serialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum DisplaySettingsError {
+    #[error("control panel {field} must be in {minimum}..={maximum}")]
+    InvalidControlPanelBounds {
+        field: &'static str,
+        minimum: i32,
+        maximum: i32,
+    },
     #[error("{field} must be in {minimum}..={maximum}")]
     OutOfRange {
         field: &'static str,
@@ -248,6 +283,12 @@ impl DisplaySettings {
         // MovenumberDialog accepts positive decimal values with fewer than ten
         // digits; the other Java controls parse signed 32-bit integers.
         for (field, value, minimum, maximum) in [
+            (
+                "autoplay_interval_ms",
+                self.autoplay_interval_ms,
+                100,
+                60_000,
+            ),
             ("last_move_numbers", self.last_move_numbers, 1, 999_999_999),
             (
                 "last_move_rank_marks",
@@ -269,6 +310,22 @@ impl DisplaySettings {
                     minimum,
                     maximum,
                 });
+            }
+        }
+        if let Some(bounds) = self.control_panel_bounds {
+            for (field, value, minimum, maximum) in [
+                ("x", i64::from(bounds.x), -100_000, 100_000),
+                ("y", i64::from(bounds.y), -100_000, 100_000),
+                ("width", i64::from(bounds.width), 1, 100_000),
+                ("height", i64::from(bounds.height), 1, 100_000),
+            ] {
+                if !(i64::from(minimum)..=i64::from(maximum)).contains(&value) {
+                    return Err(DisplaySettingsError::InvalidControlPanelBounds {
+                        field,
+                        minimum,
+                        maximum,
+                    });
+                }
             }
         }
         for (field, items) in [

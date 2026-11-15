@@ -132,21 +132,46 @@ impl Actor {
     }
 
     pub(super) async fn open_path(&mut self, path: PathBuf) -> Result<(), AppError> {
-        let result = async {
+        self.open_path_with_slot(path, None, false).await
+    }
+
+    /// Shared open transaction for external files and private save slots.
+    /// Recovery is quiet and slots never become ordinary Save targets/recent files.
+    pub(super) async fn open_path_with_slot(
+        &mut self,
+        path: PathBuf,
+        slot: Option<crate::SaveSlot>,
+        quiet: bool,
+    ) -> Result<(), AppError> {
+        let result: Result<(), AppError> = async {
             self.ensure_no_move_trial()?;
-            let (absolute, document) = read_game_file(&path).await?;
+            let (absolute, mut document) = read_game_file(&path).await?;
+            if let Some(slot) = &slot {
+                super::saves::restore_node(&mut document, slot)?;
+            }
             self.next_revision()?;
-            self.remember_recent_file(&absolute).await?;
+            if slot.is_none() {
+                self.remember_recent_file(&absolute).await?;
+            }
             self.stop_board_sync().await?;
-            self.open_auto_curve_document(document, Some(absolute), true)
-                .await
+            self.open_auto_curve_document(document, slot.is_none().then_some(absolute), true)
+                .await?;
+            if let Some(slot) = &slot {
+                self.file_name = Some(slot.name.clone());
+                self.publish_document()?;
+            }
+            Ok(())
         }
         .await;
-        if let Err(error) = &result {
+        if let Err(error) = &result
+            && !quiet
+        {
             // Preserve the original open error and still notify the UI even if
             // persistence itself has failed. Never invent a successful open.
             let mut reason = error.to_string();
-            if let Ok(absolute) = std::path::absolute(&path) {
+            if slot.is_none()
+                && let Ok(absolute) = std::path::absolute(&path)
+            {
                 let text = absolute.to_string_lossy();
                 let files = self
                     .settings
