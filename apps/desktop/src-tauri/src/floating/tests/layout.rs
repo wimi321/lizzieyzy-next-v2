@@ -122,6 +122,11 @@ async fn absent_floating_positions_use_saved_or_default_and_main_none_stays_put(
         let (mut controller, _events, _directory) =
             setup(original.clone(), FakeWindows::default()).await;
         let main_before = controller.platform.windows["main"];
+        let saved_main_before = within(controller.core.settings())
+            .await
+            .unwrap()
+            .display
+            .main_window;
         let saved = apply(
             &mut controller,
             WindowLayout {
@@ -134,7 +139,7 @@ async fn absent_floating_positions_use_saved_or_default_and_main_none_stays_put(
             },
         )
         .await;
-        assert_eq!(saved.main_window, original.main_window);
+        assert_eq!(saved.main_window, saved_main_before);
         assert_eq!(controller.platform.windows["main"], main_before);
         for (kind, actual, old) in [
             (
@@ -224,6 +229,7 @@ async fn explicit_layout_mid_create_and_mid_place_failures_restore_all_native_st
         };
         let (mut controller, _events, _directory) =
             setup(original.clone(), FakeWindows::default()).await;
+        let baseline = within(controller.core.settings()).await.unwrap().display;
         let actual = controller.platform.windows.clone();
         if failure == "create" {
             controller.platform.fail_create.insert("float-sub");
@@ -253,7 +259,7 @@ async fn explicit_layout_mid_create_and_mid_place_failures_restore_all_native_st
         assert_eq!(controller.platform.windows, actual);
         assert_eq!(
             within(controller.core.settings()).await.unwrap().display,
-            original
+            baseline
         );
         if failure == "place" {
             assert_eq!(controller.platform.options["float-main"], (false, false));
