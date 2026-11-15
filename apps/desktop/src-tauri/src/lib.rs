@@ -7,6 +7,7 @@ mod drag_drop;
 pub mod engine_setup;
 pub mod error;
 pub mod events;
+mod floating;
 pub mod fox_error;
 mod png_request;
 mod release_startup;
@@ -16,6 +17,8 @@ mod system_open;
 pub mod tencent_error;
 pub mod updater;
 mod window_preferences;
+mod window_shutdown;
+mod window_state;
 mod zhizi_website;
 
 use app_core::{AppCore, AppSubscription};
@@ -40,7 +43,10 @@ impl DesktopState {
 pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
     updater::register(builder)
         .plugin(tauri_plugin_dialog::init())
-        .on_window_event(drag_drop::on_window_event)
+        .on_window_event(|window, event| {
+            drag_drop::on_window_event(window, event);
+            floating::on_window_event(window, event);
+        })
         .invoke_handler(tauri::generate_handler![
             commands::document::open_bytes,
             commands::document::open_path,
@@ -235,6 +241,13 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             commands::saves::set_autosave,
             commands::saves::set_restore_last_game,
             commands::settings::settings,
+            commands::windows::open_floating_board,
+            commands::windows::close_floating_board,
+            commands::windows::set_floating_board_options,
+            commands::windows::set_floating_layout,
+            commands::windows::fit_main_window,
+            commands::windows::reset_window_positions,
+            commands::windows::apply_window_layout,
             commands::preferences::always_on_top,
             commands::preferences::set_always_on_top,
             commands::preferences::ui_scale,
@@ -320,20 +333,18 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             tauri::async_runtime::block_on(window_preferences.initialize(&core))?;
             app.manage(window_preferences);
             app.manage(DesktopState::new(core.clone(), subscription));
+            app.manage(floating::FloatingWindows::for_app(
+                app.handle().clone(),
+                core.clone(),
+            ));
+            app.manage(window_shutdown::ShutdownState::default());
             tauri::async_runtime::spawn(system_open::serve(core, incoming));
             Ok(())
         })
         .build(context())?;
     app.run(|app, event| {
         system_open::on_run_event(app, &event);
-        if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
-            // Keep the runtime alive until AppCore has cancelled analysis and
-            // reaped its child. Merely dropping managed state at exit is too late.
-            let core = app.state::<DesktopState>().core.clone();
-            if let Err(error) = tauri::async_runtime::block_on(core.shutdown()) {
-                eprintln!("application shutdown: {error}");
-            }
-        }
+        window_shutdown::on_run_event(app, &event);
     });
     Ok(())
 }

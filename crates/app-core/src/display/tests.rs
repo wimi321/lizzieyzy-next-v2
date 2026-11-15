@@ -45,6 +45,11 @@ fn defaults_match_java_config_and_maintainer_overrides() {
             "show_names_below_board": true,
     });
     let extras = json!({
+            "layout_mode": "Normal",
+            "large_sub_board": false, "large_winrate_graph": false, "board_position": 4,
+            "custom_layouts": [null, null],
+            "main_window": null, "floating_main": null, "floating_sub": null,
+            "floating_boards": { "main": false, "keep_main_board": false, "sub": false, "main_on_top": false, "sub_on_top": false, "main_locked": false, "sub_locked": false },
             "estimate_location": "Off",
             "estimate_style": "TransparentSmall",
             "pure_estimate_style": "BigSquare",

@@ -44,6 +44,7 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    Windows(crate::window_api::Request),
     AnalysisTools(crate::analysis_tools::Request),
     Scoring(crate::scoring::Request),
     SaveSlots(crate::save_slots_api::Request),

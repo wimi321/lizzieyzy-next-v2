@@ -57,6 +57,8 @@ mod tsumego;
 pub mod updates;
 mod view;
 mod weights;
+mod window_api;
+mod windows;
 pub mod zhizi;
 mod zhizi_api;
 mod zhizi_engine;
@@ -129,6 +131,7 @@ pub use support::FullLogStatus;
 pub use tsumego::*;
 pub use updates::{UpdateCheck, UpdateDownloadStatus};
 pub use view::*;
+pub use windows::*;
 pub use zhizi_engine::{ZhiziEngineOptions, ZhiziPlan, ZhiziWeight};
 
 use std::path::PathBuf;

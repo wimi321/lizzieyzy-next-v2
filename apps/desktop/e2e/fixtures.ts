@@ -81,8 +81,16 @@ export const defaultFullLogStatus: Required<FullLogStatus> = {
   enabled: false, remaining_seconds: 0,
 };
 
+export const defaultFloatingBoards: Required<import("../src/api/backend").FloatingBoardsView> = {
+  main: false, keep_main_board: false, sub: false,
+  main_on_top: false, sub_on_top: false, main_locked: false, sub_locked: false,
+};
+
 /** P2-06 fixture defaults; Rust owns validation and persistence. */
 export const defaultDisplaySettings: Required<import("../src/api/backend").DisplaySettingsPayload> = {
+  layout_mode: "Normal", large_sub_board: false, large_winrate_graph: false, board_position: 4,
+  floating_boards: structuredClone(defaultFloatingBoards), custom_layouts: [null, null],
+  main_window: null, floating_main: null, floating_sub: null,
   autoplay_interval_ms: 2000,
   painting_color: "Red",
   control_panel_bounds: null,
@@ -135,6 +143,12 @@ export const defaultDisplaySettings: Required<import("../src/api/backend").Displ
   show_names_below_board: true,
 };
 
+// Preserve the serialized shape expected by the existing P3-26 UI fixtures.
+// Property reads and fillDisplayDefaults still see every new Rust default.
+for (const key of ["layout_mode", "large_sub_board", "large_winrate_graph", "board_position",
+  "floating_boards", "custom_layouts", "main_window", "floating_main", "floating_sub"] as const) {
+  Object.defineProperty(defaultDisplaySettings, key, { enumerable: false });
+}
 
 /** Scripted Fox reply for UI tests; network parsing remains in Rust. */
 export function foxSearchResult(): FoxSearchResult {
@@ -820,5 +834,45 @@ export function fillSaveSlotDefaults(slot: SaveSlot): void {
     gameDefaultField(slot.board, "width", 19);
     gameDefaultField(slot.board, "height", 19);
     gameDefaultField(slot.board, "stones", Array(slot.board.width! * slot.board.height!).fill(null));
+  }
+}
+
+export function fillFloatingBoardsDefaults(view: import("../src/api/backend").FloatingBoardsView): void {
+  for (const key of Object.keys(defaultFloatingBoards) as (keyof typeof defaultFloatingBoards)[]) {
+    gameDefaultField(view, key, defaultFloatingBoards[key]);
+  }
+}
+
+function fillWindowBounds(bounds: import("../src/api/backend").WindowBounds, width: number, height: number): void {
+  gameDefaultField(bounds, "x", 0); gameDefaultField(bounds, "y", 0);
+  gameDefaultField(bounds, "width", width); gameDefaultField(bounds, "height", height);
+}
+
+function fillWindowPlacement(placement: import("../src/api/backend").WindowPlacement): void {
+  gameDefaultField(placement, "bounds", { x: 0, y: 0, width: 1280, height: 820 });
+  gameDefaultField(placement, "maximized", false);
+  fillWindowBounds(placement.bounds!, 1280, 820);
+}
+
+/** Only supply fixture defaults; no window operations or layout rules run here. */
+export function fillLayoutDefaults(display: import("../src/api/backend").DisplaySettingsPayload): void {
+  fillFloatingBoardsDefaults(display.floating_boards!);
+  if (display.main_window) fillWindowPlacement(display.main_window);
+  if (display.floating_main) fillWindowBounds(display.floating_main, 600, 600);
+  if (display.floating_sub) fillWindowBounds(display.floating_sub, 300, 300);
+  for (const layout of display.custom_layouts ?? []) {
+    if (!layout) continue;
+    gameDefaultField(layout, "panels", {});
+    for (const key of ["show_winrate_graph", "show_comment", "show_variation_graph", "show_sub_board",
+      "show_list_pane", "show_information_panel", "show_status_bar"] as const) gameDefaultField(layout.panels!, key, true);
+    gameDefaultField(layout, "layout_mode", "Normal");
+    gameDefaultField(layout, "large_sub_board", false); gameDefaultField(layout, "large_winrate_graph", false);
+    gameDefaultField(layout, "board_position", 4);
+    gameDefaultField(layout, "floating_boards", structuredClone(defaultFloatingBoards));
+    fillFloatingBoardsDefaults(layout.floating_boards!);
+    gameDefaultField(layout, "main_window", {}); fillWindowPlacement(layout.main_window!);
+    gameDefaultField(layout, "floating_main", null); gameDefaultField(layout, "floating_sub", null);
+    if (layout.floating_main) fillWindowBounds(layout.floating_main, 600, 600);
+    if (layout.floating_sub) fillWindowBounds(layout.floating_sub, 300, 300);
   }
 }

@@ -69,6 +69,7 @@ async fn display_settings_save_restart_and_whole_object_replacement() {
             width: 640,
             height: 480,
         }),
+        ..DisplaySettings::default()
     };
     assert_eq!(
         app.set_display_settings(display.clone()).await.unwrap(),

@@ -16,15 +16,15 @@
         "title": "LizzieYzy Next 2",
         "width": 1280,
         "height": 820,
-        "minWidth": 1080,
-        "minHeight": 680,
+        "minWidth": 520,
+        "minHeight": 400,
         "center": true
       }
     ],
     "security": {
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost; connect-src ipc: http://ipc.localhost",
       "devCsp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost; connect-src ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420",
-      "capabilities": ["main"]
+      "capabilities": ["main", "floating"]
     }
   },
   "bundle": {

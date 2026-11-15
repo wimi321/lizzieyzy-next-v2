@@ -17,11 +17,20 @@ pub struct Revision(#[ts(type = "number")] pub u64);
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, TS)]
 pub struct SubscriptionId(pub u32);
 
+/// Keep the old generated import path usable while WindowBounds is shared by
+/// all windows. A generated newtype alias avoids deleting an existing artifact.
+#[derive(TS)]
+#[ts(rename = "ControlPanelBounds")]
+pub struct LegacyControlPanelBounds(pub app_core::WindowBounds);
+
 /// Export roots recursively so input-only types are covered as well as events.
 /// The destination must be a dedicated directory for generated bindings.
 pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     fs::create_dir_all(directory)?;
     AppEvent::export_all_to(directory)?;
+    app_core::FloatingBoardKind::export_all_to(directory)?;
+    app_core::WindowLayout::export_all_to(directory)?;
+    LegacyControlPanelBounds::export_all_to(directory)?;
     app_core::LadderContinuation::export_all_to(directory)?;
     app_core::RemoteEngineInput::export_all_to(directory)?;
     app_core::zhizi::ZhiziStatus::export_all_to(directory)?;

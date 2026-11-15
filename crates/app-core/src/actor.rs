@@ -46,6 +46,7 @@ mod tencent;
 mod trial;
 mod tsumego;
 mod weights;
+mod windows;
 mod zhizi;
 use trial::PendingTrial;
 
@@ -247,6 +248,7 @@ pub(crate) async fn run(
                     }
                 }
                 Some(Command::SetEngineSettings(settings, reply)) => { let _ = reply.send(actor.set_engine_settings(settings).await); }
+                Some(Command::Windows(request)) => actor.window_request(request).await,
                 Some(Command::SetDisplaySettings(display, reply)) => { let _ = reply.send(actor.set_display_settings(display).await); }
                 Some(Command::AnalysisLimit(request)) => {
                     use crate::analysis_limit::Request;

@@ -1,6 +1,6 @@
 //! Persisted rendering preferences. These never change core analysis perspective.
 
-use crate::{AppCore, AppError, SettingsError, actor};
+use crate::{AppCore, AppError, actor};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 use ts_rs::TS;
@@ -75,22 +75,30 @@ pub enum PaintingColor {
     Red,
 }
 
-/// Logical window coordinates; negative origins support secondary displays.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
-pub struct ControlPanelBounds {
-    #[ts(as = "Option<i32>", optional)]
-    pub x: i32,
-    #[ts(as = "Option<i32>", optional)]
-    pub y: i32,
-    #[ts(as = "Option<u32>", optional)]
-    pub width: u32,
-    #[ts(as = "Option<u32>", optional)]
-    pub height: u32,
-}
+/// Compatibility name for the shared logical window rectangle.
+pub type ControlPanelBounds = crate::WindowBounds;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default)]
 pub struct DisplaySettings {
+    #[ts(as = "Option<crate::LayoutMode>", optional)]
+    pub layout_mode: crate::LayoutMode,
+    #[ts(as = "Option<bool>", optional)]
+    pub large_sub_board: bool,
+    #[ts(as = "Option<bool>", optional)]
+    pub large_winrate_graph: bool,
+    #[ts(as = "Option<u32>", optional)]
+    pub board_position: u32,
+    #[ts(as = "Option<crate::FloatingBoardsView>", optional)]
+    pub floating_boards: crate::FloatingBoardsView,
+    #[ts(as = "Option<[Option<crate::CustomLayout>; 2]>", optional)]
+    pub custom_layouts: [Option<crate::CustomLayout>; 2],
+    #[ts(optional = nullable)]
+    pub main_window: Option<crate::WindowPlacement>,
+    #[ts(optional = nullable)]
+    pub floating_main: Option<crate::WindowBounds>,
+    #[ts(optional = nullable)]
+    pub floating_sub: Option<crate::WindowBounds>,
     #[ts(as = "Option<bool>", optional)]
     pub show_coordinates: bool,
     #[ts(as = "Option<MoveNumberMode>", optional)]
@@ -202,6 +210,15 @@ pub struct DisplaySettings {
 impl Default for DisplaySettings {
     fn default() -> Self {
         Self {
+            layout_mode: crate::LayoutMode::Normal,
+            large_sub_board: false,
+            large_winrate_graph: false,
+            board_position: 4,
+            floating_boards: Default::default(),
+            custom_layouts: [None, None],
+            main_window: None,
+            floating_main: None,
+            floating_sub: None,
             show_coordinates: true,
             move_numbers: MoveNumberMode::None,
             last_move_numbers: 1,
@@ -260,6 +277,14 @@ impl Default for DisplaySettings {
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error, Serialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum DisplaySettingsError {
+    #[error("the sub board and winrate graph cannot both be enlarged")]
+    ConflictingEnlargement,
+    #[error("window {field} must be in {minimum}..={maximum}")]
+    InvalidWindowBounds {
+        field: &'static str,
+        minimum: i32,
+        maximum: i32,
+    },
     #[error("control panel {field} must be in {minimum}..={maximum}")]
     InvalidControlPanelBounds {
         field: &'static str,
@@ -280,6 +305,15 @@ pub enum DisplaySettingsError {
 
 impl DisplaySettings {
     pub fn validate(&self) -> Result<(), DisplaySettingsError> {
+        crate::windows::validate_layout(
+            self.large_sub_board,
+            self.large_winrate_graph,
+            self.board_position,
+        )?;
+        crate::WindowLayout::from(self).validate()?;
+        for layout in self.custom_layouts.iter().flatten() {
+            layout.validate()?;
+        }
         // MovenumberDialog accepts positive decimal values with fewer than ten
         // digits; the other Java controls parse signed 32-bit integers.
         for (field, value, minimum, maximum) in [
@@ -360,12 +394,11 @@ impl DisplaySettings {
 }
 
 impl AppCore {
-    /// Replace the entire display object after validation and atomic storage.
+    /// Replace rendering preferences while retaining actor-owned window state.
     pub async fn set_display_settings(
         &self,
         display: DisplaySettings,
     ) -> Result<DisplaySettings, AppError> {
-        display.validate().map_err(SettingsError::from)?;
         let (reply, response) = oneshot::channel();
         self.commands
             .send(actor::Command::SetDisplaySettings(display, reply))
