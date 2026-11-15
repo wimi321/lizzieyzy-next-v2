@@ -11,6 +11,7 @@ import "./styles/coach.css";
 import "./styles/online.css";
 import "./styles/remote.css";
 import "./styles/research.css";
+import "./styles/analysis-tools.css";
 
 const root = document.getElementById("root");
 if (!root) {

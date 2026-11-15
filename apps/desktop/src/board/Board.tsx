@@ -1,10 +1,11 @@
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { AnalysisView, BoardView, MarkupView, MoveRank, PointView, VariationPreviewView } from "@/api/backend";
+import { type MouseEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import type { AnalysisView, BoardView, ColorView, MarkupView, MoveRank, PointView, RestrictionKind, VariationPreviewView } from "@/api/backend";
 import { useBoardAssets, useElementSize } from "./assets";
 import { drawGoban, drawOverlay, drawStones, type Names, type NextMove, prepare } from "./draw";
 import { drawEstimate, type Estimate, underStones } from "./estimate";
 import { computeGeometry, pixelToPoint, pointIndex } from "./geometry";
 import { drawMarkup } from "./markup";
+import { drawDragRect, drawRestriction, drawScoring, type Pixel, pointsInRect } from "./regions";
 import { moveLabels, type MoveWindow, type NumberRule, rankedStones } from "./moveMarks";
 import { drawMoveNumbers, drawRankDots } from "./stoneMarks";
 import type { SuggestionStyle } from "./suggestionText";
@@ -60,6 +61,22 @@ export interface BoardProps {
   /** The candidate under the pointer, so the app can ask Rust for its variation. */
   onHoverCandidate?(point: PointView | null): void;
   onPlay(point: PointView): void;
+  /** 选点限制: a square on each restricted point. */
+  restriction?: { kind: RestrictionKind; points: readonly PointView[] } | null;
+  /** 终局点目: who scores each point, row-major; null where nobody does. */
+  scoring?: readonly (ColorView | null)[] | null;
+  /**
+   * Drawing a rectangle of points: Alt+drag always does, a plain drag too while `kind` is set by
+   * the toolbar. Alt+click, which draws nothing, clears.
+   */
+  region?: { kind: RestrictionKind | null; onRegion(kind: RestrictionKind, points: PointView[]): void; onClear(): void };
+}
+
+interface Drag {
+  kind: RestrictionKind;
+  alt: boolean;
+  from: Pixel;
+  to: Pixel;
 }
 
 const NO_MARKUP: readonly MarkupView[] = [];
@@ -97,6 +114,9 @@ export function Board({
   onContextMenu,
   onHoverCandidate,
   onPlay,
+  restriction = null,
+  scoring = null,
+  region,
 }: BoardProps) {
   const container = useRef<HTMLDivElement>(null);
   const gobanCanvas = useRef<HTMLCanvasElement>(null);
@@ -106,6 +126,9 @@ export function Board({
   const size = useElementSize(container);
   const { images, fonts } = useBoardAssets();
   const [hover, setHover] = useState<PointView | null>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  // The click that ends a drag is the drag's, not a move.
+  const swallow = useRef(false);
 
   const big = coordinates || names !== null;
   const geometry = useMemo(
@@ -181,9 +204,12 @@ export function Board({
         drawRankDots(context, geometry, board, dots);
         drawMarkup(context, geometry, images, board, markup);
       }
+      if (restriction) drawRestriction(context, geometry, restriction.kind, restriction.points);
+      if (scoring) drawScoring(context, geometry, scoring);
+      if (drag) drawDragRect(context, drag.kind, drag.from, drag.to, geometry.dpr);
     });
     return () => cancelAnimationFrame(frame);
-  }, [geometry, images, fonts, board, analysis, shownEstimate, policy, pure, maxCandidates, target, shown, lastRankShown, numbered, labels, dots, next, nextHint, style, passLabel, emptyHint, markup]);
+  }, [geometry, images, fonts, board, analysis, shownEstimate, policy, pure, maxCandidates, target, shown, lastRankShown, numbered, labels, dots, next, nextHint, style, passLabel, emptyHint, markup, restriction, scoring, drag]);
 
   const pointAt = (event: MouseEvent<HTMLElement>): PointView | null => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -206,7 +232,36 @@ export function Board({
     onHoverCandidate?.(null);
   };
 
+  const pixelAt = (event: PointerEvent<HTMLElement>): Pixel => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return [(event.clientX - rect.left) * scale, (event.clientY - rect.top) * scale];
+  };
+  const onPointerDown = (event: PointerEvent<HTMLElement>) => {
+    swallow.current = false;
+    // A setup or markup tool keeps the board's clicks.
+    if (!region || editing || event.button !== 0 || !(event.altKey || region.kind)) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const at = pixelAt(event);
+    setDrag({ kind: region.kind ?? "Allow", alt: event.altKey, from: at, to: at });
+  };
+  const onPointerMove = (event: PointerEvent<HTMLElement>) => {
+    if (drag) setDrag({ ...drag, to: pixelAt(event) });
+  };
+  const onPointerUp = () => {
+    if (!drag) return;
+    setDrag(null);
+    swallow.current = true;
+    const points = pointsInRect(geometry, drag.from, drag.to);
+    if (points) region?.onRegion(drag.kind, points);
+    else if (drag.alt) region?.onClear();
+  };
+
   const onClick = (event: MouseEvent<HTMLElement>) => {
+    if (swallow.current) {
+      swallow.current = false;
+      return;
+    }
     const point = pointAt(event);
     if (!point) return;
     if (editing) onPoint?.(point);
@@ -232,12 +287,20 @@ export function Board({
       data-preview={target ? `${target.x},${target.y}` : ""}
       data-numbers={labels?.filter((label) => label !== null).length ?? 0}
       data-rank-dots={dots.length}
+      data-restricted={restriction ? `${restriction.kind}:${restriction.points.length}` : undefined}
+      data-scoring={scoring ? "true" : undefined}
+      data-selecting={region?.kind ?? undefined}
+      data-dragging={drag?.kind}
       // Layout for E2E pointer tests: CSS pixels of point (0, 0) and the line spacing.
       data-cell={(geometry.cell / scale).toFixed(3)}
       data-origin-x={(geometry.originX / scale).toFixed(3)}
       data-origin-y={(geometry.originY / scale).toFixed(3)}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => setDrag(null)}
       onClick={onClick}
       onContextMenu={(event) => {
         event.preventDefault();

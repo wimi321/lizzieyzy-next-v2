@@ -1997,5 +1997,89 @@
       "cancel": "Cancel",
       "close": "Close"
     }
+  },
+  "analysisTools": {
+    "depth": {
+      "firstMove": "Limit the first move only",
+      "custom": "Custom moves:",
+      "customRange": "1 to 200 moves",
+      "whole": "Limit the whole search"
+    },
+    "menu": {
+      "allow": "Analyze only this point",
+      "addAllow": "Also analyze this point",
+      "removeAllow": "Stop analyzing this point",
+      "avoid": "Don't analyze this point",
+      "clear": "Clear the analysis restriction"
+    },
+    "chip": {
+      "title": "Restricted",
+      "Allow": "only {n} points",
+      "Avoid": "avoiding {n} points",
+      "clearHint": "Click to clear the restriction"
+    },
+    "params": {
+      "title": "KataGo engine parameters",
+      "close": "Close",
+      "fields": {
+        "playout_doubling_advantage": {
+          "name": "Aggressive / conservative",
+          "setting": "playoutDoublingAdvantage",
+          "help": "Above 0 the engine plays to widen its lead, more aggressively; below 0, more safely."
+        },
+        "wide_root_noise": {
+          "name": "Analysis breadth",
+          "setting": "wideRootNoise",
+          "help": "Higher values look at more candidate moves at the root: wider analysis, fewer visits for each."
+        },
+        "root_policy_temperature": {
+          "name": "Root policy temperature",
+          "setting": "rootPolicyTemperature",
+          "help": "Above 1 the root's candidates are spread more evenly, so unusual moves are read too."
+        }
+      },
+      "unset": "Empty: the engine config's value",
+      "range": "{min} to {max}",
+      "hint": "Changes can affect strength. They apply to the analysis at once; the engine does not restart.",
+      "reset": "Restore defaults",
+      "cancel": "Cancel",
+      "confirm": "OK"
+    },
+    "scoring": {
+      "title": "Score result",
+      "rule": "Scoring rule",
+      "area": "Area scoring",
+      "territory": "Territory scoring",
+      "hint": "Click a group to mark it dead, an empty point to make it neutral; click again to undo. The result updates by itself.",
+      "black": "Black:",
+      "white": "White:",
+      "terms": {
+        "living": "Stones",
+        "territory": "Territory",
+        "captures": "Prisoners",
+        "dead": "Dead",
+        "komi": "Komi",
+        "handicap": "Handicap"
+      },
+      "blackWins": "Black wins by {n}",
+      "whiteWins": "White wins by {n}",
+      "draw": "Draw",
+      "confirm": "OK",
+      "cancel": "Cancel"
+    },
+    "ladder": {
+      "Captured": "The ladder works: {n} moves added. One undo takes them back.",
+      "Escaped": "The ladder fails, the stones escape: {n} moves added. One undo takes them back."
+    },
+    "errors": {
+      "GameActive": "Not while a game is on.",
+      "InvalidDepth": "The depth is 1 to 200 moves.",
+      "InvalidPoint": "That point is not on the board.",
+      "InvalidSearchParam": "Out of range: {field}",
+      "NotLadder": "There is no ladder going on here.",
+      "NotStarted": "Scoring is not on.",
+      "OutOfBounds": "That point is not on the board.",
+      "InvalidPosition": "This position cannot be scored."
+    }
   }
 }

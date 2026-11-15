@@ -60,6 +60,7 @@ import { useProblemMoves } from "./review/useProblemMoves";
 import { useStrength } from "./review/useStrength";
 import { useWholeGame } from "./review/useWholeGame";
 import { useResearch } from "./research/useResearch";
+import { useAnalysisTools } from "./analysis/useAnalysisTools";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { BottomToolbar, JUMP } from "./frame/BottomToolbar";
@@ -81,13 +82,8 @@ const WINDOWS = navigator.userAgent.includes("Windows");
 /** A wheel notch (or this much trackpad travel) moves one move, as on Java's board. */
 const WHEEL_STEP = 40;
 
-function report(error: unknown) {
-  console.error("Backend command failed", error);
-}
-
-function fileName(path: string): string {
-  return path.split(/[\\/]/).pop() ?? path;
-}
+const report = (error: unknown) => console.error("Backend command failed", error);
+const fileName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 
 /** LizzieYzy Next's window: info and graph left, board centre, the game tree right. */
 export default function App({ store: provided }: { store?: Store } = {}) {
@@ -190,6 +186,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   // 搜索功能, 自由涂鸦, 控制面板, 存档与读档 and 自动播放; step is defined below and only called later.
   const research = useResearch(backend, { labels: messages.research, menuLabels: messages.menu, locale: release.locale, display: display.display, setDisplay: display.set, hasBoard: document?.board != null, current: document?.tree.current ?? null, tree: liveTree, step: (steps) => step(steps) });
   const loadResearch = research.load;
+  // 选点限制, 引擎参数, 终局点目 and 自动补完征子; Rust refuses them during a game, a match or a coach game.
+  const analysisTools = useAnalysisTools(backend, { labels: messages.analysisTools, document, busy: games.active || games.match?.phase === "Running" || games.match?.phase === "Paused" || coach.active, openRules: () => engines.bindings.engineRules?.run?.(), openWeights: () => setToolsTab("weights") });
+  const loadAnalysisTools = analysisTools.load;
 
   useEffect(() => {
     let active = true;
@@ -208,6 +207,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         loadEveryday(settings);
         loadBatch(settings);
         loadResearch(settings);
+        loadAnalysisTools(settings);
         await loadEngines(settings, () => active);
       })
       .catch(report);
@@ -215,7 +215,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       active = false;
     };
     // A state setter: the settings are read once.
-  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease, loadEveryday, loadBatch, loadOnline, loadCommentary, loadResearch]);
+  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease, loadEveryday, loadBatch, loadOnline, loadCommentary, loadResearch, loadAnalysisTools]);
 
   // A comment being edited is saved before the app moves to another move by itself.
   const comment = useCommentEdit(backend, document);
@@ -225,21 +225,22 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   };
   const board = document?.board ?? null;
   const points = useMemo(() => (document ? liveGraph(document.graph, analysis) : []), [document, analysis]);
+  const boardAnalysis = analysisTools.shown(analysis); // restricted while 选点限制 is on; the graph keeps the plain one
   const line = useMemo(() => points.map((point) => point.node_id), [points]);
   const currentIndex = document?.graph.current_index ?? 0;
   const currentNode = document?.tree.current ?? null;
   // The sub-board plays out the best move's line, or the hovered candidate's; the main board
   // shows the same replay only while a candidate is hovered.
   const bestPoint = useMemo(() => {
-    if (!analysis || analysis.node_id !== currentNode) return null;
-    const best = analysis.candidates.reduce<(typeof analysis.candidates)[number] | null>(
+    if (!boardAnalysis || boardAnalysis.node_id !== currentNode) return null;
+    const best = boardAnalysis.candidates.reduce<(typeof boardAnalysis.candidates)[number] | null>(
       (first, candidate) => (candidate.point && candidate.pv.length > 0 && (!first || candidate.order < first.order) ? candidate : first),
       null,
     );
     return best?.point ?? null;
-  }, [analysis, currentNode]);
+  }, [boardAnalysis, currentNode]);
   const hovered = boardHover ?? listHover;
-  const replay = useVariationPreview(backend, currentNode, revision, analysis, hovered ?? bestPoint);
+  const replay = useVariationPreview(backend, currentNode, revision, boardAnalysis, hovered ?? bestPoint);
   const variation = hovered && shown.show_hover_variation ? replay : null;
   const info = document?.game_info ?? null;
   // The mistake bars share the graph's line and indexing; anything else is stale.
@@ -301,7 +302,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     { newBoard: shown.confirm_new_board, replace: shown.confirm_overwrite },
     (kind) => display.set(kind === "newBoard" ? { confirm_new_board: false } : { confirm_overwrite: false }),
   );
-  const boardMenu = useBoardMenu(backend, document, analysis, revision, messages.boardMenu, modes.startMove);
+  const boardMenu = useBoardMenu(backend, document, boardAnalysis, revision, messages.boardMenu, modes.startMove, analysisTools.menuItems);
   // Space and the chip resume a limit stop without changing the saved setting.
   const togglePondering = run.toggle;
   const livePondering = run.state?.pondering ?? pondering;
@@ -404,6 +405,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...commentary.bindings,
     ...remote.bindings,
     ...research.bindings,
+    ...analysisTools.bindings,
     ...(remote.remote ? { autoSetup: { enabled: false } } : {}),
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
@@ -411,7 +413,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   });
   useShortcuts(
     bindings,
-    !(engines.dialogOpen || strengthOpen || online.dialogOpen || commentary.dialogOpen || remote.dialogOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen || research.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || online.dialogOpen || commentary.dialogOpen || remote.dialogOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen || research.dialogOpen || analysisTools.dialogOpen),
   );
   const frame = messages.frame;
   const engineLabel = remote.label(engines.label === "" ? null : engines.label);
@@ -489,6 +491,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       onLimits={(next) => void backend.setAnalysisLimits(next).then(setLimits).catch(report)}
       game={games.toolbar}
       research={research.toolbar}
+      analysis={analysisTools.toolbar}
     />
   );
 
@@ -513,6 +516,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             {batch.tray()}
             {games.tray()}
             {editing.trialChip}
+            {analysisTools.chip}
             {modes.chip}
             {tsumego.status ? <TsumegoChip status={tsumego.status} labels={messages.tsumego} onExit={tsumego.exit} /> : null}
             {sync.status && sync.status.phase !== "Stopped" ? <BoardSyncChip status={sync.status} labels={messages.sync} onStop={sync.stop} /> : null}
@@ -528,7 +532,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         boardSize={board?.width ?? 19}
         boardData={{ "data-revision": revision, "data-node-id": document?.tree.current }}
         boardOverlay={research.paintLayer}
-        cover={research.cover}
+        cover={analysisTools.cover ?? research.cover}
         onBoardWheel={(event) => {
           // Lines (Firefox, some mice) count as whole notches.
           wheel.current += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * WHEEL_STEP;
@@ -610,7 +614,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           board: board ? (
             <Board
               board={board}
-              analysis={analysis}
+              analysis={boardAnalysis}
               coordinates={shown.show_coordinates}
               {...estimate.board}
               maxCandidates={games.hideCandidates || coach.hidesAnalysis ? 0 : shown.max_suggestions > 0 ? shown.max_suggestions : board.width * board.height}
@@ -628,6 +632,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               markup={coach.markup(document?.markup ?? undefined)}
               editing={modes.editing}
               onPoint={modes.onPoint}
+              {...analysisTools.board}
               onContextMenu={(point, x, y) => {
                 if (!modes.secondary(point)) boardMenu.open(point, x, y);
               }}
@@ -641,7 +646,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           ),
           list: coach.panel() ?? (
             <CandidateList
-              analysis={analysis && analysis.node_id === current ? analysis : null}
+              analysis={boardAnalysis && boardAnalysis.node_id === current ? boardAnalysis : null}
               toPlay={board?.to_play ?? "Black"}
               blackWinrate={shown.winrate_always_black}
               scoreOffset={scoreOffset}
@@ -709,6 +714,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onTrial={editing.toggleTrial}
           onRemote={() => remote.open()}
           autoPlay={research.autoPlay}
+          tools={analysisTools.bottom}
         />
       ) : null}
       {editing.dialogs}
@@ -784,6 +790,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       ) : null}
       {engines.dialogs}
       {research.windows(menus, bindings)}
+      {analysisTools.windows}
     </main>
   );
 }

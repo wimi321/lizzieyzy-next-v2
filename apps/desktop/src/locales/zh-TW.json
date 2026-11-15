@@ -1997,5 +1997,89 @@
       "cancel": "取消",
       "close": "關閉"
     }
+  },
+  "analysisTools": {
+    "depth": {
+      "firstMove": "僅限制第一手",
+      "custom": "自定義限制手數:",
+      "customRange": "1 到 200 手",
+      "whole": "限制整個搜尋過程"
+    },
+    "menu": {
+      "allow": "只分析此點",
+      "addAllow": "增加分析此點",
+      "removeAllow": "去除分析此點",
+      "avoid": "不分析此點",
+      "clear": "清除分析限制"
+    },
+    "chip": {
+      "title": "選點限制",
+      "Allow": "只分析 {n} 點",
+      "Avoid": "不分析 {n} 點",
+      "clearHint": "點擊清除選點限制"
+    },
+    "params": {
+      "title": "設定KataGo引擎高階參數",
+      "close": "關閉",
+      "fields": {
+        "playout_doubling_advantage": {
+          "name": "激進/保守程度",
+          "setting": "playoutDoublingAdvantage",
+          "help": "大於 0 時引擎更想擴大優勢，下得更激進；小於 0 時更穩。"
+        },
+        "wide_root_noise": {
+          "name": "分析廣度拓展",
+          "setting": "wideRootNoise",
+          "help": "加大後根節點會看更多候選點，分析更廣，但每個點算得更少。"
+        },
+        "root_policy_temperature": {
+          "name": "根策略溫度",
+          "setting": "rootPolicyTemperature",
+          "help": "大於 1 時根節點的候選更分散，不常見的下法也會被計算。"
+        }
+      },
+      "unset": "留空：用引擎設定裡的值",
+      "range": "{min} 到 {max}",
+      "hint": "修改參數可能影響棋力。改動立即作用於分析，不需要重新啟動引擎。",
+      "reset": "恢復預設",
+      "cancel": "取消",
+      "confirm": "確定"
+    },
+    "scoring": {
+      "title": "點目結果",
+      "rule": "計分規則",
+      "area": "數子規則",
+      "territory": "數目規則",
+      "hint": "點選選擇死子和無目點(再次點選取消),計算結果會自動更新",
+      "black": "黑方:",
+      "white": "白方:",
+      "terms": {
+        "living": "活子",
+        "territory": "地",
+        "captures": "提子",
+        "dead": "死子",
+        "komi": "貼目",
+        "handicap": "讓子補償"
+      },
+      "blackWins": "黑勝 {n} 目",
+      "whiteWins": "白勝 {n} 目",
+      "draw": "和棋",
+      "confirm": "確定",
+      "cancel": "取消"
+    },
+    "ladder": {
+      "Captured": "徵子成立，已補完 {n} 手，一次復原即可還原。",
+      "Escaped": "徵子不成立，被徵的棋逃出；已補完 {n} 手，一次復原即可還原。"
+    },
+    "errors": {
+      "GameActive": "對局進行中，不能使用此功能。",
+      "InvalidDepth": "限制手數要在 1 到 200 之間。",
+      "InvalidPoint": "這個點不在棋盤上。",
+      "InvalidSearchParam": "參數超出範圍：{field}",
+      "NotLadder": "這裡沒有在進行的徵子。",
+      "NotStarted": "現在不在點目。",
+      "OutOfBounds": "這個點不在棋盤上。",
+      "InvalidPosition": "目前局面無法點目。"
+    }
   }
 }
