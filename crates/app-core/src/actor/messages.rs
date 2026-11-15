@@ -3,6 +3,7 @@ use super::*;
 pub(crate) enum Input {
     OpenBytes(Vec<u8>),
     OpenPath(PathBuf),
+    LoadSlot(String),
     OpenDroppedPaths(Vec<PathBuf>),
     Save(PathBuf),
     CopySgf,
@@ -25,6 +26,8 @@ pub(crate) enum Input {
     SetAlwaysOnTop(bool),
     SetUiScale(f64),
     SetPlaySound(bool),
+    SetAutosave(bool),
+    SetRestoreLastGame(bool),
     SetFlashAnalysis(crate::FlashAnalysisSettings),
     EnsureNoBatch,
     SetAutoCheckUpdates(bool),
@@ -41,6 +44,7 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    SaveSlots(crate::save_slots_api::Request),
     ZhiziService(oneshot::Sender<crate::zhizi::ZhiziService>),
     ZhiziCredentialsChanged(oneshot::Sender<Result<(), AppError>>),
     Remote(crate::remote::Request),

@@ -38,6 +38,10 @@ pub struct EngineProfile {
 #[serde(default)]
 pub struct Settings {
     pub version: u32,
+    #[ts(as = "Option<bool>", optional)]
+    pub autosave: bool,
+    #[ts(as = "Option<bool>", optional)]
+    pub restore_last_game: bool,
     #[ts(as = "Option<crate::CommentarySettings>", optional)]
     pub commentary: crate::CommentarySettings,
     #[ts(as = "Option<crate::UiLanguage>", optional)]
@@ -94,6 +98,8 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             version: SETTINGS_VERSION,
+            autosave: true,
+            restore_last_game: false,
             commentary: Default::default(),
             language: crate::UiLanguage::System,
             always_on_top: false,

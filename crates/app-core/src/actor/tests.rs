@@ -25,6 +25,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
     (
         Actor {
             document,
+            saves: Default::default(),
             file_name: None,
             file_state: super::editing::FileState::new(&GameDocument::new(), None),
             tsumego: None,

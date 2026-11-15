@@ -41,6 +41,7 @@ pub(super) fn write(
         let diagnostics = sanitize::json(serde_json::to_value(input.diagnostics)?);
         let system = json!({
             "version": sanitize::text(&input.version),
+            "save_slot_count": input.save_slot_count,
             "os": std::env::consts::OS,
             "architecture": std::env::consts::ARCH,
             "family": std::env::consts::FAMILY,

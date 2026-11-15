@@ -385,6 +385,7 @@ fn blocked_input(input: &Input) -> bool {
         Input::Edit(document::Command::Step(_) | document::Command::GoTo(_)) => false,
         Input::OpenBytes(_)
         | Input::OpenPath(_)
+        | Input::LoadSlot(_)
         | Input::OpenDroppedPaths(_)
         | Input::Save(_)
         | Input::PasteSgf
