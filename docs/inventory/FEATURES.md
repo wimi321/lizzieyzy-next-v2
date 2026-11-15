@@ -292,7 +292,7 @@
 | 详细工具栏：引擎对弈高级设置（`legacy.engine-game-settings`） | 底部工具栏 → 详细工具栏：引擎对弈高级设置（旧详细工具栏限中文） | `gui/BottomToolbar.java`；`gui/EnginePkConfig.java` | 两个兼容对局引擎 / 模型 | P3 | 引擎对局与批量赛程控制明确属于 ROADMAP P3。 |
 | 详细工具栏：暂停或继续引擎对弈（`legacy.engine-game-pause`） | 底部工具栏 → 详细工具栏：暂停或继续引擎对弈（旧详细工具栏限中文） | `gui/BottomToolbar.java`；`gui/NewEngineGameDialog.java` | 两个兼容对局引擎 / 模型 | P3 | 引擎对局与批量赛程控制明确属于 ROADMAP P3。 |
 | 详细工具栏：介入引擎对弈（`legacy.engine-game-intervene`） | 底部工具栏 → 详细工具栏：介入引擎对弈（旧详细工具栏限中文） | `gui/BottomToolbar.java`；`gui/Manual.java` | 两个兼容对局引擎 / 模型 | P3 | 引擎对局与批量赛程控制明确属于 ROADMAP P3。 |
-| 独立棋局控制面板（`menu.ctrlPanel`） | 显示 → 面板 → 独立棋局控制面板 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统；对局引擎 | P3 | 独立棋局控制面板随 P3 对局与多窗口工作流提供。 |
+| 独立棋局控制面板（`menu.ctrlPanel`） | 显示 → 面板 → 独立棋局控制面板 | `gui/Menu.java`；`gui/LizzieFrame.java`；`gui/Controller.java` | 桌面窗口系统 | P3 | 一个可拖动的大号翻页面板（首末手、前后 5 手、前后 1 手、返回主分支、涂鸦），与对局和引擎无关；随 P3 研究工具（P3-26）提供。 |
 | 人机续弈（`menu.continueGameAgainstAi`） | 棋局 → 人机续弈 | `gui/Menu.java`；`gui/LizzieFrame.java` | 引擎 / 模型；Genmove 模式依 GTP | P3 | 人机对局及其用时控制明确属于 ROADMAP P3。 |
 | 人机对局（`menu.newGenmoveGame`） | 棋局 → 新对局 → 人机对局 | `gui/Menu.java`；`gui/NewGameDialog.java` | 引擎 / 模型；Genmove 模式依 GTP | P3 | 人机对局及其用时控制明确属于 ROADMAP P3。 |
 | 引擎对局（`menu.newEngineGame`） | 棋局 → 新对局 → 引擎对局 | `gui/Menu.java`；`gui/NewEngineGameDialog.java` | 两个兼容对局引擎 / 模型 | P3 | 引擎对局与批量赛程控制明确属于 ROADMAP P3。 |
