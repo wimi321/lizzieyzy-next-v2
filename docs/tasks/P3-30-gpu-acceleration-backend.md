@@ -19,6 +19,8 @@ P3 第 2 批「Windows 显卡提速的真机验收」的后端。界面在 P3-31
 
 现状的问题（2026-11-15 在真机上核对代码）：Windows 安装包只带 CPU（Eigen）引擎；「英伟达显卡提速组件」的安装走 `repair_engine(InstallRuntime)`，它要求当前主引擎已经是清单里的 NVIDIA `katago.exe`（按 SHA-256 识别），对自带的 CPU 引擎直接报错「selected engine does not require a managed NVIDIA runtime」。也就是说，新装的用户点「安装」会失败，界面上也没有别的入口换到显卡引擎。Java 版靠分开的 Windows 安装包解决（NVIDIA 包自带 CUDA，OpenCL 包给 AMD / Intel / 老 NVIDIA 卡），六成下载是显卡包。
 
+另一个问题：应用内下载引擎包的地址用清单的 `engineReleaseTag`（`next-2026-10-28.1`），这个发布还是草稿，公开访问是 404，所以正式版里「安装提速组件」的下载必然失败。打包脚本用 `resources/katago/bundle-pins.json` 里已发布的 `next-2026-10-24.2` 绕过了它（同样的文件、同样的 SHA-256），应用内的下载没有。
+
 本卡让默认安装的用户一键换到显卡引擎，并加一个真机测试，由维护者在真实的 Windows 显卡机器上跑。
 
 Java 参考只学行为（`../lizzieyzy-next`，路径相对 `src/main/java/featurecat/lizzie/`）：
@@ -36,6 +38,7 @@ Java 参考只学行为（`../lizzieyzy-next`，路径相对 `src/main/java/feat
 ## 要做
 
 1. **清单**（`resources/katago/katago-assets.json` 和 `assets/catalog.rs`）
+   - `engineReleaseTag` 改成已发布的 `next-2026-10-24.2`，应用内下载和打包用同一个发布。文件和 SHA-256 不变，打包的固定版本不用动。
    - 加载 `windows-opencl`（stable 级别）作为可下载的引擎资产，和 `windows-nvidia`、`windows-tensorrt` 一样按 SHA-256 固定。
    - 加一个运行配置 `opencl`：引擎资产 `windows-opencl`，`requiredFiles` 按压缩包里实际的文件写（先下载核对一次）；需要 MSVC 运行库时带上 `runtime-msvc-runtime`。
    - 现有的 `cuda12.8-cudnn9`、`cuda12.8-cudnn9-tensorrt` 不变。
