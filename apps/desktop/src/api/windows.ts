@@ -1,0 +1,41 @@
+import { invoke } from "@tauri-apps/api/core";
+import type { FloatingBoardKind } from "./generated/FloatingBoardKind";
+import type { FloatingBoardsView } from "./generated/FloatingBoardsView";
+import type { DisplaySettings } from "./generated/DisplaySettings";
+import type { WindowLayout } from "./generated/WindowLayout";
+
+export type { FloatingBoardKind, FloatingBoardsView, WindowLayout };
+export type { WindowBounds } from "./generated/WindowBounds";
+export type { WindowPlacement } from "./generated/WindowPlacement";
+export type { CustomLayout } from "./generated/CustomLayout";
+export type { LayoutMode } from "./generated/LayoutMode";
+export type { LayoutPanels } from "./generated/LayoutPanels";
+export type FloatingBoardsChangedListener = (view: FloatingBoardsView) => void;
+export type DisplaySettingsChangedListener = (display: DisplaySettings) => void;
+
+export interface WindowCommands {
+  fitMainWindow?(width: number, height: number): Promise<void>;
+  resetWindowPositions?(): Promise<void>;
+  openFloatingBoard?(kind: FloatingBoardKind): Promise<FloatingBoardsView>;
+  closeFloatingBoard?(kind: FloatingBoardKind): Promise<FloatingBoardsView>;
+  setFloatingBoardOptions?(kind: FloatingBoardKind, onTop: boolean, locked: boolean): Promise<FloatingBoardsView>;
+  setFloatingLayout?(main: boolean, keepMainBoard: boolean, sub: boolean): Promise<FloatingBoardsView>;
+  applyWindowLayout?(layout: WindowLayout): Promise<DisplaySettings>;
+}
+
+/** Width and height are client (inner) sizes in logical pixels; Rust adds the frame and fits the outer bounds to the screen. */
+export const fitMainWindow: NonNullable<WindowCommands["fitMainWindow"]> = (width, height) =>
+  invoke("fit_main_window", { width, height });
+export const resetWindowPositions: NonNullable<WindowCommands["resetWindowPositions"]> = () =>
+  invoke("reset_window_positions");
+export const openFloatingBoard: NonNullable<WindowCommands["openFloatingBoard"]> = (kind) =>
+  invoke("open_floating_board", { kind });
+export const closeFloatingBoard: NonNullable<WindowCommands["closeFloatingBoard"]> = (kind) =>
+  invoke("close_floating_board", { kind });
+export const setFloatingBoardOptions: NonNullable<WindowCommands["setFloatingBoardOptions"]> = (kind, onTop, locked) =>
+  invoke("set_floating_board_options", { kind, onTop, locked });
+export const setFloatingLayout: NonNullable<WindowCommands["setFloatingLayout"]> = (main, keepMainBoard, sub) =>
+  invoke("set_floating_layout", { main, keepMainBoard, sub });
+/** Apply a saved layout's native window state through the serialized shell path. */
+export const applyWindowLayout: NonNullable<WindowCommands["applyWindowLayout"]> = (layout) =>
+  invoke("apply_window_layout", { layout });

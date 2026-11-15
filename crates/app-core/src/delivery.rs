@@ -6,6 +6,8 @@ use tokio::sync::watch;
 #[derive(Clone, Default)]
 struct Mailbox {
     serial: u64,
+    display: Option<(u64, AppEvent)>,
+    floating: Option<(u64, AppEvent)>,
     commentary: Option<(u64, AppEvent)>,
     document: Option<(u64, AppEvent)>,
     analysis: Option<(u64, AppEvent)>,
@@ -30,7 +32,7 @@ pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 17],
+    read: [Option<u64>; 19],
     console_read: u64,
 }
 
@@ -40,7 +42,7 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 17],
+            read: [None; 19],
             console_read: 0,
         },
     )
@@ -74,6 +76,8 @@ impl Delivery {
                 return true;
             }
             let slot = match &event {
+                AppEvent::DisplaySettingsChanged(_) => &mut mailbox.display,
+                AppEvent::FloatingBoardsChanged(_) => &mut mailbox.floating,
                 AppEvent::GtpConsoleLine(_) => return false,
                 AppEvent::CommentaryUpdated(_) => &mut mailbox.commentary,
                 AppEvent::MatchUpdated(_) => &mut mailbox.match_game,
@@ -145,6 +149,8 @@ impl AppSubscription {
                     &mailbox.coach_rating,
                     &mailbox.coach_summary,
                     &mailbox.commentary,
+                    &mailbox.display,
+                    &mailbox.floating,
                 ]
                 .into_iter()
                 .enumerate()

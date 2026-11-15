@@ -1,4 +1,5 @@
 import type { AnalysisToolsCommands } from "./analysis-tools";
+import type { WindowCommands, FloatingBoardsChangedListener, DisplaySettingsChangedListener } from "./windows";
 import type { ZhiziCommands } from "./zhizi";
 import type { CommentaryCommands, CommentaryUpdatedListener } from "./commentary";
 import type { RemoteCommands } from "./remote";
@@ -48,7 +49,7 @@ import type { VariationTreeView } from "./generated/VariationTreeView";
 
 /** Domain status subscriptions share one ordered IPC channel while existing
  * document/analysis UI consumers retain their original event set. */
-export type AppEvent = Exclude<WireAppEvent, { type: "CommentaryUpdated" | "CoachUpdated" | "CoachMoveRated" | "CoachSummary" | "MatchUpdated" | "GtpConsoleLine" | "GameUpdated" | "WholeGameProgress" | "BatchAnalysisProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" | "AssetDownloadProgress" | "UpdateDownloadProgress" }>;
+export type AppEvent = Exclude<WireAppEvent, { type: "FloatingBoardsChanged" | "DisplaySettingsChanged" | "CommentaryUpdated" | "CoachUpdated" | "CoachMoveRated" | "CoachSummary" | "MatchUpdated" | "GtpConsoleLine" | "GameUpdated" | "WholeGameProgress" | "BatchAnalysisProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" | "AssetDownloadProgress" | "UpdateDownloadProgress" }>;
 export type OpenFailed = Extract<WireAppEvent, { type: "OpenFailed" }>["data"];
 export type OpenFailedListener = (failure: OpenFailed) => void;
 export type { EngineDisplayName };
@@ -75,6 +76,7 @@ export * from "./setup-markup";
 export * from "./move-editing";
 export * from "./display-settings";
 export * from "./save-slots";
+export * from "./windows";
 export * from "./analysis-cache";
 export * from "./engines";
 export * from "./weights";
@@ -117,7 +119,9 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends AnalysisToolsCommands, SaveSlotCommands, ZhiziCommands, RemoteCommands, CommentaryCommands, TencentCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+export interface Backend extends WindowCommands, AnalysisToolsCommands, SaveSlotCommands, ZhiziCommands, RemoteCommands, CommentaryCommands, TencentCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+  subscribeFloatingBoardsChanged?(listener: FloatingBoardsChangedListener): Promise<number>;
+  subscribeDisplaySettingsChanged?(listener: DisplaySettingsChangedListener): Promise<number>;
   subscribeCommentaryUpdated?(listener: CommentaryUpdatedListener): Promise<number>;
   subscribeCoachUpdated?(listener: CoachUpdatedListener): Promise<number>;
   subscribeCoachMoveRated?(listener: CoachMoveRatedListener): Promise<number>;
@@ -312,7 +316,7 @@ async function subscribeWire(listener: (event: WireAppEvent) => void): Promise<n
 }
 
 export const subscribe: Backend["subscribe"] = (listener) => subscribeWire((event) => {
-  if (event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+  if (event.type !== "FloatingBoardsChanged" && event.type !== "DisplaySettingsChanged" && event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
 });
 
 export const subscribeOpenFailed: Backend["subscribeOpenFailed"] =
@@ -390,3 +394,13 @@ export const subscribeCoachSummary: NonNullable<Backend["subscribeCoachSummary"]
 export const subscribeCommentaryUpdated: NonNullable<Backend["subscribeCommentaryUpdated"]> = (listener) => subscribeWire((event) => {
   if (event.type === "CommentaryUpdated") listener(event.data);
 });
+
+/** Each webview owns its channel; these listeners share that webview's lifecycle. */
+export const subscribeFloatingBoardsChanged: NonNullable<Backend["subscribeFloatingBoardsChanged"]> =
+  (listener) => subscribeWire((event) => {
+    if (event.type === "FloatingBoardsChanged") listener(event.data);
+  });
+export const subscribeDisplaySettingsChanged: NonNullable<Backend["subscribeDisplaySettingsChanged"]> =
+  (listener) => subscribeWire((event) => {
+    if (event.type === "DisplaySettingsChanged") listener(event.data);
+  });

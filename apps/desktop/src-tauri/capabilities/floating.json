@@ -1,0 +1,29 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "floating",
+  "description": "Local floating boards: document interaction, analysis control, event subscriptions and their own window options.",
+  "local": true,
+  "windows": ["float-main", "float-sub"],
+  "permissions": [
+    "allow-settings",
+    "allow-variation-tree",
+    "allow-subscribe",
+    "allow-unsubscribe",
+    "allow-play",
+    "allow-step",
+    "allow-go-to",
+    "allow-preview-variation",
+    "allow-set-analysis-restriction",
+    "allow-add-restriction-points",
+    "allow-remove-restriction-points",
+    "allow-clear-analysis-restriction",
+    "allow-analysis-state",
+    "allow-set-pondering",
+    "allow-toggle-pondering",
+    "allow-close-floating-board",
+    "allow-set-floating-board-options",
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
+    "core:window:allow-set-size"
+  ]
+}

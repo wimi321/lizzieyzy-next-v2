@@ -38,7 +38,7 @@ tauri = { version = "~2.12", features = ["test"] }
 fake-katago = { path = "../../../tools/fake-katago" }
 tempfile = "3"
 # Local HTTP fixtures only; the actor runtime features remain in dependencies.
-tokio = { version = "1", features = ["net", "io-util"] }
+tokio = { version = "1", features = ["net", "io-util", "test-util"] }
 
 [features]
 default = ["dev-tools"]

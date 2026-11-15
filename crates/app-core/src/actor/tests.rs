@@ -297,7 +297,9 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                     assert_eq!(view.graph.points[0].summary, None, "{rejection}");
                 }
                 AppEvent::AnalysisUpdated(_) => panic!("forwarded {rejection} snapshot"),
-                AppEvent::CommentaryUpdated(_)
+                AppEvent::DisplaySettingsChanged(_)
+                | AppEvent::FloatingBoardsChanged(_)
+                | AppEvent::CommentaryUpdated(_)
                 | AppEvent::MatchUpdated(_)
                 | AppEvent::GtpConsoleLine(_)
                 | AppEvent::GameUpdated(_)

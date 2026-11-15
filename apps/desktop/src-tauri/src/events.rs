@@ -1,4 +1,6 @@
-//! One consumer and one Channel preserve AppCore's cross-event ordering.
+//! One consumer broadcasts ordered AppCore events to one Channel per webview.
+use std::collections::BTreeMap;
+
 use app_core::{AppEvent, AppSubscription};
 use tauri::ipc::Channel;
 use tokio::sync::{mpsc, oneshot};
@@ -7,10 +9,11 @@ use crate::error::CommandError;
 
 enum Request {
     Subscribe(
+        String,
         Channel<AppEvent>,
         oneshot::Sender<Result<u32, CommandError>>,
     ),
-    Unsubscribe(u32, oneshot::Sender<()>),
+    Unsubscribe(String, u32, oneshot::Sender<()>),
 }
 
 #[derive(Clone)]
@@ -25,19 +28,23 @@ impl EventBridge {
         Self { requests }
     }
 
-    pub async fn subscribe(&self, channel: Channel<AppEvent>) -> Result<u32, CommandError> {
+    pub async fn subscribe(
+        &self,
+        owner: String,
+        channel: Channel<AppEvent>,
+    ) -> Result<u32, CommandError> {
         let (reply, response) = oneshot::channel();
         self.requests
-            .send(Request::Subscribe(channel, reply))
+            .send(Request::Subscribe(owner, channel, reply))
             .await
             .map_err(|_| CommandError::StreamClosed)?;
         response.await.map_err(|_| CommandError::StreamClosed)?
     }
 
-    pub async fn unsubscribe(&self, id: u32) -> Result<(), CommandError> {
+    pub async fn unsubscribe(&self, owner: String, id: u32) -> Result<(), CommandError> {
         let (reply, response) = oneshot::channel();
         self.requests
-            .send(Request::Unsubscribe(id, reply))
+            .send(Request::Unsubscribe(owner, id, reply))
             .await
             .map_err(|_| CommandError::StreamClosed)?;
         response.await.map_err(|_| CommandError::StreamClosed)
@@ -45,7 +52,7 @@ impl EventBridge {
 }
 
 async fn forward(mut subscription: AppSubscription, mut requests: mpsc::Receiver<Request>) {
-    let mut active: Option<(u32, Channel<AppEvent>)> = None;
+    let mut active = BTreeMap::<String, (u32, Channel<AppEvent>)>::new();
     let mut next_id = Some(1_u32);
     // Keep one latest event per state domain, including coaching state/summary,
     // retained in their original publication order. Individual move ratings
@@ -57,17 +64,17 @@ async fn forward(mut subscription: AppSubscription, mut requests: mpsc::Receiver
         tokio::select! {
             biased;
             request = requests.recv() => match request {
-                Some(Request::Subscribe(channel, reply)) => {
+                Some(Request::Subscribe(owner, channel, reply)) => {
                     let Some(id) = next_id else {
                         let _ = reply.send(Err(CommandError::SubscriptionLimit));
                         continue;
                     };
                     next_id = id.checked_add(1);
-                    active = None;
+                    active.remove(&owner);
                     let result = replay.iter().try_for_each(|event| channel.send(event.clone()));
                     match result {
                         Ok(()) => {
-                            active = Some((id, channel));
+                            active.insert(owner, (id, channel));
                             let _ = reply.send(Ok(id));
                         }
                         Err(error) => {
@@ -75,9 +82,9 @@ async fn forward(mut subscription: AppSubscription, mut requests: mpsc::Receiver
                         }
                     }
                 }
-                Some(Request::Unsubscribe(id, reply)) => {
-                    if active.as_ref().is_some_and(|(current, _)| *current == id) {
-                        active = None;
+                Some(Request::Unsubscribe(owner, id, reply)) => {
+                    if active.get(&owner).is_some_and(|(current, _)| *current == id) {
+                        active.remove(&owner);
                     }
                     let _ = reply.send(());
                 }
@@ -85,14 +92,10 @@ async fn forward(mut subscription: AppSubscription, mut requests: mpsc::Receiver
             },
             // Leave unread events in AppCore's bounded, invalidation-aware
             // mailbox while disconnected, including a completed final result.
-            event = subscription.recv(), if active.is_some() => {
+            event = subscription.recv(), if !active.is_empty() => {
                 let Some(event) = event else { break };
                 remember_state(&mut replay, &event);
-                if let Some((_, channel)) = &active
-                    && channel.send(event).is_err()
-                {
-                    active = None;
-                }
+                active.retain(|_, (_, channel)| channel.send(event.clone()).is_ok());
             }
         }
     }

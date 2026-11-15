@@ -1,5 +1,5 @@
 use app_core::{AnalysisState, AppEvent};
-use tauri::{State, ipc::Channel};
+use tauri::{Runtime, State, Webview, ipc::Channel};
 
 use crate::{DesktopState, bindings::SubscriptionId, error::CommandError};
 
@@ -24,16 +24,29 @@ pub async fn toggle_pondering(
 }
 
 #[tauri::command]
-pub async fn subscribe(
+pub async fn subscribe<R: Runtime>(
+    webview: Webview<R>,
     state: State<'_, DesktopState>,
     channel: Channel<AppEvent>,
 ) -> Result<SubscriptionId, CommandError> {
-    Ok(SubscriptionId(state.events.subscribe(channel).await?))
+    Ok(SubscriptionId(
+        state
+            .events
+            .subscribe(webview.label().to_owned(), channel)
+            .await?,
+    ))
 }
 
 #[tauri::command]
-pub async fn unsubscribe(state: State<'_, DesktopState>, id: u32) -> Result<(), CommandError> {
-    state.events.unsubscribe(id).await
+pub async fn unsubscribe<R: Runtime>(
+    webview: Webview<R>,
+    state: State<'_, DesktopState>,
+    id: u32,
+) -> Result<(), CommandError> {
+    state
+        .events
+        .unsubscribe(webview.label().to_owned(), id)
+        .await
 }
 
 #[tauri::command]

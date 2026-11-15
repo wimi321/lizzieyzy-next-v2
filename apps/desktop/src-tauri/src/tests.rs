@@ -49,6 +49,7 @@ mod zhizi_website;
 
 const SAFETY: Duration = Duration::from_secs(5);
 
+mod floating_access;
 mod fox;
 
 #[test]
@@ -217,6 +218,8 @@ impl Harness {
                     | AppEvent::CoachUpdated(_)
                     | AppEvent::CoachMoveRated(_)
                     | AppEvent::CoachSummary(_)
+                    | AppEvent::FloatingBoardsChanged(_)
+                    | AppEvent::DisplaySettingsChanged(_)
                     | AppEvent::CommentaryUpdated(_) => {}
                 }
             }

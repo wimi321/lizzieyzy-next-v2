@@ -186,7 +186,9 @@ impl Settings {
                 });
             }
         };
-        let settings: Self = serde_json::from_slice(&bytes)?;
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes)?;
+        crate::windows::recover_positions(&mut value);
+        let settings: Self = serde_json::from_value(value)?;
         let mut settings = settings.normalized()?;
         if !settings.display.remember_estimate {
             settings.display.estimate_location = crate::EstimateLocation::Off;

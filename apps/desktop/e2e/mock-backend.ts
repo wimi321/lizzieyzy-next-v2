@@ -1,10 +1,11 @@
-import { fillSaveSlotDefaults, fillZhiziDefaults } from "./fixtures";
+import { fillSaveSlotDefaults, fillZhiziDefaults, fillLayoutDefaults, fillFloatingBoardsDefaults } from "./fixtures";
 import type { SaveSlot, CommentaryUpdated, CommentarySettings, CommentaryKeyStatus, CoachView, CoachHint, HumanSlModelStatus, GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 import { fillRemoteProfileDefaults, fillCommentaryKeyDefaults, defaultCommentarySettings, fillCommentarySettingsDefaults, fillCommentaryDefaults, defaultCoachSetup, fillCoachSetupDefaults, fillCoachDefaults, fillCoachRatingDefaults, fillCoachSummaryDefaults, fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 import type { TencentPage } from "../src/api/backend";
 import { fillTencentPageDefaults } from "./fixtures";
 
 export type {
+  WindowCommands, FloatingBoardKind, FloatingBoardsView, FloatingBoardsChangedListener, DisplaySettingsChangedListener, WindowBounds, WindowPlacement, WindowLayout, CustomLayout, LayoutMode, LayoutPanels,
   AnalysisToolsCommands, AnalysisRestriction, RestrictionKind, RestrictionDepth, RestrictionDepthSettings, SearchParams, AnalysisToolsError, LadderOutcome, LadderContinuation, ScoringView, ScoringRuleView, ScoringError,
   ZhiziCommands, ZhiziStatus, ZhiziVerificationPurpose, ZhiziCodeDelivery, ZhiziOverview, ZhiziUsagePage, ZhiziCreditPage, ZhiziEngineOptions, ZhiziPlan, ZhiziWeight, ZhiziError, ZhiziErrorKind,
   TencentCommands, TencentQuery, TencentPage, TencentGame, TencentPlayer, TencentRank, TencentFailure, OpenUrlFailure,
@@ -51,7 +52,7 @@ export type {
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribeCommentaryUpdated" | "subscribeCoachUpdated" | "subscribeCoachMoveRated" | "subscribeCoachSummary" | "subscribeMatchUpdated" | "subscribeGtpConsole" | "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
+type CommandName = Exclude<keyof Backend, "subscribeFloatingBoardsChanged" | "subscribeDisplaySettingsChanged" | "subscribeCommentaryUpdated" | "subscribeCoachUpdated" | "subscribeCoachMoveRated" | "subscribeCoachSummary" | "subscribeMatchUpdated" | "subscribeGtpConsole" | "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -181,6 +182,8 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       for (const listener of [...listeners.values()]) {
         try {
           const cloned = structuredClone(event);
+          if (cloned.type === "FloatingBoardsChanged") fillFloatingBoardsDefaults(cloned.data);
+          if (cloned.type === "DisplaySettingsChanged") fillDisplayDefaults(cloned.data);
           if (cloned.type === "MatchUpdated") fillMatchDefaults(cloned.data);
           if (cloned.type === "GtpConsoleLine") fillGtpLineDefaults(cloned.data);
           if (cloned.type === "CommentaryUpdated") fillCommentaryDefaults(cloned.data);
@@ -246,11 +249,12 @@ async function command<K extends CommandName>(
     lastAnalysisState = structuredClone(next.result);
   }
   const cloned = structuredClone(result);
+  if (["openFloatingBoard", "closeFloatingBoard", "setFloatingBoardOptions", "setFloatingLayout"].includes(next.command)) fillFloatingBoardsDefaults(cloned as import("../src/api/backend").FloatingBoardsView);
   if (next.command === "saveSlots") (cloned as SaveSlot[]).forEach(fillSaveSlotDefaults);
   if (["saveToNewSlot", "overwriteSlot", "renameSlot"].includes(next.command)) fillSaveSlotDefaults(cloned as SaveSlot);
   if (next.command === "tencentSearch" || next.command === "tencentNextPage") fillTencentPageDefaults(cloned as TencentPage);
   if (next.command === "analysisState" || next.command === "togglePondering") defaultField(cloned as AnalysisState, "pure_network", false);
-  if (next.command === "setDisplaySettings") fillDisplayDefaults(cloned as NonNullable<Settings["display"]>);
+  if (next.command === "setDisplaySettings" || next.command === "applyWindowLayout") fillDisplayDefaults(cloned as NonNullable<Settings["display"]>);
   if (next.command === "wholeGameResult" && cloned) fillAnalysisDefaults(cloned as AnalysisView);
   if (next.command === "problemMoves" && cloned) fillLossDefaults(cloned as ProblemMovesView);
   if (next.command === "variationTree") fillTreeDefaults(cloned as VariationTreeView);
@@ -397,6 +401,7 @@ function fillDisplayDefaults(display: NonNullable<Settings["display"]>): void {
   for (const key of Object.getOwnPropertyNames(defaultDisplaySettings) as (keyof typeof defaultDisplaySettings)[]) {
     defaultField(display, key, structuredClone(defaultDisplaySettings[key]));
   }
+  fillLayoutDefaults(display);
   if (display.control_panel_bounds) {
     defaultField(display.control_panel_bounds, "x", 0);
     defaultField(display.control_panel_bounds, "y", 0);
@@ -743,7 +748,7 @@ export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+    if (event.type !== "FloatingBoardsChanged" && event.type !== "DisplaySettingsChanged" && event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
   });
   pushEvents([]);
   return id;
@@ -1001,3 +1006,21 @@ export const deleteSlot: NonNullable<Backend["deleteSlot"]> = (id) => command("d
 export const deleteAllSlots: NonNullable<Backend["deleteAllSlots"]> = () => command("deleteAllSlots", []);
 export const setAutosave: NonNullable<Backend["setAutosave"]> = (enabled) => command("setAutosave", [enabled]);
 export const setRestoreLastGame: NonNullable<Backend["setRestoreLastGame"]> = (enabled) => command("setRestoreLastGame", [enabled]);
+
+export const fitMainWindow: NonNullable<Backend["fitMainWindow"]> = (width, height) => command("fitMainWindow", [width, height]);
+export const resetWindowPositions: NonNullable<Backend["resetWindowPositions"]> = () => command("resetWindowPositions", []);
+export const openFloatingBoard: NonNullable<Backend["openFloatingBoard"]> = (kind) => command("openFloatingBoard", [kind]);
+export const closeFloatingBoard: NonNullable<Backend["closeFloatingBoard"]> = (kind) => command("closeFloatingBoard", [kind]);
+export const setFloatingBoardOptions: NonNullable<Backend["setFloatingBoardOptions"]> = (kind, onTop, locked) => command("setFloatingBoardOptions", [kind, onTop, locked]);
+export const setFloatingLayout: NonNullable<Backend["setFloatingLayout"]> = (main, keepMainBoard, sub) => command("setFloatingLayout", [main, keepMainBoard, sub]);
+export const applyWindowLayout: NonNullable<Backend["applyWindowLayout"]> = (layout) => command("applyWindowLayout", [layout]);
+export const subscribeFloatingBoardsChanged: NonNullable<Backend["subscribeFloatingBoardsChanged"]> = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => { if (event.type === "FloatingBoardsChanged") listener(event.data); });
+  pushEvents([]); return id;
+};
+export const subscribeDisplaySettingsChanged: NonNullable<Backend["subscribeDisplaySettingsChanged"]> = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => { if (event.type === "DisplaySettingsChanged") listener(event.data); });
+  pushEvents([]); return id;
+};

@@ -22,6 +22,7 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                     assert_eq!(actual, revision);
                     return view;
                 }
+                AppEvent::DisplaySettingsChanged(_) | AppEvent::FloatingBoardsChanged(_) => {}
                 AppEvent::OpenFailed { .. } => {}
                 AppEvent::EngineStatusChanged(_) => {}
                 AppEvent::BoardSyncStatusChanged(_) => {}
