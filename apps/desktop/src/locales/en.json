@@ -2081,5 +2081,31 @@
       "OutOfBounds": "That point is not on the board.",
       "InvalidPosition": "This position cannot be scored."
     }
+  },
+  "layout": {
+    "setUp": "Set",
+    "dialog": {
+      "title": "Visualized panel settings",
+      "customTitle": "Set custom layout {n}",
+      "close": "Close",
+      "panels": {
+        "show_sub_board": "Show sub board",
+        "show_winrate_graph": "Show winrate graph",
+        "show_comment": "Show comment/blunder panel",
+        "show_variation_graph": "Show variation panel",
+        "show_list_pane": "Show candidates list",
+        "show_information_panel": "Show information panel",
+        "show_status_bar": "Show status panel"
+      },
+      "largeSubBoard": "Large sub board",
+      "largeWinrateGraph": "Large winrate graph",
+      "position": "Board/frame position",
+      "apply": "Apply",
+      "cancel": "Cancel"
+    },
+    "boards": {
+      "thinking": "Thinking board",
+      "candidate": "Candidate {n}'s line"
+    }
   }
 }

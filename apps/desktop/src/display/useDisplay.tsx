@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import type { Backend, DisplaySettings } from "@/api/backend";
 import { type DisplayPrompt, displayBindings } from "./bindings";
 import { NumberDialog, type NumberDialogLabels } from "./NumberDialog";
-import { type Display, DISPLAY_DEFAULTS, filled } from "./settings";
+import { type Display, DISPLAY_DEFAULTS, filled, withLayoutRules } from "./settings";
 
 export interface DisplayLabels extends NumberDialogLabels {
   numbersTitle: string;
@@ -34,7 +34,7 @@ export function useDisplay(backend: Pick<Backend, "setDisplaySettings" | "settin
 
   const load = useCallback((settings: DisplaySettings | null | undefined) => setDisplay(filled(settings)), []);
   const set = (patch: Partial<Display>) => {
-    const next = { ...display, ...patch };
+    const next = withLayoutRules(display, patch);
     setDisplay(next);
     backend.setDisplaySettings(next).catch((error: unknown) => {
       report(error);

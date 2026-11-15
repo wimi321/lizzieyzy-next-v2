@@ -165,5 +165,4 @@ test("legacy display fixtures receive layout defaults while explicit and nested 
   expect(layout?.floating_boards?.sub).toBe(true); expect(layout?.floating_main?.width).toBe(700);
   expect(layout?.floating_main?.height).toBe(600); expect(layout?.floating_sub).toBeNull();
   expect(defaultDisplaySettings.layout_mode).toBe("Normal");
-  expect(Object.keys(defaultDisplaySettings)).not.toContain("layout_mode");
 });

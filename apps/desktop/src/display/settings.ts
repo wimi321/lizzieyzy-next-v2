@@ -1,6 +1,7 @@
 import type { DisplaySettings, GraphPointView, MoveNumberMode, MoveRankMarkMode } from "@/api/backend";
 import type { MoveWindow } from "../board/moveMarks";
 import type { SuggestionStyle } from "../board/suggestionText";
+import type { Arrangement } from "../frame/arrange";
 import type { RegionName } from "../frame/MainPanel";
 
 export type Display = Required<DisplaySettings>;
@@ -60,6 +61,15 @@ export const DISPLAY_DEFAULTS: Display = {
   autoplay_interval_ms: 2000,
   painting_color: "Red",
   control_panel_bounds: null,
+  layout_mode: "Normal",
+  large_sub_board: false,
+  large_winrate_graph: false,
+  board_position: 4,
+  floating_boards: { main: false, keep_main_board: false, sub: false, main_on_top: false, sub_on_top: false, main_locked: false, sub_locked: false },
+  custom_layouts: [null, null],
+  main_window: null,
+  floating_main: null,
+  floating_sub: null,
 };
 
 export function filled(display: DisplaySettings | null | undefined): Display {
@@ -104,15 +114,40 @@ export function nextRankMarks(display: Display): Partial<Display> {
 
 /** The panels 显示 → 面板 has switched off. */
 export function hiddenRegions(display: Display): RegionName[] {
-  const hidden: RegionName[] = [];
+  // 精简模式 shows the board alone; 思考模式 and 四方图 draw no separate sub-board.
+  if (display.layout_mode === "Min") return ["captured", "statistics", "graph", "comment", "tree", "subBoard", "list", "status", "extra"];
+  const hidden: RegionName[] = display.layout_mode === "Normal" ? [] : ["subBoard"];
   if (!display.show_information_panel) hidden.push("captured", "statistics");
   if (!display.show_winrate_graph) hidden.push("graph");
   if (!display.show_comment) hidden.push("comment");
   if (!display.show_variation_graph) hidden.push("tree");
-  if (!display.show_sub_board) hidden.push("subBoard");
+  if (!display.show_sub_board && !hidden.includes("subBoard")) hidden.push("subBoard");
   if (!display.show_list_pane) hidden.push("list");
   if (!display.show_status_bar) hidden.push("status");
   return hidden;
+}
+
+/** The seven panels of 显示 → 面板 that 精简模式 hides and 可视化面板设置 switches. */
+export const PANEL_FIELDS = ["show_sub_board", "show_winrate_graph", "show_comment", "show_variation_graph", "show_list_pane", "show_information_panel", "show_status_bar"] as const;
+
+/**
+ * A change with Java's rules applied: the two enlargements exclude each other and bring their panel
+ * along, 放大胜率图 puts the candidate list away (and the list it), and switching a panel on in
+ * 精简模式 goes back to the default layout.
+ */
+export function withLayoutRules(display: Display, patch: Partial<Display>): Display {
+  const next = { ...display, ...patch };
+  if (patch.large_sub_board === true) Object.assign(next, { large_winrate_graph: false, show_sub_board: true });
+  if (patch.large_winrate_graph === true) Object.assign(next, { large_sub_board: false, show_winrate_graph: true, show_list_pane: false });
+  if (patch.show_list_pane === true && patch.large_winrate_graph === undefined) next.large_winrate_graph = false;
+  const panelOn = PANEL_FIELDS.some((field) => patch[field] === true && !display[field]);
+  if (display.layout_mode === "Min" && patch.layout_mode === undefined && panelOn) next.layout_mode = "Normal";
+  return next;
+}
+
+/** What decides the main panel's layout besides the panels themselves. */
+export function arrangementOf(display: Display): Arrangement {
+  return { mode: display.layout_mode, largeSubBoard: display.large_sub_board, largeGraph: display.large_winrate_graph, position: display.board_position };
 }
 
 /** What the candidates on the board say, and how. */

@@ -12,6 +12,7 @@ import "./styles/online.css";
 import "./styles/remote.css";
 import "./styles/research.css";
 import "./styles/analysis-tools.css";
+import "./styles/layout.css";
 
 const root = document.getElementById("root");
 if (!root) {

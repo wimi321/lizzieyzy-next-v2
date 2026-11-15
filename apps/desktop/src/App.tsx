@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as backend from "@/api/backend";
 import type { AnalysisLimitSettings, ColorView, EngineStatus, MoveRank, PointView, ProblemMoveSort, ProblemMovesQuery } from "@/api/backend";
 import { Board } from "./board/Board";
-import type { NextMove } from "./board/draw";
+import { nextMovesOf, rankedLines } from "./board/lines";
 import { SubBoard } from "./board/SubBoard";
 import { useVariationPreview } from "./board/useVariationPreview";
 import { nextMoveNumbers, nextRankMarks } from "./display/settings";
@@ -61,6 +61,7 @@ import { useStrength } from "./review/useStrength";
 import { useWholeGame } from "./review/useWholeGame";
 import { useResearch } from "./research/useResearch";
 import { useAnalysisTools } from "./analysis/useAnalysisTools";
+import { useLayout } from "./layout/useLayout";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { BottomToolbar, JUMP } from "./frame/BottomToolbar";
@@ -110,6 +111,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   // 显示: saved in the settings, read with them at start.
   const display = useDisplay(backend, messages.display);
   const loadDisplay = display.load;
+  // 布局模式, 放大小棋盘 / 胜率图, 主棋盘位置, 可视化面板设置 and 自定义布局.
+  const layout = useLayout(backend, display.display, display.set, messages.layout);
   // The engines and the main one; a first run without one picks it by itself.
   const engines = useEngines(backend, engine, messages.frame.engineNames, messages.engines, messages.setup, (settings) => display.load(settings.display), {
     labels: messages.remote,
@@ -231,14 +234,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const currentNode = document?.tree.current ?? null;
   // The sub-board plays out the best move's line, or the hovered candidate's; the main board
   // shows the same replay only while a candidate is hovered.
-  const bestPoint = useMemo(() => {
-    if (!boardAnalysis || boardAnalysis.node_id !== currentNode) return null;
-    const best = boardAnalysis.candidates.reduce<(typeof boardAnalysis.candidates)[number] | null>(
-      (first, candidate) => (candidate.point && candidate.pv.length > 0 && (!first || candidate.order < first.order) ? candidate : first),
-      null,
-    );
-    return best?.point ?? null;
-  }, [boardAnalysis, currentNode]);
+  const bestPoint = useMemo(() => rankedLines(boardAnalysis, currentNode)[0]?.point ?? null, [boardAnalysis, currentNode]);
   const hovered = boardHover ?? listHover;
   const replay = useVariationPreview(backend, currentNode, revision, boardAnalysis, hovered ?? bestPoint);
   const variation = hovered && shown.show_hover_variation ? replay : null;
@@ -259,16 +255,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   );
   const currentTreeNode = useMemo(() => liveTree?.nodes.find((node) => node.id === currentNode) ?? null, [liveTree, currentNode]);
   // The recorded continuations, each with the position it leads to when that is analysed.
-  const nextMoves = useMemo<NextMove[]>(() => {
-    if (!liveTree || !currentTreeNode) return [];
-    const moves: NextMove[] = [];
-    for (const id of currentTreeNode.children) {
-      const mv = liveTree.nodes.find((node) => node.id === id)?.mv;
-      if (mv?.type !== "Play") continue;
-      moves.push({ point: mv.data.point, after: points.find((point) => point.node_id === id)?.summary ?? null });
-    }
-    return moves;
-  }, [liveTree, currentTreeNode, points]);
+  const nextMoves = useMemo(() => nextMovesOf(liveTree, currentTreeNode, points), [liveTree, currentTreeNode, points]);
   const { marks, style, nextHint, hidden, scoreOffset, scorePoints, names: boardNames } = useDisplayView(
     shown,
     info,
@@ -406,6 +393,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...remote.bindings,
     ...research.bindings,
     ...analysisTools.bindings,
+    ...layout.bindings,
     ...(remote.remote ? { autoSetup: { enabled: false } } : {}),
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
@@ -413,7 +401,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   });
   useShortcuts(
     bindings,
-    !(engines.dialogOpen || strengthOpen || online.dialogOpen || commentary.dialogOpen || remote.dialogOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen || research.dialogOpen || analysisTools.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || online.dialogOpen || commentary.dialogOpen || remote.dialogOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen || research.dialogOpen || analysisTools.dialogOpen || layout.dialogOpen),
   );
   const frame = messages.frame;
   const engineLabel = remote.label(engines.label === "" ? null : engines.label);
@@ -533,6 +521,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         boardData={{ "data-revision": revision, "data-node-id": document?.tree.current }}
         boardOverlay={research.paintLayer}
         cover={analysisTools.cover ?? research.cover}
+        arrangement={layout.arrangement}
         onBoardWheel={(event) => {
           // Lines (Firefox, some mice) count as whole notches.
           wheel.current += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * WHEEL_STEP;
@@ -658,6 +647,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           tree: (
             <MoveTree tree={tree} current={document?.tree.current ?? -1} line={line} boardSize={board?.width ?? 19} ranks={ranks} label={messages.tree.label} onJump={jump} />
           ),
+          extra: board ? layout.extra({ board, node: currentNode, revision, analysis: boardAnalysis, coordinates: shown.show_coordinates, onPlay: play }) : undefined,
           subBoard: board ? <SubBoard board={board} node={currentNode} revision={revision} variation={replay} label={messages.tree.subBoard} {...estimate.subBoard} /> : null,
         }}
       />
@@ -791,6 +781,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {engines.dialogs}
       {research.windows(menus, bindings)}
       {analysisTools.windows}
+      {layout.dialog}
     </main>
   );
 }

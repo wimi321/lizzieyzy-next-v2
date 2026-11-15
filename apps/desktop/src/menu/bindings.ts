@@ -8,6 +8,8 @@ export interface MenuBinding {
   /** Defaults to true when `run` is set. */
   enabled?: boolean;
   checked?: boolean;
+  /** A small button at the row's end, as Java's 自定义布局 rows carry 设置. */
+  aside?: { label: string; run(): void };
 }
 
 export type MenuBindings = Readonly<Record<string, MenuBinding>>;

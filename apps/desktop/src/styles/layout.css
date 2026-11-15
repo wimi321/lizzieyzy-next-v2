@@ -1,0 +1,97 @@
+/* P3-28 layouts: 自定义布局's 设置, 可视化面板设置, 思考模式 and 四方图. */
+
+/* The small 设置 button Java puts at the end of a 自定义布局 row. */
+.menu-aside {
+  margin-left: 12px;
+  height: 20px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--jf-text, #1f2926);
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid #a2a2a2;
+  border-radius: 4px;
+}
+
+.menu-aside:hover {
+  background: #eaf4ef;
+}
+
+/* 可视化面板设置 / 设置自定义布局: changes show behind it, so it keeps the window visible. */
+.panel-settings-backdrop {
+  background: rgba(4, 4, 6, 0.25);
+  backdrop-filter: none;
+}
+
+.panel-settings {
+  width: min(30rem, 100%);
+}
+
+.panel-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.panel-settings-check {
+  font-size: 13px;
+}
+
+.panel-settings-position {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 2ch;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 0 4px;
+  font-size: 13px;
+}
+
+.panel-settings-position input:disabled + output {
+  color: var(--text-3);
+}
+
+/* 思考模式: the plain board fills its square. */
+.main-region[data-region="extra"] {
+  display: flex;
+}
+
+.thinking-board {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 四方图: four small boards, the first candidate's top left, numbered as Java numbers them. */
+.multi-view {
+  display: grid;
+  flex: 1;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  min-height: 0;
+}
+
+.multi-view-cell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.multi-view-order {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  min-width: 18px;
+  padding: 0 4px;
+  font: 600 12px/18px var(--jf-font, sans-serif);
+  color: #fff;
+  text-align: center;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 9px;
+}

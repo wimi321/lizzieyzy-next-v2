@@ -2081,5 +2081,31 @@
       "OutOfBounds": "その点は碁盤にありません。",
       "InvalidPosition": "この局面は計算できません。"
     }
+  },
+  "layout": {
+    "setUp": "設定",
+    "dialog": {
+      "title": "パネルの表示設定",
+      "customTitle": "カスタムレイアウト {n} の設定",
+      "close": "閉じる",
+      "panels": {
+        "show_sub_board": "サブ碁盤",
+        "show_winrate_graph": "勝率グラフ",
+        "show_comment": "コメント/問題手パネルを表示",
+        "show_variation_graph": "バリエーションパネル",
+        "show_list_pane": "候補手リスト",
+        "show_information_panel": "情報パネル",
+        "show_status_bar": "ステータスパネル"
+      },
+      "largeSubBoard": "大きいサブ碁盤",
+      "largeWinrateGraph": "大きい勝率グラフ",
+      "position": "碁盤の位置を調整",
+      "apply": "適用",
+      "cancel": "キャンセル"
+    },
+    "boards": {
+      "thinking": "検討用の碁盤",
+      "candidate": "候補 {n} の変化"
+    }
   }
 }

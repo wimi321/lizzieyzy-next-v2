@@ -143,6 +143,14 @@ export function MenuBar({ menus, bindings, labels, label, actions, tray }: MenuB
     binding?.run?.();
   };
 
+  // A row's own button (自定义布局's 设置) closes the menus and runs, without choosing the row.
+  const runAside = (id: string) => {
+    const aside = bindings[id]?.aside;
+    if (!aside) return;
+    close(false);
+    aside.run();
+  };
+
   const hoverRow = (depth: number, index: number) => {
     const entry = levels[depth]?.entries[index];
     clearTimer();
@@ -349,6 +357,8 @@ export function MenuBar({ menus, bindings, labels, label, actions, tray }: MenuB
                         }}
                         onHover={() => hoverRow(depthIndex, index)}
                         onActivate={() => activate(depthIndex, index)}
+                        aside={entry.kind === "submenu" ? undefined : bindings[entry.id]?.aside?.label}
+                        onAside={() => runAside(entry.id)}
                       />
                     ),
                   )}
@@ -373,9 +383,11 @@ interface MenuRowProps {
   register(element: HTMLDivElement | null): void;
   onHover(): void;
   onActivate(): void;
+  aside?: string;
+  onAside(): void;
 }
 
-function MenuRow({ id, entry, text, enabled, checked, active, expanded, register, onHover, onActivate }: MenuRowProps) {
+function MenuRow({ id, entry, text, enabled, checked, active, expanded, register, onHover, onActivate, aside, onAside }: MenuRowProps) {
   const submenu = entry.kind === "submenu";
   const { label, hint } = splitHint(text);
   return (
@@ -403,6 +415,19 @@ function MenuRow({ id, entry, text, enabled, checked, active, expanded, register
       </span>
       <span className="menu-label">{label}</span>
       {hint ? <span className="menu-hint">{hint}</span> : null}
+      {aside ? (
+        <button
+          type="button"
+          className="menu-aside"
+          data-testid={`menu-aside-${entry.id}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onAside();
+          }}
+        >
+          {aside}
+        </button>
+      ) : null}
       <span className="menu-chevron" aria-hidden="true">
         {submenu ? (
           <svg viewBox="0 0 8 12" width="8" height="12">
