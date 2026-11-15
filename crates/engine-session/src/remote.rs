@@ -47,6 +47,14 @@ pub enum RemoteTransportError {
     Protocol,
     #[error("remote query_version timed out")]
     HandshakeTimeout,
+    #[error("Zhizi did not become ready within 60 seconds")]
+    ReadyTimeout,
+    #[error("Zhizi login expired or access denied")]
+    ZhiziAccessDenied,
+    #[error("Zhizi balance is insufficient")]
+    ZhiziBalance,
+    #[error("Zhizi VIP subscription is unavailable or expired")]
+    ZhiziVip,
 }
 
 impl From<russh::Error> for RemoteTransportError {

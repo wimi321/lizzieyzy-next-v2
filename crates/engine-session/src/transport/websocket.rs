@@ -83,7 +83,7 @@ pub(super) async fn start(
                 }
             }
         };
-        let _ = exit.send(Exit { status: Ok(std::process::ExitStatus::default()), stderr_tail: Vec::new(), reason: Some(reason) });
+        let _ = exit.send(Exit { status: Ok(std::process::ExitStatus::default()), stderr_tail: Vec::new(), reason: Some(reason), fatal: false });
     }.with_subscriber(tracing::subscriber::NoSubscriber::default()));
     Ok(Transport {
         outgoing,

@@ -53,7 +53,12 @@ mod tsumego;
 pub mod updates;
 mod view;
 mod weights;
+pub mod zhizi;
+mod zhizi_api;
+mod zhizi_engine;
 
+#[cfg(test)]
+mod fake_gtp_tests;
 #[cfg(test)]
 #[path = "../tests/common/mod.rs"]
 mod test_support;
@@ -116,12 +121,15 @@ pub use support::FullLogStatus;
 pub use tsumego::*;
 pub use updates::{UpdateCheck, UpdateDownloadStatus};
 pub use view::*;
+pub use zhizi_engine::{ZhiziEngineOptions, ZhiziPlan, ZhiziWeight};
 
 use std::path::PathBuf;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    Zhizi(#[from] zhizi::ZhiziError),
     #[error(transparent)]
     Remote(#[from] RemoteEngineError),
     #[error(transparent)]
@@ -214,6 +222,8 @@ pub enum AppError {
 /// coordinator/session defaults, including the long first-start deadline.
 #[derive(Clone, Debug)]
 pub struct AppConfig {
+    /// Constructed lazily; tests inject a loopback HTTP endpoint.
+    pub zhizi_client: Option<zhizi::ZhiziClient>,
     /// Shared secret-store adapter; the P3-16 field name remains source compatible.
     pub commentary_key_store: Option<std::sync::Arc<dyn commentary_keys::SecretStore>>,
     pub games_directory: Option<PathBuf>,
@@ -243,6 +253,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            zhizi_client: None,
             commentary_key_store: None,
             games_directory: None,
             game_random_seed: None,

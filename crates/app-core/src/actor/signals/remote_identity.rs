@@ -3,6 +3,9 @@ use crate::{AppError, RemoteEngineConfig};
 
 impl Actor {
     pub(in crate::actor) fn remote_identity_current(&self) -> bool {
+        if self.startup_local_fallback {
+            return true;
+        }
         let Some(remote) = self
             .settings
             .engine
@@ -16,7 +19,8 @@ impl Actor {
         };
         let saved = match remote {
             RemoteEngineConfig::WebSocket { version: saved, .. }
-            | RemoteEngineConfig::Ssh { version: saved, .. } => saved,
+            | RemoteEngineConfig::Ssh { version: saved, .. }
+            | RemoteEngineConfig::Zhizi { version: saved, .. } => saved,
         };
         match &*running.engine_status.borrow() {
             engine_session::EngineStatus::Ready { version } => saved.as_ref() == Some(version),

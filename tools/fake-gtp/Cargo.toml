@@ -8,6 +8,9 @@ license = "GPL-3.0-only"
 # Deliberately isolated; tests build this manifest, never link it into production.
 [workspace]
 
+[dependencies]
+tokio = { version = "1", features = ["rt", "macros", "io-std", "io-util", "time"] }
+
 [lints.rust]
 unsafe_code = "forbid"
 

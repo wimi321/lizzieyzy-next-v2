@@ -137,7 +137,7 @@ impl Actor {
                 Ok(process) => process,
                 Err(error) => {
                     let reconnectable = self.remote
-                        && self.attempt > 0
+                        && (self.attempt > 0 || matches!(spec, TransportSpec::Zhizi { .. }))
                         && (error.kind() == std::io::ErrorKind::TimedOut
                             || error
                                 .get_ref()
@@ -149,6 +149,7 @@ impl Actor {
                                         error,
                                         crate::RemoteTransportError::Connect
                                             | crate::RemoteTransportError::ConnectTimeout
+                                            | crate::RemoteTransportError::ReadyTimeout
                                     )
                                 }));
                     if reconnectable && self.attempt < self.cfg.max_restarts {
@@ -179,7 +180,9 @@ impl Actor {
                         Ok(status) => format!("engine exited: {status}"),
                         Err(error) => error.clone(),
                     });
-                    (reason, !self.ready, exit)
+                    let fatal =
+                        exit.fatal || (!self.ready && !matches!(spec, TransportSpec::Zhizi { .. }));
+                    (reason, fatal, exit)
                 }
                 Outcome::Fault { reason, fatal } => {
                     let exit = self.finish_transport(&mut process).await;
@@ -265,7 +268,7 @@ impl Actor {
                     // order. All already-enqueued final lines must be applied.
                     while let Ok(output) = process.incoming.try_recv() { self.output(output, true); }
                     return Outcome::Exited(exit.unwrap_or_else(|_| transport::Exit {
-                        status: Err("transport exited without an exit report".into()), stderr_tail: Vec::new(), reason: None,
+                        status: Err("transport exited without an exit report".into()), stderr_tail: Vec::new(), reason: None, fatal: false,
                     }));
                 }
                 command = self.commands.recv() => {
@@ -513,9 +516,14 @@ impl Actor {
                     if let Some(id) = self.stable_id(&wire_id)
                         && let Some(pending) = self.pending.remove(&id)
                     {
-                        pending
-                            .delivery
-                            .send(QueryEvent::Failed(QueryError::Engine(error.error)), true);
+                        pending.delivery.send(
+                            QueryEvent::Failed(
+                                crate::BridgeError::from_code(error.field.as_deref())
+                                    .map(QueryError::Bridge)
+                                    .unwrap_or(QueryError::Engine(error.error)),
+                            ),
+                            true,
+                        );
                     } else if wire_id == self.version_id {
                         return Some(Outcome::Fault {
                             reason: error.error,
@@ -595,7 +603,7 @@ impl Actor {
                 exit = &mut process.exited => {
                     while let Ok(output) = process.incoming.try_recv() { self.output(output, false); }
                     return exit.unwrap_or_else(|_| transport::Exit {
-                        status: Err("transport lost exit report".into()), stderr_tail: Vec::new(), reason: None,
+                        status: Err("transport lost exit report".into()), stderr_tail: Vec::new(), reason: None, fatal: false,
                     });
                 }
             }

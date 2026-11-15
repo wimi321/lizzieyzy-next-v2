@@ -1,13 +1,11 @@
 //! Scriptable, std-only GTP peer. It never evaluates a position or loads a model.
-use std::{
-    collections::BTreeMap,
-    fs::OpenOptions,
-    io::{self, BufRead, Write},
-    path::Path,
-};
+use std::{collections::BTreeMap, fs::OpenOptions, path::Path};
 
-fn main() {
-    if let Err(error) = run() {
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    if let Err(error) = run().await {
         eprintln!("fake-gtp: {error}");
         std::process::exit(1);
     }
@@ -18,7 +16,8 @@ fn options() -> Result<BTreeMap<String, String>, String> {
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--no-undo" | "--kata" | "--no-final-score" | "--fail-startup" => {
+            "--no-undo" | "--kata" | "--no-final-score" | "--fail-startup"
+            | "--no-set-position" => {
                 result.insert(arg, String::new());
             }
             "--moves"
@@ -35,7 +34,9 @@ fn options() -> Result<BTreeMap<String, String>, String> {
             | "--version"
             | "--protocol-version"
             | "--malformed-command"
-            | "--script" => {
+            | "--script"
+            | "--analysis-script"
+            | "--analysis-visits-step" => {
                 let value = args
                     .next()
                     .ok_or_else(|| format!("missing argument for {arg}"))?;
@@ -54,12 +55,13 @@ fn append(path: Option<&String>, text: &str) -> Result<(), String> {
             .append(true)
             .open(path)
             .map_err(|e| e.to_string())?;
-        writeln!(file, "{text}").map_err(|e| e.to_string())?;
+        std::io::Write::write_all(&mut file, format!("{text}\n").as_bytes())
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
-fn run() -> Result<(), String> {
+async fn run() -> Result<(), String> {
     let options = options()?;
     append(options.get("--launch-log"), &std::process::id().to_string())?;
     if options.contains_key("--fail-startup") {
@@ -121,11 +123,32 @@ fn run() -> Result<(), String> {
         supported.push("final_score");
     }
     if options.contains_key("--kata") {
-        supported.extend(["kata-set-rules", "kata-time_settings"]);
+        supported.extend([
+            "kata-set-rules",
+            "kata-time_settings",
+            "rectangular_boardsize",
+            "kata-analyze",
+            "stop",
+        ]);
+        if !options.contains_key("--no-set-position") {
+            supported.push("set_position");
+        }
     }
-    let mut stdout = io::stdout().lock();
-    for line in io::stdin().lock().lines() {
-        let line = line.map_err(|e| e.to_string())?;
+    let mut stdout = tokio::io::stdout();
+    let mut stdin = BufReader::new(tokio::io::stdin()).lines();
+    let mut analysis: Option<analysis::Search> = None;
+    let mut size = (19u8, 19u8);
+    loop {
+        let line = tokio::select! {
+            line = stdin.next_line() => match line.map_err(|e| e.to_string())? { Some(line) => line, None => break },
+            _ = analysis::tick(&analysis) => {
+                if let Some(search) = &mut analysis { search.emit(&mut stdout, size).await?; }
+                continue;
+            }
+        };
+        if analysis.take().is_some() {
+            stdout.write_all(b"\n").await.map_err(|e| e.to_string())?;
+        }
         append(options.get("--command-log"), &line)?;
         let mut words = line.split_ascii_whitespace();
         let Some(first) = words.next() else {
@@ -153,9 +176,37 @@ fn run() -> Result<(), String> {
             .get("--malformed-command")
             .is_some_and(|target| target == name)
         {
-            writeln!(stdout, "not a response\n").map_err(|e| e.to_string())?;
-            stdout.flush().map_err(|e| e.to_string())?;
+            stdout
+                .write_all(b"not a response\n\n")
+                .await
+                .map_err(|e| e.to_string())?;
+            stdout.flush().await.map_err(|e| e.to_string())?;
             continue;
+        }
+        if name == "kata-analyze"
+            && options.contains_key("--kata")
+            && options.get("--fail-command").is_none_or(|v| v != name)
+        {
+            analysis = Some(analysis::Search::new(&options, &args)?);
+            stdout
+                .write_all(format!("={id}\n").as_bytes())
+                .await
+                .map_err(|e| e.to_string())?;
+            stdout.flush().await.map_err(|e| e.to_string())?;
+            continue;
+        }
+        if name == "boardsize"
+            && let Some(n) = args.first().and_then(|v| v.parse::<u8>().ok())
+        {
+            size = (n, n);
+        }
+        if name == "rectangular_boardsize"
+            && let (Some(x), Some(y)) = (
+                args.first().and_then(|v| v.parse().ok()),
+                args.get(1).and_then(|v| v.parse().ok()),
+            )
+        {
+            size = (x, y);
         }
         let mut success = true;
         let body = if !valid_standard_time(name, &args) {
@@ -237,9 +288,11 @@ fn run() -> Result<(), String> {
                 _ => String::new(),
             }
         };
-        writeln!(stdout, "{}{id} {body}\n", if success { '=' } else { '?' })
+        stdout
+            .write_all(format!("{}{id} {body}\n\n", if success { '=' } else { '?' }).as_bytes())
+            .await
             .map_err(|e| e.to_string())?;
-        stdout.flush().map_err(|e| e.to_string())?;
+        stdout.flush().await.map_err(|e| e.to_string())?;
         if name == "quit" {
             break;
         }
@@ -270,6 +323,8 @@ fn valid_standard_time(name: &str, args: &[&str]) -> bool {
         _ => true,
     }
 }
+
+mod analysis;
 
 #[cfg(test)]
 mod tests;

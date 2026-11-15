@@ -160,7 +160,7 @@ async fn connect(spec: &TransportSpec, cfg: &SessionConfig) -> Result<Transport,
             let _ = channel.close().await;
             let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
         }).await;
-        let _ = exit.send(Exit { status: Ok(std::process::ExitStatus::default()), stderr_tail: tail.into(), reason: Some(reason) });
+        let _ = exit.send(Exit { status: Ok(std::process::ExitStatus::default()), stderr_tail: tail.into(), reason: Some(reason), fatal: false });
     }.with_subscriber(tracing::subscriber::NoSubscriber::default()));
     Ok(Transport {
         outgoing,

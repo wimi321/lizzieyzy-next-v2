@@ -20,6 +20,15 @@ pub(super) struct PendingTrial {
     list_edit: Option<(Vec<EngineEntry>, String)>,
 }
 
+impl PendingTrial {
+    pub(super) fn is_zhizi(&self) -> bool {
+        matches!(
+            self.profile.remote,
+            Some(crate::RemoteEngineConfig::Zhizi { .. })
+        )
+    }
+}
+
 pub(super) enum Reply {
     Startup,
     Manual(oneshot::Sender<Result<(), AppError>>),
@@ -343,6 +352,7 @@ impl Actor {
         // This engine is already Ready. Adopt it instead of starting a second,
         // untested process after persisting the profile.
         let cleanup = self.stop_engine().await;
+        self.startup_local_fallback = false;
         self.settings = settings;
         self.set_summary_fingerprint(Some(trial.fingerprint.clone()));
         let engine_status = trial.engine.status();

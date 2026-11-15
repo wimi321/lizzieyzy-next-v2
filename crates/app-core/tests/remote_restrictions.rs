@@ -8,8 +8,12 @@ use app_core::{
 };
 use common::within;
 
-fn remote_profiles() -> [EngineProfile; 2] {
+fn remote_profiles() -> [EngineProfile; 3] {
     [
+        RemoteEngineConfig::Zhizi {
+            options: Default::default(),
+            version: None,
+        },
         RemoteEngineConfig::WebSocket {
             host: "127.0.0.1".into(),
             port: 9,
