@@ -7,15 +7,15 @@ export type { SlotBoard } from "./generated/SlotBoard";
 export type { SaveSlotsError } from "./generated/SaveSlotsError";
 
 export interface SaveSlotCommands {
-  saveSlots?(): Promise<SaveSlot[]>;
-  saveToNewSlot?(name: string): Promise<SaveSlot>;
-  overwriteSlot?(id: string): Promise<SaveSlot>;
-  renameSlot?(id: string, name: string): Promise<SaveSlot>;
-  loadSlot?(id: string): Promise<Revision>;
-  deleteSlot?(id: string): Promise<void>;
-  deleteAllSlots?(): Promise<void>;
-  setAutosave?(enabled: boolean): Promise<boolean>;
-  setRestoreLastGame?(enabled: boolean): Promise<boolean>;
+  saveSlots(): Promise<SaveSlot[]>;
+  saveToNewSlot(name: string): Promise<SaveSlot>;
+  overwriteSlot(id: string): Promise<SaveSlot>;
+  renameSlot(id: string, name: string): Promise<SaveSlot>;
+  loadSlot(id: string): Promise<Revision>;
+  deleteSlot(id: string): Promise<void>;
+  deleteAllSlots(): Promise<void>;
+  setAutosave(enabled: boolean): Promise<boolean>;
+  setRestoreLastGame(enabled: boolean): Promise<boolean>;
 }
 
 export const saveSlots: NonNullable<SaveSlotCommands["saveSlots"]> = () =>

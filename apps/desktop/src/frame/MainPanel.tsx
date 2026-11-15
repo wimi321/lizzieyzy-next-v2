@@ -18,6 +18,12 @@ const DATA_NAMES: Record<RegionName, string> = {
   subBoard: "sub-board",
 };
 
+/** A panel laid over some regions, as Java lays 存档与读档 over the list and the tree. */
+export interface PanelCover {
+  regions: readonly RegionName[];
+  node: ReactNode;
+}
+
 export interface MainPanelProps {
   regions: Partial<Record<RegionName, ReactNode>>;
   /** Panels switched off under 显示 → 面板; the rest are laid out around them as Java does. */
@@ -26,17 +32,31 @@ export interface MainPanelProps {
   /** Extra attributes on the board region, which tests use to match it to the document. */
   boardData?: Record<`data-${string}`, string | number | undefined>;
   onBoardWheel?(event: WheelEvent<HTMLElement>): void;
+  /** Laid over the board region and kept to it, as 自由涂鸦's sheet. */
+  boardOverlay?: ReactNode;
+  cover?: PanelCover;
 }
 
 function style(rect: Rect) {
   return { left: rect.x, top: rect.y, width: rect.width, height: rect.height };
 }
 
+/** The smallest rectangle around the given ones; null when none has an area. */
+function union(rects: readonly Rect[]): Rect | null {
+  const real = rects.filter((rect) => rect.width > 0 && rect.height > 0);
+  if (real.length === 0) return null;
+  const x = Math.min(...real.map((rect) => rect.x));
+  const y = Math.min(...real.map((rect) => rect.y));
+  const right = Math.max(...real.map((rect) => rect.x + rect.width));
+  const bottom = Math.max(...real.map((rect) => rect.y + rect.height));
+  return { x, y, width: right - x, height: bottom - y };
+}
+
 /**
  * The window's content between the toolbars, cut into LizzieYzy Next's panels by its own
  * layout formula (`InFrameLayout`) every time the panel changes size.
  */
-export function MainPanel({ regions, hidden = [], boardSize, boardData, onBoardWheel }: MainPanelProps) {
+export function MainPanel({ regions, hidden = [], boardSize, boardData, onBoardWheel, boardOverlay, cover }: MainPanelProps) {
   const root = useRef<HTMLDivElement>(null);
   // A nominal panel until the first measurement, so the first frame is never empty.
   const [size, setSize] = useState(NOMINAL);
@@ -62,6 +82,8 @@ export function MainPanel({ regions, hidden = [], boardSize, boardData, onBoardW
     status: shown("status"),
     list: regions.list !== undefined && shown("list"),
   });
+  // With neither region shown, the panel takes the right half, where they would be.
+  const covered = cover ? (union(cover.regions.filter(shown).map((name) => layout[name])) ?? { x: size.width / 2, y: 0, width: size.width / 2, height: size.height }) : null;
   return (
     <div className="main-panel" ref={root} data-testid="main-panel">
       {(Object.keys(DATA_NAMES) as RegionName[]).filter(shown).map((name) => (
@@ -75,8 +97,14 @@ export function MainPanel({ regions, hidden = [], boardSize, boardData, onBoardW
           {...(name === "board" ? boardData : undefined)}
         >
           {regions[name]}
+          {name === "board" ? boardOverlay : null}
         </section>
       ))}
+      {cover && covered ? (
+        <section className="main-cover" data-testid="main-cover" style={style(covered)}>
+          {cover.node}
+        </section>
+      ) : null}
     </div>
   );
 }

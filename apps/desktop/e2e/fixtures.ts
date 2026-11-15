@@ -135,12 +135,6 @@ export const defaultDisplaySettings: Required<import("../src/api/backend").Displ
   show_names_below_board: true,
 };
 
-// P3-26 owns these controls. Keep older UI scripts' enumerable payload shape
-// while making the new Rust defaults available to direct fixture reads.
-for (const field of ["autoplay_interval_ms", "painting_color", "control_panel_bounds"] as const) {
-  Object.defineProperty(defaultDisplaySettings, field, { enumerable: false });
-}
-
 
 /** Scripted Fox reply for UI tests; network parsing remains in Rust. */
 export function foxSearchResult(): FoxSearchResult {

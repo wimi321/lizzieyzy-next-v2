@@ -57,6 +57,9 @@ export const DISPLAY_DEFAULTS: Display = {
   top_toolbar_wrap: false,
   top_toolbar_hidden: [],
   bottom_toolbar_hidden: [],
+  autoplay_interval_ms: 2000,
+  painting_color: "Red",
+  control_panel_bounds: null,
 };
 
 export function filled(display: DisplaySettings | null | undefined): Display {

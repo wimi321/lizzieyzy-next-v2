@@ -762,6 +762,7 @@
       "backMain": "返回主分支(B)",
       "controlPanel": "独立棋局控制面板",
       "markup": "标记工具",
+      "paint": "自由涂鸦",
       "playBlack": "添加黑子(右键添加白子)",
       "playWhite": "添加白子(右键添加黑子)",
       "playAlternately": "交替落子",
@@ -1909,6 +1910,92 @@
       "test": "测试",
       "cancel": "取消",
       "save": "保存"
+    }
+  },
+  "research": {
+    "search": {
+      "title": "搜索功能",
+      "hint": "输入名称、用途或关键词",
+      "cancel": "取消",
+      "browse": "浏览功能",
+      "all": "全部",
+      "categories": {
+        "file": "棋谱与文件",
+        "analysis": "分析与复盘",
+        "game": "对局与训练",
+        "engine": "引擎与加速",
+        "sync": "同步与分享",
+        "view": "界面与系统"
+      },
+      "results": "{count} 项结果",
+      "empty": "没有匹配的功能。试试名称、用途或技术词。",
+      "keyboard": "↑↓ 选择 · Enter 打开 · Esc 关闭",
+      "unavailable": "此入口在应用当前状态下不可用。",
+      "notYet": "新版还没有这一项。"
+    },
+    "paint": {
+      "title": "自由涂鸦",
+      "Blue": "蓝色",
+      "Green": "绿色",
+      "Red": "红色",
+      "undo": "撤销一笔",
+      "clear": "全部清除",
+      "close": "关闭 (Esc)"
+    },
+    "panel": {
+      "title": "控制面板",
+      "close": "关闭",
+      "first": "第一手",
+      "last": "最后一手",
+      "back5": "后退 5 手",
+      "forward5": "前进 5 手",
+      "back": "后退一手",
+      "forward": "前进一手",
+      "main": "返回主分支",
+      "mainShort": "返回",
+      "paint": "自由涂鸦",
+      "paintShort": "涂鸦"
+    },
+    "saves": {
+      "title": "存档与读档",
+      "autosave": "自动存档",
+      "restore": "启动时自动恢复",
+      "deleteAll": "全部删除",
+      "close": "关闭",
+      "autosaveSlot": "自动存档",
+      "name": "名称",
+      "namePlaceholder": "名称（可不填）",
+      "load": "加载",
+      "overwrite": "保存",
+      "rename": "重命名",
+      "delete": "删除",
+      "newSlot": "新建存档",
+      "moves": "第 {n} 手",
+      "corrupt": "已损坏",
+      "loading": "正在读取存档…",
+      "overwriteConfirm": "存档已存在,是否覆盖?",
+      "deleteConfirm": "删除存档“{name}”?",
+      "deleteAllConfirm": "删除所有存档?",
+      "confirm": "确定",
+      "cancel": "取消",
+      "errors": {
+        "InvalidId": "没有这个存档。",
+        "InvalidName": "名称要有 1 到 120 个字，不能含控制字符。",
+        "Capacity": "已经有 100 个存档，请先删除一个。",
+        "ReadOnlyAutosave": "自动存档只能加载。",
+        "Missing": "这个存档已经不存在了。",
+        "Corrupt": "这个存档已损坏，只能删除。",
+        "InvalidPosition": "当前局面无法存档：{reason}",
+        "Io": "读写存档失败：{reason}"
+      }
+    },
+    "autoPlay": {
+      "title": "设置自动播放",
+      "interval": "主棋盘(秒)",
+      "invalid": "请输入 0.1 到 60 秒。",
+      "confirm": "确定",
+      "cancel": "取消",
+      "close": "关闭"
     }
   }
 }

@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode, useRef, useState } from "react";
 import type { GameToolbar } from "../play/usePlay";
 import type { AnalysisLimitSettings } from "@/api/backend";
+import type { ResearchToolbar } from "../research/useResearch";
 import { JAVA_ICONS } from "./icons";
 import { ToolButton, ToolSeparator } from "./ToolButton";
 import type { ItemFilter } from "./toolbarItems";
@@ -26,6 +27,8 @@ export interface TopToolbarLabels {
   backMain: string;
   controlPanel: string;
   markup: string;
+  /** 自由涂鸦, shown with the markup tools as in Java. */
+  paint: string;
   playBlack: string;
   playWhite: string;
   playAlternately: string;
@@ -108,6 +111,8 @@ export interface TopToolbarProps {
   onLimits?(limits: AnalysisLimitSettings): void;
   /** 新对局 and, during a game, its controls. */
   game?: GameToolbar;
+  /** 搜索功能, 独立棋局控制面板, 自由涂鸦 and 存档. */
+  research?: ResearchToolbar;
 }
 
 /** Java's default groups, for callers that do not customise the toolbar. */
@@ -208,6 +213,7 @@ export function TopToolbar({
   wrap = false,
   limits = null,
   game,
+  research,
   ...on
 }: TopToolbarProps) {
   const icon = JAVA_ICONS;
@@ -241,7 +247,9 @@ export function TopToolbar({
             </>
           }
           title={labels.search}
-          enabled={false}
+          enabled={research !== undefined}
+          testId="tool-search"
+          onClick={research?.onSearch}
         />
       </>,
     );
@@ -254,8 +262,9 @@ export function TopToolbar({
       <ToolButton icon={icon.changeTurn} title={labels.changeTurn} enabled={hasBoard} testId="tool-change-turn" onClick={on.onChangeTurn} />
       <ToolButton icon={icon.setMain} title={labels.setMain} enabled={offMainLine} testId="tool-set-main" onClick={on.onSetMain} />
       <ToolButton icon={icon.backMain} title={labels.backMain} enabled={offMainLine} testId="tool-back-main" onClick={on.onBackMain} />
-      <ToolButton icon={icon.controlPanel} title={labels.controlPanel} enabled={false} />
+      <ToolButton icon={icon.controlPanel} title={labels.controlPanel} enabled={research !== undefined} pressed={research?.controlPanel} testId="tool-control-panel" onClick={research?.onControlPanel} />
       <ToolButton icon={icon.markup} title={labels.markup} enabled={hasBoard} pressed={markupOpen} testId="tool-markup" onClick={on.onMarkup} />
+      {markupOpen ? <ToolButton icon={icon.paint} title={labels.paint} enabled={hasBoard && research !== undefined} testId="tool-paint" onClick={research?.onPaint} /> : null}
     </>,
   );
   add(
@@ -375,7 +384,7 @@ export function TopToolbar({
       {show("showTsumeGoMenu") ? <ToolButton small label={labels.tsumego} enabled={!trial} testId="tool-tsumego" onClick={on.onTsumego} /> : null}
       {show("showParamMenu") ? <ToolButton small label={labels.params} enabled={false} /> : null}
       {show("showGobanMenu") ? <ToolButton small label={labels.goban} enabled={!trial} testId="tool-goban" onClick={on.onBoardSize} /> : null}
-      {show("showSaveLoadMenu") ? <ToolButton small label={labels.saveLoad} enabled={false} /> : null}
+      {show("showSaveLoadMenu") ? <ToolButton small label={labels.saveLoad} enabled={research !== undefined} pressed={research?.saveLoad} testId="tool-save-load" onClick={research?.onSaveLoad} /> : null}
     </>
   );
   if (["showRuleMenu", "showTsumeGoMenu", "showParamMenu", "showGobanMenu", "showSaveLoadMenu"].some(show)) always("menus", menus);

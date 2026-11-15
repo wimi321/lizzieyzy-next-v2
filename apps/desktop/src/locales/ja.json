@@ -762,6 +762,7 @@
       "backMain": "主分岐に戻る (B)",
       "controlPanel": "独立したゲームコントロールパネル",
       "markup": "マークアップツール",
+      "paint": "自由描画",
       "playBlack": "黒石を追加 (右クリックで白石)",
       "playWhite": "白石を追加 (右クリックで黒石)",
       "playAlternately": "交互に着手",
@@ -1909,6 +1910,92 @@
       "test": "テスト",
       "cancel": "キャンセル",
       "save": "保存"
+    }
+  },
+  "research": {
+    "search": {
+      "title": "機能を検索",
+      "hint": "名前、目的、キーワードを入力",
+      "cancel": "キャンセル",
+      "browse": "機能一覧",
+      "all": "すべて",
+      "categories": {
+        "file": "棋譜とファイル",
+        "analysis": "解析と検討",
+        "game": "対局とトレーニング",
+        "engine": "エンジンと高速化",
+        "sync": "同期と共有",
+        "view": "画面とシステム"
+      },
+      "results": "{count} 件",
+      "empty": "一致する機能がありません。名前、目的、技術用語で検索してください。",
+      "keyboard": "↑↓ 選択 · Enter：開く · Esc：閉じる",
+      "unavailable": "現在のアプリの状態では、この項目は利用できません。",
+      "notYet": "この項目は新しいアプリにまだありません。"
+    },
+    "paint": {
+      "title": "自由描画",
+      "Blue": "青",
+      "Green": "緑",
+      "Red": "赤",
+      "undo": "1 本戻す",
+      "clear": "すべて消去",
+      "close": "閉じる (Esc)"
+    },
+    "panel": {
+      "title": "コントローラー",
+      "close": "閉じる",
+      "first": "初手",
+      "last": "最終手",
+      "back5": "5 手戻る",
+      "forward5": "5 手進む",
+      "back": "1 手戻る",
+      "forward": "1 手進む",
+      "main": "主分岐に戻る",
+      "mainShort": "主分岐に戻る",
+      "paint": "自由描画",
+      "paintShort": "描画"
+    },
+    "saves": {
+      "title": "保存・読み込み",
+      "autosave": "自動保存",
+      "restore": "自動再開",
+      "deleteAll": "全削除",
+      "close": "閉じる",
+      "autosaveSlot": "自動記録",
+      "name": "名前",
+      "namePlaceholder": "名前（省略可）",
+      "load": "開く",
+      "overwrite": "保存",
+      "rename": "名前変更",
+      "delete": "削除",
+      "newSlot": "新規登録",
+      "moves": "{n} 手目",
+      "corrupt": "破損",
+      "loading": "保存データを読み込み中…",
+      "overwriteConfirm": "上書き保存してもよいですか?",
+      "deleteConfirm": "保存データ「{name}」を削除しますか？",
+      "deleteAllConfirm": "全て削除しますか？",
+      "confirm": "OK",
+      "cancel": "キャンセル",
+      "errors": {
+        "InvalidId": "その保存データはありません。",
+        "InvalidName": "名前は 1〜120 文字で、制御文字は使えません。",
+        "Capacity": "保存データはすでに 100 件あります。先に 1 件削除してください。",
+        "ReadOnlyAutosave": "自動保存は開くことしかできません。",
+        "Missing": "その保存データはもうありません。",
+        "Corrupt": "その保存データは破損しています。削除のみできます。",
+        "InvalidPosition": "この局面は保存できません：{reason}",
+        "Io": "保存データの読み書きに失敗しました：{reason}"
+      }
+    },
+    "autoPlay": {
+      "title": "自動再生の設定",
+      "interval": "メイン碁盤 (秒)",
+      "invalid": "0.1〜60 秒で入力してください。",
+      "confirm": "開始",
+      "cancel": "キャンセル",
+      "close": "閉じる"
     }
   }
 }

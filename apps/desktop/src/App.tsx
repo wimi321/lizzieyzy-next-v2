@@ -59,6 +59,7 @@ import { TIER_ORDER } from "./review/strength";
 import { useProblemMoves } from "./review/useProblemMoves";
 import { useStrength } from "./review/useStrength";
 import { useWholeGame } from "./review/useWholeGame";
+import { useResearch } from "./research/useResearch";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { BottomToolbar, JUMP } from "./frame/BottomToolbar";
@@ -87,7 +88,6 @@ function report(error: unknown) {
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
-
 
 /** LizzieYzy Next's window: info and graph left, board centre, the game tree right. */
 export default function App({ store: provided }: { store?: Store } = {}) {
@@ -187,6 +187,9 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const strength = useStrength(backend, reviewSignals, strengthBounds);
   // Match rates join the player rows only once the estimate has enough moves to mean something.
   const strengthReport = strength?.report.has_enough_data ? strength.report : null;
+  // 搜索功能, 自由涂鸦, 控制面板, 存档与读档 and 自动播放; step is defined below and only called later.
+  const research = useResearch(backend, { labels: messages.research, menuLabels: messages.menu, locale: release.locale, display: display.display, setDisplay: display.set, hasBoard: document?.board != null, current: document?.tree.current ?? null, tree: liveTree, step: (steps) => step(steps) });
+  const loadResearch = research.load;
 
   useEffect(() => {
     let active = true;
@@ -204,6 +207,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         loadRelease(settings);
         loadEveryday(settings);
         loadBatch(settings);
+        loadResearch(settings);
         await loadEngines(settings, () => active);
       })
       .catch(report);
@@ -211,7 +215,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       active = false;
     };
     // A state setter: the settings are read once.
-  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease, loadEveryday, loadBatch, loadOnline, loadCommentary]);
+  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease, loadEveryday, loadBatch, loadOnline, loadCommentary, loadResearch]);
 
   // A comment being edited is saved before the app moves to another move by itself.
   const comment = useCommentEdit(backend, document);
@@ -399,6 +403,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...localOnly(coach.bindings),
     ...commentary.bindings,
     ...remote.bindings,
+    ...research.bindings,
     ...(remote.remote ? { autoSetup: { enabled: false } } : {}),
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
@@ -406,7 +411,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   });
   useShortcuts(
     bindings,
-    !(engines.dialogOpen || strengthOpen || online.dialogOpen || commentary.dialogOpen || remote.dialogOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || online.dialogOpen || commentary.dialogOpen || remote.dialogOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen || research.dialogOpen),
   );
   const frame = messages.frame;
   const engineLabel = remote.label(engines.label === "" ? null : engines.label);
@@ -483,6 +488,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       limits={limits}
       onLimits={(next) => void backend.setAnalysisLimits(next).then(setLimits).catch(report)}
       game={games.toolbar}
+      research={research.toolbar}
     />
   );
 
@@ -521,6 +527,8 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         hidden={hidden}
         boardSize={board?.width ?? 19}
         boardData={{ "data-revision": revision, "data-node-id": document?.tree.current }}
+        boardOverlay={research.paintLayer}
+        cover={research.cover}
         onBoardWheel={(event) => {
           // Lines (Firefox, some mice) count as whole notches.
           wheel.current += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * WHEEL_STEP;
@@ -682,12 +690,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
               onResume={wholeGame.resume}
               onCancel={wholeGame.cancel}
               autoCurve={autoCurve}
-              onAutoCurve={(enabled) => {
-                backend
-                  .setAutoQuickAnalyzeOnLoad(enabled)
-                  .then(setAutoCurve)
-                  .catch(report);
-              }}
+              onAutoCurve={(enabled) => void backend.setAutoQuickAnalyzeOnLoad(enabled).then(setAutoCurve).catch(report)}
             />
           }
           onTogglePondering={togglePondering}
@@ -705,6 +708,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           trial={editing.trial}
           onTrial={editing.toggleTrial}
           onRemote={() => remote.open()}
+          autoPlay={research.autoPlay}
         />
       ) : null}
       {editing.dialogs}
@@ -779,6 +783,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         <TsumegoDialog options={tsumego.options} labels={messages.tsumego} onConfirm={tsumego.generate} onClose={() => tsumego.setOpen(false)} />
       ) : null}
       {engines.dialogs}
+      {research.windows(menus, bindings)}
     </main>
   );
 }
