@@ -762,6 +762,7 @@
       "backMain": "Back to main (B)",
       "controlPanel": "Independent game control panel",
       "markup": "Markup Tools",
+      "paint": "Free drawing",
       "playBlack": "Add black(RightClick add white)",
       "playWhite": "Add white(RightClick add black)",
       "playAlternately": "Play alternately",
@@ -1909,6 +1910,92 @@
       "test": "Test",
       "cancel": "Cancel",
       "save": "Save"
+    }
+  },
+  "research": {
+    "search": {
+      "title": "Search features",
+      "hint": "Name, purpose, or keyword",
+      "cancel": "Cancel",
+      "browse": "Browse features",
+      "all": "All",
+      "categories": {
+        "file": "Game records & files",
+        "analysis": "Analysis & review",
+        "game": "Play & training",
+        "engine": "Engines & acceleration",
+        "sync": "Sync & sharing",
+        "view": "Interface & system"
+      },
+      "results": "{count} results",
+      "empty": "No matching features. Try a name, purpose, or technical term.",
+      "keyboard": "↑↓ Select · Enter: open · Esc: close",
+      "unavailable": "This entry is not available in the current application context.",
+      "notYet": "This entry is not in the new app yet."
+    },
+    "paint": {
+      "title": "Free drawing",
+      "Blue": "Blue",
+      "Green": "Green",
+      "Red": "Red",
+      "undo": "Undo last stroke",
+      "clear": "Clear all",
+      "close": "Close (Esc)"
+    },
+    "panel": {
+      "title": "Controller",
+      "close": "Close",
+      "first": "First move",
+      "last": "Last move",
+      "back5": "Back 5 moves",
+      "forward5": "Forward 5 moves",
+      "back": "Previous move",
+      "forward": "Next move",
+      "main": "Back to main branch",
+      "mainShort": "Back",
+      "paint": "Free drawing",
+      "paintShort": "Draw"
+    },
+    "saves": {
+      "title": "Save and load",
+      "autosave": "Auto save",
+      "restore": "Auto resume",
+      "deleteAll": "Clear",
+      "close": "Close",
+      "autosaveSlot": "Auto save",
+      "name": "Name",
+      "namePlaceholder": "Name (optional)",
+      "load": "Load",
+      "overwrite": "Save",
+      "rename": "Rename",
+      "delete": "Delete",
+      "newSlot": "New record",
+      "moves": "Move {n}",
+      "corrupt": "Damaged",
+      "loading": "Reading the saves…",
+      "overwriteConfirm": "Record exists, replace it?",
+      "deleteConfirm": "Delete the save “{name}”?",
+      "deleteAllConfirm": "Clear all saves?",
+      "confirm": "OK",
+      "cancel": "Cancel",
+      "errors": {
+        "InvalidId": "That is not a save.",
+        "InvalidName": "A name has 1 to 120 characters and no control characters.",
+        "Capacity": "There are 100 saves already. Delete one first.",
+        "ReadOnlyAutosave": "The automatic save can only be loaded.",
+        "Missing": "That save no longer exists.",
+        "Corrupt": "That save is damaged; it can only be deleted.",
+        "InvalidPosition": "This position cannot be saved: {reason}",
+        "Io": "The saves could not be read or written: {reason}"
+      }
+    },
+    "autoPlay": {
+      "title": "Set Auto Play",
+      "interval": "Main board (seconds)",
+      "invalid": "Enter 0.1 to 60 seconds.",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "close": "Close"
     }
   }
 }

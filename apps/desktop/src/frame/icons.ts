@@ -15,6 +15,7 @@ import markup from "../assets/java/mark1.png?no-inline";
 import more from "../assets/java/horizonDown.png?no-inline";
 import newFile from "../assets/java/newFile.png?no-inline";
 import open from "../assets/java/open.png?no-inline";
+import paint from "../assets/java/paint.png?no-inline";
 import pass from "../assets/java/playpass.png?no-inline";
 import rankMark from "../assets/java/RankMarkOn.png?no-inline";
 import save from "../assets/java/save.png?no-inline";
@@ -33,6 +34,7 @@ export const JAVA_ICONS = {
   backMain,
   controlPanel,
   markup,
+  paint,
   black,
   white,
   alternately,

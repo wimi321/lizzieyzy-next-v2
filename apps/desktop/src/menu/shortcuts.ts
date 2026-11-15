@@ -22,6 +22,9 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "togglePonder", code: "Space" },
   { id: "autoAnalyze", code: "KeyA" },
   { id: "clearAllLizzieCache", code: "KeyA", shift: true },
+  { id: "makeAutoPlay", code: "KeyA", control: true },
+  // 搜索功能 (`FunctionSearchController`): Ctrl+K, or ⌘K on macOS.
+  { id: "functionSearch", code: "KeyK", control: true },
   { id: "playPassMove", code: "KeyP" },
   { id: "playBestMove", code: "Comma" },
   // Java's game keys: N 人机对局, Alt+N its analysis-mode twin, Alt+E 引擎对局, Enter 人机续弈 for the side to move.

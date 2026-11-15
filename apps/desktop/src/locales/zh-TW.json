@@ -762,6 +762,7 @@
       "backMain": "返回主分支(B)",
       "controlPanel": "獨立棋局控制面板",
       "markup": "標記工具",
+      "paint": "自由塗鴉",
       "playBlack": "新增黑子(右鍵新增白子)",
       "playWhite": "新增白子(右鍵新增黑子)",
       "playAlternately": "交替落子",
@@ -1909,6 +1910,92 @@
       "test": "測試",
       "cancel": "取消",
       "save": "儲存"
+    }
+  },
+  "research": {
+    "search": {
+      "title": "搜尋功能",
+      "hint": "輸入名稱、用途或關鍵字",
+      "cancel": "取消",
+      "browse": "瀏覽功能",
+      "all": "全部",
+      "categories": {
+        "file": "棋譜與檔案",
+        "analysis": "分析與覆盤",
+        "game": "對局與訓練",
+        "engine": "引擎與加速",
+        "sync": "同步與分享",
+        "view": "介面與系統"
+      },
+      "results": "{count} 項結果",
+      "empty": "沒有符合的功能。試試名稱、用途或技術詞。",
+      "keyboard": "↑↓ 選擇 · Enter 開啟 · Esc 關閉",
+      "unavailable": "此入口在應用程式目前的狀態下無法使用。",
+      "notYet": "新版還沒有這一項。"
+    },
+    "paint": {
+      "title": "自由塗鴉",
+      "Blue": "藍色",
+      "Green": "綠色",
+      "Red": "紅色",
+      "undo": "復原一筆",
+      "clear": "全部清除",
+      "close": "關閉 (Esc)"
+    },
+    "panel": {
+      "title": "控制面板",
+      "close": "關閉",
+      "first": "第一手",
+      "last": "最後一手",
+      "back5": "後退 5 手",
+      "forward5": "前進 5 手",
+      "back": "後退一手",
+      "forward": "前進一手",
+      "main": "返回主分支",
+      "mainShort": "返回",
+      "paint": "自由塗鴉",
+      "paintShort": "塗鴉"
+    },
+    "saves": {
+      "title": "存檔與讀檔",
+      "autosave": "自動存檔",
+      "restore": "啟動時自動恢復",
+      "deleteAll": "全部刪除",
+      "close": "關閉",
+      "autosaveSlot": "自動存檔",
+      "name": "名稱",
+      "namePlaceholder": "名稱（可不填）",
+      "load": "載入",
+      "overwrite": "儲存",
+      "rename": "重新命名",
+      "delete": "刪除",
+      "newSlot": "新建存檔",
+      "moves": "第 {n} 手",
+      "corrupt": "已損壞",
+      "loading": "正在讀取存檔…",
+      "overwriteConfirm": "存檔已存在,是否覆蓋?",
+      "deleteConfirm": "刪除存檔「{name}」?",
+      "deleteAllConfirm": "刪除所有存檔?",
+      "confirm": "確定",
+      "cancel": "取消",
+      "errors": {
+        "InvalidId": "沒有這個存檔。",
+        "InvalidName": "名稱要有 1 到 120 個字，不能含控制字元。",
+        "Capacity": "已經有 100 個存檔，請先刪除一個。",
+        "ReadOnlyAutosave": "自動存檔只能載入。",
+        "Missing": "這個存檔已經不存在了。",
+        "Corrupt": "這個存檔已損壞，只能刪除。",
+        "InvalidPosition": "目前局面無法存檔：{reason}",
+        "Io": "讀寫存檔失敗：{reason}"
+      }
+    },
+    "autoPlay": {
+      "title": "設定自動播放",
+      "interval": "主棋盤(秒)",
+      "invalid": "請輸入 0.1 到 60 秒。",
+      "confirm": "確定",
+      "cancel": "取消",
+      "close": "關閉"
     }
   }
 }

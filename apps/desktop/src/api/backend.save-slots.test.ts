@@ -114,10 +114,11 @@ test("save slot mock fills optional fields and research setting defaults only", 
 
 test("research display defaults preserve legacy fixture payloads and explicit writes", async () => {
   const mock = await vi.importActual<typeof import("../../e2e/mock-backend")>("../../e2e/mock-backend");
-  const legacy = { ...defaultDisplaySettings, show_coordinates: false };
+  // A payload from before P3-24, without the three fields.
+  const legacy: Partial<typeof defaultDisplaySettings> = { ...defaultDisplaySettings, show_coordinates: false };
   for (const field of ["autoplay_interval_ms", "painting_color", "control_panel_bounds"] as const) {
-    expect(Object.hasOwn(legacy, field)).toBe(false);
     expect(defaultDisplaySettings[field]).toBeDefined();
+    delete legacy[field];
   }
   const explicit = { ...legacy, autoplay_interval_ms: 300, painting_color: "Green" as const,
     control_panel_bounds: { x: -10, y: 20, width: 500, height: 600 } };

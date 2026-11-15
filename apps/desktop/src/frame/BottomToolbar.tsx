@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ToolButton } from "./ToolButton";
 import type { ItemFilter } from "./toolbarItems";
+import type { AutoPlayButton } from "../research/useResearch";
 
 /** Home / End step size: the backend stops at the first or last move. */
 export const JUMP = 1_000_000;
@@ -54,6 +55,8 @@ export interface BottomToolbarProps {
   trial: boolean;
   /** The 自动分析 entry, which keeps its own panel. */
   autoAnalysis: ReactNode;
+  /** 自动播放: pressed while the main board plays on by itself. */
+  autoPlay?: AutoPlayButton;
   onTogglePondering(): void;
   onToggleOwnership(): void;
   onToggleCoordinates(): void;
@@ -176,6 +179,7 @@ export function BottomToolbar({
   pureNetwork = false,
   canBackMain = false,
   rankMarks = false,
+  autoPlay,
   ...on
 }: BottomToolbarProps) {
   const more = ["tryPlay", "finalScore", "heatMap"].some(show);
@@ -221,7 +225,9 @@ export function BottomToolbar({
           />
         ))}
         <GotoMove label={labels.gotoMove} enabled={hasBoard && on.onGotoMove !== undefined} onGo={(n) => on.onGotoMove?.(n)} />
-        {show("autoPlay") ? <ToolButton className="jt-optional" label={labels.autoPlay} enabled={false} /> : null}
+        {show("autoPlay") ? (
+          <ToolButton className="jt-optional" label={labels.autoPlay} enabled={hasBoard && autoPlay !== undefined} pressed={autoPlay?.playing} testId="bottom-auto-play" onClick={autoPlay?.onClick} />
+        ) : null}
       </div>
       <div className="jt-group" data-align="end">
         {show("setMainButton") ? <ToolButton className="jt-optional" label={labels.setMain} enabled={canSetMain} testId="bottom-set-main" onClick={on.onSetMain} /> : null}

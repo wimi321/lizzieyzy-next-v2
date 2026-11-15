@@ -33,30 +33,26 @@ function buttons(page: Page, toolbar: string, enabled: boolean) {
     );
 }
 
+/** The toolbar buttons of features the new app does not have yet. */
+const NOT_YET_TOP = ["设置强制计算区域(Alt+鼠标圈选)", "允许选点选项", "设置强制不计算区域", "排除选点选项", "清除强制区域(Alt+点击)", "规则", "参数"];
+const NOT_YET_BOTTOM = ["更新官方权重"];
+
 async function calls(page: Page) {
   return page.evaluate(() => window.__mockBackend?.recordedCalls() ?? []);
 }
 
 test("the toolbars hold Java's buttons in Java's order; what the new app lacks stays greyed in place", async ({ page }) => {
   await start(page);
-  expect(await buttons(page, "top-toolbar", true)).toEqual(["新建空白棋盘", "打开棋谱(O)", "保存棋谱(Ctrl+S)", "野狐棋谱", "腾讯棋谱", "棋力评估", "一键设置", "闪电分析", "超级鹰眼(Y)", "落子评价标记(Alt+M)", "交换落子顺序", "标记工具", "添加黑子(右键添加白子)", "添加白子(右键添加黑子)", "交替落子", "停一手(P)", "新对局", "死活", "棋盘"]);
-  expect(await buttons(page, "top-toolbar", false)).toEqual([
-    "搜索功能",
-    "设为主分支(L)",
-    "返回主分支(B)",
-    "独立棋局控制面板",
-    "设置强制计算区域(Alt+鼠标圈选)",
-    "允许选点选项",
-    "设置强制不计算区域",
-    "排除选点选项",
-    "清除强制区域(Alt+点击)",
-    "暂停",
-    "规则",
-    "参数",
-    "存档",
-  ]);
-  expect(await buttons(page, "bottom-toolbar", true)).toEqual(["暂停分析", "自动分析", "远程算力", "Kata形势", "|<", "<<", "<", ">", ">>", ">|", "手数", "坐标", "清空棋盘", "删除", "更多"]);
-  expect(await buttons(page, "bottom-toolbar", false)).toEqual(["更新官方权重", "跳转", "自动播放", "设为主分支"]);
+  expect(await buttons(page, "top-toolbar", true)).toEqual(["新建空白棋盘", "打开棋谱(O)", "保存棋谱(Ctrl+S)", "野狐棋谱", "腾讯棋谱", "棋力评估", "一键设置", "闪电分析", "搜索功能", "超级鹰眼(Y)", "落子评价标记(Alt+M)", "交换落子顺序", "独立棋局控制面板", "标记工具", "添加黑子(右键添加白子)", "添加白子(右键添加黑子)", "交替落子", "停一手(P)", "新对局", "死活", "棋盘", "存档"]);
+  // Greyed for now: on the main line of a game nobody is playing there is nothing for these to do.
+  const greyedTop = await buttons(page, "top-toolbar", false);
+  expect(greyedTop.filter((name) => !NOT_YET_TOP.includes(name))).toEqual(["设为主分支(L)", "返回主分支(B)", "暂停"]);
+  // Not in the new app yet, kept greyed in Java's places.
+  expect(greyedTop.filter((name) => NOT_YET_TOP.includes(name))).toEqual(NOT_YET_TOP);
+  expect(await buttons(page, "bottom-toolbar", true)).toEqual(["暂停分析", "自动分析", "远程算力", "Kata形势", "|<", "<<", "<", ">", ">>", ">|", "自动播放", "手数", "坐标", "清空棋盘", "删除", "更多"]);
+  const greyedBottom = await buttons(page, "bottom-toolbar", false);
+  expect(greyedBottom.filter((name) => !NOT_YET_BOTTOM.includes(name))).toEqual(["跳转", "设为主分支"]);
+  expect(greyedBottom.filter((name) => NOT_YET_BOTTOM.includes(name))).toEqual(NOT_YET_BOTTOM);
   await expect(page.getByTestId("tool-komi")).toHaveValue("7.5");
 
   // The menu strip: the engine as Java captions it, then AI 陪练 and AI 解说.

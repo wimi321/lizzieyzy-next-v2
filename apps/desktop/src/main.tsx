@@ -10,6 +10,7 @@ import "./styles/play.css";
 import "./styles/coach.css";
 import "./styles/online.css";
 import "./styles/remote.css";
+import "./styles/research.css";
 
 const root = document.getElementById("root");
 if (!root) {
