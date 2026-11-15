@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Backend, CustomLayout } from "@/api/backend";
 import { arrangementOf, type Display, filled } from "../display/settings";
+import type { FloatingLayout } from "../floating/useFloating";
 import type { MenuBindings } from "../menu/bindings";
 import type en from "../locales/en.json";
 import { PanelSettingsDialog } from "./PanelSettingsDialog";
@@ -26,14 +27,21 @@ function measure(): Measures {
   };
 }
 
-/** The panel-settings dialog: null for 可视化面板设置, else the slot; and the display it opened on. */
-type Editing = { slot: number | null; before: Display };
+/** The panel-settings dialog: null for 可视化面板设置, else the slot; and what it opened on. */
+type Editing = { slot: number | null; before: Display; floating: FloatingLayout | null };
 
 /**
  * 布局模式, 放大小棋盘 / 放大胜率图, 主棋盘/界面位置, 恢复默认面板尺寸, 重置界面位置,
  * 可视化面板设置 and 自定义布局 1 / 2: their entries, the layout they give and their dialog.
  */
-export function useLayout(backend: LayoutBackend, display: Display, set: (patch: Partial<Display>) => void, labels: typeof en.layout) {
+export function useLayout(
+  backend: LayoutBackend,
+  display: Display,
+  set: (patch: Partial<Display>) => void,
+  labels: typeof en.layout,
+  /** The floating boards, which the dialog switches too. */
+  floating?: { layout: FloatingLayout; set(next: FloatingLayout): void },
+) {
   const [editing, setEditing] = useState<Editing | null>(null);
 
   // Java resizes the window to suit the layout; Rust leaves a maximized window alone.
@@ -49,10 +57,10 @@ export function useLayout(backend: LayoutBackend, display: Display, set: (patch:
   const slot = (index: number) => () => {
     const saved = display.custom_layouts[index];
     if (saved) apply(saved);
-    else setEditing({ slot: index, before: display });
+    else setEditing({ slot: index, before: display, floating: floating?.layout ?? null });
   };
   const edit = (index: number | null) => {
-    setEditing({ slot: index, before: display });
+    setEditing({ slot: index, before: display, floating: floating?.layout ?? null });
     const saved = index === null ? null : display.custom_layouts[index];
     if (saved) set(displayOf(saved));
   };
@@ -74,6 +82,7 @@ export function useLayout(backend: LayoutBackend, display: Display, set: (patch:
   };
   const cancel = () => {
     if (editing) set(dialogFields(editing.before));
+    if (editing?.floating && floating && JSON.stringify(editing.floating) !== JSON.stringify(floating.layout)) floating.set(editing.floating);
     setEditing(null);
   };
 
@@ -107,7 +116,15 @@ export function useLayout(backend: LayoutBackend, display: Display, set: (patch:
     extra: (props: Omit<SideBoardsProps, "mode" | "backend" | "labels">) =>
       mode === "Thinking" || mode === "MultiView" ? <SideBoards mode={mode} backend={backend} labels={labels.boards} {...props} /> : undefined,
     dialog: editing ? (
-      <PanelSettingsDialog slot={editing.slot} display={display} labels={labels.dialog} onChange={set} onApply={finish} onCancel={cancel} />
+      <PanelSettingsDialog
+        slot={editing.slot}
+        display={display}
+        labels={labels.dialog}
+        onChange={set}
+        onApply={finish}
+        onCancel={cancel}
+        floating={floating ? { layout: floating.layout, onChange: floating.set } : undefined}
+      />
     ) : null,
   };
 }

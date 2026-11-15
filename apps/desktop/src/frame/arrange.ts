@@ -8,6 +8,8 @@ export interface Arrangement {
   largeGraph: boolean;
   /** Java's `BoardPositionProportion`, 0 (left) to 8 (right). */
   position: number;
+  /** 浮动主棋盘 without 保留原棋盘: the board is in its own window, the panels share this one. */
+  boardFloated?: boolean;
 }
 
 export const DEFAULT_ARRANGEMENT: Arrangement = { mode: "Normal", largeSubBoard: false, largeGraph: false, position: BOARD_POSITION };
@@ -173,12 +175,41 @@ function sideBoardLayout(width: number, height: number, boardSize: number, show:
 }
 
 /**
+ * The main window while the board floats (Java's `Float_Board`, `LizzieFrame` 6927–7095): a left
+ * column of the info box, the graph and the comment, its width set by the board position; on the
+ * right the tree and the list, the sub-board at the bottom. Either column takes the whole width
+ * when the other has nothing to show.
+ */
+function floatedLayout(width: number, height: number, show: PanelFlags, position: number): FrameLayout {
+  const left = [show.info !== false ? "info" : null, show.graph !== false ? "graph" : null, show.comment ? "comment" : null].filter((name): name is "info" | "graph" | "comment" => name !== null);
+  const right = [show.tree ? "tree" : null, show.list ? "list" : null].filter((name): name is "tree" | "list" => name !== null);
+  const sub = show.subBoard;
+  const hasRight = right.length > 0 || sub;
+  const columnW = left.length === 0 ? 0 : hasRight ? div(width, 8) * Math.max(1, position) : width;
+  const bottom = show.status ? height - STATUS_HEIGHT : height;
+  const layout: FrameLayout = { ...empty(), status: rect(0, bottom, columnW || width, show.status ? STATUS_HEIGHT : 0) };
+  stack(rect(0, 0, columnW, bottom), left.map((name) => (name === "graph" ? 2 : 1))).forEach((area, index) => {
+    const name = left[index]!;
+    if (name === "info") {
+      const [captured, statistics] = stack(area, [3, 2]);
+      Object.assign(layout, { captured, statistics });
+    } else layout[name] = area;
+  });
+  const rightArea = rect(columnW, 0, width - columnW, height);
+  const length = sub ? Math.max(0, Math.min(rightArea.width, right.length > 0 ? Math.trunc(rightArea.height * 0.75) : rightArea.height)) : 0;
+  if (sub) layout.subBoard = rect(rightArea.x + div(rightArea.width - length, 2), height - length, length, length);
+  stack(rect(rightArea.x, 0, rightArea.width, height - length), right.map(() => 1)).forEach((area, index) => (layout[right[index]!] = area));
+  return layout;
+}
+
+/**
  * The main panel's layout for the chosen mode. Normal is Java's `InFrameLayout` at the saved board
  * position; the enlarged layouts apply to landscape panels only, as in Java, and only when there is
  * room for them beside the board.
  */
 export function frameLayout(width: number, height: number, boardSize: number, show: PanelFlags, arrangement: Arrangement = DEFAULT_ARRANGEMENT): FrameLayout {
   const position = Math.max(0, Math.min(8, Math.round(arrangement.position)));
+  if (arrangement.boardFloated) return floatedLayout(width, height, show, position);
   switch (arrangement.mode) {
     case "Min":
       return minLayout(width, height, boardSize, position);

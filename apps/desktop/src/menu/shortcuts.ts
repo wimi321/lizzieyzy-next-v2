@@ -89,6 +89,10 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "customeMode2", code: "Digit9", alt: true },
   { id: "largeSubBoard", code: "KeyF", control: true },
   { id: "largeWinrateGraph", code: "KeyW", ctrlOnly: true },
+  // 浮动主棋盘 Alt+Q, 浮动小棋盘 Alt+A (Java's code; its Chinese label says Alt+W), 浮动双棋盘 Alt+7.
+  { id: "independentMainBoard", code: "KeyQ", alt: true },
+  { id: "independentSubBoard", code: "KeyA", alt: true },
+  { id: "indepBothBoard", code: "Digit7", alt: true },
   { id: "leftMove", code: "BracketLeft", repeat: true },
   { id: "rightMove", code: "BracketRight", repeat: true },
 ];

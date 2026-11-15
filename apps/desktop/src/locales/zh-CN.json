@@ -2099,6 +2099,8 @@
       },
       "largeSubBoard": "放大小棋盘",
       "largeWinrateGraph": "放大胜率图",
+      "floatMain": "浮动主棋盘",
+      "floatSub": "浮动小棋盘",
       "position": "主棋盘/界面位置偏移",
       "apply": "应用",
       "cancel": "取消"
@@ -2107,5 +2109,15 @@
       "thinking": "思考棋盘",
       "candidate": "第 {n} 选点的变化"
     }
+  },
+  "floating": {
+    "main": "浮动主棋盘",
+    "sub": "浮动小棋盘",
+    "loading": "正在载入…",
+    "close": "关闭",
+    "pin": "置顶",
+    "unpin": "取消置顶",
+    "lock": "锁定位置和大小",
+    "unlock": "解除锁定"
   }
 }
