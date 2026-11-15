@@ -7,6 +7,8 @@ interface Shortcut {
   code: string;
   /** Ctrl, or Cmd on macOS, as Java's `controlIsPressed` reads it. */
   control?: boolean;
+  /** The Control key itself, never Cmd: ⌘W closes windows on macOS. */
+  ctrlOnly?: boolean;
   alt?: boolean;
   shift?: boolean;
   /** Navigation repeats while the key is held; commands run once per press. */
@@ -77,6 +79,18 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "spinLeft", code: "ArrowLeft", control: true, alt: true },
   { id: "mirrorVertical", code: "ArrowUp", control: true, alt: true },
   { id: "mirrorHorizon", code: "ArrowDown", control: true, alt: true },
+  // 布局模式 Alt+1…5, 自定义布局 Alt+8 / 9, 放大小棋盘 Ctrl+F, 放大胜率图 Ctrl+W, 主棋盘位置 [ ].
+  { id: "defaultView", code: "Digit1", alt: true },
+  { id: "classicView", code: "Digit2", alt: true },
+  { id: "minView", code: "Digit3", alt: true },
+  { id: "extraMode3", code: "Digit4", alt: true },
+  { id: "extraMode1", code: "Digit5", alt: true },
+  { id: "customeMode1", code: "Digit8", alt: true },
+  { id: "customeMode2", code: "Digit9", alt: true },
+  { id: "largeSubBoard", code: "KeyF", control: true },
+  { id: "largeWinrateGraph", code: "KeyW", ctrlOnly: true },
+  { id: "leftMove", code: "BracketLeft", repeat: true },
+  { id: "rightMove", code: "BracketRight", repeat: true },
 ];
 
 type KeyPress = Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey" | "repeat">;
@@ -85,6 +99,8 @@ type KeyPress = Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "metaKey" | "al
 function codeOf(event: KeyPress): string {
   if (event.code) return event.code;
   if (/^[a-z]$/i.test(event.key)) return `Key${event.key.toUpperCase()}`;
+  if (event.key === "[") return "BracketLeft";
+  if (event.key === "]") return "BracketRight";
   return event.key === " " ? "Space" : event.key === "," ? "Comma" : event.key === "." ? "Period" : event.key;
 }
 
@@ -94,7 +110,7 @@ export function matchShortcut(event: KeyPress): string | null {
   const shortcut = SHORTCUTS.find(
     (candidate) =>
       candidate.code === code &&
-      Boolean(candidate.control) === control &&
+      (candidate.ctrlOnly ? event.ctrlKey && !event.metaKey : Boolean(candidate.control) === control) &&
       Boolean(candidate.alt) === event.altKey &&
       Boolean(candidate.shift) === event.shiftKey &&
       (!event.repeat || candidate.repeat),

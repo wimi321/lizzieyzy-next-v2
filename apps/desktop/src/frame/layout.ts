@@ -20,13 +20,15 @@ export interface FrameLayout {
   /** 选点列表面板: the candidates, under the tree. */
   list: Rect;
   subBoard: Rect;
+  /** 思考模式's plain board, or 四方图's four small boards; empty in the other layouts. */
+  extra: Rect;
 }
 
 /** Height Java reserves for the status line: one line of 14 px text at 1.8 line height, plus 4. */
 export const STATUS_HEIGHT = Math.round(14 * 1.8) + 4;
 
-/** Java's `BoardPositionProportion`: the board sits at 4/8 of the space left beside it. */
-const BOARD_POSITION = 4;
+/** Java's `BoardPositionProportion`: the board sits at 4/8 of the space left beside it by default. */
+export const BOARD_POSITION = 4;
 
 const div = (a: number, b: number) => Math.trunc(a / b);
 
@@ -38,6 +40,9 @@ export interface PanelFlags {
   status: boolean;
   /** 选点列表面板; Java's reference layouts here leave it out. */
   list?: boolean;
+  /** The winrate graph and the info box, which the enlarged layouts arrange around. */
+  graph?: boolean;
+  info?: boolean;
 }
 
 export const ALL_PANELS: PanelFlags = { comment: true, subBoard: true, tree: true, status: true };
@@ -48,10 +53,10 @@ export const ALL_PANELS: PanelFlags = { comment: true, subBoard: true, tree: tru
  * the tree; hidden panels give their room to these neighbours as Java's do. Integer arithmetic
  * follows Java's.
  */
-export function inFrameLayout(width: number, height: number, boardSize = 19, show: PanelFlags = ALL_PANELS): FrameLayout {
+export function inFrameLayout(width: number, height: number, boardSize = 19, show: PanelFlags = ALL_PANELS, position = BOARD_POSITION): FrameLayout {
   const maxSize = Math.max(Math.min(width, height), boardSize + 5);
   const panelMargin = Math.trunc(maxSize * 0.02);
-  const boardX = div(width - maxSize, 8) * BOARD_POSITION;
+  const boardX = div(width - maxSize, 8) * position;
   const boardY = div(height - maxSize, 2);
 
   const capw = boardX - panelMargin;
@@ -119,5 +124,6 @@ export function inFrameLayout(width: number, height: number, boardSize = 19, sho
     tree: { x: vx, y: 0, width: vw, height: treeHeight },
     list,
     subBoard: { x: subBoardX, y: subBoardY, width: Math.max(0, subBoardLength), height: Math.max(0, subBoardLength) },
+    extra: { x: 0, y: 0, width: 0, height: 0 },
   };
 }

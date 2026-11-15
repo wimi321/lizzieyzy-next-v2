@@ -2081,5 +2081,31 @@
       "OutOfBounds": "这个点不在棋盘上。",
       "InvalidPosition": "当前局面无法点目。"
     }
+  },
+  "layout": {
+    "setUp": "设置",
+    "dialog": {
+      "title": "可视化面板设置",
+      "customTitle": "设置自定义布局 {n}",
+      "close": "关闭",
+      "panels": {
+        "show_sub_board": "显示小棋盘",
+        "show_winrate_graph": "显示胜率图",
+        "show_comment": "显示评论/问题手面板",
+        "show_variation_graph": "显示分支面板",
+        "show_list_pane": "显示选点列表",
+        "show_information_panel": "显示信息面板",
+        "show_status_bar": "显示状态面板"
+      },
+      "largeSubBoard": "放大小棋盘",
+      "largeWinrateGraph": "放大胜率图",
+      "position": "主棋盘/界面位置偏移",
+      "apply": "应用",
+      "cancel": "取消"
+    },
+    "boards": {
+      "thinking": "思考棋盘",
+      "candidate": "第 {n} 选点的变化"
+    }
   }
 }

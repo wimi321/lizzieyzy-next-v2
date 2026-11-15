@@ -14,13 +14,13 @@ export type FloatingBoardsChangedListener = (view: FloatingBoardsView) => void;
 export type DisplaySettingsChangedListener = (display: DisplaySettings) => void;
 
 export interface WindowCommands {
-  fitMainWindow?(width: number, height: number): Promise<void>;
-  resetWindowPositions?(): Promise<void>;
-  openFloatingBoard?(kind: FloatingBoardKind): Promise<FloatingBoardsView>;
-  closeFloatingBoard?(kind: FloatingBoardKind): Promise<FloatingBoardsView>;
-  setFloatingBoardOptions?(kind: FloatingBoardKind, onTop: boolean, locked: boolean): Promise<FloatingBoardsView>;
-  setFloatingLayout?(main: boolean, keepMainBoard: boolean, sub: boolean): Promise<FloatingBoardsView>;
-  applyWindowLayout?(layout: WindowLayout): Promise<DisplaySettings>;
+  fitMainWindow(width: number, height: number): Promise<void>;
+  resetWindowPositions(): Promise<void>;
+  openFloatingBoard(kind: FloatingBoardKind): Promise<FloatingBoardsView>;
+  closeFloatingBoard(kind: FloatingBoardKind): Promise<FloatingBoardsView>;
+  setFloatingBoardOptions(kind: FloatingBoardKind, onTop: boolean, locked: boolean): Promise<FloatingBoardsView>;
+  setFloatingLayout(main: boolean, keepMainBoard: boolean, sub: boolean): Promise<FloatingBoardsView>;
+  applyWindowLayout(layout: WindowLayout): Promise<DisplaySettings>;
 }
 
 /** Sizes and placements are logical pixels; validation and fitting belong to Rust. */

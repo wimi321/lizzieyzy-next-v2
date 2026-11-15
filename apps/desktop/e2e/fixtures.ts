@@ -143,13 +143,6 @@ export const defaultDisplaySettings: Required<import("../src/api/backend").Displ
   show_names_below_board: true,
 };
 
-// Preserve the serialized shape expected by the existing P3-26 UI fixtures.
-// Property reads and fillDisplayDefaults still see every new Rust default.
-for (const key of ["layout_mode", "large_sub_board", "large_winrate_graph", "board_position",
-  "floating_boards", "custom_layouts", "main_window", "floating_main", "floating_sub"] as const) {
-  Object.defineProperty(defaultDisplaySettings, key, { enumerable: false });
-}
-
 /** Scripted Fox reply for UI tests; network parsing remains in Rust. */
 export function foxSearchResult(): FoxSearchResult {
   return {

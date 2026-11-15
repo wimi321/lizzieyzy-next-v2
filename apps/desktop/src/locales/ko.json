@@ -2081,5 +2081,31 @@
       "OutOfBounds": "바둑판에 없는 점입니다.",
       "InvalidPosition": "이 국면은 계가할 수 없습니다."
     }
+  },
+  "layout": {
+    "setUp": "설정",
+    "dialog": {
+      "title": "패널 표시 설정",
+      "customTitle": "사용자 레이아웃 {n} 설정",
+      "close": "닫기",
+      "panels": {
+        "show_sub_board": "보조바둑판 보기",
+        "show_winrate_graph": "승률그래프 보기",
+        "show_comment": "주석/문제수 패널 표시",
+        "show_variation_graph": "변화도 영역 보기",
+        "show_list_pane": "후보수 목록 보기",
+        "show_information_panel": "정보 영역 보기",
+        "show_status_bar": "상태 영역 보기"
+      },
+      "largeSubBoard": "보조바둑판 크게 보기",
+      "largeWinrateGraph": "승률그래프 크게 보기",
+      "position": "바둑판 위치 조정",
+      "apply": "적용",
+      "cancel": "취소"
+    },
+    "boards": {
+      "thinking": "생각용 바둑판",
+      "candidate": "후보 {n}의 변화"
+    }
   }
 }

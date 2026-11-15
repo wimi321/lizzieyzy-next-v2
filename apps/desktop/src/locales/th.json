@@ -2081,5 +2081,31 @@
       "OutOfBounds": "จุดนี้ไม่อยู่บนกระดาน",
       "InvalidPosition": "นับแต้มตำแหน่งนี้ไม่ได้"
     }
+  },
+  "layout": {
+    "setUp": "ตั้งค่า",
+    "dialog": {
+      "title": "ตั้งค่าการแสดงแผง",
+      "customTitle": "ตั้งค่าเค้าโครงแบบกำหนดเอง {n}",
+      "close": "ปิด",
+      "panels": {
+        "show_sub_board": "แสดงกระดานย่อย",
+        "show_winrate_graph": "แสดงกราฟอัตราชนะ",
+        "show_comment": "แสดงแผงความเห็น/ตาที่ผิดพลาด",
+        "show_variation_graph": "แสดงแผงสาขา",
+        "show_list_pane": "แสดงรายการจุดที่น่าเล่น",
+        "show_information_panel": "แสดงแผงข้อมูล",
+        "show_status_bar": "แสดงแผงสถานะ"
+      },
+      "largeSubBoard": "กระดานย่อยขนาดใหญ่",
+      "largeWinrateGraph": "กราฟอัตราชนะขนาดใหญ่",
+      "position": "ตำแหน่งกระดาน/หน้าต่าง",
+      "apply": "ใช้",
+      "cancel": "ยกเลิก"
+    },
+    "boards": {
+      "thinking": "กระดานสำหรับคิด",
+      "candidate": "ทางเดินของจุดที่ {n}"
+    }
   }
 }

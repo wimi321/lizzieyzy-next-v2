@@ -1,5 +1,6 @@
 import { type ReactNode, type WheelEvent, useLayoutEffect, useRef, useState } from "react";
-import { type FrameLayout, inFrameLayout, type Rect } from "./layout";
+import { type Arrangement, DEFAULT_ARRANGEMENT, frameLayout } from "./arrange";
+import type { FrameLayout, Rect } from "./layout";
 
 export type RegionName = keyof FrameLayout;
 
@@ -16,6 +17,7 @@ const DATA_NAMES: Record<RegionName, string> = {
   tree: "tree",
   list: "list",
   subBoard: "sub-board",
+  extra: "extra",
 };
 
 /** A panel laid over some regions, as Java lays 存档与读档 over the list and the tree. */
@@ -35,6 +37,8 @@ export interface MainPanelProps {
   /** Laid over the board region and kept to it, as 自由涂鸦's sheet. */
   boardOverlay?: ReactNode;
   cover?: PanelCover;
+  /** 布局模式, the two enlarged layouts and the board's position. */
+  arrangement?: Arrangement;
 }
 
 function style(rect: Rect) {
@@ -56,7 +60,7 @@ function union(rects: readonly Rect[]): Rect | null {
  * The window's content between the toolbars, cut into LizzieYzy Next's panels by its own
  * layout formula (`InFrameLayout`) every time the panel changes size.
  */
-export function MainPanel({ regions, hidden = [], boardSize, boardData, onBoardWheel, boardOverlay, cover }: MainPanelProps) {
+export function MainPanel({ regions, hidden = [], boardSize, boardData, onBoardWheel, boardOverlay, cover, arrangement = DEFAULT_ARRANGEMENT }: MainPanelProps) {
   const root = useRef<HTMLDivElement>(null);
   // A nominal panel until the first measurement, so the first frame is never empty.
   const [size, setSize] = useState(NOMINAL);
@@ -75,18 +79,28 @@ export function MainPanel({ regions, hidden = [], boardSize, boardData, onBoardW
   }, []);
 
   const shown = (name: RegionName) => !hidden.includes(name);
-  const layout = inFrameLayout(size.width, size.height, boardSize, {
-    comment: shown("comment"),
-    subBoard: shown("subBoard"),
-    tree: shown("tree"),
-    status: shown("status"),
-    list: regions.list !== undefined && shown("list"),
-  });
+  const layout = frameLayout(
+    size.width,
+    size.height,
+    boardSize,
+    {
+      comment: shown("comment"),
+      subBoard: shown("subBoard"),
+      tree: shown("tree"),
+      status: shown("status"),
+      list: regions.list !== undefined && shown("list"),
+      graph: shown("graph"),
+      info: shown("captured"),
+    },
+    arrangement,
+  );
+  // 思考模式 and 四方图 alone use the extra region.
+  const present = (name: RegionName) => shown(name) && (name !== "extra" || (regions.extra != null && layout.extra.width > 0));
   // With neither region shown, the panel takes the right half, where they would be.
   const covered = cover ? (union(cover.regions.filter(shown).map((name) => layout[name])) ?? { x: size.width / 2, y: 0, width: size.width / 2, height: size.height }) : null;
   return (
     <div className="main-panel" ref={root} data-testid="main-panel">
-      {(Object.keys(DATA_NAMES) as RegionName[]).filter(shown).map((name) => (
+      {(Object.keys(DATA_NAMES) as RegionName[]).filter(present).map((name) => (
         <section
           key={name}
           className="main-region"
