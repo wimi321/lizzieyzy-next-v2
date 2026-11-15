@@ -522,8 +522,8 @@ async fn games_matches_and_batch_suppress_timer_and_reuse_open_guards() {
             resign: None,
             ..Default::default()
         },
-        wrn: 0.0,
-        pda: 0.0,
+        wrn: Some(0.0),
+        pda: Some(0.0),
     };
     within(app.start_match(MatchSetup {
         a: player.clone(),

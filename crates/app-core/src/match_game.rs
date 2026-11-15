@@ -25,12 +25,12 @@ pub enum MatchPlayer {
         #[serde(default = "match_play")]
         #[ts(as = "Option<KataGoPlay>", optional)]
         play: KataGoPlay,
-        #[serde(default)]
-        #[ts(as = "Option<f64>", optional)]
-        wrn: f64,
-        #[serde(default)]
-        #[ts(as = "Option<f64>", optional)]
-        pda: f64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        wrn: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        pda: Option<f64>,
     },
     Gtp {
         engine_id: String,
@@ -52,8 +52,8 @@ impl Default for MatchPlayer {
         Self::KataGo {
             engine_id: String::new(),
             play: match_play(),
-            wrn: 0.0,
-            pda: 0.0,
+            wrn: None,
+            pda: None,
         }
     }
 }
@@ -88,7 +88,7 @@ impl MatchPlayer {
             .validate()
             .map_err(|error| MatchError::InvalidSetup(error.to_string()))?;
         if let Self::KataGo { wrn, pda, .. } = self {
-            validate_params(*wrn, *pda)?;
+            validate_params(wrn.unwrap_or_default(), pda.unwrap_or_default())?;
         }
         Ok(())
     }

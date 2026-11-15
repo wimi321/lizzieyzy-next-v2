@@ -199,6 +199,15 @@ impl From<document::DocumentWarning> for DocumentWarningView {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct DocumentView {
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub analysis_restriction: Option<crate::AnalysisRestriction>,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub restricted_analysis: Option<Box<AnalysisView>>,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub scoring: Option<Box<crate::ScoringView>>,
     /// Root SGF fields for the game information panel, independent of focus.
     pub game_info: Box<GameInfoView>,
     /// Invalid recorded positions remain navigable but have no invented board.
@@ -252,6 +261,9 @@ impl DocumentView {
         };
         let (graph, branch_start_move_number) = GraphView::from_document_with_branch(document)?;
         Ok(Self {
+            analysis_restriction: None,
+            restricted_analysis: None,
+            scoring: None,
             file_name: None,
             file_path: None,
             modified: false,
@@ -407,6 +419,7 @@ impl AnalysisView {
                 analysis::SnapshotSource::Cache => AnalysisSource::Cache,
                 analysis::SnapshotSource::Live
                 | analysis::SnapshotSource::Extras
+                | analysis::SnapshotSource::Restricted
                 | analysis::SnapshotSource::PureNetwork => AnalysisSource::Live,
             },
         })

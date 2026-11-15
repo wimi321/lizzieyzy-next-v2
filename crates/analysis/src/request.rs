@@ -5,6 +5,16 @@ use katago_protocol::{Player, Rules};
 
 use crate::{AnalysisError, LiveSettings};
 
+/// Adapt typed protocol restrictions to the session's legacy request envelope.
+pub fn set_move_restrictions(
+    request: &mut AnalysisRequest,
+    restrictions: &katago_protocol::MoveRestrictions,
+) -> Result<(), AnalysisError> {
+    restrictions
+        .write_extensions(&mut request.extensions)
+        .map_err(|_| AnalysisError::InvalidSettings("invalid move restriction"))
+}
+
 /// Build a bounded move/scoring search on the existing analysis-engine session.
 /// The caller must cancel its live focus before submitting this request, and
 /// keep the same node/key identity until consuming its final result.
@@ -31,11 +41,10 @@ pub fn play_request(
         max_visits.unwrap_or(u64::from(u32::MAX))
     });
     if let Some(seconds) = max_time {
-        request.override_settings = Some(
-            [("maxTime".to_owned(), serde_json::json!(seconds))]
-                .into_iter()
-                .collect(),
-        );
+        request
+            .override_settings
+            .get_or_insert_with(Default::default)
+            .insert("maxTime".into(), serde_json::json!(seconds));
     }
     Ok(request)
 }
@@ -85,7 +94,11 @@ pub(crate) fn build(
         first_report_during_search_after: Some(report_interval),
         priority: Some(0),
         priorities: None,
-        override_settings: None,
+        override_settings: settings
+            .search_params
+            .as_ref()
+            .map(crate::SearchParams::overrides)
+            .filter(|values| !values.is_empty()),
         extensions: Default::default(),
     })
 }

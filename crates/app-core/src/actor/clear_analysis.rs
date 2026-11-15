@@ -217,8 +217,11 @@ impl Actor {
                         self.review.results.remove(&before.node);
                         self.summaries.remove(&before.node);
                         if let Some(result) = &before.result
-                            && (result.saved.is_some()
-                                || change.fingerprint == self.summary_fingerprint)
+                            && (if result.saved.is_some() {
+                                self.settings.search_params.is_none()
+                            } else {
+                                change.fingerprint == self.summary_fingerprint
+                            })
                         {
                             self.review.results.insert(before.node, result.clone());
                             if let Some(summary) = before.summary {

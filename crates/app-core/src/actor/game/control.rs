@@ -119,7 +119,7 @@ impl Actor {
         self.validate_game_position()?;
         self.ensure_no_batch()?;
         self.ensure_no_pure_network()?;
-        if !self.can_reuse_saved_analysis() {
+        if !self.uses_sgf_rules() {
             return Err(GameError::IncompatibleMode.into());
         }
         self.ensure_no_benchmark()?;

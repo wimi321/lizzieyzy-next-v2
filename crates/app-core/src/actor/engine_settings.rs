@@ -33,6 +33,7 @@ impl Actor {
         {
             live.report_interval = Duration::from_millis(u64::from(settings.report_interval_ms));
         }
+        live.search_params = self.settings.search_params.as_ref().map(Into::into);
         live.query_rules = settings.rules.query_rules();
         live.query_komi = (!settings.read_komi).then_some(settings.default_komi);
         live
@@ -42,12 +43,20 @@ impl Actor {
         let mut hash = blake3::Hasher::new();
         hash.update(profile.as_bytes());
         hash.update(&self.settings.engine_settings.evaluation_identity()?);
+        if let Some(params) = &self.settings.search_params {
+            hash.update(b"search-params:v1\0");
+            hash.update(&serde_json::to_vec(params).map_err(crate::SettingsError::from)?);
+        }
         Ok(hash.finalize().to_hex().to_string())
     }
 
-    pub(super) fn can_reuse_saved_analysis(&self) -> bool {
+    pub(super) fn uses_sgf_rules(&self) -> bool {
         self.settings.engine_settings.rules == crate::EngineRules::FollowSgf
             && self.settings.engine_settings.read_komi
+    }
+
+    pub(super) fn can_reuse_saved_analysis(&self) -> bool {
+        self.uses_sgf_rules() && self.settings.search_params.is_none()
     }
 
     pub(super) async fn set_engine_settings(

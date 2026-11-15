@@ -136,6 +136,16 @@ impl Actor {
                 Some(command)
             }
             Command::Apply(_, reply) => reject!(reply),
+            Command::Scoring(request) => {
+                use crate::scoring::Request;
+                match request {
+                    Request::Start(reply) | Request::Toggle(_, reply) | Request::Rule(_, reply) => {
+                        reject!(reply)
+                    }
+                    Request::Commit(reply) => reject!(reply),
+                    Request::Cancel(reply) => reject!(reply),
+                }
+            }
             Command::Updates(reply) => reject!(reply),
             Command::Assets(reply) => reject!(reply),
             Command::AttachUpdates(_, reply) => reject!(reply),

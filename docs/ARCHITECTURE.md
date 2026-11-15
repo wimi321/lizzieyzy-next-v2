@@ -62,7 +62,7 @@ strength ← app-core（strength 无 workspace 内部依赖）
 
 - `Point { x: u8, y: u8 }`：左上角原点、零起算；`Color { Black, White }`、`Move { Play(Color, Point), Pass(Color) }`。
 - `BoardSize { width: u8, height: u8 }`：2..=25，允许非正方形（KataGo 默认编译只支持到 19，超出由引擎报错）。`BoardSize::new` / `validate` 返回 `BoardSizeError`；局面构造和坐标转换也验证公开字段，不能靠直接构造绕过尺寸限制。
-- `Rules { ko: KoRule, allow_multi_stone_suicide: bool, scoring: ScoringRule }`：`KoRule::{Simple, PositionalSuperko, SituationalSuperko}`；`ScoringRule::{Area, Territory}`。这里不计算终局分数。
+- `Rules { ko: KoRule, allow_multi_stone_suicide: bool, scoring: ScoringRule }`：`KoRule::{Simple, PositionalSuperko, SituationalSuperko}`；`ScoringRule::{Area, Territory}`。普通落子不计算终局分数；研究工具通过独立 scoring 纯函数显式点目。
 - `RulePreset::from_name` 接受下表的精确小写名称，未知名称返回 `UnknownRules`；`rules()` 得到上述规则子集，`as_katago_str()` 得到同名 KataGo 规则串。预设身份独立保留，因为日本和韩国规则在本卡建模的字段相同；`Rules::from_name` 只取得规则子集。映射依据 [KataGo rules.cpp](https://github.com/lightvector/KataGo/blob/master/cpp/game/rules.cpp)。
 
   | 名称 / KataGo 规则串 | 劫 | 允许多子自杀 | 计分方式 |
@@ -402,6 +402,19 @@ pub enum EngineStatus {
 - `CommentaryUpdated` 有请求 ID、Preparing/Generating/Verifying/Completed/Failed/Stopped、delta、完整 text、replacement、选中节点、依据全文、覆盖计数、核对问题和类型化错误。独立最新事件槽与原有有序 IPC 共用；完整文本保证慢消费者合并中间帧不丢最终内容，壳重连回放最新完整快照，`commentary_status` 可补读。更正开始清空草稿并设置 replacement，至多一次；仍有问题时完成展示但不写入。跟随未核对前文的追问也不将该前文带入 SGF。
 - 核对成功且保存开启：下一手写捕获的当前节点，范围写范围第一手的节点，整盘写根。经 document 的 `SetComment` 和现有编辑历史写入一次，保持其他用户文字，导航回原浏览节点，整个块可撤销。追问用冻结的同一依据和上次回答，向同一块追加「追问」；写入前再次核对文档内容版本，生成期间编辑则保守拒绝写入，导航可继续。换谱（包括试下/题目/同步重建）取消请求、清前次对话并发布空 Stopped 快照；退出/最后句柄释放取消任务。活动批量、对局、比赛及更新安装时不开始解说。
 - 测试只用监听 127.0.0.1 的脚本 HTTP 服务、分段信号屏障和 trait 内存存储，不访问真实服务/API key/系统钥匙串。联网测试显式 ignore，环境凭据仅在手动运行该测试时读取。P3-20 才接界面；本卡 mock 所有新命令均需脚本，没有前端解说业务。
+
+### P3-23 研究工具后端
+
+- `AnalysisRestriction { kind: Allow/Avoid, points, depth }` 属于当前文档会话，只保存一类点集；设置替换，增加同类合并去重、异类替换，移除到空等同清除。点须在当前盘面内；不修改 SGF 或设置。换文档清空，普通导航保留。`Settings.restriction_depths` 分别保存 Allow/Avoid 的 FirstMove、Custom(1..=200，默认 5)、WholeSearch；后者发 1,000,000，远大于支持的最大 25×25 棋盘的通常搜索深度，又在有符号 32 位深度内，不使用负数或零哨兵。
+- 只在实时查询添加 `allowMoves` 或 `avoidMoves` 的单项数组，player 每次按实际轮走方确定，moves 为 GTP，untilDepth 为正整数。依据 [KataGo Analysis Engine](https://github.com/lightvector/KataGo/blob/master/docs/Analysis_Engine.md)；上游可分别限制双方，本产品明确只限制轮走方。`MoveRestriction/MoveRestrictions` 提供类型化序列化及深度/重复执色校验。当前任务范围未包含 `engine-session`，其手写 `AnalysisQuery` 构造仍要求兼容扩展封装，因此协议和陪练经集中强类型适配器写入旧 extensions；迁移为两个直接结构体字段需要同步放开会话 crate，不能在本卡声称已消除传输扩展。
+- 受限响应为 `SnapshotSource::Restricted`：不读写普通 LRU/SQLite，不写节点保留表、图摘要、问题手或 SGF。通过 `DocumentChanged.view.restricted_analysis` 单独供研究界面显示，`analysis_restriction` 同时提供点集/种类/深度；不发送会更新旧图表的普通 AnalysisUpdated。整盘和批量始终用无选点限制的请求及普通缓存。修改/清除限制取消旧实时查询并按原分析意图重新提交，清除后普通缓存与节点结果保持。暂停状态不被设置限制暗中打开；人机、比赛、陪练（含暂停或尚未退出的陪练）拒绝研究修改。
+- 可选 `Settings.search_params: SearchParams` 保存 PDA、WRN、rootPolicyTemperature，每项缺省不发，None 或全空对象恢复默认；数值必须有限，分别限 −3..3、0..5、0.01..100，含端点。范围依据官方 [setup.cpp](https://github.com/lightvector/KataGo/blob/master/cpp/program/setup.cpp) 的配置读取边界，字段依据 Analysis Engine 的 overrideSettings。实时、整盘、批量、对局、终局估计和 HumanSL 请求均合并这些字段，保留 maxTime 及 HumanSL 自有配置；比赛每方显式 PDA/WRN（包括 0）优先于全局对应值；每方字段省略时继承全局值，两处均未设置则不发该字段。MatchPlayer 保留字段是否设置，set_match_side_params 仍将两个传入数值作为显式值。修改只替换协调器、取消旧后台任务，不重启引擎进程。
+- 非默认搜索参数加入评价指纹及持久缓存命名空间，默认指纹不变；改变参数清除旧身份的节点结果，禁止把无此身份的文件 LZ 注入参数结果。参数结果不导出到无身份字段的 LZ，避免重新打开后误当默认分析。切回默认可以按原持久身份恢复缓存。为避免进行中对局的旧查询混入新身份，参数修改在对局/比赛/陪练或活动批量期间保守拒绝。
+- `go_core::ladder::read_ladder(&Position, Color)` 只读实际规则和气，寻找唯一己方一气块，否则唯一对方两气块；尝试两口气的合法叫吃并优先检查相邻被叫吃征方棋块的反击提吃。被征方长出达至少三气或提吃即逃出；无法合法长出或长出仍至多一气为征死。返回序列在征死时停于最后叫吃，不追加徒劳长出或最终提子；逃出时包含逃出手。重复盘面、超过 2×棋盘面积的手数、32×面积的读棋节点或不唯一目标保守返回 NotLadder，不猜测超预算结论。
+- `continue_ladder` 将证明的序列交 `document::Command::ContinueSequence`：完整验证后沿用相同且局面/劫历史一致的直接子节点，不同后续追加分支；新增部分整串一次撤销/重做。仅沿用既有路径时遵循普通导航，不增加编辑历史。不是征子返回类型化错误且不改树。黄金局面包含征死、引征子、反击提吃、盘边、非征子，property 测试重放每手合法性。
+- `go_core::scoring::score` 是独立纯同步函数，不判断棋子真正死活；输入当前局面、死子集合、无目点、计分规则、原规则预设、贴目、让子数及已提子计数。移除指定死子后洪泛空区，只接触一种颜色归该色，接触两色或无色归无主；无目点只从其本身扣除，不割断空区。返回逐点黑白/无主归属及双方活子、地、本方死子、已提对方子、贴目、让子补偿和总分。
+- 数子：黑=黑活子+黑地，白=白活子+白地+贴目+让子补偿；中国补 HA，AGA 补 max(HA−1,0)，其他预设不补。数目：黑=黑地+黑已提子+白死子，白=白地+白已提子+黑死子+贴目，不补让子。结果按黑减白输出标准 `B+x/W+x/0`。本卡不实现自动判双活、争议死活或完整赛事裁定，人工死活/无目标注决定输入。
+- `start_scoring` 冻结当前局面、清除协调器焦点暂停全部实时查询，保留原 pondering 和限停意图。初始规则跟随棋谱；有效黑方 ownership 的整块均值 ≤−0.8 标黑死、≥+0.8 标白死，缺失或损坏数据保守全活。点击棋子翻整块死活，点击原空点切换单点无目；`set_scoring_rule` 只改点目会话。`commit_scoring` 通过原 RE 编辑写结果，一次撤销，随后退出恢复分析；取消不改棋谱，实际导航/编辑/换局自动退出。对局/比赛/陪练禁止进入。`DocumentView.scoring` 返回完整状态，TS 新设置和视图字段可选，mock 补缺省值，所有新入口均为脚本化 command；界面归 P3-25。
 
 ### P3-17 自建远程算力与 SSH
 

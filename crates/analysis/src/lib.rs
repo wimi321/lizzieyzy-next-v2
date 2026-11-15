@@ -7,13 +7,17 @@ mod delivery;
 mod limits;
 pub mod persistent_cache;
 mod request;
+mod restriction;
 pub mod review;
+mod search_params;
 mod speed;
 mod throttle;
 
 pub use delivery::AnalysisSubscription;
 pub use limits::{AnalysisLimits, LimitReason};
-pub use request::play_request;
+pub use request::{play_request, set_move_restrictions};
+pub use restriction::{AnalysisRestriction, RestrictionKind};
+pub use search_params::SearchParams;
 
 use document::{AnalysisKey, GamePosition, NodeId, Revision};
 use engine_session::{EngineHandle, QueryError, SessionError};
@@ -31,6 +35,7 @@ pub struct Focus {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LiveSettings {
+    pub search_params: Option<SearchParams>,
     /// Overrides are part of the caller-provided immutable engine fingerprint.
     pub query_rules: Option<katago_protocol::Rules>,
     pub query_komi: Option<f64>,
@@ -43,6 +48,7 @@ pub struct LiveSettings {
 impl Default for LiveSettings {
     fn default() -> Self {
         Self {
+            search_params: None,
             query_rules: None,
             query_komi: None,
             max_visits: u64::from(u32::MAX),
@@ -55,6 +61,9 @@ impl Default for LiveSettings {
 
 impl LiveSettings {
     fn validate(&self) -> Result<(), AnalysisError> {
+        if let Some(params) = &self.search_params {
+            params.validate()?;
+        }
         if self
             .query_komi
             .is_some_and(|komi| !komi.is_finite() || komi.abs() > 400.0)
@@ -95,6 +104,7 @@ pub struct AnalysisConfig {
     pub limits: AnalysisLimits,
     pub extras: AnalysisExtras,
     pub pure_network: bool,
+    pub restriction: Option<AnalysisRestriction>,
 }
 
 impl Default for AnalysisConfig {
@@ -108,6 +118,7 @@ impl Default for AnalysisConfig {
             limits: AnalysisLimits::default(),
             extras: AnalysisExtras::default(),
             pure_network: false,
+            restriction: None,
         }
     }
 }
@@ -120,6 +131,8 @@ pub enum SnapshotSource {
     Extras,
     /// Transient raw network output; never a searched/cache result.
     PureNetwork,
+    /// Foreground restriction output; display only, never retained as analysis.
+    Restricted,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -178,6 +191,9 @@ pub fn spawn(
     config: AnalysisConfig,
 ) -> Result<(AnalysisHandle, AnalysisSubscription), AnalysisError> {
     config.live.validate()?;
+    if let Some(restriction) = &config.restriction {
+        restriction.validate()?;
+    }
     config.limits.validate()?;
     let capacity = NonZeroUsize::new(config.cache_capacity).ok_or(
         AnalysisError::InvalidSettings("cache_capacity must be positive"),
@@ -293,6 +309,16 @@ impl AnalysisHandle {
     /// The caller arbitrates whole-game/batch work before enabling this mode.
     pub async fn set_pure_network(&self, enabled: bool) -> Result<(), AnalysisError> {
         self.send(actor::Input::SetPureNetwork(enabled)).await
+    }
+
+    pub async fn set_restriction(
+        &self,
+        restriction: Option<AnalysisRestriction>,
+    ) -> Result<(), AnalysisError> {
+        if let Some(restriction) = &restriction {
+            restriction.validate()?;
+        }
+        self.send(actor::Input::SetRestriction(restriction)).await
     }
 
     pub fn status(&self) -> watch::Receiver<AnalysisStatus> {

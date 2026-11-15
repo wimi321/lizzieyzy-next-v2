@@ -26,6 +26,7 @@ pub(crate) enum Input {
     SetLiveSettings(LiveSettings),
     SetAnalysisExtras(AnalysisExtras),
     SetPureNetwork(bool),
+    SetRestriction(Option<crate::AnalysisRestriction>),
     Shutdown,
 }
 
@@ -189,6 +190,7 @@ impl Actor {
                     self.status.send_replace(AnalysisStatus::Idle);
                 }
                 if self.config.cache_enabled
+                    && self.config.restriction.is_none()
                     && (self.last_published.is_none()
                         || self.focus.as_ref().is_none_or(|current| {
                             current.node_id != focus.node_id || current.key != focus.key
@@ -298,6 +300,7 @@ impl Actor {
             Input::SetLiveSettings(settings) => {
                 if self.config.live.query_rules != settings.query_rules
                     || self.config.live.query_komi != settings.query_komi
+                    || self.config.live.search_params != settings.search_params
                 {
                     return Err(AnalysisError::InvalidSettings(
                         "query overrides require a new coordinator and cache identity",
@@ -317,6 +320,7 @@ impl Actor {
             }
             Input::SetAnalysisExtras(extras) => self.set_extras(extras).await,
             Input::SetPureNetwork(enabled) => self.set_pure_network(enabled).await,
+            Input::SetRestriction(restriction) => self.set_restriction(restriction).await,
             Input::Shutdown => {
                 self.output.clear();
                 let result = self.cancel().await;
@@ -328,6 +332,7 @@ impl Actor {
 
     fn offer_cached(&mut self) {
         if !self.config.pure_network
+            && self.config.restriction.is_none()
             && self.config.cache_enabled
             && let Some(focus) = &self.focus
             && let Some(response) = self.cache.get(focus.key, &self.config.engine_fingerprint)
@@ -372,7 +377,7 @@ impl Actor {
         if self.throttle.pending().is_some_and(|snapshot| {
             matches!(
                 snapshot.source,
-                SnapshotSource::Extras | SnapshotSource::PureNetwork
+                SnapshotSource::Extras | SnapshotSource::PureNetwork | SnapshotSource::Restricted
             )
         }) {
             self.extras_attempted = false;
@@ -424,7 +429,7 @@ impl Actor {
                     active.speed.record(response.root_info.visits);
                 }
                 let visits_per_second = active.speed.visits_per_second();
-                if self.config.cache_enabled {
+                if self.config.cache_enabled && self.config.restriction.is_none() {
                     self.cache.insert(
                         identity.key,
                         &self.config.engine_fingerprint,
@@ -436,7 +441,11 @@ impl Actor {
                     node_id: identity.node_id,
                     key: identity.key,
                     response,
-                    source: SnapshotSource::Live,
+                    source: if self.config.restriction.is_some() {
+                        SnapshotSource::Restricted
+                    } else {
+                        SnapshotSource::Live
+                    },
                     visits_per_second,
                 });
                 if final_result {
@@ -540,6 +549,9 @@ impl Actor {
 }
 
 mod extras;
+mod restriction;
+#[cfg(test)]
+mod restriction_tests;
 
 #[cfg(test)]
 mod extras_tests;

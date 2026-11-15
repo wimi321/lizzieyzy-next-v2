@@ -104,7 +104,24 @@ impl Actor {
             );
         }
         if let Some(pool) = pool {
-            request.extensions.insert("allowMoves".into(), json!([{"player": if position.board.to_play() == Color::Black {"B"} else {"W"}, "moves": pool.iter().map(|c| &c.coordinate).collect::<Vec<_>>(), "untilDepth": 1}]));
+            analysis::set_move_restrictions(
+                &mut request,
+                &katago_protocol::MoveRestrictions {
+                    allow_moves: Some(vec![katago_protocol::MoveRestriction {
+                        player: if position.board.to_play() == Color::Black {
+                            katago_protocol::Player::Black
+                        } else {
+                            katago_protocol::Player::White
+                        },
+                        moves: pool
+                            .iter()
+                            .map(|candidate| candidate.coordinate.clone())
+                            .collect(),
+                        until_depth: 1,
+                    }]),
+                    avoid_moves: None,
+                },
+            )?;
         }
         let subscription = engine.submit(request).await?;
         Ok(Query {

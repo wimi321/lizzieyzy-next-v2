@@ -222,7 +222,7 @@ impl Actor {
         self.ensure_no_benchmark()?;
         self.ensure_no_move_trial()?;
         self.ensure_no_pure_network()?;
-        if !self.can_reuse_saved_analysis() {
+        if !self.uses_sgf_rules() {
             return Err(GameError::IncompatibleMode.into());
         }
         if self.tsumego.is_some() {
