@@ -31,7 +31,7 @@ export interface WindowCommands {
   setWindowSquare(side: number): Promise<void>;
 }
 
-/** Sizes and placements are logical pixels; validation and fitting belong to Rust. */
+/** Width and height are client (inner) sizes in logical pixels; Rust adds the frame and fits the outer bounds to the screen. */
 export const fitMainWindow: NonNullable<WindowCommands["fitMainWindow"]> = (width, height) =>
   invoke("fit_main_window", { width, height });
 export const resetWindowPositions: NonNullable<WindowCommands["resetWindowPositions"]> = () =>

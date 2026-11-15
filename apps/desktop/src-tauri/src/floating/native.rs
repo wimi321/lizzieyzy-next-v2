@@ -54,32 +54,38 @@ fn monitor_bounds(monitor: &tauri::Monitor) -> Option<WindowBounds> {
     })
 }
 
+fn window_frame<R: Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    scale: f64,
+) -> Result<(u32, u32), String> {
+    let outer = window
+        .outer_size()
+        .map_err(|e| e.to_string())?
+        .to_logical::<u32>(scale);
+    let inner = window
+        .inner_size()
+        .map_err(|e| e.to_string())?
+        .to_logical::<u32>(scale);
+    Ok((
+        outer.width.saturating_sub(inner.width),
+        outer.height.saturating_sub(inner.height),
+    ))
+}
+
 impl<R: Runtime> WindowPlatform for NativeWindows<R> {
     fn work_areas(&self) -> Result<Vec<WindowBounds>, String> {
         // The first area is explicitly the primary display for offscreen fallback.
         Ok(self.monitors()?.iter().filter_map(monitor_bounds).collect())
     }
 
-    fn minimum(&self, kind: WindowKind) -> (u32, u32) {
-        let base = window_state::minimum(kind);
-        let frame = self
-            .window(kind)
+    fn frame(&self, kind: WindowKind) -> (u32, u32) {
+        self.window(kind)
             .ok()
             .and_then(|window| {
                 let scale = window.scale_factor().ok()?;
-                let outer = window.outer_size().ok()?.to_logical::<u32>(scale);
-                let inner = window.inner_size().ok()?.to_logical::<u32>(scale);
-                Some((
-                    outer.width.saturating_sub(inner.width),
-                    outer.height.saturating_sub(inner.height),
-                ))
+                window_frame(&window, scale).ok()
             })
-            .unwrap_or_default();
-        // Tauri's configured minimum is client size; fitting uses outer bounds.
-        (
-            base.0.saturating_add(frame.0),
-            base.1.saturating_add(frame.1),
-        )
+            .unwrap_or_default()
     }
 
     fn exists(&self, kind: WindowKind) -> bool {
@@ -146,19 +152,8 @@ impl<R: Runtime> WindowPlatform for NativeWindows<R> {
         let window = self.window(kind)?;
         window.unmaximize().map_err(|e| e.to_string())?;
         let scale = window.scale_factor().map_err(|e| e.to_string())?;
-        let outer = window
-            .outer_size()
-            .map_err(|e| e.to_string())?
-            .to_logical::<u32>(scale);
-        let inner = window
-            .inner_size()
-            .map_err(|e| e.to_string())?
-            .to_logical::<u32>(scale);
         // Saved bounds include decorations; Tauri set_size accepts client size.
-        let frame = (
-            outer.width.saturating_sub(inner.width),
-            outer.height.saturating_sub(inner.height),
-        );
+        let frame = window_frame(&window, scale)?;
         #[cfg(target_os = "windows")]
         {
             let screens = self
