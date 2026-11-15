@@ -84,7 +84,8 @@ test("right-clicking an empty point inserts a move; on a candidate it adds the l
   ]);
   const board = page.getByTestId("board");
   await board.click({ button: "right", position: await pixelOf(page, C3) });
-  await expect(page.getByTestId("board-menu").getByRole("menuitem")).toHaveText(["插入黑子", "插入白子", "回退一手"]);
+  // Java's 选点限制 entries follow its own on an empty point.
+  await expect(page.getByTestId("board-menu").getByRole("menuitem")).toHaveText(["插入黑子", "插入白子", "回退一手", "只分析此点", "不分析此点"]);
   await row(page, "insert-white").click();
   const best = analysis.candidates[0]!;
   await board.click({ button: "right", position: await pixelOf(page, best.point!) });

@@ -47,6 +47,9 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "setBoard", code: "KeyI", control: true },
   { id: "clearBoard", code: "Home", control: true },
   { id: "engineConfig", code: "KeyX", alt: true },
+  // 引擎参数 (Alt+D) and 终局点目 (Ctrl+Q), as Java's menu labels say.
+  { id: "engineParameters", code: "KeyD", alt: true },
+  { id: "scoreGame", code: "KeyQ", control: true },
   { id: "readBoard", code: "KeyO", alt: true },
   { id: "tsumeGoMenu", code: "KeyE", shift: true },
   { id: "jumpToFirst", code: "Home" },

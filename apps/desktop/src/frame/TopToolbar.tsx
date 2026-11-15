@@ -2,6 +2,7 @@ import { Fragment, type ReactNode, useRef, useState } from "react";
 import type { GameToolbar } from "../play/usePlay";
 import type { AnalysisLimitSettings } from "@/api/backend";
 import type { ResearchToolbar } from "../research/useResearch";
+import { type AnalysisToolbar, ParamFields, RestrictionButtons } from "../analysis/AnalysisToolbar";
 import { JAVA_ICONS } from "./icons";
 import { ToolButton, ToolSeparator } from "./ToolButton";
 import type { ItemFilter } from "./toolbarItems";
@@ -113,6 +114,8 @@ export interface TopToolbarProps {
   game?: GameToolbar;
   /** 搜索功能, 独立棋局控制面板, 自由涂鸦 and 存档. */
   research?: ResearchToolbar;
+  /** 选点限制, the PDA and WRN fields, 规则 and 参数. */
+  analysis?: AnalysisToolbar;
 }
 
 /** Java's default groups, for callers that do not customise the toolbar. */
@@ -214,6 +217,7 @@ export function TopToolbar({
   limits = null,
   game,
   research,
+  analysis,
   ...on
 }: TopToolbarProps) {
   const icon = JAVA_ICONS;
@@ -278,13 +282,7 @@ export function TopToolbar({
   );
   add(
     "allowAvoidTools",
-    <>
-      <ToolButton icon={icon.allow} title={labels.selectAllow} enabled={false} />
-      <ToolButton className="jt-narrow" icon={icon.more} title={labels.allowOptions} enabled={false} />
-      <ToolButton icon={icon.avoid} title={labels.selectAvoid} enabled={false} />
-      <ToolButton className="jt-narrow" icon={icon.more} title={labels.avoidOptions} enabled={false} />
-      <ToolButton icon={icon.clear} title={labels.clearSelect} enabled={false} />
-    </>,
+    <RestrictionButtons tools={analysis} titles={labels} icons={icon} />,
   );
   add(
     "showGameController",
@@ -338,29 +336,7 @@ export function TopToolbar({
   const pda = show("showPdaInToolbar");
   const wrn = show("showWrnInToolbar");
   if (pda || wrn) {
-    always(
-      "params-fields",
-      <>
-        {pda ? (
-          <>
-            <label className="jt-check" aria-disabled="true">
-              <input type="checkbox" disabled />
-              <span>{labels.pda}</span>
-            </label>
-            <input className="jt-input" value="0" disabled readOnly aria-label={labels.pda} data-testid="tool-pda" />
-          </>
-        ) : null}
-        {wrn ? (
-          <>
-            <label className="jt-check" aria-disabled="true">
-              <input type="checkbox" checked disabled readOnly />
-              <span>{labels.wrn}</span>
-            </label>
-            <input className="jt-input" value="0.04" disabled readOnly aria-label={labels.wrn} data-testid="tool-wrn" />
-          </>
-        ) : null}
-      </>,
-    );
+    always("params-fields", <ParamFields tools={analysis} pda={pda} wrn={wrn} labels={labels} />);
   }
   add(
     "showCandidateController",
@@ -380,9 +356,9 @@ export function TopToolbar({
   );
   const menus = (
     <>
-      {show("showRuleMenu") ? <ToolButton small className="jt-rules" label={labels.rules} enabled={false} /> : null}
+      {show("showRuleMenu") ? <ToolButton small className="jt-rules" label={labels.rules} enabled={analysis !== undefined} testId="tool-rules" onClick={analysis?.onRules} /> : null}
       {show("showTsumeGoMenu") ? <ToolButton small label={labels.tsumego} enabled={!trial} testId="tool-tsumego" onClick={on.onTsumego} /> : null}
-      {show("showParamMenu") ? <ToolButton small label={labels.params} enabled={false} /> : null}
+      {show("showParamMenu") ? <ToolButton small label={labels.params} enabled={analysis !== undefined} testId="tool-params" onClick={analysis?.onParams} /> : null}
       {show("showGobanMenu") ? <ToolButton small label={labels.goban} enabled={!trial} testId="tool-goban" onClick={on.onBoardSize} /> : null}
       {show("showSaveLoadMenu") ? <ToolButton small label={labels.saveLoad} enabled={research !== undefined} pressed={research?.saveLoad} testId="tool-save-load" onClick={research?.onSaveLoad} /> : null}
     </>

@@ -33,26 +33,17 @@ function buttons(page: Page, toolbar: string, enabled: boolean) {
     );
 }
 
-/** The toolbar buttons of features the new app does not have yet. */
-const NOT_YET_TOP = ["设置强制计算区域(Alt+鼠标圈选)", "允许选点选项", "设置强制不计算区域", "排除选点选项", "清除强制区域(Alt+点击)", "规则", "参数"];
-const NOT_YET_BOTTOM = ["更新官方权重"];
-
 async function calls(page: Page) {
   return page.evaluate(() => window.__mockBackend?.recordedCalls() ?? []);
 }
 
-test("the toolbars hold Java's buttons in Java's order; what the new app lacks stays greyed in place", async ({ page }) => {
+test("the toolbars hold Java's buttons in Java's order; a button with nothing to do is greyed", async ({ page }) => {
   await start(page);
-  expect(await buttons(page, "top-toolbar", true)).toEqual(["新建空白棋盘", "打开棋谱(O)", "保存棋谱(Ctrl+S)", "野狐棋谱", "腾讯棋谱", "棋力评估", "一键设置", "闪电分析", "搜索功能", "超级鹰眼(Y)", "落子评价标记(Alt+M)", "交换落子顺序", "独立棋局控制面板", "标记工具", "添加黑子(右键添加白子)", "添加白子(右键添加黑子)", "交替落子", "停一手(P)", "新对局", "死活", "棋盘", "存档"]);
-  // Greyed for now: on the main line of a game nobody is playing there is nothing for these to do.
-  const greyedTop = await buttons(page, "top-toolbar", false);
-  expect(greyedTop.filter((name) => !NOT_YET_TOP.includes(name))).toEqual(["设为主分支(L)", "返回主分支(B)", "暂停"]);
-  // Not in the new app yet, kept greyed in Java's places.
-  expect(greyedTop.filter((name) => NOT_YET_TOP.includes(name))).toEqual(NOT_YET_TOP);
-  expect(await buttons(page, "bottom-toolbar", true)).toEqual(["暂停分析", "自动分析", "远程算力", "Kata形势", "|<", "<<", "<", ">", ">>", ">|", "自动播放", "手数", "坐标", "清空棋盘", "删除", "更多"]);
-  const greyedBottom = await buttons(page, "bottom-toolbar", false);
-  expect(greyedBottom.filter((name) => !NOT_YET_BOTTOM.includes(name))).toEqual(["跳转", "设为主分支"]);
-  expect(greyedBottom.filter((name) => NOT_YET_BOTTOM.includes(name))).toEqual(NOT_YET_BOTTOM);
+  expect(await buttons(page, "top-toolbar", true)).toEqual(["新建空白棋盘", "打开棋谱(O)", "保存棋谱(Ctrl+S)", "野狐棋谱", "腾讯棋谱", "棋力评估", "一键设置", "闪电分析", "搜索功能", "超级鹰眼(Y)", "落子评价标记(Alt+M)", "交换落子顺序", "独立棋局控制面板", "标记工具", "添加黑子(右键添加白子)", "添加白子(右键添加黑子)", "交替落子", "停一手(P)", "设置强制计算区域(Alt+鼠标圈选)", "允许选点选项", "设置强制不计算区域", "排除选点选项", "新对局", "规则", "死活", "参数", "棋盘", "存档"]);
+  // Every button works now; these are greyed by state only: on the main line, with no game and no restriction, they have nothing to do.
+  expect(await buttons(page, "top-toolbar", false)).toEqual(["设为主分支(L)", "返回主分支(B)", "清除强制区域(Alt+点击)", "暂停"]);
+  expect(await buttons(page, "bottom-toolbar", true)).toEqual(["暂停分析", "自动分析", "远程算力", "更新官方权重", "Kata形势", "|<", "<<", "<", ">", ">>", ">|", "自动播放", "手数", "坐标", "清空棋盘", "删除", "更多"]);
+  expect(await buttons(page, "bottom-toolbar", false)).toEqual(["跳转", "设为主分支"]);
   await expect(page.getByTestId("tool-komi")).toHaveValue("7.5");
 
   // The menu strip: the engine as Java captions it, then AI 陪练 and AI 解说.
@@ -89,12 +80,12 @@ test("the working buttons do what Java's do", async ({ page }) => {
   await page.getByTestId("tsumego-close").click();
   await expect(page.getByTestId("tsumego-dialog")).toBeHidden();
 
-  // 更多 lists the default buttons the bar has no room for. 终局点目 comes with P3's games.
+  // 更多 lists the default buttons the bar has no room for.
   await page.getByTestId("tool-more").click();
   const more = page.getByTestId("tool-more-menu");
   await expect(more.getByRole("menuitem")).toHaveText(["试下", "终局点目", "纯网络"]);
   await expect(more.getByTestId("tool-try-play")).toBeEnabled();
-  await expect(more.getByRole("menuitem", { name: "终局点目" })).toBeDisabled();
+  await expect(more.getByTestId("tool-final-score")).toBeEnabled();
   await expect(more.getByTestId("tool-heat-map")).toBeEnabled();
 });
 

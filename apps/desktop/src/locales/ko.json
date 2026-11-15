@@ -1997,5 +1997,89 @@
       "cancel": "취소",
       "close": "닫기"
     }
+  },
+  "analysisTools": {
+    "depth": {
+      "firstMove": "첫 수만 제한",
+      "custom": "제한할 수 수:",
+      "customRange": "1~200수",
+      "whole": "탐색 전체 제한"
+    },
+    "menu": {
+      "allow": "이 점만 분석",
+      "addAllow": "이 점도 분석",
+      "removeAllow": "이 점을 분석 대상에서 빼기",
+      "avoid": "이 점은 분석 안 함",
+      "clear": "분석 제한 해제"
+    },
+    "chip": {
+      "title": "착점 제한",
+      "Allow": "{n}점만",
+      "Avoid": "{n}점 제외",
+      "clearHint": "클릭하면 제한을 해제합니다"
+    },
+    "params": {
+      "title": "KataGo 엔진 고급 설정",
+      "close": "닫기",
+      "fields": {
+        "playout_doubling_advantage": {
+          "name": "공격적/안정적",
+          "setting": "playoutDoublingAdvantage",
+          "help": "0보다 크면 우세를 넓히려 공격적으로, 0보다 작으면 안정적으로 둡니다."
+        },
+        "wide_root_noise": {
+          "name": "분석 폭",
+          "setting": "wideRootNoise",
+          "help": "크게 하면 루트에서 더 많은 후보를 읽습니다. 폭은 넓어지지만 수마다 탐색은 줄어듭니다."
+        },
+        "root_policy_temperature": {
+          "name": "루트 정책 온도",
+          "setting": "rootPolicyTemperature",
+          "help": "1보다 크면 루트 후보가 고르게 퍼져 흔치 않은 수도 읽습니다."
+        }
+      },
+      "unset": "비워 두면: 엔진 설정 값",
+      "range": "{min}~{max}",
+      "hint": "바꾸면 기력에 영향을 줄 수 있습니다. 분석에 바로 적용되며 엔진을 다시 시작하지 않습니다.",
+      "reset": "기본값으로",
+      "cancel": "취소",
+      "confirm": "확인"
+    },
+    "scoring": {
+      "title": "계가 결과",
+      "rule": "계가 규칙",
+      "area": "중국식(집+돌)",
+      "territory": "일본식(집)",
+      "hint": "돌을 클릭하면 사석, 빈 점을 클릭하면 공배가 됩니다(다시 클릭하면 취소). 결과는 자동으로 갱신됩니다.",
+      "black": "흑:",
+      "white": "백:",
+      "terms": {
+        "living": "산 돌",
+        "territory": "집",
+        "captures": "따낸 돌",
+        "dead": "사석",
+        "komi": "덤",
+        "handicap": "접바둑 보정"
+      },
+      "blackWins": "흑 {n}집 승",
+      "whiteWins": "백 {n}집 승",
+      "draw": "무승부",
+      "confirm": "확인",
+      "cancel": "취소"
+    },
+    "ladder": {
+      "Captured": "축이 됩니다: {n}수를 추가했습니다. 한 번 되돌리기로 원래대로 돌아갑니다.",
+      "Escaped": "축이 안 됩니다. 돌이 빠져나갑니다: {n}수를 추가했습니다. 한 번 되돌리기로 원래대로 돌아갑니다."
+    },
+    "errors": {
+      "GameActive": "대국 중에는 쓸 수 없습니다.",
+      "InvalidDepth": "수는 1~200이어야 합니다.",
+      "InvalidPoint": "바둑판에 없는 점입니다.",
+      "InvalidSearchParam": "범위를 벗어난 값: {field}",
+      "NotLadder": "여기서는 축이 진행 중이 아닙니다.",
+      "NotStarted": "계가 중이 아닙니다.",
+      "OutOfBounds": "바둑판에 없는 점입니다.",
+      "InvalidPosition": "이 국면은 계가할 수 없습니다."
+    }
   }
 }

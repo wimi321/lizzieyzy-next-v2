@@ -1997,5 +1997,89 @@
       "cancel": "キャンセル",
       "close": "閉じる"
     }
+  },
+  "analysisTools": {
+    "depth": {
+      "firstMove": "最初の 1 手のみ制限",
+      "custom": "制限する手数:",
+      "customRange": "1〜200 手",
+      "whole": "探索全体を制限"
+    },
+    "menu": {
+      "allow": "この点だけ分析",
+      "addAllow": "この点も分析",
+      "removeAllow": "この点を分析対象から外す",
+      "avoid": "この点は分析しない",
+      "clear": "分析の制限を解除"
+    },
+    "chip": {
+      "title": "着手制限",
+      "Allow": "{n} 点のみ",
+      "Avoid": "{n} 点を除外",
+      "clearHint": "クリックで制限を解除"
+    },
+    "params": {
+      "title": "KataGo エンジンの詳細パラメータ",
+      "close": "閉じる",
+      "fields": {
+        "playout_doubling_advantage": {
+          "name": "積極的／慎重",
+          "setting": "playoutDoublingAdvantage",
+          "help": "0 より大きいと優勢を広げようと積極的に、0 より小さいと慎重に打ちます。"
+        },
+        "wide_root_noise": {
+          "name": "分析の幅",
+          "setting": "wideRootNoise",
+          "help": "大きくするとルートでより多くの候補を読みます。幅は広がりますが、1 手あたりの探索は減ります。"
+        },
+        "root_policy_temperature": {
+          "name": "ルート方策温度",
+          "setting": "rootPolicyTemperature",
+          "help": "1 より大きいとルートの候補が平らになり、珍しい手も読まれます。"
+        }
+      },
+      "unset": "空欄：エンジン設定の値",
+      "range": "{min}〜{max}",
+      "hint": "変更は棋力に影響することがあります。すぐに分析に反映され、エンジンは再起動しません。",
+      "reset": "既定に戻す",
+      "cancel": "キャンセル",
+      "confirm": "OK"
+    },
+    "scoring": {
+      "title": "計算結果",
+      "rule": "計算ルール",
+      "area": "中国ルール（数子）",
+      "territory": "日本ルール（数目）",
+      "hint": "石をクリックすると死に石、空点をクリックするとダメになります（もう一度で取消）。結果は自動で更新されます。",
+      "black": "黒:",
+      "white": "白:",
+      "terms": {
+        "living": "生き石",
+        "territory": "地",
+        "captures": "アゲハマ",
+        "dead": "死に石",
+        "komi": "コミ",
+        "handicap": "置き石補正"
+      },
+      "blackWins": "黒の {n} 目勝ち",
+      "whiteWins": "白の {n} 目勝ち",
+      "draw": "持碁",
+      "confirm": "確定",
+      "cancel": "キャンセル"
+    },
+    "ladder": {
+      "Captured": "シチョウ成立：{n} 手を追加しました。1 回の取消で元に戻せます。",
+      "Escaped": "シチョウ不成立、逃げ切り：{n} 手を追加しました。1 回の取消で元に戻せます。"
+    },
+    "errors": {
+      "GameActive": "対局中は使えません。",
+      "InvalidDepth": "手数は 1〜200 です。",
+      "InvalidPoint": "その点は碁盤にありません。",
+      "InvalidSearchParam": "範囲外の値：{field}",
+      "NotLadder": "ここではシチョウになっていません。",
+      "NotStarted": "計算中ではありません。",
+      "OutOfBounds": "その点は碁盤にありません。",
+      "InvalidPosition": "この局面は計算できません。"
+    }
   }
 }

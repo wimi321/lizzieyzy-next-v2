@@ -1,0 +1,265 @@
+/* P3-25 analysis tools: 选点限制, 引擎参数, 终局点目, 自动补完征子. */
+
+/* A rectangle is armed: the pointer says so. */
+.board[data-selecting] {
+  cursor: crosshair;
+}
+
+/* 允许选点选项 / 排除选点选项: Java's small popup under the arrow. */
+.jt-depth {
+  display: inline-flex;
+}
+
+.depth-menu {
+  min-width: 170px;
+}
+
+.depth-menu [role="menuitemradio"][aria-checked="true"],
+.depth-menu [role="menuitemradio"][aria-checked="true"] > button {
+  font-weight: 600;
+}
+
+.depth-menu button[role="menuitemradio"]::before,
+.depth-custom > button::before {
+  display: inline-block;
+  width: 14px;
+  content: "";
+}
+
+.depth-menu button[role="menuitemradio"][aria-checked="true"]::before,
+.depth-custom[aria-checked="true"] > button::before {
+  content: "✓";
+}
+
+.depth-custom {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.depth-custom > button {
+  flex: 1;
+  width: auto;
+}
+
+.depth-custom .jt-input {
+  width: 44px;
+}
+
+.jt-more-menu button:hover:not(:disabled) {
+  background: #e8f1ff;
+}
+
+/* The tray chip that keeps a restriction in sight; a click clears it. */
+.restriction-chip {
+  cursor: pointer;
+}
+
+.restriction-chip:disabled {
+  cursor: default;
+}
+
+.restriction-mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: rgba(30, 90, 255, 0.75);
+}
+
+.restriction-chip[data-kind="Avoid"] .restriction-mark {
+  background: rgba(235, 40, 40, 0.75);
+}
+
+.restriction-chip strong {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+/* 引擎参数. */
+.params-dialog {
+  width: min(34rem, 100%);
+}
+
+.params-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.params-name {
+  font-weight: 600;
+}
+
+.params-name code {
+  font: 12px var(--mono);
+  color: var(--text-3);
+}
+
+.params-help,
+.params-hint {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.params-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.params-row .text-input {
+  flex: 0 0 15rem;
+}
+
+.params-range {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.params-hint {
+  margin: 4px 0 0;
+}
+
+.params-reset {
+  margin-right: auto;
+}
+
+/* 点目结果: over the list and the tree, beside the board. */
+.scoring-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  overflow: auto;
+  color: var(--text-1);
+  background: var(--bg-raised);
+  border-left: 1px solid var(--line-strong);
+}
+
+.scoring-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.scoring-header h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.scoring-rules {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.scoring-rule {
+  height: 28px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+  background: var(--bg-hover);
+  border: 0;
+}
+
+.scoring-rule[aria-pressed="true"] {
+  color: var(--text-1);
+  background: var(--accent-soft);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.scoring-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.scoring-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.scoring-side {
+  font-weight: 600;
+}
+
+.scoring-sum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  align-items: baseline;
+}
+
+.scoring-term {
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+}
+
+.scoring-label {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.scoring-op {
+  color: var(--text-3);
+}
+
+.scoring-sum strong {
+  font-size: 15px;
+}
+
+.scoring-result {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  border-radius: var(--radius);
+}
+
+/* Java's result label: white on black when Black wins, black on white when White does. */
+.scoring-result[data-winner="Black"] {
+  color: #fff;
+  background: #000;
+}
+
+.scoring-result[data-winner="White"],
+.scoring-result[data-winner="None"] {
+  color: #000;
+  background: #f4f4f0;
+}
+
+.scoring-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* A one-line note: what 自动补完征子 did, or why a tool said no. */
+.tools-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 64px;
+  z-index: 45;
+  max-width: min(36rem, calc(100vw - 32px));
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--text-1);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  transform: translateX(-50%);
+}
