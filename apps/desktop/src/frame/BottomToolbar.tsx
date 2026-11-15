@@ -65,6 +65,8 @@ export interface BottomToolbarProps {
   onClear(): void;
   onDelete(): void;
   onTrial(): void;
+  /** 远程算力 (P3-20). */
+  onRemote(): void;
   /** 显示 → 工具栏 → 底部工具栏 → 自定义内容. Every default button when absent. */
   show?: ItemFilter;
   /** 纯网络 is on. */
@@ -195,7 +197,7 @@ export function BottomToolbar({
           />
         ) : null}
         {show("batchOpen") ? autoAnalysis : null}
-        <ToolButton role="primary" className="jt-optional" label={labels.remote} enabled={false} />
+        <ToolButton role="primary" className="jt-optional" label={labels.remote} testId="tool-remote" onClick={on.onRemote} />
         <ToolButton className="jt-optional" label={labels.downloadWeight} enabled={false} />
         {show("kataEstimateButton") ? (
           <ToolButton label={labels.kataEstimate} pressed={ownership} enabled={hasBoard} testId="toggle-ownership" onClick={on.onToggleOwnership} />

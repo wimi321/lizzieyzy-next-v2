@@ -14,6 +14,8 @@ import { useBoardModes } from "./edit/useBoardModes";
 import { useEditing } from "./edit/useEditing";
 import { useCommentary } from "./commentary/useCommentary";
 import { useOnline } from "./online/useOnline";
+import { remoteSummary } from "./remote/format";
+import { useRemote } from "./remote/useRemote";
 import { CurveProgress } from "./graph/CurveProgress";
 import { liveGraph } from "./graph/scale";
 import { WinrateGraph } from "./graph/WinrateGraph";
@@ -65,6 +67,7 @@ import { MainPanel } from "./frame/MainPanel";
 import { MessageBox } from "./frame/MessageBox";
 import { StatusLine } from "./frame/StatusLine";
 import { statusLine } from "./frame/status";
+import { ToolButton } from "./frame/ToolButton";
 import { TopToolbar } from "./frame/TopToolbar";
 import { useOpenFailed } from "./frame/useOpenFailed";
 import { useWindowTitle } from "./frame/useWindowTitle";
@@ -112,7 +115,14 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const display = useDisplay(backend, messages.display);
   const loadDisplay = display.load;
   // The engines and the main one; a first run without one picks it by itself.
-  const engines = useEngines(backend, engine, messages.frame.engineNames, messages.engines, messages.setup, (settings) => display.load(settings.display));
+  const engines = useEngines(backend, engine, messages.frame.engineNames, messages.engines, messages.setup, (settings) => display.load(settings.display), {
+    labels: messages.remote,
+    open: () => remote.open(),
+    summary: (entry) => remoteSummary(entry.profile, messages.remote),
+  });
+  // 远程算力; a remote main engine greys out what only a local one can do.
+  const remote = useRemote(backend, messages.remote, engines);
+  const localOnly = <T extends MenuBindings>(entries: T): MenuBindings => (remote.remote ? Object.fromEntries(Object.keys(entries).map((id) => [id, { enabled: false }])) : entries);
   const loadEngines = engines.load;
   // 人机对局, 引擎对局 and GTP engines; 对弈模式 hides what the engine thinks during a game.
   const games = usePlay(backend, engines.settings, engines.apply, { hasDocument: document !== null, hasStones: document?.board?.stones.some(Boolean) ?? false }, messages);
@@ -386,20 +396,22 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...batch.bindings,
     ...estimate.bindings,
     ...games.bindings(analysis, hovered),
-    ...coach.bindings,
+    ...localOnly(coach.bindings),
     ...commentary.bindings,
+    ...remote.bindings,
+    ...(remote.remote ? { autoSetup: { enabled: false } } : {}),
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
     hawkEye2: { run: toggleHawkEye, enabled: document !== null },
   });
   useShortcuts(
     bindings,
-    !(engines.dialogOpen || strengthOpen || online.dialogOpen || commentary.dialogOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || online.dialogOpen || commentary.dialogOpen || remote.dialogOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen),
   );
   const frame = messages.frame;
-  const engineLabel = engines.label === "" ? null : engines.label;
+  const engineLabel = remote.label(engines.label === "" ? null : engines.label);
   // "No engine" is for no engine: one that Rust has not named yet shows without a name.
-  const menus = useMenus(WINDOWS, editing.recent, messages.edit, engines.label, shown.last_move_rank_marks, shown.next_move_min_visits, { names: engines.menuNames, main: engines.mainIndex }, messages.engines.importMenu, messages.gtp.menu);
+  const menus = useMenus(WINDOWS, editing.recent, messages.edit, remote.label(engines.label), shown.last_move_rank_marks, shown.next_move_min_visits, { names: engines.menuNames, main: engines.mainIndex }, messages.engines.importMenu, messages.gtp.menu);
   const autoAnalyzing = quickRunning || wholeGameStatus === "Running";
   useWindowTitle(backend, {
     app: messages.app.title,
@@ -459,6 +471,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       onTencent={online.openTencent}
       onStrength={() => setStrengthOpen(true)}
       onAutoSetup={() => setToolsTab("overview")}
+      autoSetupBlocked={remote.remote ? messages.remote.unsupported : undefined}
       onFlash={() => batch.bindings.flashAnalyzeAllGame?.run?.()}
       onBackMain={() => bindings.backToMainBranch?.run?.()}
       onPass={pass}
@@ -484,7 +497,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         actions={
           <>
             {shown.show_top_toolbar && combinedTop ? topToolbar : null}
-            {coach.button(frame.menu)}
+            {remote.remote ? <ToolButton label={frame.menu.aiCoach} title={messages.remote.unsupported} enabled={false} /> : coach.button(frame.menu)}
             {commentary.button(frame.menu)}
           </>
         }
@@ -691,6 +704,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onDelete={editing.deleteMove}
           trial={editing.trial}
           onTrial={editing.toggleTrial}
+          onRemote={() => remote.open()}
         />
       ) : null}
       {editing.dialogs}
@@ -730,6 +744,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       ) : null}
       {online.dialogs}
       {commentary.windows}
+      {remote.dialog}
       {aboutOpen ? <AboutDialog name={messages.app.title} labels={messages.about} onClose={() => setAboutOpen(false)} /> : null}
       {settingsOpen && limits ? (
         <SettingsDialog

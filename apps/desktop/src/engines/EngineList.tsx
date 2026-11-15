@@ -11,6 +11,7 @@ export interface EngineListLabels {
   up: string;
   down: string;
   add: string;
+  addSsh: string;
   empty: string;
   close: string;
 }
@@ -28,6 +29,10 @@ export interface EngineListProps {
   onRemove(id: string): void;
   onMove(id: string, by: -1 | 1): void;
   onAdd(): void;
+  /** P3-20: adds an SSH remote engine. */
+  onAddSsh?(): void;
+  /** Where a remote engine runs, in place of its files. */
+  describe?(engine: Engine): string | null;
   onClose(): void;
 }
 
@@ -36,7 +41,7 @@ function fileName(path: string): string {
 }
 
 /** 设置 → 引擎: the configured engines in Java's order, the main one marked. */
-export function EngineList({ engines, main, nameOf, busy, labels, onSetMain, onEdit, onRemove, onMove, onAdd, onClose }: EngineListProps) {
+export function EngineList({ engines, main, nameOf, busy, labels, onSetMain, onEdit, onRemove, onMove, onAdd, onAddSsh, describe, onClose }: EngineListProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -64,9 +69,15 @@ export function EngineList({ engines, main, nameOf, busy, labels, onSetMain, onE
                 <span className="engine-index">{`[${index + 1}]`}</span>
                 <span className="engine-name">
                   <strong>{nameOf(engine)}</strong>
-                  <span className="engine-files" title={`${engine.profile.program}\n${engine.profile.model}`}>
-                    {`${fileName(engine.profile.program)} · ${fileName(engine.profile.model)}`}
-                  </span>
+                  {describe?.(engine) ? (
+                    <span className="engine-files" data-testid="engine-remote">
+                      {describe(engine)}
+                    </span>
+                  ) : (
+                    <span className="engine-files" title={`${engine.profile.program}\n${engine.profile.model}`}>
+                      {`${fileName(engine.profile.program)} · ${fileName(engine.profile.model)}`}
+                    </span>
+                  )}
                 </span>
                 <span className="engine-actions">
                   {/* The main engine's tag holds the place of 设为主引擎, so every row's buttons line up. */}
@@ -104,6 +115,11 @@ export function EngineList({ engines, main, nameOf, busy, labels, onSetMain, onE
           })}
         </ol>
         <footer className="dialog-footer">
+          {onAddSsh ? (
+            <button type="button" className="secondary-button" disabled={busy} data-testid="engine-add-ssh" onClick={onAddSsh}>
+              {labels.addSsh}
+            </button>
+          ) : null}
           <button type="button" className="primary-button" disabled={busy} data-testid="engine-add" onClick={onAdd}>
             {labels.add}
           </button>
