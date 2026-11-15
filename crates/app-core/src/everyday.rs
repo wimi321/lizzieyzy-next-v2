@@ -3,6 +3,7 @@
 use crate::{AppCore, AppError, actor};
 use serde::{Deserialize, Serialize};
 use std::{future::Future, path::PathBuf, pin::Pin};
+use tokio::sync::oneshot;
 use ts_rs::TS;
 
 pub const MAX_PNG_BYTES: usize = 32 * 1024 * 1024;
@@ -72,6 +73,17 @@ impl AppCore {
 
     pub async fn paste_sgf(&self) -> Result<u64, AppError> {
         self.send(actor::Input::PasteSgf).await
+    }
+
+    /// Read one validated HTTP(S) link without changing the clipboard or document.
+    /// Missing text, invalid links and clipboard failures are all an empty result.
+    pub async fn clipboard_link(&self) -> Result<Option<String>, AppError> {
+        let (reply, response) = oneshot::channel();
+        self.commands
+            .send(actor::Command::ClipboardLink(reply))
+            .await
+            .map_err(|_| AppError::Closed)?;
+        response.await.map_err(|_| AppError::Closed)
     }
 
     pub async fn save_clean_sgf(

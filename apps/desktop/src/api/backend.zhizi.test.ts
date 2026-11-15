@@ -27,6 +27,38 @@ test("account adapters forward credentials unchanged and preserve typed failures
   await expect(api.zhiziOverview(true)).rejects.toBe(error);
 });
 
+test("open Zhizi website invokes the fixed-target command without arguments and preserves failures", async () => {
+  const api = await import("./backend");
+  expect(ipc.invoke).not.toHaveBeenCalled();
+  ipc.invoke.mockResolvedValueOnce(undefined);
+  expect(await api.openZhiziWebsite()).toBeUndefined();
+  expect(ipc.invoke.mock.calls).toEqual([["open_zhizi_website"]]);
+
+  const error = { type: "BrowserUnavailable" } as const;
+  ipc.invoke.mockRejectedValueOnce(error);
+  await expect(api.openZhiziWebsite()).rejects.toBe(error);
+  expect(ipc.invoke).toHaveBeenLastCalledWith("open_zhizi_website");
+});
+
+test("mock opening the Zhizi website requires a script and preserves failures", async () => {
+  const mock = await vi.importActual<typeof import("../../e2e/mock-backend")>("../../e2e/mock-backend");
+  mock.setScript({ commands: [] });
+  await expect(mock.openZhiziWebsite()).rejects.toThrow("Expected mock command (none)");
+
+  const error = { type: "BrowserUnavailable" } as const;
+  mock.setScript({ commands: [
+    { command: "openZhiziWebsite", result: undefined },
+    { command: "openZhiziWebsite", result: undefined, error },
+  ] });
+  expect(await mock.openZhiziWebsite()).toBeUndefined();
+  await expect(mock.openZhiziWebsite()).rejects.toEqual(error);
+  expect(mock.recordedCalls()).toEqual([
+    { command: "openZhiziWebsite", args: [] },
+    { command: "openZhiziWebsite", args: [] },
+  ]);
+  await expect(mock.openZhiziWebsite()).rejects.toThrow("Expected mock command (none)");
+});
+
 test("every account mock command needs a script and old snapshots receive defaults", async () => {
   const mock = await vi.importActual<typeof import("../../e2e/mock-backend")>("../../e2e/mock-backend");
   const calls: [string, () => Promise<unknown>, unknown][] = [

@@ -254,6 +254,7 @@ pub(crate) async fn run(
                 Some(Command::ReviewResult(node, reply)) => { let _ = reply.send(actor.review_view(node)); }
                 Some(Command::ReviewAnalysis(node, reply)) => { let _ = reply.send(actor.stored_analysis(node)); }
                 Some(Command::VariationTree(reply)) => { let _ = reply.send(actor.tree.clone()); }
+                Some(Command::ClipboardLink(reply)) => { let _ = reply.send(actor.clipboard_link().await); }
                 Some(Command::StoneOrigin(point, reply)) => { let _ = reply.send(actor.stone_origin(point)); }
                 Some(Command::PreviewVariation(node_id, moves, reply)) => {
                     let result = VariationPreviewView::from_document(

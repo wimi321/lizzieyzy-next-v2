@@ -16,6 +16,13 @@ pub async fn paste_sgf(state: State<'_, DesktopState>) -> Result<Revision, Comma
 }
 
 #[tauri::command]
+pub async fn clipboard_link(
+    state: State<'_, DesktopState>,
+) -> Result<Option<String>, CommandError> {
+    Ok(state.core.clipboard_link().await?)
+}
+
+#[tauri::command]
 pub async fn save_clean_sgf(
     state: State<'_, DesktopState>,
     path: String,

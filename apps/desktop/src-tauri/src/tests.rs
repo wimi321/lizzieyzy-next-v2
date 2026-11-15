@@ -44,6 +44,7 @@ mod tencent;
 mod tsumego;
 mod variation;
 mod weights;
+mod zhizi_website;
 
 const SAFETY: Duration = Duration::from_secs(5);
 

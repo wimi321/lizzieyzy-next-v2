@@ -29,6 +29,7 @@ export interface ZhiziCommands {
   zhiziUsages?(page: number): Promise<ZhiziUsagePage>;
   zhiziCredits?(page: number): Promise<ZhiziCreditPage>;
   zhiziWebsite?(): Promise<string>;
+  openZhiziWebsite?(): Promise<void>;
 }
 
 export const zhiziStatus: NonNullable<ZhiziCommands["zhiziStatus"]> = () =>
@@ -51,3 +52,5 @@ export const zhiziCredits: NonNullable<ZhiziCommands["zhiziCredits"]> = (page) =
   invoke("zhizi_credits", { page });
 export const zhiziWebsite: NonNullable<ZhiziCommands["zhiziWebsite"]> = () =>
   invoke("zhizi_website");
+export const openZhiziWebsite: NonNullable<ZhiziCommands["openZhiziWebsite"]> = () =>
+  invoke("open_zhizi_website");

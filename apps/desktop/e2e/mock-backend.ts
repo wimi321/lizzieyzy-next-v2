@@ -504,7 +504,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "gameView" | "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound">(
+function query<K extends "gameView" | "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound" | "clipboardLink">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
@@ -544,6 +544,7 @@ export const zhiziOverview: NonNullable<Backend["zhiziOverview"]> = (force) => c
 export const zhiziUsages: NonNullable<Backend["zhiziUsages"]> = (page) => command("zhiziUsages", [page]);
 export const zhiziCredits: NonNullable<Backend["zhiziCredits"]> = (page) => command("zhiziCredits", [page]);
 export const zhiziWebsite: NonNullable<Backend["zhiziWebsite"]> = () => command("zhiziWebsite", []);
+export const openZhiziWebsite: NonNullable<Backend["openZhiziWebsite"]> = () => command("openZhiziWebsite", []);
 export const addRemoteEngine: NonNullable<Backend["addRemoteEngine"]> = (name, entry) => command("addRemoteEngine", [name, entry]);
 export const updateRemoteEngine: NonNullable<Backend["updateRemoteEngine"]> = (id, name, entry) => command("updateRemoteEngine", [id, name, entry]);
 export const testRemoteEngine: NonNullable<Backend["testRemoteEngine"]> = (entry) => command("testRemoteEngine", [entry]);
@@ -674,6 +675,7 @@ export const clearAnalysis: Backend["clearAnalysis"] = (all) => command("clearAn
 export const settings: Backend["settings"] = () => command("settings", []);
 export const copySgf: NonNullable<Backend["copySgf"]> = () => command("copySgf", []);
 export const pasteSgf: NonNullable<Backend["pasteSgf"]> = () => command("pasteSgf", []);
+export const clipboardLink: NonNullable<Backend["clipboardLink"]> = () => query("clipboardLink", [], () => null);
 export const saveCleanSgf: NonNullable<Backend["saveCleanSgf"]> = (path, keepComments, currentBranch) => command("saveCleanSgf", [path, keepComments, currentBranch]);
 // Preserve the same binary arguments as production; structuredClone records the bytes without JSON expansion.
 export const savePng: NonNullable<Backend["savePng"]> = (path: string, bytes: Uint8Array) => command("savePng", [path, bytes]);
