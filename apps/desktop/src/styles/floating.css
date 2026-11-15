@@ -1,0 +1,135 @@
+/* P3-29 floating boards: one board filling an undecorated window. */
+
+.floating-board {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  overflow: hidden;
+  background: #8c8c8c url("../assets/java/background.jpg") repeat 0 0;
+  user-select: none;
+}
+
+.floating-content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Java's three small buttons, shown while the pointer is in the window. */
+.floating-buttons {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 3;
+  display: flex;
+  gap: 3px;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.floating-board:hover .floating-buttons,
+.floating-buttons:focus-within {
+  opacity: 1;
+}
+
+.floating-button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1;
+  color: #333;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid #8c8c8c;
+  border-radius: 4px;
+}
+
+.floating-button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.floating-button[aria-pressed="true"] {
+  color: #fff;
+  background: #2f7d5b;
+  border-color: #245f45;
+}
+
+/* Edges and corners size the window; nothing shows. */
+.floating-edge {
+  position: absolute;
+  z-index: 2;
+}
+
+.floating-edge[data-edge="North"],
+.floating-edge[data-edge="South"] {
+  right: 10px;
+  left: 10px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.floating-edge[data-edge="North"] {
+  top: 0;
+}
+
+.floating-edge[data-edge="South"] {
+  bottom: 0;
+}
+
+.floating-edge[data-edge="East"],
+.floating-edge[data-edge="West"] {
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.floating-edge[data-edge="East"] {
+  right: 0;
+}
+
+.floating-edge[data-edge="West"] {
+  left: 0;
+}
+
+.floating-edge[data-edge="NorthEast"],
+.floating-edge[data-edge="NorthWest"],
+.floating-edge[data-edge="SouthEast"],
+.floating-edge[data-edge="SouthWest"] {
+  width: 10px;
+  height: 10px;
+}
+
+.floating-edge[data-edge="NorthEast"] {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.floating-edge[data-edge="SouthWest"] {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.floating-edge[data-edge="NorthWest"] {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.floating-edge[data-edge="SouthEast"] {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+
+/* The NorthWest corner sits under the buttons; they win. */
+.floating-board[data-locked] .floating-content {
+  cursor: default;
+}

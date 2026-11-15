@@ -2099,6 +2099,8 @@
       },
       "largeSubBoard": "Large sub board",
       "largeWinrateGraph": "Large winrate graph",
+      "floatMain": "Independent main board",
+      "floatSub": "Independent sub board",
       "position": "Board/frame position",
       "apply": "Apply",
       "cancel": "Cancel"
@@ -2107,5 +2109,15 @@
       "thinking": "Thinking board",
       "candidate": "Candidate {n}'s line"
     }
+  },
+  "floating": {
+    "main": "Independent main board",
+    "sub": "Independent sub board",
+    "loading": "Loading…",
+    "close": "Close",
+    "pin": "Keep on top",
+    "unpin": "Stop keeping on top",
+    "lock": "Lock position and size",
+    "unlock": "Unlock"
   }
 }

@@ -61,7 +61,7 @@ describe("the main panel's layouts", () => {
     for (const [width, height] of SIZES) {
       for (const flags of flagSets) {
         for (const mode of MODES) {
-          for (const large of [{}, { largeSubBoard: true }, { largeGraph: true }]) {
+          for (const large of [{}, { largeSubBoard: true }, { largeGraph: true }, { boardFloated: true }]) {
             const layout = frameLayout(width, height, 19, flags, arrangement({ mode, ...large }));
             expectTidy(layout, flags, width, height, `${width}×${height} ${mode} ${JSON.stringify(large)} ${JSON.stringify(flags)}`);
           }
@@ -133,5 +133,19 @@ describe("the main panel's layouts", () => {
     const upright = frameLayout(700, 1000, 19, EVERYTHING, arrangement({ mode: "Thinking" }));
     expect(upright.extra.y).toBe(0);
     expect(upright.board.y).toBeGreaterThanOrEqual(upright.extra.height);
+  });
+
+  test("浮动主棋盘: no board here; the info box, graph and comment on the left, the tree, list and sub-board on the right", () => {
+    const layout = frameLayout(1000, 520, 19, EVERYTHING, arrangement({ boardFloated: true }));
+    expect(layout.board.width).toBe(0);
+    expect(layout.captured.x).toBe(0);
+    expect(layout.graph.width).toBe(500);
+    expect(layout.tree.x).toBe(500);
+    expect(layout.subBoard.y + layout.subBoard.height).toBe(520);
+    expect(layout.status.y + layout.status.height).toBe(520);
+    // The position sets the left column's width; with nothing on the right it takes all of it.
+    expect(frameLayout(1000, 520, 19, EVERYTHING, arrangement({ boardFloated: true, position: 2 })).graph.width).toBe(250);
+    const alone = frameLayout(1000, 520, 19, { ...EVERYTHING, tree: false, list: false, subBoard: false }, arrangement({ boardFloated: true }));
+    expect(alone.graph.width).toBe(1000);
   });
 });

@@ -2099,6 +2099,8 @@
       },
       "largeSubBoard": "보조바둑판 크게 보기",
       "largeWinrateGraph": "승률그래프 크게 보기",
+      "floatMain": "메인바둑판 분리",
+      "floatSub": "보조바둑판 분리",
       "position": "바둑판 위치 조정",
       "apply": "적용",
       "cancel": "취소"
@@ -2107,5 +2109,15 @@
       "thinking": "생각용 바둑판",
       "candidate": "후보 {n}의 변화"
     }
+  },
+  "floating": {
+    "main": "분리된 메인바둑판",
+    "sub": "분리된 보조바둑판",
+    "loading": "불러오는 중…",
+    "close": "닫기",
+    "pin": "항상 위에",
+    "unpin": "항상 위에 해제",
+    "lock": "위치와 크기 고정",
+    "unlock": "고정 해제"
   }
 }
