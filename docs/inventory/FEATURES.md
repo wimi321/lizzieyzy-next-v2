@@ -385,27 +385,27 @@
 | --- | --- | --- | --- | --- | --- |
 | 强制退出（`menu.forceExit`） | 文件 → 强制退出 | `gui/Menu.java` | 操作系统进程 | 砍掉 | 强制退出是旧运行时的逃生入口，新版先依明确的关闭与恢复协议处理。 |
 | 退出（`menu.exit`） | 文件 → 退出 | `gui/Menu.java` | 桌面运行环境 | MVP | 正常退出与版本信息是桌面发布的基本能力。 |
-| 主棋盘/界面位置（`menu.mainBoardPos`） | 显示 → 主棋盘/界面位置 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
+| 主棋盘/界面位置（`menu.mainBoardPos`） | 显示 → 主棋盘/界面位置 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
 | 棋盘样式（`menu.boardStyleMenu`） | 显示 → 外观主题 → 棋盘样式 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
-| 重置界面位置（`menu.deletePersistFile`） | 显示 → 重置界面位置 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
+| 重置界面位置（`menu.deletePersistFile`） | 显示 → 重置界面位置 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
 | Apple 风格 UI（`menu.toggleAppleStyle`） | 显示 → 外观主题 → Apple 风格 UI | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
 | 经典配色（原版 lizzieyzy）（`menu.toggleClassicColors`） | 显示 → 外观主题 → 经典配色（原版 lizzieyzy） | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
 | 设置自定义棋盘背景...（`menu.setCustomBoard`） | 显示 → 外观主题 → 设置自定义棋盘背景... | `gui/Menu.java`；`gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
 | 恢复默认棋盘背景（`menu.clearCustomBoard`） | 显示 → 外观主题 → 恢复默认棋盘背景 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 本地图片 / 桌面绘制 | 砍掉 | 自定义图片与旧主题特效增加维护成本，待需求确认后再决定最小支持。 |
-| 放大小棋盘（`menu.largeSubBoard`） | 显示 → 主界面设置 → 放大小棋盘 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
-| 放大胜率图（`menu.largeWinrateGraph`） | 显示 → 主界面设置 → 放大胜率图 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
+| 放大小棋盘（`menu.largeSubBoard`） | 显示 → 主界面设置 → 放大小棋盘 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
+| 放大胜率图（`menu.largeWinrateGraph`） | 显示 → 主界面设置 → 放大胜率图 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
 | 总在最前（`menu.alwaysOnTop`） | 显示 → 主界面设置 → 总在最前 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
 | 显示清空棋盘提示对话框（`menu.showNewBoardConfirmDialog`） | 显示 → 主界面设置 → 显示清空棋盘提示对话框 | `gui/Menu.java` | 本地棋谱 / 文件系统 | MVP | 清空前确认保护用户棋谱；MVP 保留安全默认，关闭提示的开关可后置。 |
 | 显示覆盖文件提示对话框（`menu.showReplaceFileConfirmDialog`） | 显示 → 主界面设置 → 显示覆盖文件提示对话框 | `gui/Menu.java` | 本地棋谱 / 文件系统 | MVP | 覆盖前确认保护用户棋谱；MVP 保留安全默认，关闭提示的开关可后置。 |
 | 信息面板（`menu.informationPane`） | 显示 → 面板 → 信息面板 | `gui/Menu.java`；`gui/LizzieFrame.java` | 本地棋局 / 引擎状态 | MVP | 棋局与引擎状态可见性直接支撑 P1 可用性和故障定位。 |
 | 状态面板（`menu.statusPanel`） | 显示 → 面板 → 状态面板 | `gui/Menu.java`；`gui/LizzieFrame.java` | 本地棋局 / 引擎状态 | MVP | 棋局与引擎状态可见性直接支撑 P1 可用性和故障定位。 |
-| 可视化面板设置（`menu.visualizedPanelSettings`） | 显示 → 面板 → 可视化面板设置 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
-| 浮动主棋盘（`menu.independentMainBoard`） | 显示 → 面板 → 浮动主棋盘 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
-| 浮动主棋盘(保留原棋盘)（`menu.independentMainBoard2`） | 显示 → 面板 → 浮动主棋盘(保留原棋盘) | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
-| 浮动小棋盘（`menu.independentSubBoard`） | 显示 → 面板 → 浮动小棋盘 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
-| 恢复默认面板尺寸（`menu.restoreDefaultPanelSizes`） | 显示 → 面板 → 恢复默认面板尺寸 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
-| 布局模式（`menu.layoutModeMenu`） | 显示 → 布局模式 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
-| 浮动棋盘模式（`menu.independentBoardMode`） | 显示 → 浮动棋盘模式 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
+| 可视化面板设置（`menu.visualizedPanelSettings`） | 显示 → 面板 → 可视化面板设置 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
+| 浮动主棋盘（`menu.independentMainBoard`） | 显示 → 面板 → 浮动主棋盘 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
+| 浮动主棋盘(保留原棋盘)（`menu.independentMainBoard2`） | 显示 → 面板 → 浮动主棋盘(保留原棋盘) | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
+| 浮动小棋盘（`menu.independentSubBoard`） | 显示 → 面板 → 浮动小棋盘 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
+| 恢复默认面板尺寸（`menu.restoreDefaultPanelSizes`） | 显示 → 面板 → 恢复默认面板尺寸 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
+| 布局模式（`menu.layoutModeMenu`） | 显示 → 布局模式 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供；双引擎模式随对比引擎。 |
+| 浮动棋盘模式（`menu.independentBoardMode`） | 显示 → 浮动棋盘模式 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
 | 顶部工具栏（`menu.topToolBar`） | 显示 → 工具栏 → 顶部工具栏 | `gui/Menu.java` | 桌面 UI | MVP | 承载分析、翻手与文件操作的基本工具栏属于 P1 主线。 |
 | 自动换行(仅独立显示时)（`menu.autoWrap`） | 显示 → 工具栏 → 顶部工具栏 → 自动换行(仅独立显示时) | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
 | 底部工具栏（`menu.bottomToolBar`） | 显示 → 工具栏 → 底部工具栏 | `gui/Menu.java`；`gui/BottomToolbar.java` | 桌面 UI | MVP | 承载分析、翻手与文件操作的基本工具栏属于 P1 主线。 |
@@ -422,8 +422,8 @@
 | 界面字体大小（`menu.frameFontSize`） | 设置 → 界面字体大小 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 系统字体 / DPI | P2 | 字体可读性设置有助于不同屏幕，默认可用字号先随 MVP 交付。 |
 | 界面外观（`menu.frameLooks`） | 设置 → 界面外观 | `gui/Menu.java`；`gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
 | 播放落子声（`menu.playSound`） | 设置 → 播放落子声 | `gui/Menu.java` | 系统音频输出 | P2 | 落子声为可选反馈，基础复盘流程无需音频即可完成。 |
-| 自定义布局 1（`menu.custom-layout-1`） | 显示 → 自定义布局 1 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
-| 自定义布局 2（`menu.custom-layout-2`） | 显示 → 自定义布局 2 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
+| 自定义布局 1（`menu.custom-layout-1`） | 显示 → 自定义布局 1 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
+| 自定义布局 2（`menu.custom-layout-2`） | 显示 → 自定义布局 2 | `gui/Menu.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 第 8 批（P3-27 至 P3-29）提供。 |
 | 窗口总在最前（`config.display.always-on-top`） | 设置 → 综合设置 → 棋盘与显示 → 窗口总在最前 | `gui/ConfigDialog2.java`；`gui/LizzieFrame.java` | 桌面窗口系统 | P3 | 自定义或多窗口布局应在单窗口复盘体验稳定后按需求补齐。 |
 | 显示状态面板（`config.display.status`） | 设置 → 综合设置 → 棋盘与显示 → 显示状态面板 | `gui/ConfigDialog2.java`；`gui/LizzieFrame.java` | 本地棋局 / 引擎状态 | MVP | 棋局与引擎状态可见性直接支撑 P1 可用性和故障定位。 |
 | 当前主题（`config.theme.current`） | 设置 → 综合设置 → 主题外观 → 当前主题 | `gui/ConfigDialog2.java` | 旧 Swing 主题 / 本地资源 | 砍掉 | 多套历史主题与 Swing 外观不宜整体移植，保留一个一致且可读的新版默认主题。 |
