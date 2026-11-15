@@ -10,6 +10,7 @@ use std::{
 use tempfile::TempDir;
 
 mod layout;
+mod startup;
 
 async fn within<T>(future: impl Future<Output = T>) -> T {
     tokio::time::timeout(Duration::from_secs(5), future)
@@ -27,12 +28,14 @@ enum Effect {
 
 struct FakeWindows {
     areas: Result<Vec<WindowBounds>, String>,
-    minimums: BTreeMap<&'static str, (u32, u32)>,
+    frames: BTreeMap<&'static str, (u32, u32)>,
     windows: BTreeMap<&'static str, WindowPlacement>,
     options: BTreeMap<&'static str, (bool, bool)>,
     effects: Vec<Effect>,
     fail_create: BTreeSet<&'static str>,
     fail_place_once: Option<&'static str>,
+    fail_placement: BTreeSet<&'static str>,
+    missing_placement: BTreeSet<&'static str>,
 }
 
 impl Default for FakeWindows {
@@ -58,10 +61,12 @@ impl Default for FakeWindows {
             )]
             .into(),
             options: BTreeMap::new(),
-            minimums: BTreeMap::new(),
+            frames: BTreeMap::new(),
             effects: Vec::new(),
             fail_create: BTreeSet::new(),
             fail_place_once: None,
+            fail_placement: BTreeSet::new(),
+            missing_placement: BTreeSet::new(),
         }
     }
 }
@@ -70,11 +75,11 @@ impl WindowPlatform for FakeWindows {
     fn work_areas(&self) -> Result<Vec<WindowBounds>, String> {
         self.areas.clone()
     }
-    fn minimum(&self, kind: WindowKind) -> (u32, u32) {
-        self.minimums
+    fn frame(&self, kind: WindowKind) -> (u32, u32) {
+        self.frames
             .get(window_state::label(kind))
             .copied()
-            .unwrap_or_else(|| window_state::minimum(kind))
+            .unwrap_or_default()
     }
     fn exists(&self, kind: WindowKind) -> bool {
         self.windows.contains_key(window_state::label(kind))
@@ -113,7 +118,14 @@ impl WindowPlatform for FakeWindows {
         Ok(())
     }
     fn placement(&self, kind: WindowKind) -> Result<Option<WindowPlacement>, String> {
-        Ok(self.windows.get(window_state::label(kind)).copied())
+        let label = window_state::label(kind);
+        if self.fail_placement.contains(label) {
+            return Err("injected placement read failure".into());
+        }
+        if self.missing_placement.contains(label) {
+            return Ok(None);
+        }
+        Ok(self.windows.get(label).copied())
     }
     fn place(&mut self, kind: WindowKind, placement: WindowPlacement) -> Result<(), String> {
         if self.fail_place_once == Some(window_state::label(kind)) {
@@ -760,8 +772,8 @@ impl WindowPlatform for SharedWindows {
     fn work_areas(&self) -> Result<Vec<WindowBounds>, String> {
         self.0.lock().unwrap().work_areas()
     }
-    fn minimum(&self, kind: WindowKind) -> (u32, u32) {
-        self.0.lock().unwrap().minimum(kind)
+    fn frame(&self, kind: WindowKind) -> (u32, u32) {
+        self.0.lock().unwrap().frame(kind)
     }
     fn exists(&self, kind: WindowKind) -> bool {
         self.0.lock().unwrap().exists(kind)
@@ -808,6 +820,8 @@ async fn controller_debounces_native_bursts_and_flushes_the_latest_position_on_e
     within(service.apply(Action::Layout(false, false, false)))
         .await
         .unwrap();
+    let initial_main = within(core.settings()).await.unwrap().display.main_window;
+    assert_eq!(initial_main, Some(shared.lock().unwrap().windows["main"]));
     // No engine, socket or other real-time process exists in this test.
     tokio::time::pause();
     shared
@@ -827,7 +841,7 @@ async fn controller_debounces_native_bursts_and_flushes_the_latest_position_on_e
     within(tokio::time::advance(Duration::from_millis(400))).await;
     assert_eq!(
         within(core.settings()).await.unwrap().display.main_window,
-        None
+        initial_main
     );
     shared
         .lock()
@@ -846,7 +860,7 @@ async fn controller_debounces_native_bursts_and_flushes_the_latest_position_on_e
     within(tokio::time::advance(Duration::from_millis(499))).await;
     assert_eq!(
         within(core.settings()).await.unwrap().display.main_window,
-        None
+        initial_main
     );
     within(tokio::time::advance(Duration::from_millis(1))).await;
     // Disk completion is an external event. Return to real time before waiting
@@ -952,8 +966,17 @@ async fn failed_settings_save_restores_actual_unsaved_positions_and_options() {
     };
     let (mut controller, _events, directory) =
         setup(original.clone(), FakeWindows::default()).await;
+    let baseline = within(controller.core.settings()).await.unwrap().display;
+    controller
+        .platform
+        .windows
+        .get_mut("main")
+        .unwrap()
+        .bounds
+        .x += 25;
     let actual = controller.platform.windows.clone();
-    assert_eq!(original.main_window, None);
+    assert!(baseline.main_window.is_some());
+    assert_ne!(baseline.main_window, Some(actual["main"]));
     // A directory at the settings destination makes atomic replacement fail on
     // every platform without changing real user files or relying on Unix modes.
     std::fs::rename(
@@ -1000,7 +1023,7 @@ async fn failed_settings_save_restores_actual_unsaved_positions_and_options() {
     );
     assert_eq!(
         within(controller.core.settings()).await.unwrap().display,
-        original
+        baseline
     );
     assert_eq!(controller.platform.windows, actual);
     assert_eq!(controller.platform.options["float-main"], (false, false));
@@ -1012,14 +1035,14 @@ async fn failed_settings_save_restores_actual_unsaved_positions_and_options() {
 async fn fit_at_screen_edges_includes_window_decorations_in_the_minimum() {
     let mut platform = FakeWindows {
         // The native minimum is the 520x400 client plus 16x39 decorations.
-        minimums: [("main", (536, 439))].into(),
+        frames: [("main", (16, 39))].into(),
         ..Default::default()
     };
     let placement = platform.windows.get_mut("main").unwrap();
     placement.bounds.x = 1750;
     placement.bounds.y = 1000;
     let (mut controller, _events, _directory) = setup(DisplaySettings::default(), platform).await;
-    let fitted = within(controller.action(Action::Fit(520, 400)))
+    let fitted = within(controller.action(Action::Fit(300, 200)))
         .await
         .unwrap();
     let expected = WindowPlacement {
@@ -1035,5 +1058,59 @@ async fn fit_at_screen_edges_includes_window_decorations_in_the_minimum() {
     assert_eq!(controller.platform.windows["main"], expected);
     assert_eq!(expected.bounds.x + expected.bounds.width as i32, 1920);
     assert_eq!(expected.bounds.y + expected.bounds.height as i32, 1080);
+    finish(controller).await;
+}
+
+#[tokio::test]
+async fn fit_uses_client_size_with_decorations_and_repeated_requests_do_not_shrink() {
+    let platform = FakeWindows {
+        frames: [("main", (16, 39))].into(),
+        ..Default::default()
+    };
+    let (mut controller, _events, _directory) = setup(DisplaySettings::default(), platform).await;
+    let original = controller.platform.windows["main"];
+    let expected = WindowPlacement {
+        bounds: WindowBounds {
+            x: original.bounds.x,
+            y: original.bounds.y,
+            width: 816,
+            height: 639,
+        },
+        maximized: false,
+    };
+    for _ in 0..3 {
+        let fitted = within(controller.action(Action::Fit(800, 600)))
+            .await
+            .unwrap();
+        let outer = controller.platform.windows["main"];
+        assert_eq!(outer, expected);
+        assert_eq!(fitted.main_window, Some(expected));
+        let frame = controller.platform.frame(WindowKind::Main);
+        assert_eq!(
+            (outer.bounds.width - frame.0, outer.bounds.height - frame.1),
+            (800, 600)
+        );
+        assert_eq!(
+            within(controller.core.settings())
+                .await
+                .unwrap()
+                .display
+                .main_window,
+            Some(expected)
+        );
+    }
+    controller
+        .platform
+        .windows
+        .get_mut("main")
+        .unwrap()
+        .maximized = true;
+    let maximized = controller.platform.windows["main"];
+    let effect_count = controller.platform.effects.len();
+    within(controller.action(Action::Fit(1000, 700)))
+        .await
+        .unwrap();
+    assert_eq!(controller.platform.windows["main"], maximized);
+    assert_eq!(controller.platform.effects.len(), effect_count);
     finish(controller).await;
 }

@@ -18,8 +18,17 @@ mod tests;
 
 pub(crate) trait WindowPlatform: Send + 'static {
     fn work_areas(&self) -> Result<Vec<WindowBounds>, String>;
+    /// Total horizontal and vertical window decorations in logical pixels.
+    fn frame(&self, _kind: WindowKind) -> (u32, u32) {
+        (0, 0)
+    }
     fn minimum(&self, kind: WindowKind) -> (u32, u32) {
-        window_state::minimum(kind)
+        let base = window_state::minimum(kind);
+        let frame = self.frame(kind);
+        (
+            base.0.saturating_add(frame.0),
+            base.1.saturating_add(frame.1),
+        )
     }
     fn exists(&self, kind: WindowKind) -> bool;
     fn create(
@@ -149,8 +158,22 @@ impl<P: WindowPlatform> Controller<P> {
                     eprintln!("restore main window: {error}");
                 }
             }
-        } else if let Ok(Some(value)) = self.platform.placement(WindowKind::Main) {
-            self.placements.seed(WindowKind::Main, value.bounds);
+        } else {
+            match self.platform.placement(WindowKind::Main) {
+                Ok(Some(value)) => {
+                    // A layout can be saved before any move or resize event arrives.
+                    self.placements.seed(WindowKind::Main, value.bounds);
+                    if let Err(error) = self
+                        .core
+                        .save_window_placement(WindowKind::Main, value)
+                        .await
+                    {
+                        eprintln!("save initial main window placement: {error}");
+                    }
+                }
+                Ok(None) => eprintln!("initial main window placement is unavailable"),
+                Err(error) => eprintln!("read initial main window placement: {error}"),
+            }
         }
         // A missing screen/window is optional: continue restoring the other
         // window and keep the main application running.
@@ -378,8 +401,10 @@ impl<P: WindowPlatform> Controller<P> {
             .map_err(CommandError::WindowUnavailable)?
             && !value.maximized
         {
-            value.bounds.width = width;
-            value.bounds.height = height;
+            // The caller measures client size; fitting and persistence use outer bounds.
+            let frame = self.platform.frame(WindowKind::Main);
+            value.bounds.width = width.saturating_add(frame.0);
+            value.bounds.height = height.saturating_add(frame.1);
             value.bounds = fit_window_bounds(
                 value.bounds,
                 &self.areas(),
