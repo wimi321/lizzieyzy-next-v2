@@ -12,3 +12,7 @@ thiserror = "2"
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "fake-katago-cpu"
+path = "src/cpu.rs"

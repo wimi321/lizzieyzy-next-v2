@@ -1,4 +1,4 @@
-import { fillSaveSlotDefaults, fillZhiziDefaults, fillLayoutDefaults, fillFloatingBoardsDefaults } from "./fixtures";
+import { fillAccelerationPlanDefaults, fillAccelerationProgressDefaults, fillSaveSlotDefaults, fillZhiziDefaults, fillLayoutDefaults, fillFloatingBoardsDefaults } from "./fixtures";
 import type { SaveSlot, CommentaryUpdated, CommentarySettings, CommentaryKeyStatus, CoachView, CoachHint, HumanSlModelStatus, GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 import { fillRemoteProfileDefaults, fillCommentaryKeyDefaults, defaultCommentarySettings, fillCommentarySettingsDefaults, fillCommentaryDefaults, defaultCoachSetup, fillCoachSetupDefaults, fillCoachDefaults, fillCoachRatingDefaults, fillCoachSummaryDefaults, fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 import type { TencentPage } from "../src/api/backend";
@@ -43,7 +43,7 @@ export type {
   SaveSlotCommands, SaveSlot, SlotBoard, SaveSlotsError, PaintingColor, ControlPanelBounds,
   DisplaySettings, DisplaySettingsPayload, EstimateLocation, EstimateStyle, SubBoardHeat, TopToolbarLayout, DisplaySettingsCommands, AnalysisCacheCommands,
   EngineCommands, EngineEntry, EngineSettings, EngineRules, EngineCustomRules, JavaImportPreview, JavaImportedEngine,
-  WeightCommands, OfficialWeight, AssetDownloadStatus, AssetDownloadProgressListener, AccelerationPlan, DiagnosticRepair, EngineDiagnostics,
+  AccelerationBackend, AccelerationProgress, AccelerationPhase, AccelerationError, AccelerationGpu, AccelerationOption, AccelerationNote, EngineBackend, AccelerationProgressListener, WeightCommands, OfficialWeight, AssetDownloadStatus, AssetDownloadProgressListener, AccelerationPlan, DiagnosticRepair, EngineDiagnostics,
   AccelerationReason, DownloadPhase, DiagnosticCheck, DiagnosticKind, DiagnosticStatus,
   PreferenceCommands, UiLanguage,
   EverydayCommands, BoardTransform,
@@ -52,7 +52,7 @@ export type {
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribeFloatingBoardsChanged" | "subscribeDisplaySettingsChanged" | "subscribeCommentaryUpdated" | "subscribeCoachUpdated" | "subscribeCoachMoveRated" | "subscribeCoachSummary" | "subscribeMatchUpdated" | "subscribeGtpConsole" | "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
+type CommandName = Exclude<keyof Backend, "subscribeFloatingBoardsChanged" | "subscribeDisplaySettingsChanged" | "subscribeCommentaryUpdated" | "subscribeCoachUpdated" | "subscribeCoachMoveRated" | "subscribeCoachSummary" | "subscribeMatchUpdated" | "subscribeGtpConsole" | "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeAccelerationProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -112,7 +112,7 @@ let lastBoardSyncStatus: BoardSyncStatus = { phase: "Stopped", always_sync: true
 const idleBenchmark: BenchmarkStatus = { phase: "Idle", progress: null, measurements: [], last_result: null, error: null };
 let lastBenchmarkStatus: BenchmarkStatus = structuredClone(idleBenchmark);
 const idleDownload: AssetDownloadStatus = { phase: "Idle", asset_id: null, downloaded_bytes: 0, total_bytes: 0, path: null, error: null };
-const defaultAcceleration: AccelerationPlan = { reason: "UnsupportedPlatform", recommended_assets: [], optional_assets: [], runtime_profile: null, tensor_rt_supported: false, tensor_rt_recommended: false, archives_only: false };
+const defaultAcceleration: AccelerationPlan = { reason: "UnsupportedPlatform", recommended_assets: [], optional_assets: [], runtime_profile: null, tensor_rt_supported: false, tensor_rt_recommended: false, archives_only: false, gpus: [], current: "external", options: [] };
 const emptyDiagnostics: EngineDiagnostics = { profile: null, checks: [] };
 let lastDownloadStatus: AssetDownloadStatus = structuredClone(idleDownload);
 /** A test-provided problem-move view, answered for every unscripted read. */
@@ -195,6 +195,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
           if (cloned.type === "DocumentChanged") fillDocumentDefaults(cloned.data.view);
           if (cloned.type === "AnalysisUpdated") fillAnalysisDefaults(cloned.data);
           if (cloned.type === "AnalysisStateChanged") defaultField(cloned.data, "pure_network", false);
+          if (cloned.type === "AccelerationProgress") fillAccelerationProgressDefaults(cloned.data);
           if (cloned.type === "AssetDownloadProgress") fillDownloadDefaults(cloned.data);
           if (cloned.type === "UpdateDownloadProgress") fillUpdateDownloadDefaults(cloned.data);
           listener(cloned);
@@ -284,9 +285,10 @@ async function command<K extends CommandName>(
   }
   if (next.command === "accelerationPlan") {
     const plan = cloned as AccelerationPlan;
+    fillAccelerationPlanDefaults(plan);
     for (const key of Object.keys(defaultAcceleration) as (keyof AccelerationPlan)[]) defaultField(plan, key, defaultAcceleration[key]);
   }
-  if (next.command === "diagnoseEngine" || next.command === "repairEngine") {
+  if (next.command === "diagnoseEngine" || next.command === "repairEngine" || next.command === "disableAcceleration") {
     const report = cloned as EngineDiagnostics;
     defaultField(report, "profile", null);
     defaultField(report, "checks", []);
@@ -300,6 +302,7 @@ async function command<K extends CommandName>(
   if (next.command === "settings") {
     const settings = cloned as Settings;
     fillDisplayDefaults(settings.display!);
+    defaultField(settings, "acceleration_hint_dismissed", false);
     defaultField(settings, "autosave", true);
     defaultField(settings, "restore_last_game", false);
     defaultField(settings, "flash_analysis", structuredClone(defaultFlashAnalysisSettings));
@@ -526,7 +529,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "gameView" | "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound" | "clipboardLink">(
+function query<K extends "gameView" | "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "accelerationOutput" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound" | "clipboardLink">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
@@ -586,6 +589,9 @@ export const officialWeights: Backend["officialWeights"] = () => query("official
 export const startAssetDownload: Backend["startAssetDownload"] = (assetId) => command("startAssetDownload", [assetId]);
 export const cancelAssetDownload: Backend["cancelAssetDownload"] = () => command("cancelAssetDownload", []);
 export const assetDownloadStatus: Backend["assetDownloadStatus"] = () => query("assetDownloadStatus", [], () => lastDownloadStatus);
+export const enableAcceleration: NonNullable<Backend["enableAcceleration"]> = (backend) => command("enableAcceleration", [backend]);
+export const disableAcceleration: NonNullable<Backend["disableAcceleration"]> = () => command("disableAcceleration", []);
+export const dismissAccelerationHint: NonNullable<Backend["dismissAccelerationHint"]> = () => command("dismissAccelerationHint", []);
 export const accelerationPlan: Backend["accelerationPlan"] = () => query("accelerationPlan", [], () => defaultAcceleration);
 export const useOfficialWeight: Backend["useOfficialWeight"] = (assetId) => command("useOfficialWeight", [assetId]);
 export const diagnoseEngine: Backend["diagnoseEngine"] = () => query("diagnoseEngine", [], () => emptyDiagnostics);
@@ -748,7 +754,7 @@ export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "FloatingBoardsChanged" && event.type !== "DisplaySettingsChanged" && event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+    if (event.type !== "FloatingBoardsChanged" && event.type !== "DisplaySettingsChanged" && event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "AccelerationProgress" && event.type !== "UpdateDownloadProgress") listener(event);
   });
   pushEvents([]);
   return id;
@@ -1024,3 +1030,13 @@ export const subscribeDisplaySettingsChanged: NonNullable<Backend["subscribeDisp
   listeners.set(id, (event) => { if (event.type === "DisplaySettingsChanged") listener(event.data); });
   pushEvents([]); return id;
 };
+
+export const subscribeAccelerationProgress: NonNullable<Backend["subscribeAccelerationProgress"]> = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => {
+    if (event.type === "AccelerationProgress") listener(event.data);
+  });
+  pushEvents([]);
+  return id;
+};
+export const accelerationOutput: NonNullable<Backend["accelerationOutput"]> = () => query("accelerationOutput", [], () => []);

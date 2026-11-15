@@ -869,3 +869,31 @@ export function fillLayoutDefaults(display: import("../src/api/backend").Display
     if (layout.floating_sub) fillWindowBounds(layout.floating_sub, 300, 300);
   }
 }
+
+/** Defaults for old GPU-plan scripts; detection and recommendations stay in Rust. */
+export function fillAccelerationPlanDefaults(plan: import("../src/api/backend").AccelerationPlan): void {
+  gameDefaultField(plan, "gpus", []);
+  gameDefaultField(plan, "current", "external");
+  gameDefaultField(plan, "options", []);
+  for (const gpu of plan.gpus ?? []) {
+    gameDefaultField(gpu, "name", "");
+    gameDefaultField(gpu, "compute_capability", null);
+    gameDefaultField(gpu, "driver_version", null);
+    gameDefaultField(gpu, "nvidia", false);
+  }
+  for (const option of plan.options ?? []) {
+    gameDefaultField(option, "backend", "opencl");
+    gameDefaultField(option, "profile_id", "");
+    gameDefaultField(option, "installed", false);
+    gameDefaultField(option, "download_bytes", 0);
+    gameDefaultField(option, "recommended", false);
+    gameDefaultField(option, "supported", false);
+    gameDefaultField(option, "note", null);
+  }
+}
+
+export function fillAccelerationProgressDefaults(progress: import("../src/api/backend").AccelerationProgress): void {
+  gameDefaultField(progress, "backend", "opencl");
+  gameDefaultField(progress, "phase", "Downloading");
+  gameDefaultField(progress, "output_tail", []);
+}

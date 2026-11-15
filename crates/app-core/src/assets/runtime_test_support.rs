@@ -68,3 +68,26 @@ pub(crate) fn test_runtime_catalog(program: &[u8]) -> (AssetCatalog, Vec<(PathBu
     )]);
     (AssetCatalog { specs, profiles }, archives)
 }
+
+pub(crate) fn test_acceleration_catalog(
+    program: &[u8],
+    cpu_program: &[u8],
+    startup: &serde_json::Value,
+) -> (AssetCatalog, Vec<(PathBuf, Vec<u8>)>) {
+    let (mut catalog, mut archives) = test_runtime_catalog(program);
+    let script = serde_json::to_vec(startup).unwrap();
+    let engine = zip_files(&[
+        ("katago.exe", program),
+        ("startup.json", &script),
+        ("LICENSE.txt", b"fake engine license"),
+    ]);
+    catalog.specs[0].size = engine.len() as u64;
+    catalog.specs[0].sha256 = format!("{:x}", Sha256::digest(&engine));
+    archives[0].1 = engine;
+    let mut cpu = catalog.specs[0].clone();
+    cpu.id = "windows-cpu".into();
+    cpu.runtime_profile = None;
+    cpu.executable_sha256 = Some(format!("{:x}", Sha256::digest(cpu_program)));
+    catalog.specs.push(cpu);
+    (catalog, archives)
+}

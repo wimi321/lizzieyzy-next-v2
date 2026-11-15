@@ -108,3 +108,36 @@ fn empty_override_removes_the_key_and_restores_default_threads() {
         .is_none()
     );
 }
+
+#[test]
+fn startup_options_validate_backend_and_bounds() {
+    let options = parse(&[
+        "--backend",
+        "opencl",
+        "--tuning-lines",
+        "4",
+        "--tuning-interval-ms",
+        "10",
+        "--startup-error",
+        "GPU memory exhausted",
+        "--startup-script-relative",
+        "../engine/startup.json",
+        "-override-config",
+        "logFile=before.log,logFile=,logFile=after.log",
+    ]);
+    assert_eq!(options.backend.as_deref(), Some("opencl"));
+    assert_eq!(options.tuning_lines, 4);
+    assert_eq!(options.tuning_interval_ms, 10);
+    assert_eq!(
+        options.startup_error.as_deref(),
+        Some("GPU memory exhausted")
+    );
+    assert_eq!(options.log_file, Some("after.log".into()));
+    for args in [
+        ["analysis", "--backend", "unknown"],
+        ["analysis", "--tuning-lines", "1001"],
+        ["analysis", "--tuning-interval-ms", "86400001"],
+    ] {
+        assert!(Options::parse(args.map(str::to_owned)).is_err());
+    }
+}

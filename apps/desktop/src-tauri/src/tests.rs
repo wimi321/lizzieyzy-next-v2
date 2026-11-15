@@ -210,6 +210,7 @@ impl Harness {
                     | AppEvent::BenchmarkProgress(_)
                     | AppEvent::UpdateDownloadProgress(_)
                     | AppEvent::AssetDownloadProgress(_)
+                    | AppEvent::AccelerationProgress(_)
                     | AppEvent::AnalysisStateChanged(_)
                     | AppEvent::BoardSyncStatusChanged(_)
                     | AppEvent::MatchUpdated(_)

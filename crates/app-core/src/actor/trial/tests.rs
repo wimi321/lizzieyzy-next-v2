@@ -31,6 +31,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
     config.session.shutdown_timeout = Duration::from_secs(60);
     (
         Actor {
+            acceleration: Default::default(),
             restriction: None,
             restricted_analysis: None,
             scoring: None,
@@ -109,6 +110,13 @@ async fn commit(actor: &mut Actor, profile: EngineSetupProfile) {
     let outcome = within(wait(&mut actor.trial)).await;
     within(actor.finish_trial(outcome)).await;
     within(receiver).await.unwrap().unwrap();
+}
+
+async fn wait(trial: &mut Option<PendingTrial>) -> Result<(), EngineSetupError> {
+    match super::wait(trial).await {
+        TrialSignal::Finished(result) => result,
+        TrialSignal::Output { .. } => panic!("ordinary trials have no acceleration monitor"),
+    }
 }
 
 async fn ready(engine: &EngineHandle) {

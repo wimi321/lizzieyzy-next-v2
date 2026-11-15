@@ -120,3 +120,20 @@ async fn failed_floating_channel_does_not_disconnect_the_other_windows() {
     }
     within(core.shutdown()).await.unwrap();
 }
+
+#[test]
+fn acceleration_reconnect_replays_only_the_latest_stage() {
+    let mut replay = vec![];
+    for phase in ["Downloading", "Starting", "Tuning", "Ready"] {
+        let progress = serde_json::from_value(serde_json::json!({
+            "backend": "opencl", "phase": phase, "output_tail": []
+        }))
+        .unwrap();
+        remember_state(&mut replay, &AppEvent::AccelerationProgress(progress));
+    }
+    assert_eq!(replay.len(), 1);
+    assert_eq!(
+        serde_json::to_value(&replay[0]).unwrap()["data"]["phase"],
+        "Ready"
+    );
+}

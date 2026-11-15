@@ -1,6 +1,7 @@
 use super::*;
 
 pub(crate) enum Input {
+    DismissAccelerationHint,
     OpenBytes(Vec<u8>),
     OpenPath(PathBuf),
     LoadSlot(String),
@@ -44,6 +45,12 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    EnableAcceleration(
+        crate::AccelerationBackend,
+        oneshot::Sender<Result<Settings, AppError>>,
+    ),
+    AccelerationOutput(oneshot::Sender<Vec<String>>),
+    CancelAcceleration(oneshot::Sender<Result<crate::AssetDownloadStatus, AppError>>),
     Windows(crate::window_api::Request),
     AnalysisTools(crate::analysis_tools::Request),
     Scoring(crate::scoring::Request),

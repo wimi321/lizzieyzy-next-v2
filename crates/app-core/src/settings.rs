@@ -37,6 +37,8 @@ pub struct EngineProfile {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default)]
 pub struct Settings {
+    #[ts(as = "Option<bool>", optional)]
+    pub acceleration_hint_dismissed: bool,
     #[ts(optional = nullable)]
     pub search_params: Option<crate::SearchParams>,
     #[ts(as = "Option<crate::RestrictionDepthSettings>", optional)]
@@ -102,6 +104,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             version: SETTINGS_VERSION,
+            acceleration_hint_dismissed: false,
             search_params: None,
             restriction_depths: Default::default(),
             autosave: true,

@@ -7,6 +7,10 @@ use tokio::{
     sync::{mpsc, oneshot, watch},
 };
 
+mod pause;
+#[cfg(test)]
+mod tests;
+
 pub(super) async fn run(
     directory: &Path,
     catalog: &AssetCatalog,
@@ -15,7 +19,15 @@ pub(super) async fn run(
     events: &watch::Sender<AssetDownloadStatus>,
 ) -> bool {
     let (cancel, cancellation) = watch::channel(false);
-    let operation = install(directory, catalog, profile_id, &cancellation, events);
+    let (requested, mut acknowledged, pause) = pause::Pause::new(events);
+    let operation = install(
+        directory,
+        catalog,
+        profile_id,
+        &cancellation,
+        events,
+        &pause,
+    );
     tokio::pin!(operation);
     loop {
         tokio::select! {
@@ -25,10 +37,37 @@ pub(super) async fn run(
                     let same = id == profile_id || catalog.get(&id).is_ok_and(|asset| {
                         !asset.weight && profile_for_asset(catalog, &id).as_deref() == Some(profile_id)
                     });
-                    let result = if same { Ok(events.borrow().clone()) } else { Err(AssetError::Busy) };
+                    let result = if same {
+                        requested.send_replace(false);
+                        if events.borrow().phase == DownloadPhase::Paused {
+                            events.send_modify(|status| status.phase = DownloadPhase::Downloading);
+                        }
+                        Ok(events.borrow().clone())
+                    } else { Err(AssetError::Busy) };
                     let _ = reply.send(result);
                 }
-                Some(Command::Pause(reply)) => { let _ = reply.send(Err(AssetError::NotApplicable)); }
+                Some(Command::Pause(reply)) => {
+                    let phase = events.borrow().phase.clone();
+                    if phase == DownloadPhase::Installing {
+                        // Extraction/publication is already a cancellable transaction;
+                        // pause only the network stage, never a blocking archive worker.
+                        let _ = reply.send(Err(AssetError::NotApplicable));
+                    } else if phase == DownloadPhase::Paused {
+                        let _ = reply.send(Ok(events.borrow().clone()));
+                    } else {
+                        requested.send_replace(true);
+                        tokio::select! {
+                            result = &mut operation => {
+                                finish(events, result);
+                                respond_cancel(events, reply);
+                                return false;
+                            }
+                            _ = acknowledged.changed() => {
+                                let _ = reply.send(Ok(events.borrow().clone()));
+                            }
+                        }
+                    }
+                }
                 Some(Command::ImportHumanSl(_, reply)) => { let _ = reply.send(Err(AssetError::Busy)); }
                 Some(Command::Cancel(reply)) => {
                     cancel.send_replace(true);
@@ -105,6 +144,7 @@ async fn install(
     profile_id: &str,
     cancel: &watch::Receiver<bool>,
     events: &watch::Sender<AssetDownloadStatus>,
+    pause: &pause::Pause<'_>,
 ) -> Result<PathBuf, AssetError> {
     let owned_root = root.to_path_buf();
     let owned_catalog = catalog.clone();
@@ -121,10 +161,11 @@ async fn install(
     let profile = catalog.profile(profile_id)?;
     let mut completed = 0;
     for id in &profile.assets {
+        pause.wait(cancel, None).await?;
         super::runtime_archive::cancelled(cancel)?;
         let spec = catalog.get(id)?;
         let (progress, mut updates) = watch::channel(AssetDownloadStatus::default());
-        let operation = fetch(root, spec, cancel, &progress);
+        let operation = fetch(root, spec, cancel, &progress, pause, completed);
         tokio::pin!(operation);
         loop {
             tokio::select! {
@@ -139,6 +180,7 @@ async fn install(
         completed += spec.size;
         events.send_modify(|status| status.downloaded_bytes = completed);
     }
+    pause.wait(cancel, None).await?;
     super::runtime_archive::cancelled(cancel)?;
     events.send_modify(|status| status.phase = DownloadPhase::Installing);
     let owned_root = root.to_path_buf();
@@ -168,6 +210,8 @@ async fn fetch(
     spec: &super::catalog::AssetSpec,
     cancel: &watch::Receiver<bool>,
     events: &watch::Sender<AssetDownloadStatus>,
+    pause: &pause::Pause<'_>,
+    completed: u64,
 ) -> Result<(), AssetError> {
     let target = root.join(spec.relative_path());
     let parent = target
@@ -188,15 +232,9 @@ async fn fetch(
     .await
     .map_err(|error| AssetError::Worker(error.to_string()))??;
     let mut file = tokio::fs::File::from_std(file);
-    let mut cancellation = cancel.clone();
-    let result = if *cancel.borrow() {
-        Err(AssetError::Cancelled)
-    } else {
-        tokio::select! {
-            result = transfer::transfer(spec, &target, &mut file, events) => result,
-            _ = cancellation.changed() => Err(AssetError::Cancelled),
-        }
-    };
+    let result = pause
+        .transfer(spec, &target, &mut file, cancel, events, completed)
+        .await;
     let _ = file.flush().await;
     drop(file);
     if matches!(result, Ok(true)) {

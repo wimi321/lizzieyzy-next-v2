@@ -1,11 +1,31 @@
 use super::{Actor, Signal};
-use crate::{AnalysisView, AppEvent};
+use crate::{AnalysisView, AppEvent, EngineStatus};
 use analysis::AnalysisStatus;
 use document::NodeId;
 
 mod remote_identity;
 
 impl Actor {
+    pub(super) fn failed(&self, reason: String) {
+        self.output
+            .send(AppEvent::EngineStatusChanged(EngineStatus::Failed {
+                reason,
+                stderr_tail: Vec::new(),
+            }));
+    }
+
+    pub(super) fn analysis_failed(&self, reason: String) {
+        if let Some(running) = &self.running {
+            let status = running.engine_status.borrow().clone();
+            if matches!(status, engine_session::EngineStatus::Failed { .. }) {
+                self.output
+                    .send(AppEvent::EngineStatusChanged(status.into()));
+                return;
+            }
+        }
+        self.failed(reason);
+    }
+
     pub(super) fn signal(&mut self, signal: Signal) {
         match signal {
             Signal::Snapshot(snapshot) => {

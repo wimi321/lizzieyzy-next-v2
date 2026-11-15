@@ -8,7 +8,7 @@ mod install;
 mod runtime;
 mod runtime_archive;
 #[cfg(test)]
-mod runtime_test_support;
+pub(crate) mod runtime_test_support;
 // Only the Unix runtime tests use it; elsewhere it would be an unused import.
 #[cfg(all(test, unix))]
 pub(crate) use runtime_test_support::test_runtime_catalog;
@@ -26,7 +26,8 @@ pub(crate) use catalog::AssetCatalog;
 use catalog::AssetSpec;
 pub(crate) use humansl::{HumanModelBackend, human_model_backend};
 pub use types::{
-    AccelerationPlan, AccelerationReason, AssetDownloadStatus, AssetError, DownloadPhase,
+    AccelerationBackend, AccelerationGpu, AccelerationNote, AccelerationOption, AccelerationPlan,
+    AccelerationReason, AssetDownloadStatus, AssetError, DownloadPhase, EngineBackend,
     HumanSlModelStatus, OfficialWeight, RuntimeInstallation,
 };
 
@@ -180,8 +181,55 @@ impl AssetHandle {
     }
 
     pub async fn acceleration_plan(&self) -> Result<AccelerationPlan, AssetError> {
+        self.acceleration_plan_for(None).await
+    }
+
+    pub async fn acceleration_plan_for(
+        &self,
+        program: Option<PathBuf>,
+    ) -> Result<AccelerationPlan, AssetError> {
         self.ensure_open()?;
-        acceleration::detect(&self.catalog).await
+        let plan = acceleration::detect(&self.catalog).await?;
+        self.complete_acceleration_plan(plan, program).await
+    }
+
+    pub(crate) async fn complete_acceleration_plan(
+        &self,
+        mut plan: AccelerationPlan,
+        program: Option<PathBuf>,
+    ) -> Result<AccelerationPlan, AssetError> {
+        for option in &mut plan.options {
+            option.installed = self
+                .runtime_installation(option.profile_id.clone())
+                .await?
+                .ready;
+            option.download_bytes = 0;
+            for id in &self.catalog.profile(&option.profile_id)?.assets {
+                let spec = self.catalog.get(id)?;
+                if !transfer::verified(&self.directory.join(spec.relative_path()), spec).await? {
+                    option.download_bytes = option
+                        .download_bytes
+                        .checked_add(spec.size)
+                        .ok_or_else(|| AssetError::Catalog("runtime size overflow".into()))?;
+                }
+            }
+        }
+        if let Some(program) = program {
+            plan.current = self.current_backend(program).await?;
+        }
+        self.ensure_open()?;
+        Ok(plan)
+    }
+
+    pub async fn current_backend(&self, program: PathBuf) -> Result<EngineBackend, AssetError> {
+        self.ensure_open()?;
+        let catalog = self.catalog.clone();
+        let backend =
+            tokio::task::spawn_blocking(move || acceleration::current_backend(&catalog, &program))
+                .await
+                .map_err(|error| AssetError::Worker(error.to_string()))?;
+        self.ensure_open()?;
+        Ok(backend)
     }
 
     pub async fn shutdown(&self) -> Result<(), AssetError> {

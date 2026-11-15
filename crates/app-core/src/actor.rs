@@ -8,6 +8,7 @@ use engine_session::EngineHandle;
 use std::{collections::HashMap, future::pending, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, watch};
 
+mod acceleration;
 mod analysis_cache;
 mod analysis_extras;
 mod analysis_limit;
@@ -117,6 +118,7 @@ struct Actor {
     board_sync: board_sync::State,
     benchmark: benchmark::State,
     assets: weights::State,
+    acceleration: acceleration::State,
     support: Option<crate::support::SupportHandle>,
     updates: release::State,
     focus: Option<ViewFocus>,
@@ -186,6 +188,7 @@ pub(crate) async fn run(
         board_sync: Default::default(),
         benchmark: Default::default(),
         assets: Default::default(),
+        acceleration: Default::default(),
         support: Some(support),
         updates: Default::default(),
         focus: None,
@@ -211,10 +214,13 @@ pub(crate) async fn run(
             () = std::future::ready(()), if actor.batch_needs_advance() => actor.advance_batch().await,
             command = commands.recv() => {
               let command = match command {
-                Some(command) => match actor.update_guard(command).and_then(|command| actor.batch_guard(command)).and_then(|command| actor.match_guard(command)).and_then(|command| actor.game_guard(command)) { Some(command) => Some(command), None => continue },
+                Some(command) => match actor.acceleration_guard(command).and_then(|command| actor.update_guard(command)).and_then(|command| actor.batch_guard(command)).and_then(|command| actor.match_guard(command)).and_then(|command| actor.game_guard(command)) { Some(command) => Some(command), None => continue },
                 None => None,
               };
               match command {
+                Some(Command::EnableAcceleration(backend, reply)) => actor.begin_acceleration(backend, reply).await,
+                Some(Command::CancelAcceleration(reply)) => { let _ = reply.send(actor.cancel_asset_download().await); }
+                Some(Command::AccelerationOutput(reply)) => { let mut lines = actor.acceleration.output.clone(); if let Some(line) = &actor.acceleration.backend_line && !lines.contains(line) { lines.insert(0, line.clone()); } let _ = reply.send(lines); }
                 Some(Command::SaveSlots(request)) => actor.save_slots_command(request).await,
                 Some(Command::ZhiziService(reply)) => { let _ = reply.send(actor.zhizi.clone()); }
                 Some(Command::ZhiziCredentialsChanged(reply)) => { let _ = reply.send(actor.zhizi_credentials_changed().await); }
@@ -299,6 +305,7 @@ pub(crate) async fn run(
                     actor.shutdown_match().await;
                     actor.shutdown_gtp().await;
                     actor.auto_setup.cancel();
+                    actor.cancel_acceleration(false).await;
                     actor.cancel_trial().await;
                     let updates_result = actor.updates.shutdown().await;
                     let assets_result = actor.assets.shutdown().await;
@@ -317,7 +324,7 @@ pub(crate) async fn run(
                     actor.auto_setup.cancel();
                     actor.begin_trial(profile, source, reply).await;
                 }
-                None => { actor.autosave(true).await; if actor.batch_active() { actor.stop_batch(None).await; } actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
+                None => { actor.autosave(true).await; if actor.batch_active() { actor.stop_batch(None).await; } actor.cancel_acceleration(false).await; actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
               }
             },
             progress = commentary::receive(&mut actor.commentary) => actor.commentary_progress(progress).await,
@@ -326,7 +333,8 @@ pub(crate) async fn run(
             event = game::receive(&mut actor.game) => actor.game_signal(event).await,
             event = coach::receive(&mut actor.coach) => actor.coach_signal(event).await,
             result = review::receive(&mut actor.review) => actor.review_signal(result).await,
-            result = trial::wait(&mut actor.trial) => actor.finish_trial(result).await,
+            result = trial::wait(&mut actor.trial) => actor.trial_signal(result).await,
+            update = acceleration::receive(&mut actor.acceleration) => actor.acceleration_download(update).await,
             result = board_sync::receive(&mut actor.board_sync) => actor.board_sync_line(result).await,
             result = benchmark::receive(&mut actor.benchmark) => actor.benchmark_signal(result).await,
             progress = release::receive(&mut actor.updates) => actor.update_progress(progress).await,
@@ -372,26 +380,6 @@ async fn next_signal(running: &mut Option<Running>) -> Signal {
 }
 
 impl Actor {
-    fn failed(&self, reason: String) {
-        self.output
-            .send(AppEvent::EngineStatusChanged(EngineStatus::Failed {
-                reason,
-                stderr_tail: Vec::new(),
-            }));
-    }
-
-    fn analysis_failed(&self, reason: String) {
-        if let Some(running) = &self.running {
-            let status = running.engine_status.borrow().clone();
-            if matches!(status, engine_session::EngineStatus::Failed { .. }) {
-                self.output
-                    .send(AppEvent::EngineStatusChanged(status.into()));
-                return;
-            }
-        }
-        self.failed(reason);
-    }
-
     fn publish_document(&mut self) -> Result<(), AppError> {
         self.tree.refresh(&self.document, self.revision)?;
         self.refresh_graph_analysis();
@@ -448,6 +436,7 @@ impl Actor {
 
     async fn apply(&mut self, input: Input) -> Result<u64, AppError> {
         match input {
+            Input::DismissAccelerationHint => self.dismiss_acceleration_hint().await?,
             Input::EnsureNoBatch => self.ensure_no_batch()?,
             Input::SetFlashAnalysis(settings) => self.set_flash_analysis(settings).await?,
             Input::StartTrial => self.start_move_trial().await?,
@@ -786,6 +775,7 @@ impl Actor {
             engine_result?;
             coordinator_result?;
         }
+        self.acceleration.log = None;
         self.output
             .send(AppEvent::EngineStatusChanged(EngineStatus::Stopped));
         Ok(())

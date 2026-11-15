@@ -1,6 +1,7 @@
 //! Headless application entry point. A single actor owns the document, settings,
 //! engine session and analysis coordinator. Handles contain only channels.
 
+mod acceleration;
 mod actor;
 mod analysis_cache;
 mod analysis_extras;
@@ -69,11 +70,14 @@ mod fake_gtp_tests;
 #[path = "../tests/common/mod.rs"]
 mod test_support;
 
+pub use acceleration::output::reported_backend as reported_acceleration_backend;
+pub use acceleration::{AccelerationError, AccelerationPhase, AccelerationProgress};
 pub use analysis_extras::AnalysisExtras;
 pub use analysis_limit::{AnalysisLimitSettings, AnalysisPauseReason, AnalysisState};
 pub use analysis_tools::*;
 pub use assets::{
-    AccelerationPlan, AccelerationReason, AssetDownloadStatus, AssetError, DownloadPhase,
+    AccelerationBackend, AccelerationGpu, AccelerationNote, AccelerationOption, AccelerationPlan,
+    AccelerationReason, AssetDownloadStatus, AssetError, DownloadPhase, EngineBackend,
     HumanSlModelStatus, OfficialWeight,
 };
 pub use auto_setup::{AutoSetupAttempt, AutoSetupError};
@@ -139,6 +143,8 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    Acceleration(#[from] AccelerationError),
     #[error(transparent)]
     AnalysisTools(#[from] AnalysisToolsError),
     #[error(transparent)]
@@ -255,6 +261,8 @@ pub struct AppConfig {
     #[cfg(test)]
     pub(crate) runtime_platform: bool,
     #[cfg(test)]
+    pub(crate) acceleration_timeout: Option<std::time::Duration>,
+    #[cfg(test)]
     pub(crate) asset_catalog: Option<assets::AssetCatalog>,
     pub session: engine_session::SessionConfig,
     pub analysis: analysis::AnalysisConfig,
@@ -283,6 +291,8 @@ impl Default for AppConfig {
             clipboard: None,
             #[cfg(test)]
             runtime_platform: runtime::supported(),
+            #[cfg(test)]
+            acceleration_timeout: None,
             #[cfg(test)]
             asset_catalog: None,
             session: Default::default(),

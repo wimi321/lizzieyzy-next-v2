@@ -33,6 +33,9 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                 AppEvent::AssetDownloadProgress(_) => {
                     panic!("unexpected download without starting a task")
                 }
+                AppEvent::AccelerationProgress(_) => {
+                    panic!("unexpected acceleration without starting a task")
+                }
                 AppEvent::BenchmarkProgress(_) => {
                     panic!("unexpected benchmark without starting a task")
                 }

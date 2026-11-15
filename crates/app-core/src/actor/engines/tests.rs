@@ -37,7 +37,7 @@ async fn command(actor: &mut Actor, request: Request) -> Result<Settings, AppErr
     within(actor.engine_command(request, reply)).await;
     if actor.trial.is_some() {
         let result = within(trial::wait(&mut actor.trial)).await;
-        within(actor.finish_trial(result)).await;
+        within(actor.trial_signal(result)).await;
     }
     within(response).await.unwrap()
 }
@@ -275,7 +275,7 @@ async fn legacy_configure_and_trial_adapters_keep_list_and_selected_profile_in_s
     ))
     .await;
     let ready = within(trial::wait(&mut actor.trial)).await;
-    within(actor.finish_trial(ready)).await;
+    within(actor.trial_signal(ready)).await;
     within(response).await.unwrap().unwrap();
     assert_eq!(actor.settings.engines.len(), 1);
     assert_eq!(actor.settings.main_engine_id, id);
@@ -309,7 +309,7 @@ async fn pending_selection_preserves_unrelated_settings_and_is_superseded_by_lis
         .await
         .unwrap();
     let ready = within(trial::wait(&mut actor.trial)).await;
-    within(actor.finish_trial(ready)).await;
+    within(actor.trial_signal(ready)).await;
     let selected = within(response).await.unwrap().unwrap();
     assert_eq!(selected.display, display);
     assert_eq!(

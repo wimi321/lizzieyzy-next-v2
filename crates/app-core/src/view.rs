@@ -467,6 +467,7 @@ impl From<engine_session::EngineStatus> for EngineStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum AppEvent {
+    AccelerationProgress(crate::AccelerationProgress),
     DisplaySettingsChanged(crate::DisplaySettings),
     FloatingBoardsChanged(crate::FloatingBoardsView),
     CommentaryUpdated(crate::CommentaryUpdated),

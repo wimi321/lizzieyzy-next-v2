@@ -166,6 +166,7 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
         nickname: "latest nickname".into(),
     };
     let settings = Settings {
+        acceleration_hint_dismissed: false,
         version: 0,
         restriction_depths: Default::default(),
         search_params: None,

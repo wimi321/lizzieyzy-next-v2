@@ -2,6 +2,7 @@
 //!
 //! This crate belongs in consumers' `dev-dependencies` only.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
@@ -9,7 +10,7 @@ use std::sync::Mutex;
 use serde_json::Value;
 use thiserror::Error;
 
-static BINARY_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
+static BINARY_PATH: Mutex<BTreeMap<&'static str, PathBuf>> = Mutex::new(BTreeMap::new());
 
 /// Failures locating or building the test executable.
 #[derive(Debug, Error)]
@@ -33,10 +34,19 @@ pub enum BinaryPathError {
 /// failed builds are not cached, allowing a later caller to retry.
 /// Call this at test runtime, not in build.rs.
 pub fn binary_path() -> Result<PathBuf, BinaryPathError> {
+    named_binary_path("fake-katago")
+}
+
+/// A separately compiled CPU fixture with the same protocol and a distinct SHA.
+pub fn cpu_binary_path() -> Result<PathBuf, BinaryPathError> {
+    named_binary_path("fake-katago-cpu")
+}
+
+fn named_binary_path(name: &'static str) -> Result<PathBuf, BinaryPathError> {
     let mut cached_path = BINARY_PATH
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    if let Some(path) = cached_path.as_ref() {
+    if let Some(path) = cached_path.get(name) {
         return Ok(path.clone());
     }
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
@@ -48,7 +58,7 @@ pub fn binary_path() -> Result<PathBuf, BinaryPathError> {
             "-p",
             "fake-katago",
             "--bin",
-            "fake-katago",
+            name,
             "--message-format=json",
         ])
         .output()?;
@@ -58,18 +68,23 @@ pub fn binary_path() -> Result<PathBuf, BinaryPathError> {
             stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         });
     }
-    let path = artifact_path(&String::from_utf8_lossy(&output.stdout))
+    let path = named_artifact_path(&String::from_utf8_lossy(&output.stdout), name)
         .filter(|path| path.is_file())
         .ok_or(BinaryPathError::MissingExecutable)?;
-    *cached_path = Some(path.clone());
+    cached_path.insert(name, path.clone());
     Ok(path)
 }
 
+#[cfg(test)]
 fn artifact_path(messages: &str) -> Option<PathBuf> {
+    named_artifact_path(messages, "fake-katago")
+}
+
+fn named_artifact_path(messages: &str, name: &str) -> Option<PathBuf> {
     messages.lines().find_map(|line| {
         let value: Value = serde_json::from_str(line).ok()?;
         if value["reason"] != "compiler-artifact"
-            || value["target"]["name"] != "fake-katago"
+            || value["target"]["name"] != name
             || !value["target"]["kind"]
                 .as_array()?
                 .iter()

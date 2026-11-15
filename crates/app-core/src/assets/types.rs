@@ -56,6 +56,15 @@ pub enum AccelerationReason {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct AccelerationPlan {
+    #[serde(default)]
+    #[ts(as = "Option<Vec<AccelerationGpu>>", optional)]
+    pub gpus: Vec<AccelerationGpu>,
+    #[serde(default)]
+    #[ts(as = "Option<EngineBackend>", optional)]
+    pub current: EngineBackend,
+    #[serde(default)]
+    #[ts(as = "Option<Vec<AccelerationOption>>", optional)]
+    pub options: Vec<AccelerationOption>,
     #[ts(as = "Option<AccelerationReason>", optional)]
     pub reason: AccelerationReason,
     #[ts(as = "Option<Vec<String>>", optional)]
@@ -137,4 +146,70 @@ pub enum HumanSlModelStatus {
         path: std::path::PathBuf,
     },
     Corrupt,
+}
+
+/// Downloadable acceleration backends; CPU uses disable_acceleration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+pub enum AccelerationBackend {
+    Cuda,
+    TensorRt,
+    OpenCl,
+}
+
+impl AccelerationBackend {
+    pub const fn profile_id(self) -> &'static str {
+        match self {
+            Self::Cuda => "cuda12.8-cudnn9",
+            Self::TensorRt => "cuda12.8-cudnn9-tensorrt",
+            Self::OpenCl => "opencl",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+pub enum EngineBackend {
+    Eigen,
+    Cuda,
+    TensorRt,
+    OpenCl,
+    #[default]
+    External,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct AccelerationGpu {
+    #[ts(as = "Option<String>", optional)]
+    pub name: String,
+    /// CUDA major * 10 + minor; unknown and non-NVIDIA adapters are None.
+    #[ts(optional = nullable)]
+    pub compute_capability: Option<u32>,
+    #[ts(optional = nullable)]
+    pub driver_version: Option<String>,
+    #[ts(as = "Option<bool>", optional)]
+    pub nvidia: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub enum AccelerationNote {
+    DriverMayBeTooOld,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct AccelerationOption {
+    #[ts(as = "Option<AccelerationBackend>", optional)]
+    pub backend: AccelerationBackend,
+    #[ts(as = "Option<String>", optional)]
+    pub profile_id: String,
+    #[ts(as = "Option<bool>", optional)]
+    pub installed: bool,
+    #[ts(as = "Option<f64>", optional)]
+    pub download_bytes: u64,
+    #[ts(as = "Option<bool>", optional)]
+    pub recommended: bool,
+    #[ts(as = "Option<bool>", optional)]
+    pub supported: bool,
+    #[ts(optional = nullable)]
+    pub note: Option<AccelerationNote>,
 }

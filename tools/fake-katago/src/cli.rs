@@ -8,6 +8,11 @@ Options:\n\
   --time-scale N           Simulated seconds per real second (default 1)\n\
   --startup-delay-ms N     Delay readiness in simulated milliseconds\n\
   --startup-gate-file PATH Wait for an externally created file before readiness\n\
+  --backend NAME          Emit a cuda/tensorrt/opencl/eigen startup line\n\
+  --tuning-lines N        Emit N OpenCL tuning lines before readiness\n\
+  --tuning-interval-ms N  Simulated milliseconds between tuning lines\n\
+  --startup-error TEXT    Print this error and fail before readiness\n\
+  --startup-script-relative PATH Read startup options beside the executable, if present\n\
   --request-log PATH      Append received protocol lines for behavioral assertions\n\
   --launch-log PATH       Append JSON argv for each analysis/benchmark process\n\
   --exit-log PATH         Append a process ID after the engine loop exits\n\
@@ -55,6 +60,12 @@ pub struct Options {
     pub time_scale: f64,
     pub startup_delay_ms: u64,
     pub startup_gate_file: Option<PathBuf>,
+    pub backend: Option<String>,
+    pub tuning_lines: u64,
+    pub tuning_interval_ms: u64,
+    pub startup_error: Option<String>,
+    pub startup_script_relative: Option<PathBuf>,
+    pub log_file: Option<PathBuf>,
     pub request_log: Option<PathBuf>,
     pub launch_log: Option<PathBuf>,
     pub exit_log: Option<PathBuf>,
@@ -85,6 +96,12 @@ impl Default for Options {
             time_scale: 1.0,
             startup_delay_ms: 0,
             startup_gate_file: None,
+            backend: None,
+            tuning_lines: 0,
+            tuning_interval_ms: 0,
+            startup_error: None,
+            startup_script_relative: None,
+            log_file: None,
             request_log: None,
             launch_log: None,
             exit_log: None,
@@ -178,6 +195,38 @@ impl Options {
                 "--time-scale" => opts.time_scale = positive_number(&key, &value)?,
                 "--startup-delay-ms" => opts.startup_delay_ms = integer(&key, &value)?,
                 "--startup-gate-file" => opts.startup_gate_file = Some(value.into()),
+                "--backend" => {
+                    if !["cuda", "tensorrt", "opencl", "eigen"].contains(&value.as_str()) {
+                        return Err(CliError(
+                            "--backend must be cuda/tensorrt/opencl/eigen".into(),
+                        ));
+                    }
+                    opts.backend = Some(value);
+                }
+                "--tuning-lines" => {
+                    opts.tuning_lines = integer(&key, &value)?;
+                    if opts.tuning_lines > 1000 {
+                        return Err(CliError("--tuning-lines must be at most 1000".into()));
+                    }
+                }
+                "--tuning-interval-ms" => {
+                    opts.tuning_interval_ms = integer(&key, &value)?;
+                    if opts.tuning_interval_ms > 86_400_000 {
+                        return Err(CliError(
+                            "--tuning-interval-ms must be at most one day".into(),
+                        ));
+                    }
+                }
+                "--startup-error" => opts.startup_error = Some(value),
+                "--startup-script-relative" => {
+                    let path = PathBuf::from(value);
+                    if path.is_absolute() {
+                        return Err(CliError(
+                            "--startup-script-relative must be relative".into(),
+                        ));
+                    }
+                    opts.startup_script_relative = Some(path);
+                }
                 "--request-log" => opts.request_log = Some(value.into()),
                 "--launch-log" => opts.launch_log = Some(value.into()),
                 "--exit-log" => opts.exit_log = Some(value.into()),
@@ -239,6 +288,9 @@ impl Options {
                 if key == "numAnalysisThreads" {
                     self.threads = 1;
                 }
+                if key == "logFile" {
+                    self.log_file = None;
+                }
                 continue;
             }
             if key == "reportAnalysisWinratesAs" {
@@ -252,6 +304,9 @@ impl Options {
                         )));
                     }
                 });
+            }
+            if key == "logFile" {
+                self.log_file = Some(value.into());
             }
             if key == "numAnalysisThreads" {
                 let threads = integer(key, value)?;
