@@ -5,6 +5,8 @@
 
 pub mod benchmark;
 mod request;
+mod restriction;
+pub use restriction::{MoveRestriction, MoveRestrictions, RestrictionError};
 mod response;
 
 pub use request::{Action, AnalysisQuery, Player, Request, Rules};

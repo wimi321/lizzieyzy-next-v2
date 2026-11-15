@@ -295,3 +295,52 @@ fn bounded_play_rejects_missing_or_invalid_limits_before_submission() {
         ));
     }
 }
+
+#[test]
+fn shared_search_overrides_survive_time_limits_and_optional_values_stay_absent() {
+    let position = empty();
+    let params = crate::SearchParams {
+        playout_doubling_advantage: Some(-1.5),
+        wide_root_noise: Some(0.2),
+        root_policy_temperature: Some(1.3),
+    };
+    let live = LiveSettings {
+        search_params: Some(params),
+        ..Default::default()
+    };
+    let normal = build(&position, &live).unwrap();
+    assert_eq!(normal.override_settings, Some(params.overrides()));
+    for pure in [false, true] {
+        let play = super::play_request(&position, &live, Some(200), Some(2.5), pure).unwrap();
+        let mut expected = params.overrides();
+        expected.insert("maxTime".into(), serde_json::json!(2.5));
+        assert_eq!(play.override_settings, Some(expected));
+        assert!(play.extensions.is_empty());
+    }
+}
+
+#[test]
+fn restrictions_use_current_player_and_requested_depth_only_when_explicitly_applied() {
+    let mut position = empty();
+    position.board.play(Move::Pass(Color::Black)).unwrap();
+    for (kind, field, other) in [
+        (crate::RestrictionKind::Allow, "allowMoves", "avoidMoves"),
+        (crate::RestrictionKind::Avoid, "avoidMoves", "allowMoves"),
+    ] {
+        let mut request = build(&position, &LiveSettings::default()).unwrap();
+        assert!(request.extensions.is_empty());
+        crate::AnalysisRestriction {
+            kind,
+            points: vec![Point { x: 3, y: 15 }],
+            depth: 200,
+        }
+        .apply(&mut request, &position)
+        .unwrap();
+        let wire = serde_json::to_value(request).unwrap();
+        assert_eq!(
+            wire[field],
+            serde_json::json!([{"player":"W","moves":["D4"],"untilDepth":200}])
+        );
+        assert!(wire.get(other).is_none());
+    }
+}

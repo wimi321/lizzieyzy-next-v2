@@ -111,8 +111,8 @@ impl Actor {
                         pda: old_pda,
                         ..
                     } => {
-                        *old_wrn = wrn;
-                        *old_pda = pda;
+                        *old_wrn = Some(wrn);
+                        *old_pda = Some(pda);
                     }
                     _ => return Err(MatchError::NotKataGo.into()),
                 }
@@ -144,7 +144,7 @@ impl Actor {
         self.ensure_no_benchmark()?;
         self.ensure_no_move_trial()?;
         self.ensure_no_pure_network()?;
-        if self.tsumego.is_some() || !self.can_reuse_saved_analysis() {
+        if self.tsumego.is_some() || !self.uses_sgf_rules() {
             return Err(crate::GameError::IncompatibleMode.into());
         }
         let mut names = Vec::new();

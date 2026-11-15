@@ -18,7 +18,8 @@ impl Actor {
         };
         AnalysisState {
             pure_network: self.config.analysis.pure_network,
-            pondering: !self.config.analysis.pure_network
+            pondering: self.scoring.is_none()
+                && !self.config.analysis.pure_network
                 && self.pondering()
                 && pause_reason.is_none(),
             pause_reason,

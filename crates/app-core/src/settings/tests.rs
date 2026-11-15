@@ -167,6 +167,8 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
     };
     let settings = Settings {
         version: 0,
+        restriction_depths: Default::default(),
+        search_params: None,
         commentary: Default::default(),
         language: crate::UiLanguage::System,
         always_on_top: false,

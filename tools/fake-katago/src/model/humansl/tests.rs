@@ -109,3 +109,52 @@ fn malformed_humansl_profiles_and_allowances_are_typed_errors() {
         assert_eq!(Query::parse(&value).err().unwrap().field, "allowMoves");
     }
 }
+
+#[test]
+fn avoid_moves_filters_root_candidates_for_only_the_matching_player() {
+    let baseline = response(request(None), false, ReportPerspective::Black);
+    let blocked = baseline["moveInfos"][0]["move"].as_str().unwrap();
+    for depth in [1, 5, 200, 1_000_000] {
+        let mut value = request(None);
+        value["avoidMoves"] = json!([{"player":"W","moves":[blocked],"untilDepth":depth}]);
+        let result = response(value.clone(), false, ReportPerspective::Black);
+        assert!(!result["moveInfos"].as_array().unwrap().is_empty());
+        assert!(
+            result["moveInfos"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|info| info["move"] != blocked)
+        );
+        value["avoidMoves"][0]["player"] = json!("B");
+        assert_eq!(response(value, false, ReportPerspective::Black), baseline);
+    }
+    for field in ["allowMoves", "avoidMoves"] {
+        let mut value = request(None);
+        value[field] = json!([{"player":"W","moves":["B2"],"untilDepth":0}]);
+        assert_eq!(Query::parse(&value).err().unwrap().field, field);
+    }
+}
+
+#[test]
+fn avoiding_all_initial_candidates_finds_other_legal_moves_and_can_prohibit_pass() {
+    let baseline = response(request(None), false, ReportPerspective::Black);
+    let blocked: Vec<_> = baseline["moveInfos"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|info| info["move"].clone())
+        .chain([json!("pass")])
+        .collect();
+    let mut value = request(None);
+    value["avoidMoves"] = json!([{"player":"W","moves":blocked,"untilDepth":1}]);
+    let result = response(value, false, ReportPerspective::Black);
+    assert_eq!(result["moveInfos"].as_array().unwrap().len(), 3);
+    assert!(
+        result["moveInfos"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|info| !blocked.contains(&info["move"]))
+    );
+}

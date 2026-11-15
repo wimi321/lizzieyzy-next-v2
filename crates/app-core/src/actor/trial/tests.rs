@@ -31,6 +31,9 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
     config.session.shutdown_timeout = Duration::from_secs(60);
     (
         Actor {
+            restriction: None,
+            restricted_analysis: None,
+            scoring: None,
             coach: Default::default(),
             commentary: super::super::commentary::State::new(None, &Default::default()),
             remote: Default::default(),

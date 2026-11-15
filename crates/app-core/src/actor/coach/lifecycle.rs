@@ -19,7 +19,7 @@ impl Actor {
         self.ensure_no_benchmark()?;
         self.ensure_no_move_trial()?;
         self.ensure_no_pure_network()?;
-        if self.tsumego.is_some() || !self.can_reuse_saved_analysis() {
+        if self.tsumego.is_some() || !self.uses_sgf_rules() {
             return Err(GameError::IncompatibleMode.into());
         }
         if setup.from_current_position {

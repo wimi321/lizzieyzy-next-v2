@@ -102,8 +102,12 @@ impl Actor {
             let settings = request
                 .override_settings
                 .get_or_insert_with(Default::default);
-            settings.insert("wideRootNoise".into(), serde_json::json!(wrn));
-            settings.insert("playoutDoublingAdvantage".into(), serde_json::json!(pda));
+            if let Some(wrn) = wrn {
+                settings.insert("wideRootNoise".into(), serde_json::json!(wrn));
+            }
+            if let Some(pda) = pda {
+                settings.insert("playoutDoublingAdvantage".into(), serde_json::json!(pda));
+            }
         }
     }
     pub(super) async fn match_move_limit_reached(&mut self) -> Result<bool, AppError> {

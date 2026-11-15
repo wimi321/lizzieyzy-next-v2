@@ -239,8 +239,8 @@ async fn gtp_and_nonmain_katago_share_current_position_and_fallback_counting() {
             resign: None,
             ..Default::default()
         },
-        wrn: 0.0,
-        pda: 0.0,
+        wrn: Some(0.0),
+        pda: Some(0.0),
     };
     setup.start = GameStart::CurrentPosition;
     within(h.app.start_match(setup)).await.unwrap();

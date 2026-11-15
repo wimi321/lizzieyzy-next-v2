@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod analysis_tools;
 pub mod batch_analysis;
 pub mod benchmark;
 pub mod board_sync;

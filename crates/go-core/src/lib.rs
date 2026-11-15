@@ -1,8 +1,10 @@
 //! Pure Go board rules and coordinates.
 
 mod coordinates;
+pub mod ladder;
 mod position;
 mod rules;
+pub mod scoring;
 pub mod tsumego;
 mod types;
 mod zobrist;

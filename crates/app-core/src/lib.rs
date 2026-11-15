@@ -5,6 +5,7 @@ mod actor;
 mod analysis_cache;
 mod analysis_extras;
 mod analysis_limit;
+mod analysis_tools;
 pub mod assets;
 mod auto_setup;
 mod batch;
@@ -43,6 +44,7 @@ mod remote;
 mod remote_link;
 mod review;
 mod runtime;
+mod scoring;
 mod settings;
 mod setup_markup;
 mod storage;
@@ -65,6 +67,7 @@ mod test_support;
 
 pub use analysis_extras::AnalysisExtras;
 pub use analysis_limit::{AnalysisLimitSettings, AnalysisPauseReason, AnalysisState};
+pub use analysis_tools::*;
 pub use assets::{
     AccelerationPlan, AccelerationReason, AssetDownloadStatus, AssetError, DownloadPhase,
     HumanSlModelStatus, OfficialWeight,
@@ -114,6 +117,7 @@ pub use remote::{
 };
 pub use remote_link::{RemoteLinkError, normalize_remote_link, read_remote_link_qr};
 pub use review::*;
+pub use scoring::*;
 pub use settings::{EngineProfile, Settings, SettingsError};
 pub use setup_markup::{MarkupKindView, MarkupView};
 pub use strength_estimate::*;
@@ -128,6 +132,10 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    AnalysisTools(#[from] AnalysisToolsError),
+    #[error(transparent)]
+    Scoring(#[from] ScoringError),
     #[error(transparent)]
     Zhizi(#[from] zhizi::ZhiziError),
     #[error(transparent)]

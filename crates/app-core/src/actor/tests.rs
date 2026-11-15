@@ -24,6 +24,9 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
     };
     (
         Actor {
+            restriction: None,
+            restricted_analysis: None,
+            scoring: None,
             document,
             file_name: None,
             file_state: super::editing::FileState::new(&GameDocument::new(), None),
@@ -239,6 +242,7 @@ async fn every_analysis_is_forwarded_with_best_summary_and_fresh_values_on_ties(
             match source {
                 analysis::SnapshotSource::Live
                 | analysis::SnapshotSource::Extras
+                | analysis::SnapshotSource::Restricted
                 | analysis::SnapshotSource::PureNetwork => crate::AnalysisSource::Live,
                 analysis::SnapshotSource::Cache => crate::AnalysisSource::Cache,
             }

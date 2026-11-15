@@ -41,6 +41,8 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    AnalysisTools(crate::analysis_tools::Request),
+    Scoring(crate::scoring::Request),
     ZhiziService(oneshot::Sender<crate::zhizi::ZhiziService>),
     ZhiziCredentialsChanged(oneshot::Sender<Result<(), AppError>>),
     Remote(crate::remote::Request),

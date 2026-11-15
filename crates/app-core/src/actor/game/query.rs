@@ -209,6 +209,7 @@ impl Actor {
         live.query_rules = None;
         live.query_komi = None;
         let mut request = analysis::play_request(&position, &live, visits, seconds, pure)?;
+        // play_request applies global search parameters; explicit side values win.
         self.match_override_settings(&mut request);
         let subscription = engine.submit(request).await?;
         let deadline = Instant::now()

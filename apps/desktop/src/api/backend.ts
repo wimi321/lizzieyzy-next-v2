@@ -1,3 +1,4 @@
+import type { AnalysisToolsCommands } from "./analysis-tools";
 import type { ZhiziCommands } from "./zhizi";
 import type { CommentaryCommands, CommentaryUpdatedListener } from "./commentary";
 import type { RemoteCommands } from "./remote";
@@ -64,6 +65,7 @@ export * from "./board-sync";
 export * from "./benchmark";
 export * from "./analysis-limits";
 export * from "./analysis-extras";
+export * from "./analysis-tools";
 export * from "./problem-moves";
 export * from "./strength";
 export * from "./tsumego";
@@ -113,7 +115,7 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends ZhiziCommands, RemoteCommands, CommentaryCommands, TencentCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+export interface Backend extends AnalysisToolsCommands, ZhiziCommands, RemoteCommands, CommentaryCommands, TencentCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
   subscribeCommentaryUpdated?(listener: CommentaryUpdatedListener): Promise<number>;
   subscribeCoachUpdated?(listener: CoachUpdatedListener): Promise<number>;
   subscribeCoachMoveRated?(listener: CoachMoveRatedListener): Promise<number>;

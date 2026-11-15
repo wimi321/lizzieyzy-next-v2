@@ -30,6 +30,7 @@ pub const FIELDS: &[&str] = &[
     "priorities",
     "overrideSettings",
     "allowMoves",
+    "avoidMoves",
 ];
 
 #[derive(Debug, Error)]
@@ -63,6 +64,7 @@ pub struct Query {
     pub human_profile: Option<String>,
     report_perspective: Option<ReportPerspective>,
     allow_moves: Vec<humansl::Allowance>,
+    avoid_moves: Vec<humansl::Allowance>,
     pub interval: Option<f64>,
     pub first_report: f64,
     pub ownership: bool,
@@ -184,7 +186,8 @@ impl Query {
             human_model: false,
             human_profile: humansl::profile(v)?,
             report_perspective,
-            allow_moves: humansl::allowances(v, width, height)?,
+            allow_moves: humansl::allowances(v, "allowMoves", width, height)?,
+            avoid_moves: humansl::allowances(v, "avoidMoves", width, height)?,
             interval,
             first_report,
             ownership,

@@ -5,6 +5,7 @@ import type { TencentPage } from "../src/api/backend";
 import { fillTencentPageDefaults } from "./fixtures";
 
 export type {
+  AnalysisToolsCommands, AnalysisRestriction, RestrictionKind, RestrictionDepth, RestrictionDepthSettings, SearchParams, AnalysisToolsError, LadderOutcome, LadderContinuation, ScoringView, ScoringRuleView, ScoringError,
   ZhiziCommands, ZhiziStatus, ZhiziVerificationPurpose, ZhiziCodeDelivery, ZhiziOverview, ZhiziUsagePage, ZhiziCreditPage, ZhiziEngineOptions, ZhiziPlan, ZhiziWeight, ZhiziError, ZhiziErrorKind,
   TencentCommands, TencentQuery, TencentPage, TencentGame, TencentPlayer, TencentRank, TencentFailure, OpenUrlFailure,
   RemoteCommands, RemoteEngineInput, RemoteSshAuth, SshAuthConfig, RemoteEngineConfig, RemoteEngineError, RemoteLinkError,
@@ -313,6 +314,8 @@ async function command<K extends CommandName>(
     if (settings.engine) fillRemoteProfileDefaults(settings.engine);
     for (const entry of settings.engines ?? []) if (entry.profile) fillRemoteProfileDefaults(entry.profile);
     defaultField(settings, "main_engine_id", settings.engine ? "legacy-engine" : null);
+    defaultField(settings, "search_params", null);
+    defaultField(settings, "restriction_depths", { allow: { type: "Custom", data: 5 }, avoid: { type: "Custom", data: 5 } });
     defaultField(settings, "engine_settings", structuredClone(defaultEngineSettings));
     defaultField(settings, "language", "System");
     defaultField(settings, "always_on_top", false);
@@ -414,6 +417,9 @@ function fillUpdateDownloadDefaults(status: UpdateDownloadStatus): void {
 }
 
 function fillDocumentDefaults(view: DocumentView): void {
+  defaultField(view, "analysis_restriction", null);
+  defaultField(view, "restricted_analysis", null);
+  defaultField(view, "scoring", null);
   defaultField(view, "file_path", null);
   defaultField(view, "modified", false);
   defaultField(view, "can_undo", false);
@@ -961,3 +967,17 @@ export const subscribeCommentaryUpdated: NonNullable<Backend["subscribeCommentar
   pushEvents([]);
   return id;
 };
+
+export const setAnalysisRestriction: NonNullable<Backend["setAnalysisRestriction"]> = (kind, points) => command("setAnalysisRestriction", [kind, points]);
+export const addRestrictionPoints: NonNullable<Backend["addRestrictionPoints"]> = (kind, points) => command("addRestrictionPoints", [kind, points]);
+export const removeRestrictionPoints: NonNullable<Backend["removeRestrictionPoints"]> = (points) => command("removeRestrictionPoints", [points]);
+export const clearAnalysisRestriction: NonNullable<Backend["clearAnalysisRestriction"]> = () => command("clearAnalysisRestriction", []);
+export const setRestrictionDepth: NonNullable<Backend["setRestrictionDepth"]> = (kind, depth) => command("setRestrictionDepth", [kind, depth]);
+export const searchParams: NonNullable<Backend["searchParams"]> = () => command("searchParams", []);
+export const setSearchParams: NonNullable<Backend["setSearchParams"]> = (params) => command("setSearchParams", [params]);
+export const continueLadder: NonNullable<Backend["continueLadder"]> = () => command("continueLadder", []);
+export const startScoring: NonNullable<Backend["startScoring"]> = () => command("startScoring", []);
+export const toggleScoringPoint: NonNullable<Backend["toggleScoringPoint"]> = (point) => command("toggleScoringPoint", [point]);
+export const setScoringRule: NonNullable<Backend["setScoringRule"]> = (rule) => command("setScoringRule", [rule]);
+export const commitScoring: NonNullable<Backend["commitScoring"]> = () => command("commitScoring", []);
+export const cancelScoring: NonNullable<Backend["cancelScoring"]> = () => command("cancelScoring", []);
