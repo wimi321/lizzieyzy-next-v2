@@ -45,6 +45,10 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    WebBoard(
+        crate::web_board_api::Request,
+        oneshot::Sender<Result<crate::WebBoardStatus, AppError>>,
+    ),
     EnableAcceleration(
         crate::AccelerationBackend,
         oneshot::Sender<Result<Settings, AppError>>,

@@ -113,7 +113,7 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
         },
         "moveInfos": [
             {"move": "C3", "visits": 31, "winrate": 0.69,
-             "scoreLead": 4.5, "prior": 0.33, "order": 0, "pv": ["C3", "pass"]},
+             "scoreLead": 4.5, "scoreStdev": 2.7, "lcb": 0.61, "prior": 0.33, "order": 0, "pv": ["C3", "pass"]},
             {"move": "pass", "visits": 12, "winrate": 0.8,
              "scoreLead": 8.1, "prior": 0.1, "order": 1, "pv": ["pass"]}
         ],
@@ -143,6 +143,8 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
                 visits: 31,
                 winrate: 0.69,
                 score_lead: 4.5,
+                score_stdev: Some(2.7),
+                lcb: Some(0.61),
                 prior: 0.33,
                 order: 0,
                 pv: vec![
@@ -163,6 +165,8 @@ fn white_to_play_analysis_view_preserves_black_values_and_candidate_order() {
                 visits: 12,
                 winrate: 0.8,
                 score_lead: 8.1,
+                score_stdev: None,
+                lcb: None,
                 prior: 0.1,
                 order: 1,
                 pv: vec![MoveView::Pass {

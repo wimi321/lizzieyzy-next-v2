@@ -46,6 +46,7 @@ impl Actor {
             return Err(crate::updates::UpdateError::NotDownloaded.into());
         }
         // Windows may exit directly from the installer instead of shutdown().
+        self.stop_web_board().await?;
         self.autosave(true).await;
         self.updates.install_pending = true;
         let result = self.prepare_update_resources().await;

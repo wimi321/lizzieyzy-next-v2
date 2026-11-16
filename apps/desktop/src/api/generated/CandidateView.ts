@@ -18,4 +18,4 @@ ownership?: Array<number> | null,
 /**
  * Starts with the current player; colors alternate after every move/pass.
  */
-pv: Array<MoveView>, };
+pv: Array<MoveView>, score_stdev?: number | null, lcb?: number | null, };

@@ -315,6 +315,12 @@ pub struct CandidateView {
     pub ownership: Option<Vec<f64>>,
     /// Starts with the current player; colors alternate after every move/pass.
     pub pv: Vec<MoveView>,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub score_stdev: Option<f64>,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub lcb: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -388,6 +394,8 @@ impl AnalysisView {
                 winrate: candidate.winrate,
                 score_lead: candidate.score_lead,
                 score_lead_available: true,
+                score_stdev: candidate.score_stdev,
+                lcb: candidate.lcb,
                 prior: candidate.prior,
                 order: candidate.order,
                 ownership: candidate.ownership.filter(|values| {
@@ -467,6 +475,7 @@ impl From<engine_session::EngineStatus> for EngineStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum AppEvent {
+    WebBoardChanged(crate::WebBoardStatus),
     AccelerationProgress(crate::AccelerationProgress),
     DisplaySettingsChanged(crate::DisplaySettings),
     FloatingBoardsChanged(crate::FloatingBoardsView),

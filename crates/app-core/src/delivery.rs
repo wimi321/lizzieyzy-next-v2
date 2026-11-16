@@ -6,6 +6,7 @@ use tokio::sync::watch;
 #[derive(Clone, Default)]
 struct Mailbox {
     serial: u64,
+    web_board: Option<(u64, AppEvent)>,
     display: Option<(u64, AppEvent)>,
     floating: Option<(u64, AppEvent)>,
     commentary: Option<(u64, AppEvent)>,
@@ -33,7 +34,7 @@ pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 20],
+    read: [Option<u64>; 21],
     console_read: u64,
 }
 
@@ -43,7 +44,7 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 20],
+            read: [None; 21],
             console_read: 0,
         },
     )
@@ -77,6 +78,7 @@ impl Delivery {
                 return true;
             }
             let slot = match &event {
+                AppEvent::WebBoardChanged(_) => &mut mailbox.web_board,
                 AppEvent::DisplaySettingsChanged(_) => &mut mailbox.display,
                 AppEvent::FloatingBoardsChanged(_) => &mut mailbox.floating,
                 AppEvent::GtpConsoleLine(_) => return false,
@@ -102,6 +104,32 @@ impl Delivery {
             *slot = Some((mailbox.serial, event));
             true
         });
+    }
+
+    pub(crate) fn web_stamp(&self) -> (u64, Option<u64>) {
+        let mailbox = self.0.borrow();
+        (
+            mailbox.document.as_ref().map_or(0, |(serial, _)| *serial),
+            mailbox.analysis.as_ref().map(|(serial, _)| *serial),
+        )
+    }
+
+    pub(crate) fn web_snapshot(
+        &self,
+    ) -> Option<(u64, crate::DocumentView, Option<crate::AnalysisView>)> {
+        let mailbox = self.0.borrow();
+        let (_, AppEvent::DocumentChanged { revision, view }) = mailbox.document.as_ref()? else {
+            return None;
+        };
+        let analysis = match &mailbox.analysis {
+            Some((_, AppEvent::AnalysisUpdated(value)))
+                if value.revision == *revision && value.node_id == view.tree.current =>
+            {
+                Some(value.clone())
+            }
+            _ => None,
+        };
+        Some((*revision, view.clone(), analysis))
     }
 
     pub fn clear_analysis(&self) {
@@ -154,6 +182,7 @@ impl AppSubscription {
                     &mailbox.display,
                     &mailbox.floating,
                     &mailbox.acceleration,
+                    &mailbox.web_board,
                 ]
                 .into_iter()
                 .enumerate()

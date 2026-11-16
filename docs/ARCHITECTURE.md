@@ -306,6 +306,21 @@ pub enum EngineStatus {
 - 启动默认使用 Tauri 的应用配置目录，可用 `--config-dir <路径>` 或 `--config-dir=<路径>` 覆盖；棋谱路径可用一个位置参数或 `--open=<路径>` 指定，交给 `AppCore::open_path`。等号写法将选项和路径放在同一个原生参数中，兼容将每项参数都视为 Chromium 开关的 Windows WebDriver；桌面 E2E 在所有平台统一采用等号写法。参数顺序不受限，`--` 后的参数仅作棋谱路径，不再识别选项；未知选项、重复配置目录、多个棋谱和缺少或空路径均报错，混用两种写法仍按同一配置目录／棋谱参数检查重复。路径保持原生 OS 编码；棋谱打开失败发布 `OpenFailed` 并保留应用窗口，配置/参数错误仍在启动阶段返回错误。
 - 主窗口 capability 仅匹配本地 `main` 窗口，逐项允许应用命令、`dialog:allow-open` / `dialog:allow-save`，以及「文件 → 退出」关闭自身用的 `core:window:allow-close`；不授权远程页面或宽泛 core / shell / fs 权限。`tauri-build::AppManifest::commands` 为应用命令生成 ACL 定义，确保命令同样受 capability 约束；生成的 permissions 与 schemas 不入库。Channel 内部的数据提取命令由 Tauri 自身处理，不需要额外的 core capability。
 
+### P3-32 局域网网页棋盘后端
+
+- `AppCore::{start_web_board,stop_web_board,web_board_status,set_web_board_options,force_end_web_trial}` 由独立 Tauri `commands/web_board.rs` 薄转发，仅授权本地 main，浮动窗口不授权。`WebBoardChanged(WebBoardStatus)` 经独立最新槽及原有有序 Channel 分流并重连回放。状态含 running、可空 port/url、全部候选 URL、viewers 和可空 trial（owner、Unix 毫秒 since）。运行开关及令牌不保存；`Settings.web_board.allow_trial` 默认 true，旧文件缺对象/字段补默认，版本仍为 1，保存成功后才生效；禁用立即结束已有旁观试下。退出（含最后句柄释放和更新安装）先结束试下、关闭监听及连接，再回收分析。
+- HTTP 与 WebSocket 共用一个端口，生产绑定 `0.0.0.0:9998`，仅端口占用时依次尝试至 10007，其他绑定错误立即返回类型化错误。Windows 首次绑定可能显示防火墙提示，P3-33 界面需提示用户。测试通过仅测试编译的 AppConfig 配置注入 `127.0.0.1`、起始端口、分析节流、空闲及重连期限，真实 socket 不暂停 Tokio 时间；普通生产配置没有这些入口。
+- 每次开启用系统随机数生成 128 位 base64url 无填充令牌，固定 22 字节逐字节异或比较；令牌仅存在运行内存与返回的分享 URL。只接受 GET，错误令牌/未知路径统一 404；只开放 `/<token>/` → web.html、`/<token>/assets/...`、`/<token>/ws`。任何 `..`、反斜杠或百分号编码路径保守拒绝。头部最多 8 KiB、64 项，WebSocket 帧及完整消息各最多 4 KiB；最多 20 个已注册旁观连接，额外连接以 1013 关闭。握手要求唯一 Origin 精确等于 `http://<Host>`，没有跨域通配符；使用 hyper upgrade 和 tungstenite 的 accept 计算/原始套接字握手。
+- `WebBoardAssets` 是只读 path → `WebBoardAsset { bytes, mime }` 接口。外壳先在 Tauri 内嵌资源清单中精确确认 web.html/assets 路径，再调用 asset_resolver，避免缺失文件被 SPA 回退为主窗口 index.html。没有资源适配器、开发态没有嵌入文件或 P3-33 尚未提供 web.html 时返回 404；测试使用内存表，不读用户文件。
+- if-addrs 仅提供网卡名称、地址和启用状态；纯函数过滤回环/未启用/非 IPv4，私有地址优先，链路本地及 Virtual/VMware/vEthernet/Docker/utun 降级，再按地址/名称稳定排序并去重。没有候选或列举失败时仅回退 localhost 分享地址，不猜测外网地址；列表显示的是候选，不保证另一台设备可达。
+- `WebServerMessage` 与 `WebClientMessage` 在 Rust 定义，以 `type`/`data` 序列化并由 ts-rs 导出。FullState 直接复用主窗口 BoardView 与当前有效 AnalysisView（含可空分析），AnalysisUpdate 携带焦点身份、棋盘元数据和分析，不含棋子数组；相同 revision/node 下也允许显式清空分析。候选新增可空 score_stdev/lcb，直接来自引擎原字段，旧 JSON 与 mock 补 null。评估与 ownership 保持黑方视角，prior/policy 是落子概率。所有坐标 x 从左、y 从上、零起算；stones/ownership 为按 width 行优先，与生成 TS 的 PointView 和 TrialMove 一致。
+- WinrateHistory 使用主窗口 GraphView，截到 current_index（包含当前节点），补入主窗口刚发布的当前摘要，未分析保留 null；ProblemMoves 调用现有查询，使用默认筛选和默认评级阈值，不复制计算逻辑。Hello 私发服务端分配的 client_id、128 位重连凭据 reconnect、规则名、贴目及 allow_trial。新连接立即取得 Hello、FullState、WinrateHistory、ProblemMoves、TrialState；导航、换谱、引擎更换和分析更新沿主窗口同一快照发布路径推送，不发送评论、棋谱元信息或文件路径。
+- 唯一 app actor 持有全部旁观者、试下归属、人数、凭据与期限；监听和每连接任务通过有界 mpsc/watch 通信，不引入锁或原子状态。每连接每种消息只有一个最新 watch 槽；分析最多每 100ms 发送一次，FullState 清除待发旧分析且不受分析节流。连接任务等待当前帧 flush 后才取最新槽，写入超时主动关闭慢连接，不累积无限发送队列。
+- EnterTrial 复用 start_trial 的 document::trial_copy，落子和导航走既有文档 apply 路径，完整保留劫历史。已有旁观归属回 InUse，禁用回 Disabled；主机试下、人机（含暂停）、引擎比赛、陪练、点目、整盘/批量（含暂停）、测速、同步、死活题、选点限制、纯网络及待定引擎切换保守回 HostBusy。摆子工具选择目前只存在于前端，核心没有持久的“正在摆子”会话；本卡不根据 AB/AW 猜测模式，旁观试下时所有主机摆子命令均拒绝，前端模式的互斥提示由界面接线时补齐。
+- 旁观者独占临时文档期间，主机编辑、导航、撤销重做、换谱、模式切换及会写棋谱/改变引擎的操作返回 TrialActive；只读查询、普通显示偏好及暂停/继续实时分析可用，强制结束入口始终可用。TrialBack 不越过 anchor，前进、回起点、按零起算 index 选子分支仅操作临时树，pass 分支坐标为 null。非法点/占用/自杀/劫/无效分支返回 TrialRejected 并保持连接。
+- 每连接滚动一秒最多接纳十条试下消息，超额丢弃；成功操作刷新 5 分钟空闲期限，分析推送不刷新。断线保留归属 30 秒；同网页使用 `/<token>/ws?reconnect=<Hello.reconnect>` 恢复，凭据固定长度比较且仅恢复当前 owner，不信任消息里的自报 ID，快速重连可能早于旧断线通知：正确凭据会原子撤销旧连接并迁移限速窗口，旧连接的排队消息及迟到断线通知不能改动新会话。超时、退出、force、禁用和停服务均调用 end_trial，恢复原棋谱、原焦点及完整保存/撤销状态，无试下着手残留。
+- 本卡仅后端与 API/mock。新增设置与服务端输出视图字段在 TS 中可选（实际 Rust 输出完整），客户端命令参数和协议判别器必填；mock 新控制命令必须脚本化，WebBoardChanged 可通过 pushEvents 推送，前端没有试下或围棋规则实现。网页、菜单、二维码、远端真实浏览器及三平台防火墙体验由后续界面/平台验收覆盖。
+
 ### P3-30 Windows 显卡提速后端
 
 - 应用内引擎下载固定为已发布的 `next-2026-10-24.2`；归档及可执行文件 SHA-256 不变，打包 pins 不变。新增 stable `windows-opencl` 与 `opencl` profile，仅包含该引擎包，必需文件为 `katago.exe`、`OpenCL.dll`；依据维护者已核对的发布归档，C 运行库静态链接，不增加 MSVC 包。CUDA/TensorRT 原 profile 保持。

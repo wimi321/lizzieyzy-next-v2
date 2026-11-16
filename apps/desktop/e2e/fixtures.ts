@@ -897,3 +897,14 @@ export function fillAccelerationProgressDefaults(progress: import("../src/api/ba
   gameDefaultField(progress, "phase", "Downloading");
   gameDefaultField(progress, "output_tail", []);
 }
+
+export function fillWebBoardStatusDefaults(status: import("../src/api/backend").WebBoardStatus): void {
+  const defaults = { running: false, port: null, url: null, addresses: [], viewers: 0, trial: null };
+  for (const key of Object.keys(defaults) as (keyof typeof defaults)[]) {
+    gameDefaultField(status, key, defaults[key]);
+  }
+  if (status.trial) {
+    gameDefaultField(status.trial, "owner", "");
+    gameDefaultField(status.trial, "since", 0);
+  }
+}

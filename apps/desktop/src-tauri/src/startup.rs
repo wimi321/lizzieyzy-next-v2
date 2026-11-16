@@ -149,7 +149,7 @@ pub async fn start_with_data_directory(
     default_dir: PathBuf,
     data_dir: PathBuf,
 ) -> Result<(AppCore, AppSubscription), StartupError> {
-    start_with_clipboard(options, default_dir, data_dir, None, None, None).await
+    start_with_clipboard(options, default_dir, data_dir, None, None, None, None).await
 }
 
 pub(crate) async fn start_with_clipboard(
@@ -159,6 +159,7 @@ pub(crate) async fn start_with_clipboard(
     games_directory: Option<PathBuf>,
     clipboard: Option<std::sync::Arc<dyn app_core::Clipboard>>,
     commentary_key_store: Option<std::sync::Arc<dyn app_core::commentary_keys::CommentaryKeyStore>>,
+    web_board_assets: Option<std::sync::Arc<dyn app_core::WebBoardAssets>>,
 ) -> Result<(AppCore, AppSubscription), StartupError> {
     let cache_directory = options.config_dir.clone().unwrap_or(data_dir);
     let directory = options.config_dir.unwrap_or(default_dir);
@@ -173,6 +174,7 @@ pub(crate) async fn start_with_clipboard(
         games_directory,
         clipboard,
         commentary_key_store,
+        web_board_assets,
         ..Default::default()
     };
     let (core, subscription) = app_core::spawn_with_config(directory, config).await?;

@@ -29,6 +29,7 @@ async fn unresolved_optional_directories_use_settings_and_do_not_block_startup()
         games,
         None,
         None,
+        None,
     ))
     .await
     .unwrap();
@@ -405,6 +406,7 @@ async fn games_directory_is_injected_by_shell_and_saved_override_survives_restar
         Some(documents.clone()),
         None,
         None,
+        None,
     )
     .await
     .unwrap();
@@ -421,6 +423,7 @@ async fn games_directory_is_injected_by_shell_and_saved_override_survives_restar
         directory,
         temp.path().join("data"),
         Some(temp.path().join("changed default")),
+        None,
         None,
         None,
     )

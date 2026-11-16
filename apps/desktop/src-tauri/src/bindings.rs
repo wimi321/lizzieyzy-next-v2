@@ -28,6 +28,8 @@ pub struct LegacyControlPanelBounds(pub app_core::WindowBounds);
 pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     fs::create_dir_all(directory)?;
     AppEvent::export_all_to(directory)?;
+    app_core::WebServerMessage::export_all_to(directory)?;
+    app_core::WebClientMessage::export_all_to(directory)?;
     app_core::FloatingBoardKind::export_all_to(directory)?;
     app_core::WindowLayout::export_all_to(directory)?;
     LegacyControlPanelBounds::export_all_to(directory)?;

@@ -37,6 +37,8 @@ pub struct EngineProfile {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default)]
 pub struct Settings {
+    #[ts(as = "Option<crate::WebBoardOptions>", optional)]
+    pub web_board: crate::WebBoardOptions,
     #[ts(as = "Option<bool>", optional)]
     pub acceleration_hint_dismissed: bool,
     #[ts(optional = nullable)]
@@ -104,6 +106,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             version: SETTINGS_VERSION,
+            web_board: Default::default(),
             acceleration_hint_dismissed: false,
             search_params: None,
             restriction_depths: Default::default(),

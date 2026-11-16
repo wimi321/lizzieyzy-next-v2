@@ -57,6 +57,8 @@ pub mod tencent;
 mod tsumego;
 pub mod updates;
 mod view;
+pub mod web_board;
+mod web_board_api;
 mod weights;
 mod window_api;
 mod windows;
@@ -135,6 +137,7 @@ pub use support::FullLogStatus;
 pub use tsumego::*;
 pub use updates::{UpdateCheck, UpdateDownloadStatus};
 pub use view::*;
+pub use web_board::*;
 pub use windows::*;
 pub use zhizi_engine::{ZhiziEngineOptions, ZhiziPlan, ZhiziWeight};
 
@@ -143,6 +146,8 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    WebBoard(#[from] WebBoardError),
     #[error(transparent)]
     Acceleration(#[from] AccelerationError),
     #[error(transparent)]
@@ -245,6 +250,9 @@ pub enum AppError {
 /// coordinator/session defaults, including the long first-start deadline.
 #[derive(Clone, Debug)]
 pub struct AppConfig {
+    pub web_board_assets: Option<std::sync::Arc<dyn WebBoardAssets>>,
+    #[cfg(test)]
+    pub(crate) web_board: Option<web_board::TestConfig>,
     /// Periodic save check cadence. Production defaults to sixty seconds.
     pub autosave_interval: std::time::Duration,
     /// Constructed lazily; tests inject a loopback HTTP endpoint.
@@ -280,6 +288,9 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            web_board_assets: None,
+            #[cfg(test)]
+            web_board: None,
             autosave_interval: std::time::Duration::from_secs(60),
             zhizi_client: None,
             commentary_key_store: None,
