@@ -1,10 +1,11 @@
-import { fillWebBoardStatusDefaults, fillAccelerationPlanDefaults, fillAccelerationProgressDefaults, fillSaveSlotDefaults, fillZhiziDefaults, fillLayoutDefaults, fillFloatingBoardsDefaults } from "./fixtures";
+import { fillComparisonDefaults, fillWebBoardStatusDefaults, fillAccelerationPlanDefaults, fillAccelerationProgressDefaults, fillSaveSlotDefaults, fillZhiziDefaults, fillLayoutDefaults, fillFloatingBoardsDefaults } from "./fixtures";
 import type { SaveSlot, CommentaryUpdated, CommentarySettings, CommentaryKeyStatus, CoachView, CoachHint, HumanSlModelStatus, GtpEngineInfo, GtpConsoleLine, MatchView, GameView, BatchAnalysisStatus, FlashAnalysisSettings, AccelerationPlan, AssetDownloadStatus, EngineDiagnostics, OfficialWeight, AnalysisView, AnalysisLimitSettings, AnalysisState, Backend, BenchmarkStatus, BoardSyncStatus, BoardView, CommandError, DocumentView, EngineSettings, ProblemMovesView, Settings, StrengthEstimateView, UpdateCheck, UpdateDownloadStatus, FullLogStatus, VariationNodeView, VariationTreeView, WholeGameProgress, WireAppEvent } from "../src/api/backend";
 import { fillRemoteProfileDefaults, fillCommentaryKeyDefaults, defaultCommentarySettings, fillCommentarySettingsDefaults, fillCommentaryDefaults, defaultCoachSetup, fillCoachSetupDefaults, fillCoachDefaults, fillCoachRatingDefaults, fillCoachSummaryDefaults, fillMatchDefaults, fillGtpLineDefaults, fillGameSetupDefaults, fillGameDefaults, defaultGameSetup, defaultGameView, defaultBatchAnalysisStatus, defaultFlashAnalysisSettings, defaultCacheEnabled, defaultDisplaySettings, defaultFullLogStatus, defaultUpdateCheck, defaultUpdateDownloadStatus, emptyStrengthEstimate } from "./fixtures";
 import type { TencentPage } from "../src/api/backend";
 import { fillTencentPageDefaults } from "./fixtures";
 
 export type {
+  ComparisonCommands, ComparisonView, ComparisonChangedListener, ComparisonAnalysisUpdatedListener,
   WebBoardCommands, WebBoardOptions, WebBoardStatus, WebBoardError, WebServerMessage, WebClientMessage, WebBoardChangedListener,
   WindowCommands, FloatingBoardKind, FloatingBoardsView, FloatingBoardsChangedListener, DisplaySettingsChangedListener, WindowBounds, WindowPlacement, WindowLayout, CustomLayout, LayoutMode, LayoutPanels,
   AnalysisToolsCommands, AnalysisRestriction, RestrictionKind, RestrictionDepth, RestrictionDepthSettings, SearchParams, AnalysisToolsError, LadderOutcome, LadderContinuation, ScoringView, ScoringRuleView, ScoringError,
@@ -53,7 +54,7 @@ export type {
   MoveNumberMode, MoveRankMarkMode, NextMoveHint, WinrateGraphMode,
 } from "../src/api/backend";
 
-type CommandName = Exclude<keyof Backend, "subscribeWebBoardChanged" | "subscribeFloatingBoardsChanged" | "subscribeDisplaySettingsChanged" | "subscribeCommentaryUpdated" | "subscribeCoachUpdated" | "subscribeCoachMoveRated" | "subscribeCoachSummary" | "subscribeMatchUpdated" | "subscribeGtpConsole" | "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeAccelerationProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
+type CommandName = Exclude<keyof Backend, "subscribeComparisonChanged" | "subscribeComparisonAnalysisUpdated" | "subscribeWebBoardChanged" | "subscribeFloatingBoardsChanged" | "subscribeDisplaySettingsChanged" | "subscribeCommentaryUpdated" | "subscribeCoachUpdated" | "subscribeCoachMoveRated" | "subscribeCoachSummary" | "subscribeMatchUpdated" | "subscribeGtpConsole" | "subscribeGameUpdated" | "subscribe" | "subscribeBatchAnalysisProgress" | "subscribeWholeGameProgress" | "subscribeBoardSyncStatus" | "subscribeBenchmarkProgress" | "subscribeAnalysisState" | "subscribeOpenFailed" | "subscribeAssetDownloadProgress" | "subscribeAccelerationProgress" | "subscribeUpdateDownloadProgress" | "unsubscribe" | "setWindowTitle">;
 // Older UI fixtures can omit new settings fields without weakening the
 // production Settings DTO. These are fixture defaults, not ranking logic.
 type MockResult<K extends CommandName> = K extends "settings"
@@ -172,7 +173,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       const event = pendingEvents.shift()!;
       // A fixed fixture value for older scripts; never infer speed from visits.
       // Explicit null and zero remain available for warm-up and stopped cases.
-      if (event.type === "AnalysisUpdated" && event.data.visits_per_second === undefined) {
+      if ((event.type === "AnalysisUpdated" || event.type === "ComparisonAnalysisUpdated") && event.data.visits_per_second === undefined) {
         event.data.visits_per_second = event.data.source === "Live" ? 1200 : null;
       }
       if (event.type === "DocumentChanged") {
@@ -193,6 +194,10 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
       for (const listener of [...listeners.values()]) {
         try {
           const cloned = structuredClone(event);
+          if (cloned.type === "ComparisonChanged") {
+            fillComparisonDefaults(cloned.data);
+            if (cloned.data.analysis) fillAnalysisDefaults(cloned.data.analysis);
+          }
           if (cloned.type === "WebBoardChanged") fillWebBoardStatusDefaults(cloned.data);
           if (cloned.type === "FloatingBoardsChanged") fillFloatingBoardsDefaults(cloned.data);
           if (cloned.type === "DisplaySettingsChanged") fillDisplayDefaults(cloned.data);
@@ -205,7 +210,7 @@ export function pushEvents(events: readonly WireAppEvent[]): void {
           if (cloned.type === "GameUpdated") fillGameDefaults(cloned.data);
           if (cloned.type === "BatchAnalysisProgress") fillBatchDefaults(cloned.data);
           if (cloned.type === "DocumentChanged") fillDocumentDefaults(cloned.data.view);
-          if (cloned.type === "AnalysisUpdated") fillAnalysisDefaults(cloned.data);
+          if (cloned.type === "AnalysisUpdated" || cloned.type === "ComparisonAnalysisUpdated") fillAnalysisDefaults(cloned.data);
           if (cloned.type === "AnalysisStateChanged") defaultField(cloned.data, "pure_network", false);
           if (cloned.type === "AccelerationProgress") fillAccelerationProgressDefaults(cloned.data);
           if (cloned.type === "AssetDownloadProgress") fillDownloadDefaults(cloned.data);
@@ -268,6 +273,12 @@ async function command<K extends CommandName>(
   const cloned = structuredClone(result);
   if (["openFloatingBoard", "closeFloatingBoard", "setFloatingBoardOptions", "setFloatingLayout"].includes(next.command)) fillFloatingBoardsDefaults(cloned as import("../src/api/backend").FloatingBoardsView);
   if (next.command === "startWebBoard" || next.command === "webBoardStatus") fillWebBoardStatusDefaults(cloned as import("../src/api/backend").WebBoardStatus);
+  if (next.command === "comparisonState") {
+    const view = cloned as import("../src/api/backend").ComparisonView;
+    fillComparisonDefaults(view);
+    if (view.analysis) fillAnalysisDefaults(view.analysis);
+  }
+  if (["selectComparisonEngine", "restartComparisonEngine", "closeComparisonEngine", "closeOtherEngines", "closeAllEngines"].includes(next.command)) defaultField(cloned as Settings, "comparison_engine_id", null);
   if (next.command === "saveSlots") (cloned as SaveSlot[]).forEach(fillSaveSlotDefaults);
   if (["saveToNewSlot", "overwriteSlot", "renameSlot"].includes(next.command)) fillSaveSlotDefaults(cloned as SaveSlot);
   if (next.command === "tencentSearch" || next.command === "tencentNextPage") fillTencentPageDefaults(cloned as TencentPage);
@@ -344,6 +355,7 @@ async function command<K extends CommandName>(
     defaultField(settings, "engines", legacy);
     if (settings.engine) fillRemoteProfileDefaults(settings.engine);
     for (const entry of settings.engines ?? []) if (entry.profile) fillRemoteProfileDefaults(entry.profile);
+    defaultField(settings, "comparison_engine_id", null);
     defaultField(settings, "main_engine_id", settings.engine ? "legacy-engine" : null);
     defaultField(settings, "search_params", null);
     defaultField(settings, "restriction_depths", { allow: { type: "Custom", data: 5 }, avoid: { type: "Custom", data: 5 } });
@@ -455,6 +467,7 @@ function fillUpdateDownloadDefaults(status: UpdateDownloadStatus): void {
 }
 
 function fillDocumentDefaults(view: DocumentView): void {
+  defaultField(view, "has_comparison_analysis", false);
   defaultField(view, "analysis_restriction", null);
   defaultField(view, "restricted_analysis", null);
   defaultField(view, "scoring", null);
@@ -552,7 +565,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "webBoardStatus" | "gameView" | "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "accelerationOutput" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound" | "clipboardLink">(
+function query<K extends "comparisonState" | "webBoardStatus" | "gameView" | "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "accelerationOutput" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound" | "clipboardLink">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
@@ -777,7 +790,7 @@ export const setWindowTitle: Backend["setWindowTitle"] = async (title) => {
 export const subscribe: Backend["subscribe"] = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => {
-    if (event.type !== "WebBoardChanged" && event.type !== "FloatingBoardsChanged" && event.type !== "DisplaySettingsChanged" && event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "AccelerationProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+    if (event.type !== "ComparisonChanged" && event.type !== "ComparisonAnalysisUpdated" && event.type !== "WebBoardChanged" && event.type !== "FloatingBoardsChanged" && event.type !== "DisplaySettingsChanged" && event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "AccelerationProgress" && event.type !== "UpdateDownloadProgress") listener(event);
   });
   pushEvents([]);
   return id;
@@ -1078,6 +1091,26 @@ export const forceEndWebTrial: NonNullable<Backend["forceEndWebTrial"]> = () => 
 export const subscribeWebBoardChanged: NonNullable<Backend["subscribeWebBoardChanged"]> = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => { if (event.type === "WebBoardChanged") listener(event.data); });
+  pushEvents([]);
+  return id;
+};
+
+export const comparisonState: NonNullable<Backend["comparisonState"]> = () =>
+  query("comparisonState", [], () => ({ engine_id: null, status: { type: "Stopped" }, analysis: null }));
+export const selectComparisonEngine: NonNullable<Backend["selectComparisonEngine"]> = (id) => command("selectComparisonEngine", [id]);
+export const restartComparisonEngine: NonNullable<Backend["restartComparisonEngine"]> = () => command("restartComparisonEngine", []);
+export const closeComparisonEngine: NonNullable<Backend["closeComparisonEngine"]> = () => command("closeComparisonEngine", []);
+export const closeOtherEngines: NonNullable<Backend["closeOtherEngines"]> = () => command("closeOtherEngines", []);
+export const closeAllEngines: NonNullable<Backend["closeAllEngines"]> = () => command("closeAllEngines", []);
+export const subscribeComparisonChanged: NonNullable<Backend["subscribeComparisonChanged"]> = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => { if (event.type === "ComparisonChanged") listener(event.data); });
+  pushEvents([]);
+  return id;
+};
+export const subscribeComparisonAnalysisUpdated: NonNullable<Backend["subscribeComparisonAnalysisUpdated"]> = async (listener) => {
+  const id = ++nextListenerId;
+  listeners.set(id, (event) => { if (event.type === "ComparisonAnalysisUpdated") listener(event.data); });
   pushEvents([]);
   return id;
 };

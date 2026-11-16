@@ -908,3 +908,9 @@ export function fillWebBoardStatusDefaults(status: import("../src/api/backend").
     gameDefaultField(status.trial, "since", 0);
   }
 }
+
+export function fillComparisonDefaults(view: import("../src/api/backend").ComparisonView): void {
+  view.engine_id ??= null;
+  view.status ??= { type: "Stopped" };
+  view.analysis ??= null;
+}

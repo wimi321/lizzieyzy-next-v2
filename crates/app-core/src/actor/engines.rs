@@ -5,6 +5,29 @@ use crate::{
 };
 use tokio::sync::oneshot;
 
+struct PreparedTrial {
+    entries: Vec<EngineEntry>,
+    id: String,
+    profile: EngineProfile,
+    comparison: bool,
+}
+
+impl PreparedTrial {
+    fn new(
+        entries: Vec<EngineEntry>,
+        id: String,
+        profile: EngineProfile,
+        comparison: bool,
+    ) -> Self {
+        Self {
+            entries,
+            id,
+            profile,
+            comparison,
+        }
+    }
+}
+
 impl Actor {
     pub(super) async fn engine_command(
         &mut self,
@@ -17,11 +40,43 @@ impl Actor {
         }
         self.auto_setup.cancel();
         self.cancel_trial().await;
+        let changes_comparison = match &request {
+            Request::SelectComparison(_)
+            | Request::RestartComparison
+            | Request::CloseComparison
+            | Request::CloseOthers
+            | Request::CloseAll => true,
+            Request::Update(id, _, _) | Request::Remove(id) => {
+                self.settings.comparison_engine_id.as_ref() == Some(id)
+            }
+            _ => false,
+        };
+        let interrupted_startup = changes_comparison
+            && self
+                .comparison
+                .trial
+                .as_ref()
+                .is_some_and(trial::PendingTrial::is_startup);
+        if changes_comparison {
+            self.cancel_comparison_trial().await;
+        } else {
+            self.cancel_comparison_edit_trial().await;
+        }
         let result = self.prepare_engine_command(request).await;
         match result {
-            Ok(Some((entries, id, profile))) => {
-                self.begin_list_trial(entries, id, profile, trial::Reply::Settings(reply))
-                    .await;
+            Ok(Some(candidate)) => {
+                if candidate.comparison && self.comparison.running.is_none() {
+                    self.comparison.status = crate::EngineStatus::Starting;
+                    self.publish_comparison_changed();
+                }
+                self.begin_target_trial(
+                    candidate.entries,
+                    candidate.id,
+                    candidate.profile,
+                    trial::Reply::Settings(reply),
+                    candidate.comparison,
+                )
+                .await;
                 false
             }
             Ok(None) => {
@@ -29,6 +84,9 @@ impl Actor {
                 true
             }
             Err(error) => {
+                if interrupted_startup {
+                    self.reconcile_comparison().await;
+                }
                 let _ = reply.send(Err(error));
                 false
             }
@@ -38,7 +96,7 @@ impl Actor {
     async fn prepare_engine_command(
         &mut self,
         request: Request,
-    ) -> Result<Option<(Vec<EngineEntry>, String, EngineProfile)>, AppError> {
+    ) -> Result<Option<PreparedTrial>, AppError> {
         let mut settings = self.settings.clone();
         let mut stop = false;
         match request {
@@ -64,7 +122,28 @@ impl Actor {
                     && settings.engine.is_some()
                     && self.settings.engine.as_ref() != Some(&profile)
                 {
-                    return Ok(Some((settings.engines, id, profile)));
+                    return Ok(Some(PreparedTrial::new(
+                        settings.engines,
+                        id,
+                        profile,
+                        false,
+                    )));
+                }
+                if settings.comparison_engine_id.as_ref() == Some(&id)
+                    && self.comparison.running.is_some()
+                    && self
+                        .settings
+                        .engines
+                        .iter()
+                        .find(|entry| entry.id == id)
+                        .is_some_and(|entry| entry.profile != profile)
+                {
+                    return Ok(Some(PreparedTrial::new(
+                        settings.engines,
+                        id,
+                        profile,
+                        true,
+                    )));
                 }
             }
             Request::Remove(id) => {
@@ -74,6 +153,9 @@ impl Actor {
                     .position(|entry| entry.id == id)
                     .ok_or_else(|| invalid("engine ID does not exist"))?;
                 settings.engines.remove(index);
+                if settings.comparison_engine_id.as_ref() == Some(&id) {
+                    settings.comparison_engine_id = None;
+                }
                 if settings.main_engine_id.as_ref() == Some(&id) {
                     settings.main_engine_id = None;
                     settings.engine = None;
@@ -98,6 +180,9 @@ impl Actor {
                 settings.engines = ordered;
             }
             Request::Select(id) => {
+                if settings.comparison_engine_id.as_ref() == Some(&id) {
+                    return Err(crate::SettingsError::SameAsComparison.into());
+                }
                 let profile = settings
                     .engines
                     .iter()
@@ -105,7 +190,12 @@ impl Actor {
                     .ok_or_else(|| invalid("engine ID does not exist"))?
                     .profile
                     .clone();
-                return Ok(Some((settings.engines, id, profile)));
+                return Ok(Some(PreparedTrial::new(
+                    settings.engines,
+                    id,
+                    profile,
+                    false,
+                )));
             }
             Request::Restart => {
                 let id = settings
@@ -119,21 +209,96 @@ impl Actor {
                     .ok_or_else(|| invalid("engine ID does not exist"))?
                     .profile
                     .clone();
-                return Ok(Some((settings.engines, id, profile)));
+                return Ok(Some(PreparedTrial::new(
+                    settings.engines,
+                    id,
+                    profile,
+                    false,
+                )));
             }
             Request::Close => {
+                settings.engine = None;
+                stop = true;
+            }
+            Request::SelectComparison(Some(id)) => {
+                if settings.main_engine_id.as_ref() == Some(&id) {
+                    return Err(crate::SettingsError::SameAsMain.into());
+                }
+                let profile = settings
+                    .engines
+                    .iter()
+                    .find(|entry| entry.id == id)
+                    .ok_or_else(|| invalid("engine ID does not exist"))?
+                    .profile
+                    .clone();
+                if settings.display.layout_mode == crate::LayoutMode::DoubleEngine {
+                    return Ok(Some(PreparedTrial::new(
+                        settings.engines,
+                        id,
+                        profile,
+                        true,
+                    )));
+                }
+                settings.comparison_engine_id = Some(id);
+            }
+            Request::RestartComparison => {
+                let id = settings
+                    .comparison_engine_id
+                    .clone()
+                    .ok_or_else(|| invalid("no comparison engine selected"))?;
+                let profile = settings
+                    .engines
+                    .iter()
+                    .find(|entry| entry.id == id)
+                    .ok_or_else(|| invalid("engine ID does not exist"))?
+                    .profile
+                    .clone();
+                if settings.display.layout_mode == crate::LayoutMode::DoubleEngine {
+                    return Ok(Some(PreparedTrial::new(
+                        settings.engines,
+                        id,
+                        profile,
+                        true,
+                    )));
+                }
+            }
+            Request::SelectComparison(None) | Request::CloseComparison | Request::CloseOthers => {
+                settings.comparison_engine_id = None;
+            }
+            Request::CloseAll => {
+                settings.comparison_engine_id = None;
                 settings.engine = None;
                 stop = true;
             }
         }
         settings = settings.normalized()?;
         settings.save(&self.directory).await?;
+        let comparison_changed =
+            settings.comparison_engine_id != self.settings.comparison_engine_id;
+        let comparison_profile_changed = settings
+            .engines
+            .iter()
+            .find(|entry| Some(&entry.id) == settings.comparison_engine_id.as_ref())
+            .map(|entry| &entry.profile)
+            != self
+                .settings
+                .engines
+                .iter()
+                .find(|entry| Some(&entry.id) == self.settings.comparison_engine_id.as_ref())
+                .map(|entry| &entry.profile);
         self.settings = settings;
+        if comparison_changed || comparison_profile_changed {
+            self.set_comparison_fingerprint(None);
+            self.stop_comparison().await?;
+            self.publish_comparison_changed();
+        }
         if stop {
             self.stop_engine().await?;
             self.set_summary_fingerprint(None);
             self.publish_saved_focus();
         }
+        self.reconcile_comparison().await;
+        self.update_focus().await;
         Ok(None)
     }
 
@@ -144,6 +309,7 @@ impl Actor {
         self.ensure_no_benchmark()?;
         self.auto_setup.cancel();
         self.cancel_trial().await;
+        self.cancel_comparison_edit_trial().await;
         // Validate argument conflicts before changing the saved configuration.
         if let Some(profile) = &profile {
             profile.validate_transport()?;
@@ -170,6 +336,7 @@ impl Actor {
             self.stop_engine().await?;
             self.start_engine().await;
         }
+        self.update_focus().await;
         Ok(())
     }
 }

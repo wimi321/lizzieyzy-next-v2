@@ -142,6 +142,8 @@ impl Actor {
         }
         self.output.clear_analysis();
         self.flush_cached_analysis().await;
+        self.update_coordinators(super::coordinators::Update::Clear)
+            .await?;
         self.focus = None;
         if let Some(running) = self.running.take() {
             let coordinator = running.coordinator.shutdown().await;

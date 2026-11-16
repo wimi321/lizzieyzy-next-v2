@@ -1,6 +1,12 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-env-changed=LIZZIE_UPDATER_PUBKEY");
     let manifest = tauri_build::AppManifest::new().commands(&[
+        "comparison_state",
+        "select_comparison_engine",
+        "restart_comparison_engine",
+        "close_comparison_engine",
+        "close_other_engines",
+        "close_all_engines",
         "start_web_board",
         "stop_web_board",
         "web_board_status",

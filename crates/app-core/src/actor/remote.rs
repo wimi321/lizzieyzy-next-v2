@@ -42,6 +42,7 @@ impl Actor {
                     return;
                 }
                 self.cancel_trial().await;
+                self.cancel_comparison_edit_trial().await;
                 match self.remote.import(input).await {
                     Ok(profile) => {
                         let saved = self
@@ -60,6 +61,7 @@ impl Actor {
                     return;
                 }
                 self.cancel_trial().await;
+                self.cancel_comparison_edit_trial().await;
                 if !self.settings.engines.iter().any(|entry| entry.id == id) {
                     let _ = reply.send(Err(
                         crate::engines::invalid("engine ID does not exist").into()
@@ -111,12 +113,19 @@ impl Actor {
     }
 
     async fn finish_remote_edit(&mut self, saved: bool) {
-        if self.trial.is_none() {
-            if saved {
-                self.remote.commit().await;
-            } else {
-                self.remote.rollback();
-            }
+        if saved {
+            self.remote.commit().await;
+        } else if !self
+            .trial
+            .as_ref()
+            .is_some_and(trial::PendingTrial::owns_remote_edit)
+            && !self
+                .comparison
+                .trial
+                .as_ref()
+                .is_some_and(trial::PendingTrial::owns_remote_edit)
+        {
+            self.remote.rollback();
         }
     }
 

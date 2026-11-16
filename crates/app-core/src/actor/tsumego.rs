@@ -8,6 +8,7 @@ pub(super) struct Session {
     original: GameDocument,
     original_file_name: Option<String>,
     original_file_state: super::editing::FileState,
+    original_comparison: super::comparison::DocumentState,
     attacker: ColorView,
     ko_warnings: Vec<ColorView>,
 }
@@ -96,20 +97,29 @@ impl Actor {
             &mut self.file_state,
             super::editing::FileState::new(&self.document, None),
         );
-        let (original, original_file_name, original_file_state) = self.tsumego.take().map_or(
-            (previous, previous_file_name, previous_file_state),
-            |session| {
+        let previous_comparison = self.take_comparison_document();
+        let (original, original_file_name, original_file_state, original_comparison) =
+            self.tsumego.take().map_or(
                 (
-                    session.original,
-                    session.original_file_name,
-                    session.original_file_state,
-                )
-            },
-        );
+                    previous,
+                    previous_file_name,
+                    previous_file_state,
+                    previous_comparison,
+                ),
+                |session| {
+                    (
+                        session.original,
+                        session.original_file_name,
+                        session.original_file_state,
+                        session.original_comparison,
+                    )
+                },
+            );
         self.tsumego = Some(Session {
             original,
             original_file_name,
             original_file_state,
+            original_comparison,
             attacker: generated.attacker.into(),
             ko_warnings: generated.ko_warnings.into_iter().map(Into::into).collect(),
         });
@@ -126,8 +136,11 @@ impl Actor {
             self.document = session.original;
             self.file_name = session.original_file_name;
             self.file_state = session.original_file_state;
+            return self
+                .document_replaced_with_comparison(session.original_comparison)
+                .await;
         }
-        self.document_replaced().await
+        Ok(())
     }
 }
 

@@ -17,7 +17,7 @@ pub(super) struct Edits {
 #[derive(Clone)]
 enum Entry {
     Document,
-    Transform(Vec<NodeId>),
+    Transform(super::game_files::SavedNodes),
     Clear(Change),
 }
 
@@ -25,6 +25,7 @@ enum Entry {
 struct Change {
     focus: NodeId,
     fingerprint: Option<String>,
+    comparison_fingerprint: Option<String>,
     nodes: Vec<Before>,
     token: u64,
 }
@@ -34,11 +35,13 @@ struct Before {
     node: NodeId,
     cleared: Option<u64>,
     result: Option<StoredAnalysis>,
+    comparison_result: Option<StoredAnalysis>,
+    comparison_replaced: bool,
     summary: Option<AnalysisSummary>,
 }
 
 impl Edits {
-    pub fn document_transform(&mut self, nodes: Vec<NodeId>) {
+    pub fn document_transform(&mut self, nodes: super::game_files::SavedNodes) {
         self.managed = true;
         self.undo.push(Entry::Transform(nodes));
         self.redo.clear();
@@ -139,12 +142,15 @@ impl Actor {
                     .iter()
                     .any(|p| is_analysis(&p.identifier));
             let result = self.review.results.get(&node).cloned();
+            let comparison_result = self.comparison.results.get(&node).cloned();
             let summary = self.summaries.get(&node).copied();
-            if has_raw || result.is_some() || summary.is_some() {
+            if has_raw || result.is_some() || comparison_result.is_some() || summary.is_some() {
                 nodes.push(Before {
                     node,
                     cleared,
                     result,
+                    comparison_result,
+                    comparison_replaced: self.comparison.replaced_raw.contains(&node),
                     summary,
                 });
             }
@@ -161,6 +167,7 @@ impl Actor {
         let change = Change {
             focus: self.document.current(),
             fingerprint: self.summary_fingerprint.clone(),
+            comparison_fingerprint: self.comparison.fingerprint.clone(),
             nodes,
             token,
         };
@@ -181,6 +188,8 @@ impl Actor {
                 .cleared
                 .insert(before.node, change.token);
             self.review.results.remove(&before.node);
+            self.comparison.results.remove(&before.node);
+            self.comparison.replaced_raw.remove(&before.node);
             self.summaries.remove(&before.node);
             self.graph_analysis.valid_nodes.remove(&before.node);
         }
@@ -215,6 +224,12 @@ impl Actor {
                             }
                         }
                         self.review.results.remove(&before.node);
+                        self.comparison.results.remove(&before.node);
+                        if before.comparison_replaced {
+                            self.comparison.replaced_raw.insert(before.node);
+                        } else {
+                            self.comparison.replaced_raw.remove(&before.node);
+                        }
                         self.summaries.remove(&before.node);
                         if let Some(result) = &before.result
                             && (if result.saved.is_some() {
@@ -227,6 +242,15 @@ impl Actor {
                             if let Some(summary) = before.summary {
                                 self.summaries.insert(before.node, summary);
                             }
+                        }
+                        if let Some(result) = &before.comparison_result
+                            && (if result.saved.is_some() {
+                                self.settings.search_params.is_none()
+                            } else {
+                                change.comparison_fingerprint == self.comparison.fingerprint
+                            })
+                        {
+                            self.comparison.results.insert(before.node, result.clone());
                         }
                     }
                 } else {
@@ -243,7 +267,7 @@ impl Actor {
                 } else {
                     self.document.redo()?;
                 }
-                self.import_selected_saved_analysis(Some(&nodes))?;
+                self.import_transformed_saved_analysis(&nodes)?;
                 self.move_history_entry(undo);
                 self.document_changed().await?;
             }
@@ -295,10 +319,13 @@ impl Actor {
         self.file_state.save_warnings.clear();
         self.focus = None;
         self.output.clear_analysis();
+        self.comparison.latest = None;
+        self.output.clear_comparison_analysis();
         // Drop old cache/pending snapshots while retaining automatic limit
         // state and the user's analysis intent. Persistent storage is untouched.
-        if let Some(running) = &self.running
-            && let Err(error) = running.coordinator.discard_cached_analysis().await
+        if let Err(error) = self
+            .update_coordinators(super::coordinators::Update::Discard)
+            .await
         {
             self.analysis_failed(error.to_string());
         }

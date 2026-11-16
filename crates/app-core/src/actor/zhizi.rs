@@ -14,6 +14,22 @@ impl Actor {
         {
             self.cancel_trial().await;
         }
+        if self
+            .comparison
+            .trial
+            .as_ref()
+            .is_some_and(super::trial::PendingTrial::is_zhizi)
+        {
+            self.cancel_comparison_trial().await;
+        }
+        if self.comparison.running.is_some()
+            && self.settings.engines.iter().any(|entry| {
+                Some(&entry.id) == self.settings.comparison_engine_id.as_ref()
+                    && matches!(entry.profile.remote, Some(RemoteEngineConfig::Zhizi { .. }))
+            })
+        {
+            self.stop_comparison().await?;
+        }
         let active_zhizi = !self.startup_local_fallback
             && self.running.is_some()
             && self.settings.engine.as_ref().is_some_and(|profile| {
@@ -31,7 +47,12 @@ impl Actor {
         let selected_zhizi = self.settings.engine.as_ref().is_some_and(|profile| {
             matches!(profile.remote, Some(RemoteEngineConfig::Zhizi { .. }))
         });
-        if selected_zhizi {
+        let comparison_zhizi = self.settings.display.layout_mode == crate::LayoutMode::DoubleEngine
+            && self.settings.engines.iter().any(|entry| {
+                Some(&entry.id) == self.settings.comparison_engine_id.as_ref()
+                    && matches!(entry.profile.remote, Some(RemoteEngineConfig::Zhizi { .. }))
+            });
+        if selected_zhizi || comparison_zhizi {
             // The service bounds keychain access; failure is an unauthenticated
             // session, never an application startup failure.
             let _ = self.zhizi.restore().await;

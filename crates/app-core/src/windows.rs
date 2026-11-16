@@ -8,6 +8,7 @@ pub(crate) use loading::recover_positions;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub enum LayoutMode {
+    DoubleEngine,
     #[default]
     Normal,
     Min,

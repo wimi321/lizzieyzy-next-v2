@@ -105,6 +105,7 @@ fn remember_state(replay: &mut Vec<AppEvent>, event: &AppEvent) {
     if matches!(
         event,
         AppEvent::AnalysisUpdated(_)
+            | AppEvent::ComparisonAnalysisUpdated(_)
             | AppEvent::CoachMoveRated(_)
             | AppEvent::GtpConsoleLine(_)
             | AppEvent::OpenFailed { .. }
@@ -116,7 +117,13 @@ fn remember_state(replay: &mut Vec<AppEvent>, event: &AppEvent) {
         replay.retain(|cached| !matches!(cached, AppEvent::CoachSummary(_)));
     }
     replay.retain(|cached| std::mem::discriminant(cached) != std::mem::discriminant(event));
-    replay.push(event.clone());
+    let mut cached = event.clone();
+    if let AppEvent::ComparisonChanged(view) = &mut cached {
+        // The status is durable; its embedded analysis has the same transient
+        // validity as ComparisonAnalysisUpdated, including same-revision changes.
+        view.analysis = None;
+    }
+    replay.push(cached);
 }
 
 #[cfg(test)]

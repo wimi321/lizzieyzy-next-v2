@@ -105,9 +105,8 @@ impl Actor {
     }
     pub(in crate::actor) async fn clear_game_live_query(&mut self) -> Result<(), AppError> {
         self.flush_cached_focus().await;
-        if let Some(running) = &self.running {
-            running.coordinator.clear_focus().await?;
-        }
+        self.update_coordinators(super::super::coordinators::Update::Clear)
+            .await?;
         self.focus = None;
         self.output.clear_analysis();
         Ok(())

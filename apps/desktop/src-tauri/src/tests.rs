@@ -22,6 +22,7 @@ mod board_sync;
 mod cache;
 mod coach;
 mod commentary;
+mod comparison;
 mod display_settings;
 mod edit;
 mod engine_auto_setup;
@@ -221,6 +222,8 @@ impl Harness {
                     | AppEvent::CoachMoveRated(_)
                     | AppEvent::CoachSummary(_)
                     | AppEvent::WebBoardChanged(_)
+                    | AppEvent::ComparisonChanged(_)
+                    | AppEvent::ComparisonAnalysisUpdated(_)
                     | AppEvent::FloatingBoardsChanged(_)
                     | AppEvent::DisplaySettingsChanged(_)
                     | AppEvent::CommentaryUpdated(_) => {}

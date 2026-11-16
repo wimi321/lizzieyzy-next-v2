@@ -78,3 +78,30 @@ fn bad_positions_skip_their_descendants_but_keep_valid_siblings() {
     assert!(!work.applied.contains(&NodeId(3)));
     assert_eq!(work.root_replays, 1);
 }
+
+#[test]
+fn comparison_import_replays_only_its_ancestors_and_never_visits_primary_only_nodes() {
+    let doc = document(
+        "(;SZ[5]LZ[Main 45 10];B[aa](;W[bb]LZOP2[Second 45 20];B[cc]LZ[Main 45 30])(;W[aa]LZ2[BadPosition 45 40];B[]LZ2[Descendant 45 40]))",
+    );
+    let mut seen = Vec::new();
+    let work = doc
+        .visit_saved_slot::<DocError>(is_comparison, |id, position, saved| {
+            assert_eq!(*position, doc.position_at(id).unwrap());
+            assert_eq!(Some(saved), doc.saved_comparison_analysis(id).unwrap());
+            seen.push(id);
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(seen, [NodeId(2)]);
+    assert_eq!(work.root_replays, 1);
+    assert!(!work.applied.contains(&NodeId(3)));
+    assert!(!work.applied.contains(&NodeId(5)));
+    let mut public_seen = Vec::new();
+    doc.visit_saved_comparison_analysis::<DocError>(|id, _, _| {
+        public_seen.push(id);
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(public_seen, seen);
+}

@@ -1,4 +1,4 @@
-use super::Actor;
+use super::{Actor, coordinators::Update};
 use crate::{AppError, EngineSettings};
 use std::time::Duration;
 
@@ -107,7 +107,17 @@ impl Actor {
                 .set_auto_check_alive(self.settings.engine_settings.auto_check_alive)
                 .await?;
         }
+        if let Some(running) = &self.comparison.running
+            && let Err(error) = running
+                .engine
+                .set_auto_check_alive(self.settings.engine_settings.auto_check_alive)
+                .await
+        {
+            self.comparison_failed(error.to_string());
+        }
         if evaluation_changed {
+            self.set_comparison_fingerprint(None);
+            self.rebuild_comparison_coordinator().await;
             if let Some(mut running) = self.running.take() {
                 let replacement = self.coordinator(&running.engine, &running.fingerprint);
                 match replacement {
@@ -129,10 +139,8 @@ impl Actor {
                     }
                 }
             }
-        } else if let Some(running) = &self.running {
-            running
-                .coordinator
-                .set_live_settings(self.live_settings())
+        } else {
+            self.update_coordinators(Update::Live(self.live_settings()))
                 .await?;
         }
         self.update_focus().await;

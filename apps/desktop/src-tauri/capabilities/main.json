@@ -5,6 +5,12 @@
   "local": true,
   "windows": ["main"],
   "permissions": [
+    "allow-comparison-state",
+    "allow-select-comparison-engine",
+    "allow-restart-comparison-engine",
+    "allow-close-comparison-engine",
+    "allow-close-other-engines",
+    "allow-close-all-engines",
     "allow-start-web-board",
     "allow-stop-web-board",
     "allow-web-board-status",

@@ -24,7 +24,9 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                 }
                 AppEvent::DisplaySettingsChanged(_) | AppEvent::FloatingBoardsChanged(_) => {}
                 AppEvent::OpenFailed { .. } => {}
-                AppEvent::WebBoardChanged(_) => {}
+                AppEvent::WebBoardChanged(_)
+                | AppEvent::ComparisonChanged(_)
+                | AppEvent::ComparisonAnalysisUpdated(_) => {}
                 AppEvent::EngineStatusChanged(_) => {}
                 AppEvent::BoardSyncStatusChanged(_) => {}
                 AppEvent::AnalysisStateChanged(_) => {}

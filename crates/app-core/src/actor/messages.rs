@@ -45,6 +45,7 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    ComparisonState(oneshot::Sender<crate::ComparisonView>),
     WebBoard(
         crate::web_board_api::Request,
         oneshot::Sender<Result<crate::WebBoardStatus, AppError>>,

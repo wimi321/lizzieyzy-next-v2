@@ -40,6 +40,18 @@ impl RemoteSecrets {
             self.values.insert(account.to_owned(), value);
         }
     }
+    pub(crate) fn pending_for(&self, profile: &EngineProfile) -> bool {
+        profile
+            .remote
+            .as_ref()
+            .and_then(|remote| remote.account().ok())
+            .is_some_and(|account| {
+                self.pending
+                    .as_ref()
+                    .is_some_and(|(pending, _, _)| pending == &account)
+            })
+    }
+
     pub async fn commit(&mut self) {
         if let Some((account, secret, _)) = self.pending.take()
             && let Some(store) = &self.store

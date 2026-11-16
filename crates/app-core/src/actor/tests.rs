@@ -24,6 +24,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
     };
     (
         Actor {
+            comparison: Default::default(),
             web_board: Default::default(),
             acceleration: Default::default(),
             restriction: None,
@@ -318,7 +319,9 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                 | AppEvent::CoachUpdated(_)
                 | AppEvent::AnalysisStateChanged(_)
                 | AppEvent::AccelerationProgress(_)
-                | AppEvent::WebBoardChanged(_) => {}
+                | AppEvent::WebBoardChanged(_)
+                | AppEvent::ComparisonChanged(_)
+                | AppEvent::ComparisonAnalysisUpdated(_) => {}
             }
         }
         assert_eq!(documents, 1);

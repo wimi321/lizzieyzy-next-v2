@@ -92,10 +92,9 @@ impl Actor {
     /// Restore the current user intent after a successful document mutation.
     /// An unchanged pondering value preserves the coordinator's limit reason.
     pub(super) async fn exit_scoring_for_document_change(&mut self) -> Result<(), AppError> {
-        if self.scoring.take().is_some()
-            && let Some(running) = &self.running
-        {
-            running.coordinator.set_pondering(self.pondering()).await?;
+        if self.scoring.take().is_some() {
+            self.update_coordinators(super::coordinators::Update::Pondering(self.pondering()))
+                .await?;
         }
         Ok(())
     }
@@ -129,11 +128,8 @@ impl Actor {
             neutral: HashSet::new(),
         };
         let view = session.view()?;
-        if let Some(running) = &self.running {
-            // clear_focus preserves the coordinator's pondering and limit
-            // reason, while cancelling ordinary, extras and pure-network work.
-            running.coordinator.clear_focus().await?;
-        }
+        self.update_coordinators(super::coordinators::Update::Clear)
+            .await?;
         self.flush_cached_focus().await;
         self.focus = None;
         self.output.clear_analysis();

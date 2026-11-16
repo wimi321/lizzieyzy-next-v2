@@ -9,6 +9,7 @@ use sgf::{GameTree, Property};
 
 use crate::{DocError, DocumentWarning, GameDocument, NodeId, WarningKind, metadata};
 
+mod comparison;
 mod import;
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -165,6 +166,9 @@ impl GameDocument {
 
 fn is_primary(name: &str) -> bool {
     matches!(name, "LZ" | "LZOP")
+}
+fn is_comparison(name: &str) -> bool {
+    matches!(name, "LZ2" | "LZOP2")
 }
 fn is_analysis(name: &str) -> bool {
     matches!(name, "LZ" | "LZOP" | "LZ2" | "LZOP2")

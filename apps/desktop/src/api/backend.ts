@@ -1,3 +1,4 @@
+import type { ComparisonCommands, ComparisonChangedListener, ComparisonAnalysisUpdatedListener } from "./comparison";
 import type { WebBoardCommands, WebBoardChangedListener } from "./web-board";
 import type { AnalysisToolsCommands } from "./analysis-tools";
 import type { WindowCommands, FloatingBoardsChangedListener, DisplaySettingsChangedListener } from "./windows";
@@ -50,11 +51,12 @@ import type { VariationTreeView } from "./generated/VariationTreeView";
 
 /** Domain status subscriptions share one ordered IPC channel while existing
  * document/analysis UI consumers retain their original event set. */
-export type AppEvent = Exclude<WireAppEvent, { type: "WebBoardChanged" | "FloatingBoardsChanged" | "DisplaySettingsChanged" | "CommentaryUpdated" | "CoachUpdated" | "CoachMoveRated" | "CoachSummary" | "MatchUpdated" | "GtpConsoleLine" | "GameUpdated" | "WholeGameProgress" | "BatchAnalysisProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" | "AssetDownloadProgress" | "AccelerationProgress" | "UpdateDownloadProgress" }>;
+export type AppEvent = Exclude<WireAppEvent, { type: "ComparisonChanged" | "ComparisonAnalysisUpdated" | "WebBoardChanged" | "FloatingBoardsChanged" | "DisplaySettingsChanged" | "CommentaryUpdated" | "CoachUpdated" | "CoachMoveRated" | "CoachSummary" | "MatchUpdated" | "GtpConsoleLine" | "GameUpdated" | "WholeGameProgress" | "BatchAnalysisProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" | "AssetDownloadProgress" | "AccelerationProgress" | "UpdateDownloadProgress" }>;
 export type OpenFailed = Extract<WireAppEvent, { type: "OpenFailed" }>["data"];
 export type OpenFailedListener = (failure: OpenFailed) => void;
 export type { EngineDisplayName };
 export type { WireAppEvent, EngineProfile, EngineSetupProfile, EngineDiscovery, MoveView, Revision, Settings };
+export * from "./comparison";
 export * from "./web-board";
 export * from "./review";
 export * from "./game";
@@ -121,7 +123,9 @@ export type { AutoSetupAttempt } from "./generated/AutoSetupAttempt";
 export type EventListener = (event: AppEvent) => void;
 export type EngineFileKind = "program" | "model" | "config";
 
-export interface Backend extends WebBoardCommands, WindowCommands, AnalysisToolsCommands, SaveSlotCommands, ZhiziCommands, RemoteCommands, CommentaryCommands, TencentCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+export interface Backend extends ComparisonCommands, WebBoardCommands, WindowCommands, AnalysisToolsCommands, SaveSlotCommands, ZhiziCommands, RemoteCommands, CommentaryCommands, TencentCommands, CoachCommands, GtpCommands, MatchCommands, GameCommands, AnalysisExtrasCommands, BatchAnalysisCommands, ReviewCommands, BoardSyncCommands, BenchmarkCommands, AnalysisLimitCommands, ProblemMoveCommands, StrengthCommands, TsumegoCommands, EditCommands, SetupMarkupCommands, MoveEditingCommands, DisplaySettingsCommands, AnalysisCacheCommands, EngineCommands, WeightCommands, PreferenceCommands, UpdateCommands, SupportCommands, EverydayCommands {
+  subscribeComparisonChanged?(listener: ComparisonChangedListener): Promise<number>;
+  subscribeComparisonAnalysisUpdated?(listener: ComparisonAnalysisUpdatedListener): Promise<number>;
   subscribeWebBoardChanged?(listener: WebBoardChangedListener): Promise<number>;
   subscribeFloatingBoardsChanged?(listener: FloatingBoardsChangedListener): Promise<number>;
   subscribeDisplaySettingsChanged?(listener: DisplaySettingsChangedListener): Promise<number>;
@@ -320,7 +324,7 @@ async function subscribeWire(listener: (event: WireAppEvent) => void): Promise<n
 }
 
 export const subscribe: Backend["subscribe"] = (listener) => subscribeWire((event) => {
-  if (event.type !== "WebBoardChanged" && event.type !== "FloatingBoardsChanged" && event.type !== "DisplaySettingsChanged" && event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "AccelerationProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+  if (event.type !== "ComparisonChanged" && event.type !== "ComparisonAnalysisUpdated" && event.type !== "WebBoardChanged" && event.type !== "FloatingBoardsChanged" && event.type !== "DisplaySettingsChanged" && event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "AccelerationProgress" && event.type !== "UpdateDownloadProgress") listener(event);
 });
 
 export const subscribeOpenFailed: Backend["subscribeOpenFailed"] =
@@ -417,4 +421,14 @@ export const subscribeAccelerationProgress: NonNullable<Backend["subscribeAccele
 export const subscribeWebBoardChanged: NonNullable<Backend["subscribeWebBoardChanged"]> =
   (listener) => subscribeWire((event) => {
     if (event.type === "WebBoardChanged") listener(event.data);
+  });
+
+/** Comparison status and results use the same ordered transport, with separate consumers. */
+export const subscribeComparisonChanged: NonNullable<Backend["subscribeComparisonChanged"]> =
+  (listener) => subscribeWire((event) => {
+    if (event.type === "ComparisonChanged") listener(event.data);
+  });
+export const subscribeComparisonAnalysisUpdated: NonNullable<Backend["subscribeComparisonAnalysisUpdated"]> =
+  (listener) => subscribeWire((event) => {
+    if (event.type === "ComparisonAnalysisUpdated") listener(event.data);
   });

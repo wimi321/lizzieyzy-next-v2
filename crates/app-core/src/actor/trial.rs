@@ -23,9 +23,20 @@ pub(super) struct PendingTrial {
     retry_backoff: (Duration, Duration),
     reply: Reply,
     list_edit: Option<(Vec<EngineEntry>, String)>,
+    list_base: Option<EngineEntry>,
+    comparison: bool,
+    owns_remote_edit: bool,
 }
 
 impl PendingTrial {
+    pub(super) fn is_startup(&self) -> bool {
+        matches!(self.reply, Reply::Startup)
+    }
+
+    pub(super) fn owns_remote_edit(&self) -> bool {
+        self.owns_remote_edit
+    }
+
     pub(super) fn is_zhizi(&self) -> bool {
         matches!(
             self.profile.remote,
@@ -166,6 +177,7 @@ impl Actor {
             return;
         }
         self.cancel_trial().await;
+        self.cancel_comparison_edit_trial().await;
         let prepared = async {
             let timeout =
                 auto.as_ref()
@@ -241,6 +253,9 @@ impl Actor {
                     retry_backoff,
                     reply,
                     list_edit: None,
+                    list_base: None,
+                    comparison: false,
+                    owns_remote_edit: false,
                 });
             }
             Err(error) => {
@@ -256,7 +271,27 @@ impl Actor {
         profile: EngineProfile,
         reply: Reply,
     ) {
+        self.begin_target_trial(engines, id, profile, reply, false)
+            .await;
+    }
+
+    pub(super) async fn begin_target_trial(
+        &mut self,
+        engines: Vec<EngineEntry>,
+        id: String,
+        profile: EngineProfile,
+        reply: Reply,
+        comparison: bool,
+    ) {
         let is_acceleration = matches!(reply, Reply::Acceleration(_));
+        let owns_remote_edit =
+            !matches!(reply, Reply::Startup) && self.remote.pending_for(&profile);
+        let list_base = self
+            .settings
+            .engines
+            .iter()
+            .find(|entry| entry.id == id)
+            .cloned();
         let prepared = async {
             let timeout = self.config.engine_setup_timeout;
             if timeout.is_zero() || timeout > Duration::from_secs(86400) {
@@ -298,7 +333,7 @@ impl Actor {
                 let monitor =
                     crate::acceleration::monitor::Monitor::new(stderr, started, timeout, maximum);
                 let deadline = monitor.clock.deadline();
-                self.trial = Some(PendingTrial {
+                let pending = Some(PendingTrial {
                     monitor: Some(monitor),
                     status: engine.status(),
                     engine,
@@ -309,10 +344,20 @@ impl Actor {
                     retry_backoff,
                     reply,
                     list_edit: Some((engines, id)),
+                    list_base,
+                    comparison,
+                    owns_remote_edit,
                 });
+                if comparison {
+                    self.comparison.trial = pending;
+                } else {
+                    self.trial = pending;
+                }
             }
             Err(mut error) => {
-                if matches!(reply, Reply::Startup) {
+                if comparison {
+                    self.comparison_trial_failed(&error);
+                } else if matches!(reply, Reply::Startup) {
                     self.set_summary_fingerprint(None);
                     self.failed(error.to_string());
                 }
@@ -324,9 +369,43 @@ impl Actor {
         }
     }
 
+    pub(super) async fn cancel_comparison_trial(&mut self) {
+        if let Some(trial) = self.comparison.trial.take() {
+            if trial.owns_remote_edit {
+                self.remote.rollback();
+            }
+            let cleanup = trial.engine.shutdown().await;
+            trial.reply.send(Err(
+                cleanup.map_or_else(AppError::from, |()| EngineSetupError::Cancelled.into())
+            ));
+            self.comparison.status = self
+                .comparison
+                .running
+                .as_ref()
+                .map(|running| running.engine_status.borrow().clone().into())
+                .unwrap_or(crate::EngineStatus::Stopped);
+            self.publish_comparison_changed();
+        }
+    }
+
+    pub(super) async fn cancel_comparison_edit_trial(&mut self) {
+        // An independent main operation must not orphan the selected secondary
+        // engine while its layout-driven startup is still awaiting readiness.
+        if !self
+            .comparison
+            .trial
+            .as_ref()
+            .is_some_and(PendingTrial::is_startup)
+        {
+            self.cancel_comparison_trial().await;
+        }
+    }
+
     pub(super) async fn cancel_trial(&mut self) {
         if let Some(mut trial) = self.trial.take() {
-            self.remote.rollback();
+            if trial.owns_remote_edit {
+                self.remote.rollback();
+            }
             if let Some(monitor) = &mut trial.monitor {
                 monitor.drain();
                 if matches!(trial.reply, Reply::Acceleration(_)) {
@@ -344,23 +423,42 @@ impl Actor {
     }
 
     pub(super) async fn finish_trial(&mut self, outcome: Result<(), EngineSetupError>) {
-        let Some(mut trial) = self.trial.take() else {
+        let Some(trial) = self.trial.take() else {
             return;
         };
+        self.finish_pending_trial(trial, outcome).await;
+    }
+
+    pub(super) async fn finish_comparison_trial(&mut self, outcome: Result<(), EngineSetupError>) {
+        let Some(trial) = self.comparison.trial.take() else {
+            return;
+        };
+        self.finish_pending_trial(trial, outcome).await;
+    }
+
+    async fn finish_pending_trial(
+        &mut self,
+        mut trial: PendingTrial,
+        outcome: Result<(), EngineSetupError>,
+    ) {
         let mut result = match outcome {
             Ok(()) => self.commit_trial(&mut trial).await,
             Err(error) => Err(error.into()),
         };
-        if let Err(error) = &result
-            && matches!(trial.reply, Reply::Startup)
-        {
-            self.set_summary_fingerprint(None);
-            self.failed(error.to_string());
+        if let Err(error) = &result {
+            if trial.comparison {
+                self.comparison_trial_failed(error);
+            } else if matches!(trial.reply, Reply::Startup) {
+                self.set_summary_fingerprint(None);
+                self.failed(error.to_string());
+            }
         }
-        if result.is_ok() {
-            self.remote.commit().await;
-        } else {
-            self.remote.rollback();
+        if trial.owns_remote_edit {
+            if result.is_ok() {
+                self.remote.commit().await;
+            } else {
+                self.remote.rollback();
+            }
         }
         let mut reaped = true;
         if result.is_err() {
@@ -434,18 +532,35 @@ impl Actor {
             trial.profile = trial.profile.with_remote_version(&version);
             trial.fingerprint = trial.profile.fingerprint().await?;
         }
-        let (coordinator, snapshots) = self.coordinator(&trial.engine, &trial.fingerprint)?;
         let mut settings = self.settings.clone();
         if let Some((engines, id)) = &trial.list_edit {
-            settings.engines = engines.clone();
-            if let Some(entry) = settings.engines.iter_mut().find(|entry| &entry.id == id) {
-                entry.profile = trial.profile.clone();
+            let planned = engines
+                .iter()
+                .find(|entry| &entry.id == id)
+                .ok_or(EngineSetupError::Cancelled)?;
+            let entry = settings
+                .engines
+                .iter_mut()
+                .find(|entry| &entry.id == id)
+                .ok_or(EngineSetupError::Cancelled)?;
+            if trial.list_base.as_ref() != Some(entry) {
+                return Err(EngineSetupError::ChangedFiles.into());
             }
-            settings.main_engine_id = Some(id.clone());
-            settings.engine = Some(trial.profile.clone());
+            // Main and comparison startup trials can finish in either order.
+            // Commit only this candidate; never restore its stale peer list
+            // (in particular a remote peer's newly confirmed version).
+            entry.name = planned.name.clone();
+            entry.profile = trial.profile.clone();
+            if trial.comparison {
+                settings.comparison_engine_id = Some(id.clone());
+            } else {
+                settings.main_engine_id = Some(id.clone());
+                settings.engine = Some(trial.profile.clone());
+            }
         } else {
             settings.set_legacy_engine(Some(trial.profile.clone()));
         }
+        let (coordinator, snapshots) = self.coordinator(&trial.engine, &trial.fingerprint)?;
         // Recheck immediately before beginning the atomic settings write. Once
         // it succeeds, this transaction owns the saved profile and adopts it.
         if trial.reply.is_closed() {
@@ -459,6 +574,17 @@ impl Actor {
         if let Err(error) = settings.save(&self.directory).await {
             let _ = coordinator.shutdown().await;
             return Err(error.into());
+        }
+        if trial.comparison {
+            return self
+                .adopt_comparison_trial(
+                    settings,
+                    trial.engine.clone(),
+                    trial.fingerprint.clone(),
+                    coordinator,
+                    snapshots,
+                )
+                .await;
         }
         // This engine is already Ready. Adopt it instead of starting a second,
         // untested process after persisting the profile.
@@ -479,6 +605,7 @@ impl Actor {
             fingerprint: trial.fingerprint.clone(),
         });
         self.update_focus().await;
+        self.reconcile_comparison().await;
         // A previous session's cleanup failure must not discard the new engine
         // after the settings transaction has already succeeded.
         if let Err(error) = cleanup {

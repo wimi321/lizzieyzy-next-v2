@@ -1,4 +1,4 @@
-use super::Actor;
+use super::{Actor, coordinators::Update};
 use crate::{
     AnalysisRestriction, AnalysisToolsError, AppError, LadderContinuation, LadderOutcome,
     PointView, RestrictionDepth, RestrictionKind, SearchParams, analysis_tools::Request,
@@ -143,12 +143,8 @@ impl Actor {
         self.restriction = next;
         self.restricted_analysis = None;
         self.output.clear_analysis();
-        if let Some(running) = &self.running {
-            running
-                .coordinator
-                .set_restriction(self.engine_restriction())
-                .await?;
-        }
+        self.update_coordinators(Update::Restriction(self.engine_restriction()))
+            .await?;
         self.publish_document()?;
         self.update_focus().await;
         Ok(())
@@ -221,6 +217,10 @@ impl Actor {
                 self.analysis_failed(error.to_string());
             }
         }
+        self.comparison.results.clear();
+        self.comparison.latest = None;
+        self.set_comparison_fingerprint(None);
+        self.rebuild_comparison_coordinator().await;
         if self.settings.search_params.is_none() {
             self.import_saved_analysis()?;
         }
