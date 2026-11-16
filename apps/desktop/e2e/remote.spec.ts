@@ -77,8 +77,6 @@ test("远程算力: log in to 智子, see the account, and make a pay-as-you-go 
 test("自建算力: a ws:// link is flagged as unencrypted, tested, and used", async ({ page }) => {
   const link = "ws://192.168.1.8:8080/katago?token=demo";
   const remote = { id: "w1", name: "自建算力", profile: { ...B18, program: "", model: "", remote: { type: "WebSocket", data: { host: "192.168.1.8", port: 8080, secure: false, identity: "0".repeat(64) } } } as EngineProfile };
-  // Wide enough for the bottom toolbar's optional buttons, 远程算力 among them.
-  await page.setViewportSize({ width: 1600, height: 820 });
   await start(page, [
     { command: "zhiziStatus", result: { logged_in: false, store_available: true } },
     { command: "testRemoteEngine", result: "1.16.0" },

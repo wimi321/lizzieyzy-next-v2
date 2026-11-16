@@ -16,11 +16,13 @@ export interface ToolButtonProps {
   pressed?: boolean;
   className?: string;
   testId?: string;
+  /** The bottom toolbar's id for a button that gives way when the window is narrow. */
+  fit?: string;
   onClick?(): void;
 }
 
 /** One of LizzieYzy Next's toolbar buttons. */
-export function ToolButton({ label, icon, title, role = "normal", small, enabled = true, pressed, className, testId, onClick }: ToolButtonProps) {
+export function ToolButton({ label, icon, title, role = "normal", small, enabled = true, pressed, className, testId, fit, onClick }: ToolButtonProps) {
   return (
     <button
       type="button"
@@ -32,6 +34,7 @@ export function ToolButton({ label, icon, title, role = "normal", small, enabled
       aria-label={label === undefined ? title : undefined}
       title={title}
       data-testid={testId}
+      data-fit={fit}
       disabled={!enabled}
       onClick={onClick}
     >
