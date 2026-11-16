@@ -167,6 +167,7 @@ pub enum EngineStatus {
 - **远程查询也强制黑方视角**：每次远程 analysis 请求（包括实时、整盘、对局及重发）在 `overrideSettings` 合入 `reportAnalysisWinratesAs: "BLACK"`，覆盖调用方的同名值而保留其他设置。远端配置不归本机管理，因此不能依赖其配置文件默认值；本地查询继续沿用已有启动参数 BLACK 约定，协议响应不按轮走方二次翻转。
 - 本地传输 driver future 由会话 actor 直接轮询，不另起持有进程的任务；参数和环境直接传给子进程，不经过 shell。发出行与收到行各 64 槽，退出为 oneshot；退出报告在 `child.wait()` 和管道排空后产生，包含退出状态及 stderr 尾部。actor 处理退出报告前还会消费已入队的结果，避免遗漏退出前的 Final。关闭先关 stdin，`shutdown_timeout` 后强杀，再等待实际退出；`shutdown()` 成功后状态才为 Stopped。最后一个 handle 被丢弃也会执行清理，status receiver 和查询订阅不会使 actor 永久存活。
 - `engine_session::spawn_process(&mut tokio::process::Command)` 为本地分析、版本探测、测速、readboard 和 NVIDIA 探测共用的进程创建入口。仅 Linux 的准确 errno 26（ETXTBSY）重试，最多 8 次，每次间隔 20ms，250ms 后不再开始重试；其他错误和其他平台立即原样返回。使用 Tokio 时间，无锁或自建线程；不改变 argv/env、不通过 shell 重试。引擎和版本探测的原启动总 deadline 包含重试；预算限制重试调度，不能强行中断操作系统的同步 spawn 系统调用。Linux 并行 fork 暂时继承刚写完脚本的写句柄时，等待该子进程 exec 关闭句柄后即可恢复；持久占用仍明确失败，不无限等待。
+- Windows 上所有子进程统一由 `spawn_process` 设置 `CREATE_NO_WINDOW`，不创建控制台窗口（不影响 readboard 等 GUI 程序自身的窗口）；新的启动子进程代码必须经过此入口，创建标志仅在此处集中设置，调用方不得另设。
 - QueryId 格式为 `<会话实例号>-<序号>`，重启后旧 id 永不复用。
 - 实例号使用 UUID v4，序号由 actor 持有，动作与查询共用递增序列；重发按原始提交序号排列，保留同优先级请求的输入顺序。
 - 就绪：启动后发 `query_version`，收到回复才算 Ready；超时（默认 120 秒，首次 GPU 调优可能很慢）进入重启流程。
