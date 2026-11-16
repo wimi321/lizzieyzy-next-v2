@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { DiagnosticCheck, OfficialWeight } from "@/api/backend";
 import type { EngineTools, ToolsTab } from "./useEngineTools";
 
@@ -22,9 +23,6 @@ export interface ToolsLabels {
   installing: string;
   downloading: string;
   failed: string;
-  accelerationIntro: string;
-  reasons: Record<string, string>;
-  install: string;
   loading: string;
 }
 
@@ -148,29 +146,10 @@ export function WeightsPanel({ tools, labels, currentModel }: { tools: EngineToo
   );
 }
 
-/** 英伟达显卡提速组件: whether this machine needs them, and installing them when it does. */
-export function AccelerationPanel({ tools, labels }: { tools: EngineTools; labels: ToolsLabels }) {
-  const reason = tools.plan?.reason;
-  return (
-    <div className="tools-panel" data-testid="tools-acceleration">
-      <p className="dialog-intro">{labels.accelerationIntro}</p>
-      {tools.plan === null ? <p className="tools-loading">{labels.loading}</p> : <p className="tools-reason" data-reason={reason}>{labels.reasons[reason ?? ""] ?? reason}</p>}
-      <Progress tools={tools} labels={labels} />
-      <Errors tools={tools} labels={labels} />
-      {reason === "NvidiaDetected" ? (
-        <footer className="dialog-footer">
-          <button type="button" className="primary-button" data-testid="tools-install" disabled={tools.busy || tools.downloading} onClick={() => tools.repair("InstallRuntime")}>
-            {labels.install}
-          </button>
-        </footer>
-      ) : null}
-    </div>
-  );
-}
-
 /** The panel of a tab other than 性能优化, which is the benchmark itself. */
-export function ToolsPanel({ tab, tools, labels, currentModel }: { tab: Exclude<ToolsTab, "benchmark">; tools: EngineTools; labels: ToolsLabels; currentModel: string | null }) {
+export function ToolsPanel({ tab, tools, labels, currentModel, acceleration }: { tab: Exclude<ToolsTab, "benchmark">; tools: EngineTools; labels: ToolsLabels; currentModel: string | null; acceleration: ReactNode }) {
   if (tab === "overview") return <OverviewPanel tools={tools} labels={labels} />;
   if (tab === "weights") return <WeightsPanel tools={tools} labels={labels} currentModel={currentModel} />;
-  return <AccelerationPanel tools={tools} labels={labels} />;
+  // 显卡提速 lives in src/acceleration (P3-31); its state outlives this dialog.
+  return <>{acceleration}</>;
 }

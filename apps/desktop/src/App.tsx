@@ -38,6 +38,8 @@ import { LimitDialog } from "./analysis/LimitDialog";
 import { useAnalysisRun } from "./analysis/useAnalysisRun";
 import { useClearing } from "./analysis/useClearing";
 import { ToolsPanel, ToolsTabs } from "./engines/EngineTools";
+import { AccelerationHint, AccelerationPanel } from "./acceleration/AccelerationPanel";
+import { useAcceleration } from "./acceleration/useAcceleration";
 import { useEngines } from "./engines/useEngines";
 import { useRelease } from "./release/useRelease";
 import { useEveryday } from "./everyday/useEveryday";
@@ -165,6 +167,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [toolsTab, setToolsTab] = useState<ToolsTab | null>(null);
   const tuningOpen = toolsTab !== null;
   const tools = useEngineTools(backend, tuningOpen, engines.apply);
+  const acceleration = useAcceleration(backend, { settings: engines.settings, toolsOpen: tuningOpen, onSettings: engines.apply, openTab: setToolsTab });
   // Live analysis as it runs now: paused by the user, or stopped at a time or visit limit.
   const run = useAnalysisRun(backend);
   const [limits, setLimits] = useState<AnalysisLimitSettings | null>(null);
@@ -770,7 +773,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         <BenchmarkDialog
           title={messages.tools.title}
           tabs={<ToolsTabs tab={toolsTab} labels={messages.tools} onTab={setToolsTab} />}
-          panel={toolsTab === "benchmark" ? undefined : <ToolsPanel tab={toolsTab} tools={tools} labels={messages.tools} currentModel={engines.profile?.model ?? null} />}
+          panel={toolsTab === "benchmark" ? undefined : <ToolsPanel tab={toolsTab} tools={tools} labels={messages.tools} currentModel={engines.profile?.model ?? null} acceleration={<AccelerationPanel acceleration={acceleration} download={tools.download} labels={messages.acceleration} />} />}
           status={tuning.status}
           model={engineLabel}
           labels={messages.benchmark}
@@ -787,6 +790,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       {research.windows(menus, bindings)}
       {analysisTools.windows}
       {layout.dialog}
+      <AccelerationHint acceleration={acceleration} labels={messages.acceleration} />
     </main>
   );
 }

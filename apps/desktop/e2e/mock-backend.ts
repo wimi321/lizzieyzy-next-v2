@@ -84,6 +84,8 @@ export type MockCommand = {
     result: MockResult<K>;
     events?: WireAppEvent[];
     error?: string | CommandError;
+    /** Answer only after `releaseHeld()`: a long command's progress can be shown meanwhile. */
+    hold?: boolean;
   }
 }[CommandName];
 
@@ -95,6 +97,14 @@ export interface MockScript {
 const listeners = new Map<number, (event: WireAppEvent) => void>();
 let nextListenerId = 0;
 let pendingEvents: WireAppEvent[] = [];
+let held: (() => void)[] = [];
+
+/** Lets every held command answer, in the order they were sent. */
+export function releaseHeld(): void {
+  const waiting = held;
+  held = [];
+  for (const release of waiting) release();
+}
 let commands: MockCommand[] = [];
 const calls: MockCall[] = [];
 let dispatching = false;
@@ -219,10 +229,14 @@ async function command<K extends CommandName>(
     throw new Error(`Expected mock command ${next?.command ?? "(none)"}, received ${name}`);
   }
   commands.shift();
+  if (next.hold) {
+    pushEvents(next.events ?? []);
+    await new Promise<void>((release) => held.push(release));
+  }
   if (next.error !== undefined) {
     throw typeof next.error === "string" ? new Error(next.error) : structuredClone(next.error);
   }
-  pushEvents(next.events ?? []);
+  if (!next.hold) pushEvents(next.events ?? []);
   const result = next.command === "settings"
     ? {
       ...next.result,
@@ -892,6 +906,7 @@ export interface MockControls {
   setStrengthEstimate: typeof setStrengthEstimate;
   benchmarkDemoEvents: typeof benchmarkDemoEvents;
   benchmarkDemoScript: typeof benchmarkDemoScript;
+  releaseHeld: typeof releaseHeld;
 }
 
 declare global {
@@ -904,7 +919,7 @@ declare global {
 }
 
 if (typeof window !== "undefined") {
-  window.__mockBackend = { setScript, pushEvents, recordedCalls, setProblemMoves, setStrengthEstimate, benchmarkDemoEvents, benchmarkDemoScript };
+  window.__mockBackend = { setScript, pushEvents, recordedCalls, setProblemMoves, setStrengthEstimate, benchmarkDemoEvents, benchmarkDemoScript, releaseHeld };
   if (window.__mockInitialScript) setScript(window.__mockInitialScript);
 }
 

@@ -1034,7 +1034,7 @@
     "tabs": {
       "overview": "總覽",
       "weights": "權重管理",
-      "acceleration": "NVIDIA 顯示卡加速元件",
+      "acceleration": "顯示卡加速",
       "benchmark": "效能最佳化"
     },
     "overviewIntro": "逐項檢查主引擎能否正常執行；有問題的項可以一鍵修復，修好後自動重新檢查。",
@@ -1073,15 +1073,69 @@
     "installing": "正在安裝…",
     "downloading": "下載中…",
     "failed": "下載失敗",
-    "accelerationIntro": "Windows 上用NVIDIA顯示卡時，裝上加速元件可以讓 KataGo 用 CUDA/TensorRT 跑得更快。",
-    "reasons": {
-      "UnsupportedPlatform": "這個系統不需要加速元件。",
-      "NoNvidiaGpu": "沒有檢測到NVIDIA顯示卡，不需要加速元件。",
-      "NvidiaDetected": "檢測到NVIDIA顯示卡，建議安裝加速元件。",
-      "DetectionFailed": "沒能檢測顯示卡。"
-    },
-    "install": "下載並安裝",
     "loading": "正在讀取…"
+  },
+  "acceleration": {
+    "intro": "用顯示卡跑 KataGo，分析能快幾十倍。選一種方式後，軟體會下載需要的元件、換好引擎並試啟動；沒啟動起來會自動退回原來的引擎。",
+    "gpus": "顯示卡",
+    "noGpu": "沒有偵測到顯示卡",
+    "driver": "{name}（驅動程式 {version}）",
+    "current": "目前引擎",
+    "backends": {
+      "eigen": "CPU",
+      "cuda": "CUDA",
+      "tensorrt": "TensorRT",
+      "opencl": "OpenCL",
+      "external": "其他引擎"
+    },
+    "describe": {
+      "cuda": "NVIDIA 顯示卡，速度快",
+      "tensorrt": "NVIDIA 顯示卡，第一次啟動要先產生最佳化快取，之後更快",
+      "opencl": "AMD、Intel 和較舊的 NVIDIA 顯示卡，第一次啟動要先調校"
+    },
+    "recommended": "推薦",
+    "inUse": "正在使用",
+    "installed": "已安裝",
+    "download": "需下載 {size}",
+    "oldDriver": "顯示卡驅動程式可能太舊，可以試試；啟動不起來會自動退回原來的引擎。",
+    "unsupported": {
+      "cuda": "需要 NVIDIA 顯示卡",
+      "tensorrt": "需要 NVIDIA RTX 20 系列或更新的顯示卡",
+      "opencl": "這台電腦不支援"
+    },
+    "reasons": {
+      "UnsupportedPlatform": "只有 Windows 版需要另外開啟顯示卡加速。",
+      "NoNvidiaGpu": "沒有偵測到能用的顯示卡。",
+      "NvidiaDetected": "偵測到 NVIDIA 顯示卡。",
+      "DetectionFailed": "沒能偵測顯示卡。"
+    },
+    "loading": "正在讀取…",
+    "enable": "開啟加速",
+    "disable": "改回 CPU",
+    "downloading": "正在下載 {backend} 元件：{done} / {total} MB",
+    "installing": "正在安裝 {backend} 元件…",
+    "paused": "已暫停：{done} / {total} MB",
+    "pause": "暫停",
+    "resume": "繼續",
+    "cancel": "取消",
+    "starting": "正在啟動 {backend} 引擎…（已用 {seconds} 秒）",
+    "tuningOpenCL": "第一次使用 OpenCL 要先調校，可能需要幾分鐘，請不要關閉軟體。（已用 {seconds} 秒）",
+    "tuningTensorRT": "第一次使用 TensorRT 要先產生最佳化快取，可能需要幾分鐘，請不要關閉軟體。（已用 {seconds} 秒）",
+    "succeeded": "已改用 {backend}。",
+    "benchmark": "測一下速度",
+    "failed": "沒有成功，已退回原來的引擎。",
+    "timedOut": "{backend} 引擎沒能在規定時間內啟動。",
+    "cancelled": "已取消，仍在用原來的引擎。",
+    "restored": "已改回 CPU 引擎。",
+    "output": "KataGo 的輸出（最後 {n} 行）",
+    "copy": "複製",
+    "copied": "已複製",
+    "hint": "偵測到 {gpu}，開啟顯示卡加速後分析會快很多。",
+    "hintOpen": "去開啟",
+    "hintDismiss": "不再提示",
+    "close": "關閉",
+    "busy": "引擎正在做別的事（測速、對局或換引擎），請稍後再試。",
+    "noEngine": "還沒有設定主引擎。"
   },
   "release": {
     "update": {
