@@ -16,6 +16,7 @@ import "./styles/research.css";
 import "./styles/analysis-tools.css";
 import "./styles/layout.css";
 import "./styles/floating.css";
+import "./styles/acceleration.css";
 
 const root = document.getElementById("root");
 if (!root) {

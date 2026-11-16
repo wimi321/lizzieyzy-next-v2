@@ -1034,7 +1034,7 @@
     "tabs": {
       "overview": "개요",
       "weights": "가중치",
-      "acceleration": "NVIDIA GPU 가속",
+      "acceleration": "GPU 가속",
       "benchmark": "성능 최적화"
     },
     "overviewIntro": "주 엔진의 실행 조건을 검사합니다. 문제가 있으면 한 번에 복구하고 다시 검사할 수 있습니다.",
@@ -1073,15 +1073,69 @@
     "installing": "설치 중…",
     "downloading": "다운로드 중…",
     "failed": "다운로드 실패",
-    "accelerationIntro": "Windows에서 NVIDIA GPU 가속 구성 요소를 설치하면 KataGo가 CUDA/TensorRT로 더 빠르게 작동합니다.",
-    "reasons": {
-      "UnsupportedPlatform": "이 시스템에는 가속 구성 요소가 필요 없습니다.",
-      "NoNvidiaGpu": "NVIDIA GPU가 없어 가속 구성 요소가 필요 없습니다.",
-      "NvidiaDetected": "NVIDIA GPU를 찾았습니다. 가속 구성 요소 설치를 권장합니다.",
-      "DetectionFailed": "GPU를 확인하지 못했습니다."
-    },
-    "install": "다운로드 및 설치",
     "loading": "읽는 중…"
+  },
+  "acceleration": {
+    "intro": "Running KataGo on the graphics card makes analysis tens of times faster. Choose one: the components it needs are downloaded, the engine is switched and tried, and if it does not start the previous engine comes back.",
+    "gpus": "Graphics cards",
+    "noGpu": "No graphics card found",
+    "driver": "{name} (driver {version})",
+    "current": "Engine in use",
+    "backends": {
+      "eigen": "CPU",
+      "cuda": "CUDA",
+      "tensorrt": "TensorRT",
+      "opencl": "OpenCL",
+      "external": "Another engine"
+    },
+    "describe": {
+      "cuda": "NVIDIA cards; fast",
+      "tensorrt": "NVIDIA cards; builds an optimization cache on its first start, faster afterwards",
+      "opencl": "AMD, Intel and older NVIDIA cards; tunes itself on its first start"
+    },
+    "recommended": "Recommended",
+    "inUse": "In use",
+    "installed": "Installed",
+    "download": "Download {size}",
+    "oldDriver": "The graphics driver may be too old. You can still try: if the engine does not start, the previous one comes back.",
+    "unsupported": {
+      "cuda": "Needs an NVIDIA graphics card",
+      "tensorrt": "Needs an NVIDIA RTX 20 series or newer card",
+      "opencl": "Not supported on this computer"
+    },
+    "reasons": {
+      "UnsupportedPlatform": "Only the Windows version needs GPU acceleration turned on separately.",
+      "NoNvidiaGpu": "No usable graphics card was found.",
+      "NvidiaDetected": "An NVIDIA graphics card was found.",
+      "DetectionFailed": "Could not detect the graphics cards."
+    },
+    "loading": "Loading…",
+    "enable": "Turn on acceleration",
+    "disable": "Back to CPU",
+    "downloading": "Downloading the {backend} components: {done} / {total} MB",
+    "installing": "Installing the {backend} components…",
+    "paused": "Paused: {done} / {total} MB",
+    "pause": "Pause",
+    "resume": "Resume",
+    "cancel": "Cancel",
+    "starting": "Starting the {backend} engine… ({seconds} s)",
+    "tuningOpenCL": "OpenCL tunes itself for this graphics card the first time, which can take a few minutes. Please keep the program open. ({seconds} s)",
+    "tuningTensorRT": "TensorRT builds an optimization cache the first time, which can take a few minutes. Please keep the program open. ({seconds} s)",
+    "succeeded": "Now using {backend}.",
+    "benchmark": "Measure the speed",
+    "failed": "It did not work; the previous engine is back.",
+    "timedOut": "The {backend} engine did not start in time.",
+    "cancelled": "Cancelled; the previous engine is still in use.",
+    "restored": "Back on the CPU engine.",
+    "output": "KataGo's output (last {n} lines)",
+    "copy": "Copy",
+    "copied": "Copied",
+    "hint": "{gpu} found. Turn on GPU acceleration and analysis gets much faster.",
+    "hintOpen": "Turn it on",
+    "hintDismiss": "Don't show again",
+    "close": "Close",
+    "busy": "Something else is using the engine (a benchmark, a game or an engine change). Try again later.",
+    "noEngine": "No main engine is configured yet."
   },
   "release": {
     "update": {

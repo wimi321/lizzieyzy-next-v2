@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AccelerationPlan, AssetDownloadStatus, Backend, DiagnosticRepair, EngineDiagnostics, OfficialWeight, Settings } from "@/api/backend";
+import type { AssetDownloadStatus, Backend, DiagnosticRepair, EngineDiagnostics, OfficialWeight, Settings } from "@/api/backend";
 import { describe } from "./model";
 
 type ToolsBackend = Pick<
@@ -10,7 +10,6 @@ type ToolsBackend = Pick<
   | "assetDownloadStatus"
   | "subscribeAssetDownloadProgress"
   | "unsubscribe"
-  | "accelerationPlan"
   | "useOfficialWeight"
   | "diagnoseEngine"
   | "repairEngine"
@@ -20,13 +19,12 @@ export type ToolsTab = "overview" | "weights" | "acceleration" | "benchmark";
 
 /**
  * What 引擎一键设置's tabs show (P2-12): the official weights and the download in progress, the
- * NVIDIA plan, and the main engine's diagnostics. Read while the dialog is open; the download
+ * main engine's diagnostics (显卡提速 reads its own plan, src/acceleration). Read while the dialog is open; the download
  * keeps reporting while it runs, whatever tab is shown.
  */
 export function useEngineTools(backend: ToolsBackend, open: boolean, onSettings: (settings: Settings) => void) {
   const [weights, setWeights] = useState<OfficialWeight[] | null>(null);
   const [download, setDownload] = useState<AssetDownloadStatus | null>(null);
-  const [plan, setPlan] = useState<AccelerationPlan | null>(null);
   const [diagnostics, setDiagnostics] = useState<EngineDiagnostics | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,11 +48,10 @@ export function useEngineTools(backend: ToolsBackend, open: boolean, onSettings:
       })
       .then((status) => active && setDownload(status))
       .catch((reason: unknown) => active && setError(describe(reason)));
-    Promise.all([backend.officialWeights(), backend.accelerationPlan(), backend.diagnoseEngine()])
-      .then(([list, nextPlan, report]) => {
+    Promise.all([backend.officialWeights(), backend.diagnoseEngine()])
+      .then(([list, report]) => {
         if (!active) return;
         setWeights(list);
-        setPlan(nextPlan);
         setDiagnostics(report);
       })
       .catch((reason: unknown) => active && setError(describe(reason)));
@@ -76,7 +73,6 @@ export function useEngineTools(backend: ToolsBackend, open: boolean, onSettings:
   return {
     weights,
     download,
-    plan,
     diagnostics,
     busy,
     error,

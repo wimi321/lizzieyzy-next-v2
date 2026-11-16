@@ -1034,7 +1034,7 @@
     "tabs": {
       "overview": "概览",
       "weights": "权重管理",
-      "acceleration": "英伟达显卡提速组件",
+      "acceleration": "显卡提速",
       "benchmark": "性能优化"
     },
     "overviewIntro": "逐项检查主引擎能否正常运行；有问题的项可以一键修复，修好后自动重新检查。",
@@ -1073,15 +1073,69 @@
     "installing": "正在安装…",
     "downloading": "下载中…",
     "failed": "下载失败",
-    "accelerationIntro": "Windows 上用英伟达显卡时，装上提速组件可以让 KataGo 用 CUDA/TensorRT 跑得更快。",
+    "loading": "正在读取…"
+  },
+  "acceleration": {
+    "intro": "用显卡跑 KataGo，分析能快几十倍。选一种方式后，软件会下载需要的组件、换好引擎并试启动；没启动起来会自动退回原来的引擎。",
+    "gpus": "显卡",
+    "noGpu": "没有检测到显卡",
+    "driver": "{name}（驱动 {version}）",
+    "current": "当前引擎",
+    "backends": {
+      "eigen": "CPU",
+      "cuda": "CUDA",
+      "tensorrt": "TensorRT",
+      "opencl": "OpenCL",
+      "external": "其他引擎"
+    },
+    "describe": {
+      "cuda": "NVIDIA 显卡，速度快",
+      "tensorrt": "NVIDIA 显卡，第一次启动要先生成优化缓存，之后更快",
+      "opencl": "AMD、Intel 和较老的 NVIDIA 显卡，第一次启动要先调优"
+    },
+    "recommended": "推荐",
+    "inUse": "正在使用",
+    "installed": "已安装",
+    "download": "需下载 {size}",
+    "oldDriver": "显卡驱动可能太旧，可以试试；启动不起来会自动退回原来的引擎。",
+    "unsupported": {
+      "cuda": "需要 NVIDIA 显卡",
+      "tensorrt": "需要 NVIDIA RTX 20 系列或更新的显卡",
+      "opencl": "这台电脑不支持"
+    },
     "reasons": {
-      "UnsupportedPlatform": "这个系统不需要提速组件。",
-      "NoNvidiaGpu": "没有检测到英伟达显卡，不需要提速组件。",
-      "NvidiaDetected": "检测到英伟达显卡，建议安装提速组件。",
+      "UnsupportedPlatform": "只有 Windows 版需要另外开启显卡提速。",
+      "NoNvidiaGpu": "没有检测到能用的显卡。",
+      "NvidiaDetected": "检测到 NVIDIA 显卡。",
       "DetectionFailed": "没能检测显卡。"
     },
-    "install": "下载并安装",
-    "loading": "正在读取…"
+    "loading": "正在读取…",
+    "enable": "开启提速",
+    "disable": "改回 CPU",
+    "downloading": "正在下载 {backend} 组件：{done} / {total} MB",
+    "installing": "正在安装 {backend} 组件…",
+    "paused": "已暂停：{done} / {total} MB",
+    "pause": "暂停",
+    "resume": "继续",
+    "cancel": "取消",
+    "starting": "正在启动 {backend} 引擎…（已用 {seconds} 秒）",
+    "tuningOpenCL": "第一次使用 OpenCL 要先调优，可能需要几分钟，请不要关闭软件。（已用 {seconds} 秒）",
+    "tuningTensorRT": "第一次使用 TensorRT 要先生成优化缓存，可能需要几分钟，请不要关闭软件。（已用 {seconds} 秒）",
+    "succeeded": "已改用 {backend}。",
+    "benchmark": "测一下速度",
+    "failed": "没有成功，已退回原来的引擎。",
+    "timedOut": "{backend} 引擎没能在规定时间内启动。",
+    "cancelled": "已取消，仍在用原来的引擎。",
+    "restored": "已改回 CPU 引擎。",
+    "output": "KataGo 的输出（最后 {n} 行）",
+    "copy": "复制",
+    "copied": "已复制",
+    "hint": "检测到 {gpu}，开启显卡提速后分析会快很多。",
+    "hintOpen": "去开启",
+    "hintDismiss": "不再提示",
+    "close": "关闭",
+    "busy": "引擎正在做别的事（测速、对局或换引擎），请稍后再试。",
+    "noEngine": "还没有配置主引擎。"
   },
   "release": {
     "update": {
