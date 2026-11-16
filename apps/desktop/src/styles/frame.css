@@ -443,11 +443,14 @@
   text-align: left;
 }
 
-/* Below Java's width the greyed, not-yet-built buttons give way so the rest never overlaps. */
-@media (max-width: 1299px) {
-  .jt-bottom .jt-optional {
-    display: none;
-  }
+/* A button with no room at this width (toolbarFit.ts): out of the row and unseen, but still
+   measurable, so it comes back as soon as it fits. 更多 lists it meanwhile. */
+.jt-bottom .jt-fit-hidden {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .jt-pause-glyph {
@@ -514,6 +517,12 @@
 
 .jt-more-menu button:disabled {
   color: var(--jf-text-disabled);
+}
+
+.jt-more-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--jf-hairline);
 }
 
 /* Main panel: Java's regions over the tiled wallpaper. */
