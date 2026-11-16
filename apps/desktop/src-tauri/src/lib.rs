@@ -16,6 +16,7 @@ pub mod startup;
 mod system_open;
 pub mod tencent_error;
 pub mod updater;
+mod web_board_assets;
 mod window_preferences;
 mod window_shutdown;
 mod window_state;
@@ -48,6 +49,11 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             floating::on_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
+            commands::web_board::start_web_board,
+            commands::web_board::stop_web_board,
+            commands::web_board::web_board_status,
+            commands::web_board::set_web_board_options,
+            commands::web_board::force_end_web_trial,
             commands::document::open_bytes,
             commands::document::open_path,
             commands::document::save,
@@ -330,6 +336,9 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                     Some(std::sync::Arc::new(
                         app_core::commentary_keys::SystemKeyStore,
                     )),
+                    Some(std::sync::Arc::new(web_board_assets::EmbeddedWebAssets(
+                        app.handle().clone(),
+                    ))),
                 ))?;
             tauri::async_runtime::block_on(release_startup::initialize(app.handle(), &core))?;
             let window_preferences =

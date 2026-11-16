@@ -12,13 +12,22 @@ impl Actor {
         &self,
         query: ProblemMovesQuery,
     ) -> Result<ProblemMovesView, AppError> {
+        self.problem_moves_with_settings(query, &self.settings.move_rank)
+    }
+
+    pub(super) fn problem_moves_with_settings(
+        &self,
+        query: ProblemMovesQuery,
+        settings: &MoveRankSettings,
+    ) -> Result<ProblemMovesView, AppError> {
         let graph = GraphView::from_document(&self.document)?;
         let nodes: HashMap<_, _> = self.tree.nodes.iter().map(|node| (node.id, node)).collect();
         let mut error_bar = Vec::with_capacity(graph.points.len());
         let mut entries = Vec::new();
         for point in graph.points {
             let mv = nodes.get(&point.node_id).and_then(|node| node.mv);
-            let evaluated = mv.and_then(|mv| self.move_loss(NodeId(point.node_id), mv.into()));
+            let evaluated =
+                mv.and_then(|mv| self.move_loss(NodeId(point.node_id), mv.into(), settings));
             let loss = evaluated.as_ref().map(|(_, loss)| loss.clone());
             if let Some((coordinate, loss)) = evaluated
                 && let Some(mv) = mv
@@ -55,7 +64,7 @@ impl Actor {
         });
         Ok(ProblemMovesView {
             revision: self.revision,
-            settings: self.settings.move_rank.clone(),
+            settings: settings.clone(),
             query,
             entries,
             error_bar,
@@ -63,7 +72,12 @@ impl Actor {
         })
     }
 
-    fn move_loss(&self, node: NodeId, mv: Move) -> Option<(String, MoveLoss)> {
+    fn move_loss(
+        &self,
+        node: NodeId,
+        mv: Move,
+        settings: &MoveRankSettings,
+    ) -> Option<(String, MoveLoss)> {
         let parent = self.document.node(node).ok()?.parent()?;
         let before = self.review.results.get(&parent)?;
         let after = self.review.results.get(&node)?;
@@ -76,13 +90,7 @@ impl Actor {
             return None;
         }
         let size = after_position.board.size();
-        let mut loss = MoveLoss::between(
-            mv,
-            size,
-            &before.response,
-            &after.response,
-            &self.settings.move_rank,
-        )?;
+        let mut loss = MoveLoss::between(mv, size, &before.response, &after.response, settings)?;
         let best = before
             .response
             .move_infos
@@ -91,10 +99,7 @@ impl Actor {
         if !before.candidate_has_score(&best.coordinate) || !after.root_has_score() {
             loss.score_loss_available = false;
             loss.score_loss = 0.0;
-            loss.rank = self
-                .settings
-                .move_rank
-                .classify_losses(loss.winrate_loss, None);
+            loss.rank = settings.classify_losses(loss.winrate_loss, None);
         }
         Some((mv.to_gtp(size).ok()?, loss))
     }

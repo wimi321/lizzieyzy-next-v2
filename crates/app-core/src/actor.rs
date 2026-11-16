@@ -1,6 +1,6 @@
 use crate::{
-    AnalysisSummary, AnalysisView, AppConfig, AppError, AppEvent, DocumentView, EngineProfile,
-    EngineStatus, Settings, VariationPreviewView, VariationTreeView, delivery::Delivery,
+    AnalysisSummary, AnalysisView, AppConfig, AppError, AppEvent, EngineProfile, EngineStatus,
+    Settings, VariationPreviewView, VariationTreeView, delivery::Delivery,
 };
 use analysis::{AnalysisHandle, AnalysisSnapshot, AnalysisStatus, AnalysisSubscription, Focus};
 use document::{AnalysisKey, GameDocument, NodeId};
@@ -22,6 +22,7 @@ mod clear_analysis;
 mod coach;
 mod commentary;
 mod display;
+mod document_view;
 mod editing;
 mod engine_settings;
 mod engines;
@@ -46,6 +47,7 @@ mod strength_estimate;
 mod tencent;
 mod trial;
 mod tsumego;
+mod web_board;
 mod weights;
 mod windows;
 mod zhizi;
@@ -80,6 +82,7 @@ struct ViewFocus {
 }
 
 struct Actor {
+    web_board: web_board::State,
     restriction: Option<crate::AnalysisRestriction>,
     restricted_analysis: Option<crate::AnalysisView>,
     scoring: Option<scoring::Session>,
@@ -144,6 +147,7 @@ pub(crate) async fn run(
         settings.cache_enabled,
     );
     let mut actor = Actor {
+        web_board: Default::default(),
         restriction: None,
         restricted_analysis: None,
         scoring: None,
@@ -208,16 +212,18 @@ pub(crate) async fn run(
     let mut autosave = tokio::time::interval_at(tokio::time::Instant::now() + period, period);
     autosave.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
+        let web_deadline = actor.web_deadline();
         tokio::select! {
             _ = autosave.tick() => actor.autosave(false).await,
             () = std::future::ready(()), if actor.match_needs_advance() => actor.advance_match().await,
             () = std::future::ready(()), if actor.batch_needs_advance() => actor.advance_batch().await,
             command = commands.recv() => {
               let command = match command {
-                Some(command) => match actor.acceleration_guard(command).and_then(|command| actor.update_guard(command)).and_then(|command| actor.batch_guard(command)).and_then(|command| actor.match_guard(command)).and_then(|command| actor.game_guard(command)) { Some(command) => Some(command), None => continue },
+                Some(command) => match actor.web_trial_guard(command).and_then(|command| actor.acceleration_guard(command)).and_then(|command| actor.update_guard(command)).and_then(|command| actor.batch_guard(command)).and_then(|command| actor.match_guard(command)).and_then(|command| actor.game_guard(command)) { Some(command) => Some(command), None => continue },
                 None => None,
               };
               match command {
+                Some(Command::WebBoard(request, reply)) => { let _ = reply.send(actor.web_board_command(request).await); }
                 Some(Command::EnableAcceleration(backend, reply)) => actor.begin_acceleration(backend, reply).await,
                 Some(Command::CancelAcceleration(reply)) => { let _ = reply.send(actor.cancel_asset_download().await); }
                 Some(Command::AccelerationOutput(reply)) => { let _ = reply.send(actor.acceleration_output()); }
@@ -299,6 +305,7 @@ pub(crate) async fn run(
                 }
                 Some(Command::TryAutoEngine(trial, reply)) => actor.begin_auto_trial(trial, reply).await,
                 Some(Command::Apply(Input::Shutdown, reply)) => {
+                    let web_result = actor.stop_web_board().await;
                     actor.autosave(true).await;
                     actor.stop_commentary();
                     if actor.batch_active() { actor.stop_batch(None).await; }
@@ -311,7 +318,7 @@ pub(crate) async fn run(
                     let assets_result = actor.assets.shutdown().await;
                     let benchmark_result = actor.stop_benchmark_process().await;
                     let sync_result = actor.stop_board_sync().await;
-                    let result = actor.stop_engine().await.and(sync_result).and(benchmark_result).and(assets_result).and(updates_result).map(|()| actor.revision);
+                    let result = actor.stop_engine().await.and(sync_result).and(benchmark_result).and(assets_result).and(updates_result).and(web_result).map(|()| actor.revision);
                     if let Some(cache) = actor.cache.take() { cache.shutdown().await; }
                     if let Some(support) = actor.support.take() { let _ = support.shutdown().await; }
                     let _ = reply.send(result);
@@ -324,9 +331,11 @@ pub(crate) async fn run(
                     actor.auto_setup.cancel();
                     actor.begin_trial(profile, source, reply).await;
                 }
-                None => { actor.autosave(true).await; if actor.batch_active() { actor.stop_batch(None).await; } actor.cancel_acceleration(false).await; actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
+                None => { let _ = actor.stop_web_board().await; actor.autosave(true).await; if actor.batch_active() { actor.stop_batch(None).await; } actor.cancel_acceleration(false).await; actor.cancel_trial().await; let _ = actor.stop_benchmark_process().await; let _ = actor.stop_board_sync().await; let _ = actor.stop_engine().await; break; }
               }
             },
+            event = web_board::receive(&mut actor.web_board) => actor.web_transport_event(event).await,
+            () = web_board::deadline(web_deadline) => actor.expire_web_trial().await,
             progress = commentary::receive(&mut actor.commentary) => actor.commentary_progress(progress).await,
             line = gtp::receive(&mut actor.gtp) => actor.gtp_line(line),
             signal = next_signal(&mut actor.running) => actor.cache_signal(signal).await,
@@ -345,6 +354,7 @@ pub(crate) async fn run(
             actor.maybe_start_auto_curve().await;
         }
         actor.publish_analysis_state();
+        actor.refresh_web_board();
     }
     actor.stop_commentary();
     actor.shutdown_match().await;
@@ -380,60 +390,6 @@ async fn next_signal(running: &mut Option<Running>) -> Signal {
 }
 
 impl Actor {
-    fn publish_document(&mut self) -> Result<(), AppError> {
-        self.tree.refresh(&self.document, self.revision)?;
-        self.refresh_graph_analysis();
-        let mut view = DocumentView::from_document(&self.document, self.tree.revision)?;
-        view.file_name = self.file_name.clone();
-        view.file_path = self
-            .file_state
-            .path
-            .as_ref()
-            .map(|path| path.to_string_lossy().into_owned());
-        view.modified = self.file_state.modified(&self.document);
-        view.can_undo = self.file_state.analysis_edits.can_undo(&self.document);
-        view.can_redo = self.file_state.analysis_edits.can_redo(&self.document);
-        view.warnings.retain(|warning| {
-            !self.is_analysis_cleared(NodeId(warning.node))
-                || !clear_analysis::is_analysis(&warning.property)
-        });
-        view.warnings.extend(
-            self.file_state
-                .save_warnings
-                .iter()
-                .cloned()
-                .map(Into::into),
-        );
-        view.trial = self.move_trial.is_some();
-        view.analysis_restriction = self.restriction.clone();
-        view.restricted_analysis = self
-            .restricted_analysis
-            .clone()
-            .filter(|v| v.revision == self.revision && v.node_id == self.document.current().0)
-            .map(Box::new);
-        view.scoring = self.scoring_view()?.map(Box::new);
-        view.tree.comment_revision = self.tree.comment_revision;
-        for point in &mut view.graph.points {
-            let node = NodeId(point.node_id);
-            point.summary = self
-                .graph_analysis
-                .valid_nodes
-                .contains(&node)
-                .then(|| self.summaries.get(&node).copied())
-                .flatten();
-        }
-        self.output.send(AppEvent::DocumentChanged {
-            revision: self.revision,
-            view,
-        });
-        // Document events coalesce in the mailbox. Keep the matching result
-        // after the document so a slow consumer can establish its revision.
-        self.output
-            .republish_analysis(self.revision, self.document.current().0);
-        self.publish_saved_focus();
-        Ok(())
-    }
-
     async fn apply(&mut self, input: Input) -> Result<u64, AppError> {
         match input {
             Input::DismissAccelerationHint => self.dismiss_acceleration_hint().await?,

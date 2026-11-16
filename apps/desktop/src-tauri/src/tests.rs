@@ -44,6 +44,7 @@ mod system_open;
 mod tencent;
 mod tsumego;
 mod variation;
+mod web_board;
 mod weights;
 mod zhizi_website;
 
@@ -219,6 +220,7 @@ impl Harness {
                     | AppEvent::CoachUpdated(_)
                     | AppEvent::CoachMoveRated(_)
                     | AppEvent::CoachSummary(_)
+                    | AppEvent::WebBoardChanged(_)
                     | AppEvent::FloatingBoardsChanged(_)
                     | AppEvent::DisplaySettingsChanged(_)
                     | AppEvent::CommentaryUpdated(_) => {}

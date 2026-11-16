@@ -137,3 +137,36 @@ fn acceleration_reconnect_replays_only_the_latest_stage() {
         "Ready"
     );
 }
+
+#[test]
+fn web_board_reconnect_replays_latest_viewers_and_trial() {
+    let mut replay = vec![];
+    for viewers in [0, 1, 2] {
+        let status = app_core::WebBoardStatus {
+            running: true,
+            port: Some(9998),
+            viewers,
+            trial: (viewers == 2).then(|| app_core::WebTrialOwner {
+                owner: "client-1".into(),
+                since: 123,
+            }),
+            ..Default::default()
+        };
+        remember_state(&mut replay, &AppEvent::WebBoardChanged(status));
+    }
+    assert_eq!(replay.len(), 1);
+    assert_eq!(
+        serde_json::to_value(&replay[0]).unwrap()["data"]["viewers"],
+        2
+    );
+    assert_eq!(
+        serde_json::to_value(&replay[0]).unwrap()["data"]["trial"]["owner"],
+        "client-1"
+    );
+    remember_state(&mut replay, &AppEvent::WebBoardChanged(Default::default()));
+    assert_eq!(replay.len(), 1);
+    assert_eq!(
+        serde_json::to_value(&replay[0]).unwrap()["data"]["running"],
+        false
+    );
+}

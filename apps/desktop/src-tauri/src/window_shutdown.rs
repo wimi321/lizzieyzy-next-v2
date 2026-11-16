@@ -30,6 +30,9 @@ pub(crate) fn on_run_event<R: Runtime>(app: &tauri::AppHandle<R>, event: &tauri:
     let app = app.clone();
     let code = code.unwrap_or(0);
     tauri::async_runtime::spawn(async move {
+        if let Err(error) = core.stop_web_board().await {
+            eprintln!("stop web board at shutdown: {error}");
+        }
         if let Some(windows) = windows
             && let Err(error) = windows.apply(crate::floating::Action::Flush).await
         {

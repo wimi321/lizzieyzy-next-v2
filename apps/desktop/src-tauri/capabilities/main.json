@@ -5,6 +5,11 @@
   "local": true,
   "windows": ["main"],
   "permissions": [
+    "allow-start-web-board",
+    "allow-stop-web-board",
+    "allow-web-board-status",
+    "allow-set-web-board-options",
+    "allow-force-end-web-trial",
     "allow-open-bytes",
     "allow-open-path",
     "allow-save",

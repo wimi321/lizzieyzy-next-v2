@@ -26,6 +26,7 @@ pub mod support;
 pub mod tencent;
 pub mod tsumego;
 pub mod variation;
+pub mod web_board;
 pub mod weights;
 pub mod windows;
 pub mod zhizi;
