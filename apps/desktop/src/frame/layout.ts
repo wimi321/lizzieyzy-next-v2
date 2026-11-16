@@ -20,8 +20,10 @@ export interface FrameLayout {
   /** 选点列表面板: the candidates, under the tree. */
   list: Rect;
   subBoard: Rect;
-  /** 思考模式's plain board, or 四方图's four small boards; empty in the other layouts. */
+  /** 思考模式's plain board, 四方图's four small boards or 双引擎模式's second board; empty otherwise. */
   extra: Rect;
+  /** 双引擎模式's two status lines under the boards; empty in the other layouts. */
+  lines: Rect;
 }
 
 /** Height Java reserves for the status line: one line of 14 px text at 1.8 line height, plus 4. */
@@ -125,5 +127,6 @@ export function inFrameLayout(width: number, height: number, boardSize = 19, sho
     list,
     subBoard: { x: subBoardX, y: subBoardY, width: Math.max(0, subBoardLength), height: Math.max(0, subBoardLength) },
     extra: { x: 0, y: 0, width: 0, height: 0 },
+    lines: { x: 0, y: 0, width: 0, height: 0 },
   };
 }

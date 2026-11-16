@@ -17,6 +17,10 @@ export type MenuEntry =
       readonly suffix?: string;
       /** Shown on hover, e.g. a recent file's whole path. */
       readonly title?: string;
+      /** Found by 搜索功能 but not shown in the menus, as Java's 选择对比引擎. */
+      readonly searchOnly?: boolean;
+      /** Other words 搜索功能 finds the entry by, in any language. */
+      readonly keywords?: readonly string[];
     }
   | {
       readonly kind: "submenu";
@@ -564,6 +568,30 @@ export function withGtpEngines(menus: readonly MenuSubmenu[], label: string): Me
 /** The menus as Java builds them on this platform. */
 export function menusFor(windows: boolean): readonly MenuSubmenu[] {
   return windows ? MENUS : MENUS.map((menu) => without(menu, WINDOWS_ONLY));
+}
+
+/** The menus as the strip shows them: entries only 搜索功能 lists are left out. */
+export function withoutSearchOnly(menus: readonly MenuSubmenu[]): MenuSubmenu[] {
+  const keep = (entries: readonly MenuEntry[]): MenuEntry[] =>
+    entries.filter((entry) => !(entry.kind !== "separator" && entry.kind !== "submenu" && entry.searchOnly)).map((entry) => (entry.kind === "submenu" ? { ...entry, items: keep(entry.items) } : entry));
+  return menus.map((menu) => ({ ...menu, items: keep(menu.items) }));
+}
+
+/**
+ * 双引擎模式's second engine menu after the engine menu (Java's `engineMenu2`): titled with the
+ * comparison engine as "[n]: name", or 未加载引擎; the configured engines, then 重启当前引擎 and
+ * 关闭当前引擎, which act on the comparison engine.
+ */
+export function comparisonMenu(names: readonly string[], selected: number | null): MenuSubmenu {
+  const items: MenuEntry[] = [
+    ...names.map((name, index) => check(`comparisonEngine${index}`, null, undefined, `[${index + 1}] ${name}`)),
+    ...(names.length > 0 ? [SEP] : []),
+    item("restartCurrentEngine2", "Menu.restartCurrentEngine"),
+    item("shutdownCurrentEngine2", "Menu.shutdownCurrentEngine"),
+  ];
+  const name = selected === null ? undefined : names[selected];
+  if (selected === null || name === undefined) return sub("engineMenu2", "Menu.noEngine", items);
+  return { kind: "submenu", id: "engineMenu2", key: null, text: `[${selected + 1}]: ${name}`, items };
 }
 
 /**

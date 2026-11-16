@@ -83,8 +83,14 @@ describe("the layout entries", () => {
     expect(hook.result.current.bindings.extraMode3?.checked).toBe(true);
     act(() => hook.result.current.bindings.extraMode3?.run?.());
     expect(set).toHaveBeenLastCalledWith(PRESETS.defaultView.patch);
-    // 双引擎模式 waits for the comparison engine.
-    expect(hook.result.current.bindings.extraMode2).toBeUndefined();
+    // 双引擎模式 (Alt+6): the layout alone, the window about twice the boards' height wide.
+    act(() => hook.result.current.bindings.extraMode2?.run?.());
+    expect(set).toHaveBeenLastCalledWith({ layout_mode: "DoubleEngine" });
+    expect(presetWindow("extraMode2", MEASURES)).toEqual({ width: Math.round(915 * 1.75), height: 941 });
+    hook.rerender({ now: { ...DISPLAY_DEFAULTS, layout_mode: "DoubleEngine" } });
+    expect(hook.result.current.bindings.extraMode2?.checked).toBe(true);
+    act(() => hook.result.current.bindings.extraMode2?.run?.());
+    expect(set).toHaveBeenLastCalledWith(PRESETS.defaultView.patch);
   });
 
   test("放大 entries are checked only with their panel shown; the board moves in eighths, 0 to 8", () => {

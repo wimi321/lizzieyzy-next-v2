@@ -18,6 +18,7 @@ import "./styles/layout.css";
 import "./styles/floating.css";
 import "./styles/acceleration.css";
 import "./styles/webboard.css";
+import "./styles/comparison.css";
 
 const root = document.getElementById("root");
 if (!root) {
