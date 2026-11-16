@@ -221,6 +221,21 @@ async fn enable_analyze_and_return_to_bundled_cpu() {
             "[comparison] GPU={gpu_speed:.2} visits/s CPU={cpu_speed:.2} visits/s ratio={:.2}",
             gpu_speed / cpu_speed
         );
+        let plan_started = Instant::now();
+        let plan = observe_stage("6 installed plan", &mut events, app.acceleration_plan())
+            .await
+            .unwrap();
+        eprintln!(
+            "[6 installed plan] elapsed={:.3}s {}",
+            plan_started.elapsed().as_secs_f64(),
+            serde_json::to_string_pretty(&plan).unwrap()
+        );
+        assert!(
+            plan.options
+                .iter()
+                .any(|option| option.backend == backend && option.installed),
+            "the backend must remain installed after tuning and analysis: {plan:?}"
+        );
     })
     .catch_unwind()
     .await;

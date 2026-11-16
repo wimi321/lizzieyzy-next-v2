@@ -82,30 +82,38 @@ impl Actor {
         self.engine_command(request, reply).await;
     }
 
-    pub(super) async fn runtime_environment(
-        &mut self,
-        profile: &EngineProfile,
-    ) -> Result<std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>, AppError> {
-        if !crate::runtime::enabled(&self.config) {
-            return Ok(Default::default());
-        }
-        match self
-            .asset_handle()?
-            .runtime_for_program(profile.program.clone())
-            .await?
-        {
-            Some(installation) => crate::runtime::environment(&installation),
-            None => Ok(Default::default()),
-        }
-    }
-
     pub(super) async fn with_runtime_environment(
         &mut self,
         profile: &EngineProfile,
         transport: &mut engine_session::TransportSpec,
     ) -> Result<(), AppError> {
-        if let engine_session::TransportSpec::LocalProcess { env, .. } = transport {
-            env.extend(self.runtime_environment(profile).await?);
+        let engine_session::TransportSpec::LocalProcess { args, env, .. } = transport else {
+            return Ok(());
+        };
+        if !crate::runtime::enabled(&self.config) {
+            return Ok(());
+        }
+        let handle = self.asset_handle()?;
+        let installation = handle
+            .runtime_for_program_quick(profile.program.clone())
+            .await?;
+        let managed = if let Some(installation) = installation {
+            env.extend(crate::runtime::environment(&installation)?);
+            // A ready result includes both the managed path and pinned program
+            // check. A copied GPU executable outside runtimes is not ready.
+            true
+        } else {
+            // The bundled Windows CPU build is recognized by its pinned bytes,
+            // never by a filename that an unrelated external engine can share.
+            handle.current_backend(profile.program.clone()).await? == crate::EngineBackend::Eigen
+        };
+        if managed {
+            let data_root = self
+                .config
+                .cache_directory
+                .as_ref()
+                .unwrap_or(&self.directory);
+            crate::runtime::home::apply(args, data_root).await?;
         }
         Ok(())
     }

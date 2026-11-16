@@ -542,7 +542,6 @@ fn main() -> std::process::ExitCode {
         }
     };
     let exit_log = options.exit_log.clone();
-    let startup_log = options.log_file.clone();
     let result = run(options);
     if let Some(path) = exit_log {
         let written = OpenOptions::new()
@@ -558,9 +557,6 @@ fn main() -> std::process::ExitCode {
     match result {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
-            if let Some(path) = startup_log {
-                let _ = startup::append(&path, &error.to_string());
-            }
             eprintln!("{error}");
             std::process::ExitCode::FAILURE
         }

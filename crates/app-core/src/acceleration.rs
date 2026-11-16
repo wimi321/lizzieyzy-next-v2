@@ -8,7 +8,7 @@ use tokio::sync::oneshot;
 use ts_rs::TS;
 
 pub(crate) mod deadline;
-pub(crate) mod log;
+pub(crate) mod monitor;
 pub(crate) mod output;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]

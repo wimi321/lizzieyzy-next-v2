@@ -15,6 +15,7 @@ pub(super) async fn run(
     directory: &Path,
     catalog: &AssetCatalog,
     profile_id: &str,
+    quick: bool,
     commands: &mut mpsc::Receiver<Command>,
     events: &watch::Sender<AssetDownloadStatus>,
 ) -> bool {
@@ -24,6 +25,7 @@ pub(super) async fn run(
         directory,
         catalog,
         profile_id,
+        quick,
         &cancellation,
         events,
         &pause,
@@ -33,7 +35,7 @@ pub(super) async fn run(
         tokio::select! {
             result = &mut operation => { finish(events, result); return false; }
             command = commands.recv() => match command {
-                Some(Command::Start(id, reply)) | Some(Command::Install(id, reply)) => {
+                Some(Command::Start(id, reply)) | Some(Command::Install(id, _, reply)) => {
                     let same = id == profile_id || catalog.get(&id).is_ok_and(|asset| {
                         !asset.weight && profile_for_asset(catalog, &id).as_deref() == Some(profile_id)
                     });
@@ -142,6 +144,7 @@ async fn install(
     root: &Path,
     catalog: &AssetCatalog,
     profile_id: &str,
+    quick: bool,
     cancel: &watch::Receiver<bool>,
     events: &watch::Sender<AssetDownloadStatus>,
     pause: &pause::Pause<'_>,
@@ -151,7 +154,11 @@ async fn install(
     let id = profile_id.to_owned();
     let initial_cancel = cancel.clone();
     let current = tokio::task::spawn_blocking(move || {
-        runtime::inspect_cancellable(&owned_root, &owned_catalog, &id, &initial_cancel)
+        if quick {
+            runtime::inspect_quick_cancellable(&owned_root, &owned_catalog, &id, &initial_cancel)
+        } else {
+            runtime::inspect_cancellable(&owned_root, &owned_catalog, &id, &initial_cancel)
+        }
     })
     .await
     .map_err(|error| AssetError::Worker(error.to_string()))??;

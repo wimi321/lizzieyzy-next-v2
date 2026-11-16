@@ -7,6 +7,7 @@ mod humansl;
 mod install;
 mod runtime;
 mod runtime_archive;
+mod runtime_record;
 #[cfg(test)]
 pub(crate) mod runtime_test_support;
 // Only the Unix runtime tests use it; elsewhere it would be an unused import.
@@ -34,7 +35,7 @@ pub use types::{
 type Reply = oneshot::Sender<Result<AssetDownloadStatus, AssetError>>;
 enum Command {
     Start(String, Reply),
-    Install(String, Reply),
+    Install(String, bool, Reply),
     Cancel(Reply),
     Pause(Reply),
     ImportHumanSl(
@@ -99,7 +100,16 @@ impl AssetHandle {
         &self,
         profile_id: String,
     ) -> Result<AssetDownloadStatus, AssetError> {
-        self.request(|reply| Command::Install(profile_id, reply))
+        self.request(|reply| Command::Install(profile_id, false, reply))
+            .await
+    }
+
+    /// Routine activation may reuse an installation's metadata receipt.
+    pub async fn ensure_runtime(
+        &self,
+        profile_id: String,
+    ) -> Result<AssetDownloadStatus, AssetError> {
+        self.request(|reply| Command::Install(profile_id, true, reply))
             .await
     }
 
@@ -111,13 +121,33 @@ impl AssetHandle {
         &self,
         profile_id: String,
     ) -> Result<RuntimeInstallation, AssetError> {
+        self.runtime_installation_mode(profile_id, false).await
+    }
+
+    pub async fn runtime_installation_quick(
+        &self,
+        profile_id: String,
+    ) -> Result<RuntimeInstallation, AssetError> {
+        self.runtime_installation_mode(profile_id, true).await
+    }
+
+    async fn runtime_installation_mode(
+        &self,
+        profile_id: String,
+        quick: bool,
+    ) -> Result<RuntimeInstallation, AssetError> {
         self.ensure_open()?;
         let root = self.directory.clone();
         let catalog = self.catalog.clone();
-        let result =
-            tokio::task::spawn_blocking(move || runtime::inspect(&root, &catalog, &profile_id))
-                .await
-                .map_err(|error| AssetError::Worker(error.to_string()))?;
+        let result = tokio::task::spawn_blocking(move || {
+            if quick {
+                runtime::inspect_quick(&root, &catalog, &profile_id)
+            } else {
+                runtime::inspect(&root, &catalog, &profile_id)
+            }
+        })
+        .await
+        .map_err(|error| AssetError::Worker(error.to_string()))?;
         self.ensure_open()?;
         result
     }
@@ -126,13 +156,33 @@ impl AssetHandle {
         &self,
         program: PathBuf,
     ) -> Result<Option<RuntimeInstallation>, AssetError> {
+        self.runtime_for_program_mode(program, false).await
+    }
+
+    pub async fn runtime_for_program_quick(
+        &self,
+        program: PathBuf,
+    ) -> Result<Option<RuntimeInstallation>, AssetError> {
+        self.runtime_for_program_mode(program, true).await
+    }
+
+    async fn runtime_for_program_mode(
+        &self,
+        program: PathBuf,
+        quick: bool,
+    ) -> Result<Option<RuntimeInstallation>, AssetError> {
         self.ensure_open()?;
         let root = self.directory.clone();
         let catalog = self.catalog.clone();
-        let result =
-            tokio::task::spawn_blocking(move || runtime::for_program(&root, &catalog, &program))
-                .await
-                .map_err(|error| AssetError::Worker(error.to_string()))?;
+        let result = tokio::task::spawn_blocking(move || {
+            if quick {
+                runtime::for_program_quick(&root, &catalog, &program)
+            } else {
+                runtime::for_program(&root, &catalog, &program)
+            }
+        })
+        .await
+        .map_err(|error| AssetError::Worker(error.to_string()))?;
         self.ensure_open()?;
         result
     }
@@ -200,13 +250,17 @@ impl AssetHandle {
     ) -> Result<AccelerationPlan, AssetError> {
         for option in &mut plan.options {
             option.installed = self
-                .runtime_installation(option.profile_id.clone())
+                .runtime_installation_quick(option.profile_id.clone())
                 .await?
                 .ready;
             option.download_bytes = 0;
             for id in &self.catalog.profile(&option.profile_id)?.assets {
                 let spec = self.catalog.get(id)?;
-                if !transfer::verified(&self.directory.join(spec.relative_path()), spec).await? {
+                let present =
+                    tokio::fs::symlink_metadata(self.directory.join(spec.relative_path()))
+                        .await
+                        .is_ok_and(|metadata| metadata.is_file() && metadata.len() == spec.size);
+                if !present {
                     option.download_bytes = option
                         .download_bytes
                         .checked_add(spec.size)
@@ -286,6 +340,7 @@ async fn run(
                         &directory,
                         &catalog,
                         profile_id,
+                        false,
                         reply,
                         &mut commands,
                         &events,
@@ -308,11 +363,12 @@ async fn run(
                     break;
                 }
             }
-            Command::Install(profile_id, reply) => {
+            Command::Install(profile_id, quick, reply) => {
                 if begin_install(
                     &directory,
                     &catalog,
                     profile_id,
+                    quick,
                     reply,
                     &mut commands,
                     &events,
@@ -342,6 +398,7 @@ async fn begin_install(
     directory: &std::path::Path,
     catalog: &AssetCatalog,
     profile_id: String,
+    quick: bool,
     reply: Reply,
     commands: &mut mpsc::Receiver<Command>,
     events: &watch::Sender<AssetDownloadStatus>,
@@ -368,7 +425,7 @@ async fn begin_install(
     };
     events.send_replace(status.clone());
     let _ = reply.send(Ok(status));
-    install::run(directory, catalog, &profile_id, commands, events).await
+    install::run(directory, catalog, &profile_id, quick, commands, events).await
 }
 
 enum Outcome {
@@ -500,7 +557,7 @@ async fn transfer_until_done(
                     result = &mut transfer => break Outcome::Complete(result),
                     command = commands.recv() => match command {
                         Some(Command::ImportHumanSl(_, reply)) => { let _ = reply.send(Err(AssetError::Busy)); }
-                        Some(Command::Install(_, reply)) => { let _ = reply.send(Err(AssetError::Busy)); }
+                        Some(Command::Install(_, _, reply)) => { let _ = reply.send(Err(AssetError::Busy)); }
                         Some(Command::Start(id, reply)) => {
                             let result = if id == spec.id { Ok(events.borrow().clone()) } else { Err(AssetError::Busy) };
                             let _ = reply.send(result);
@@ -539,7 +596,7 @@ async fn transfer_until_done(
                     let _ = reply.send(Ok(events.borrow().clone()));
                     break;
                 }
-                Some(Command::Start(_, reply) | Command::Install(_, reply)) => {
+                Some(Command::Start(_, reply) | Command::Install(_, _, reply)) => {
                     let _ = reply.send(Err(AssetError::Busy));
                 }
                 Some(Command::ImportHumanSl(_, reply)) => {

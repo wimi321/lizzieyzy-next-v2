@@ -1,21 +1,5 @@
 //! Scripted startup diagnostics. Only the fake process reads these test knobs.
 use crate::{RunError, cli::Options};
-use std::{fs::OpenOptions, io::Write, path::Path};
-
-pub(crate) fn append(path: &Path, line: &str) -> std::io::Result<()> {
-    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
-    writeln!(file, "{line}")?;
-    file.flush()
-}
-
-fn emit(options: &Options, line: &str) -> Result<(), RunError> {
-    eprintln!("{line}");
-    if let Some(path) = &options.log_file {
-        append(path, line)?;
-    }
-    Ok(())
-}
-
 pub(crate) fn backend(options: &Options) -> Result<(), RunError> {
     let line = match options.backend.as_deref() {
         Some("cuda") => "Cuda backend thread 0: Found GPU Fake NVIDIA GPU",
@@ -24,7 +8,8 @@ pub(crate) fn backend(options: &Options) -> Result<(), RunError> {
         Some("eigen") => "Compiled with Eigen (CPU)",
         _ => return Ok(()),
     };
-    emit(options, line)
+    eprintln!("{line}");
+    Ok(())
 }
 
 #[derive(Default)]
@@ -48,13 +33,18 @@ impl Tuning {
     pub(crate) fn advance(&mut self, options: &Options, now: f64) -> Result<(), RunError> {
         let messages = [
             "Performing autotuning",
-            "Tuning xGemmDirect",
-            "Started OpenCL SGEMM",
-            "This will take a while",
+            "Beginning GPU tuning for Fake GPU modelVersion 15 channels 512",
+            "Tuning xGemmDirect for 1x1 convolutions and matrix mult",
+            "Testing 55 different configs",
+            "Tuning 40/55 ...",
         ];
         while !self.finished(options) && now >= self.next(options) {
-            let line = messages[self.emitted as usize % messages.len()];
-            emit(options, &format!("{line} (step {})", self.emitted + 1))?;
+            let line = if self.emitted == 0 && options.backend.as_deref() == Some("tensorrt") {
+                "Creating new plan cache"
+            } else {
+                messages[self.emitted as usize % messages.len()]
+            };
+            eprintln!("{line} (step {})", self.emitted + 1);
             self.emitted += 1;
         }
         Ok(())

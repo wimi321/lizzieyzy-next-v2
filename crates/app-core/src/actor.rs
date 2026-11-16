@@ -220,7 +220,7 @@ pub(crate) async fn run(
               match command {
                 Some(Command::EnableAcceleration(backend, reply)) => actor.begin_acceleration(backend, reply).await,
                 Some(Command::CancelAcceleration(reply)) => { let _ = reply.send(actor.cancel_asset_download().await); }
-                Some(Command::AccelerationOutput(reply)) => { let mut lines = actor.acceleration.output.clone(); if let Some(line) = &actor.acceleration.backend_line && !lines.contains(line) { lines.insert(0, line.clone()); } let _ = reply.send(lines); }
+                Some(Command::AccelerationOutput(reply)) => { let _ = reply.send(actor.acceleration_output()); }
                 Some(Command::SaveSlots(request)) => actor.save_slots_command(request).await,
                 Some(Command::ZhiziService(reply)) => { let _ = reply.send(actor.zhizi.clone()); }
                 Some(Command::ZhiziCredentialsChanged(reply)) => { let _ = reply.send(actor.zhizi_credentials_changed().await); }
@@ -775,7 +775,8 @@ impl Actor {
             engine_result?;
             coordinator_result?;
         }
-        self.acceleration.log = None;
+        self.acceleration_output();
+        self.acceleration.monitor = None;
         self.output
             .send(AppEvent::EngineStatusChanged(EngineStatus::Stopped));
         Ok(())

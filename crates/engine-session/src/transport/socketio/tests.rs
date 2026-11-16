@@ -638,13 +638,15 @@ fn trace_log_file_omits_session_tokens_and_server_echoed_accounts() {
             .finish();
         let (commands, receiver) = mpsc::channel(64);
         let (status, status_rx) = tokio::sync::watch::channel(EngineStatus::Starting);
+        let (stderr, _) = tokio::sync::broadcast::channel(256);
         let task = tokio::spawn(
-            crate::actor::run(server.spec(), config(), receiver, status)
+            crate::actor::run(server.spec(), config(), receiver, status, stderr.clone())
                 .with_subscriber(subscriber),
         );
         let engine = crate::EngineHandle {
             commands,
             status: status_rx,
+            stderr,
         };
         ready(&engine).await;
         server.connected().await;

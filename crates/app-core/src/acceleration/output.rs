@@ -5,20 +5,6 @@ use std::collections::VecDeque;
 const TAIL_LINES: usize = 20;
 const LINE_BYTES: usize = 4096;
 
-/// Only known startup messages extend the OpenCL tuning deadline.
-pub(crate) fn is_tuning_line(line: &str) -> bool {
-    let lower = line.to_ascii_lowercase();
-    [
-        "performing autotuning",
-        "tuning xgemmdirect",
-        "started opencl sgemm",
-        "this will take a while",
-        "long time",
-    ]
-    .iter()
-    .any(|marker| lower.contains(marker))
-}
-
 /// This recognizes what KataGo reported, independently of the selected asset.
 pub fn reported_backend(line: &str) -> Option<EngineBackend> {
     let lower = line.to_ascii_lowercase();

@@ -4,10 +4,7 @@ mod common;
 use common::{Engine, TempDirectory};
 
 #[test]
-fn backend_and_all_tuning_lines_precede_readiness_and_reach_the_selected_log() {
-    let directory = TempDirectory::new("startup-output");
-    let log = directory.path().join("startup.log");
-    let override_config = format!("logFile={}", log.display());
+fn backend_and_real_tuning_lines_precede_readiness_in_stderr() {
     let mut engine = Engine::spawn(&[
         "--backend",
         "opencl",
@@ -15,48 +12,37 @@ fn backend_and_all_tuning_lines_precede_readiness_and_reach_the_selected_log() {
         "4",
         "--tuning-interval-ms",
         "1",
-        "-override-config",
-        &override_config,
     ]);
     engine.ready();
-    // The version response is the barrier: all tuning must have finished first.
-    let lines = std::fs::read_to_string(&log).unwrap();
-    assert_eq!(lines.lines().count(), 5);
-    assert!(lines.contains("OpenCL backend thread"));
-    for marker in [
-        "Performing autotuning",
-        "Tuning xGemmDirect",
-        "Started OpenCL SGEMM",
-        "This will take a while",
-    ] {
-        assert!(lines.contains(marker));
-    }
     engine.close_input();
     assert_eq!(engine.raw(), None);
     let (status, stderr) = engine.exited();
     assert!(status.success());
-    assert_eq!(stderr, lines.trim_end());
+    assert_eq!(stderr.lines().count(), 5);
+    assert!(stderr.contains("OpenCL backend thread"));
+    for marker in [
+        "Performing autotuning",
+        "Beginning GPU tuning",
+        "Tuning xGemmDirect",
+        "Testing 55 different configs",
+    ] {
+        assert!(stderr.contains(marker));
+    }
 }
 
 #[test]
-fn custom_startup_error_keeps_backend_and_error_in_stderr_and_log() {
-    let directory = TempDirectory::new("startup-error");
-    let log = directory.path().join("startup.log");
-    let override_config = format!("logFile={}", log.display());
+fn custom_startup_error_keeps_backend_and_error_in_stderr() {
     let mut engine = Engine::spawn(&[
         "--backend",
         "cuda",
         "--startup-error",
         "CUDA driver version is insufficient",
-        "-override-config",
-        &override_config,
     ]);
     assert_eq!(engine.raw(), None);
     let (status, stderr) = engine.exited();
     assert_eq!(status.code(), Some(1));
     assert!(stderr.contains("Cuda backend thread 0: Found GPU"));
     assert!(stderr.contains("CUDA driver version is insufficient"));
-    assert_eq!(std::fs::read_to_string(log).unwrap().trim_end(), stderr);
 }
 
 #[test]

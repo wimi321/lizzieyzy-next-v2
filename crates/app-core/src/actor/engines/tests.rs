@@ -35,7 +35,7 @@ fn setup() -> (tempfile::TempDir, Actor, AppSubscription, EngineProfile) {
 async fn command(actor: &mut Actor, request: Request) -> Result<Settings, AppError> {
     let (reply, response) = oneshot::channel();
     within(actor.engine_command(request, reply)).await;
-    if actor.trial.is_some() {
+    while actor.trial.is_some() {
         let result = within(trial::wait(&mut actor.trial)).await;
         within(actor.trial_signal(result)).await;
     }

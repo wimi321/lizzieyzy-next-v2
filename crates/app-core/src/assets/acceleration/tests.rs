@@ -142,7 +142,7 @@ async fn plan(handle: &AssetHandle, catalog: &AssetCatalog) -> AccelerationPlan 
 }
 
 #[tokio::test]
-async fn remaining_download_bytes_count_only_unverified_archives_and_installed_requires_files() {
+async fn remaining_download_bytes_use_archive_sizes_and_installed_uses_file_receipts() {
     let directory = tempfile::tempdir().unwrap();
     let (catalog, archives) = test_runtime_catalog(b"fake executable");
     let (handle, _) = spawn_with_catalog(directory.path().into(), catalog.clone());
@@ -187,11 +187,19 @@ async fn remaining_download_bytes_count_only_unverified_archives_and_installed_r
     assert!(plan(&handle, &catalog).await.options[0].installed);
     std::fs::write(directory.path().join(&archives[0].0), b"corrupt").unwrap();
     let damaged = plan(&handle, &catalog).await;
-    assert!(!damaged.options[0].installed);
+    assert!(damaged.options[0].installed);
     assert_eq!(
         damaged.options[0].download_bytes,
         archives[0].1.len() as u64
     );
+    // Same-size corrupt archives affect explicit installation, not the plan's
+    // download estimate or an already verified installation.
+    let mut corrupt = archives[0].1.clone();
+    corrupt[0] ^= 1;
+    std::fs::write(directory.path().join(&archives[0].0), corrupt).unwrap();
+    let sized = plan(&handle, &catalog).await;
+    assert!(sized.options[0].installed);
+    assert_eq!(sized.options[0].download_bytes, 0);
     within(handle.shutdown()).await.unwrap();
 }
 

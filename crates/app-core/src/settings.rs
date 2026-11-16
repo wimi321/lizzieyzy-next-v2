@@ -450,7 +450,12 @@ impl EngineProfile {
                             "-override-config expects KEY=VALUE entries".into(),
                         )
                     })?;
-                    if key.trim().is_empty() || value.trim().is_empty() {
+                    // KataGo's empty override removes a configuration key.
+                    // Keep user deletions of our optional home/log defaults;
+                    // unrelated keys retain the existing nonempty validation.
+                    let optional_default = key.trim().eq_ignore_ascii_case("homeDataDir")
+                        || key.trim().eq_ignore_ascii_case("logToStderr");
+                    if key.trim().is_empty() || (value.trim().is_empty() && !optional_default) {
                         return Err(SettingsError::InvalidProfile(
                             "-override-config expects nonempty KEY=VALUE entries".into(),
                         ));

@@ -65,7 +65,6 @@ pub struct Options {
     pub tuning_interval_ms: u64,
     pub startup_error: Option<String>,
     pub startup_script_relative: Option<PathBuf>,
-    pub log_file: Option<PathBuf>,
     pub request_log: Option<PathBuf>,
     pub launch_log: Option<PathBuf>,
     pub exit_log: Option<PathBuf>,
@@ -101,7 +100,6 @@ impl Default for Options {
             tuning_interval_ms: 0,
             startup_error: None,
             startup_script_relative: None,
-            log_file: None,
             request_log: None,
             launch_log: None,
             exit_log: None,
@@ -288,9 +286,6 @@ impl Options {
                 if key == "numAnalysisThreads" {
                     self.threads = 1;
                 }
-                if key == "logFile" {
-                    self.log_file = None;
-                }
                 continue;
             }
             if key == "reportAnalysisWinratesAs" {
@@ -304,9 +299,6 @@ impl Options {
                         )));
                     }
                 });
-            }
-            if key == "logFile" {
-                self.log_file = Some(value.into());
             }
             if key == "numAnalysisThreads" {
                 let threads = integer(key, value)?;

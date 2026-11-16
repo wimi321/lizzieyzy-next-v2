@@ -13,13 +13,14 @@ mod acceleration;
 pub(super) use acceleration::Signal as TrialSignal;
 
 pub(super) struct PendingTrial {
-    acceleration: Option<acceleration::Monitor>,
+    monitor: Option<crate::acceleration::monitor::Monitor>,
     engine: EngineHandle,
     status: watch::Receiver<EngineStatus>,
     profile: EngineProfile,
     fingerprint: String,
     deadline: Instant,
     timeout: Duration,
+    retry_backoff: (Duration, Duration),
     reply: Reply,
     list_edit: Option<(Vec<EngineEntry>, String)>,
 }
@@ -84,7 +85,28 @@ pub(super) async fn wait(trial: &mut Option<PendingTrial>) -> TrialSignal {
         if trial.reply.is_closed() {
             return TrialSignal::Finished(Err(EngineSetupError::Cancelled));
         }
-        match trial.status.borrow_and_update().clone() {
+        let status = trial.status.borrow_and_update().clone();
+        if let Some(monitor) = &mut trial.monitor {
+            if let EngineStatus::Restarting { attempt, .. } = &status {
+                // Restarting is announced before the session's backoff. Do
+                // not consume the next process's base timeout during that wait.
+                let delay = trial
+                    .retry_backoff
+                    .0
+                    .saturating_mul(
+                        1u32.checked_shl(attempt.saturating_sub(1))
+                            .unwrap_or(u32::MAX),
+                    )
+                    .min(trial.retry_backoff.1);
+                monitor.restarted(*attempt, Instant::now() + delay);
+            }
+            monitor.drain();
+            trial.deadline = monitor.clock.deadline();
+        }
+        if Instant::now() >= trial.deadline {
+            return TrialSignal::Finished(Err(EngineSetupError::TimedOut(trial.timeout)));
+        }
+        match status {
             EngineStatus::Ready { .. } => return TrialSignal::Finished(Ok(())),
             EngineStatus::Failed {
                 reason,
@@ -100,25 +122,21 @@ pub(super) async fn wait(trial: &mut Option<PendingTrial>) -> TrialSignal {
             }
             EngineStatus::Starting | EngineStatus::Restarting { .. } => {}
         }
-        let next_log = trial
-            .acceleration
-            .as_ref()
-            .map(|monitor| monitor.observation.next_poll);
         tokio::select! {
             changed = trial.status.changed() => {
                 if changed.is_err() { return TrialSignal::Finished(Err(EngineSetupError::Cancelled)); }
             }
             _ = tokio::time::sleep_until(trial.deadline) => return TrialSignal::Finished(Err(EngineSetupError::TimedOut(trial.timeout))),
             _ = trial.reply.closed() => return TrialSignal::Finished(Err(EngineSetupError::Cancelled)),
-            _ = async { match next_log { Some(at) => tokio::time::sleep_until(at).await, None => pending().await } } => {
-                if let Some(monitor) = &mut trial.acceleration {
-                    match monitor.read().await {
-                        Ok((tail, tuning)) => {
-                            trial.deadline = monitor.clock.deadline();
-                            return TrialSignal::Output { tail, tuning };
-                        }
-                        Err(error) => return TrialSignal::Finished(Err(error)),
-                    }
+            tuning = async {
+                match &mut trial.monitor {
+                    Some(monitor) => monitor.next().await,
+                    None => pending().await,
+                }
+            } => {
+                if let Some(monitor) = &trial.monitor {
+                    trial.deadline = monitor.clock.deadline();
+                    return TrialSignal::Output { tail: monitor.lines(), tuning };
                 }
             }
         }
@@ -197,15 +215,30 @@ impl Actor {
                     reply.send(Err(EngineSetupError::Cancelled.into()));
                     return;
                 }
-                let engine = engine_session::spawn(transport, session);
+                let started = Instant::now();
+                let maximum = auto
+                    .as_ref()
+                    .map_or(session.max_startup_duration, |(_, limit)| {
+                        limit
+                            .saturating_duration_since(started)
+                            .min(session.max_startup_duration)
+                    });
+                session.startup_timeout = timeout;
+                session.max_startup_duration = maximum;
+                let retry_backoff = (session.restart_backoff, session.max_restart_backoff);
+                let (engine, stderr) = engine_session::spawn_with_stderr(transport, session);
+                let monitor =
+                    crate::acceleration::monitor::Monitor::new(stderr, started, timeout, maximum);
+                let deadline = monitor.clock.deadline();
                 self.trial = Some(PendingTrial {
-                    acceleration: None,
+                    monitor: Some(monitor),
                     status: engine.status(),
                     engine,
                     profile,
                     fingerprint,
                     deadline,
                     timeout,
+                    retry_backoff,
                     reply,
                     list_edit: None,
                 });
@@ -229,27 +262,21 @@ impl Actor {
             if timeout.is_zero() || timeout > Duration::from_secs(86400) {
                 return Err(AppError::from(EngineSetupError::InvalidTimeout));
             }
-            let (mut transport, fingerprint) = self.prepare_engine_transport(&profile).await?;
-            let acceleration = if is_acceleration {
+            let (transport, fingerprint) = self.prepare_engine_transport(&profile).await?;
+            let timeout = if is_acceleration {
                 let backend = self
                     .acceleration
                     .backend
                     .ok_or(crate::AccelerationError::Busy)?;
-                let monitor = acceleration::Monitor::new(backend, &self.config).await?;
-                monitor.observation.apply(&mut transport)?;
-                Some(monitor)
+                crate::acceleration::deadline::timeout(backend, &self.config)
             } else {
-                None
+                timeout
             };
-            let deadline = acceleration
-                .as_ref()
-                .map_or(Instant::now() + timeout, |monitor| monitor.clock.deadline());
-            let timeout = deadline.saturating_duration_since(Instant::now());
-            Ok((fingerprint, transport, timeout, deadline, acceleration))
+            Ok((fingerprint, transport, timeout))
         }
         .await;
         match prepared {
-            Ok((fingerprint, transport, timeout, deadline, acceleration)) => {
+            Ok((fingerprint, transport, timeout)) => {
                 if reply.is_closed() {
                     if is_acceleration {
                         let _ = self
@@ -261,20 +288,25 @@ impl Actor {
                 let mut session = self.session_config();
                 if is_acceleration {
                     session.max_restarts = 0;
-                    // The application deadline includes tuning extensions. Its
-                    // monitor decides timeouts; the session cannot pre-empt it.
-                    session.startup_timeout = Duration::from_secs(1802);
                     session.shutdown_timeout = session.shutdown_timeout.min(Duration::from_secs(2));
                 }
-                let engine = engine_session::spawn(transport, session);
+                session.startup_timeout = timeout;
+                let maximum = session.max_startup_duration;
+                let started = Instant::now();
+                let retry_backoff = (session.restart_backoff, session.max_restart_backoff);
+                let (engine, stderr) = engine_session::spawn_with_stderr(transport, session);
+                let monitor =
+                    crate::acceleration::monitor::Monitor::new(stderr, started, timeout, maximum);
+                let deadline = monitor.clock.deadline();
                 self.trial = Some(PendingTrial {
-                    acceleration,
+                    monitor: Some(monitor),
                     status: engine.status(),
                     engine,
                     profile,
                     fingerprint,
                     deadline,
                     timeout,
+                    retry_backoff,
                     reply,
                     list_edit: Some((engines, id)),
                 });
@@ -295,12 +327,14 @@ impl Actor {
     pub(super) async fn cancel_trial(&mut self) {
         if let Some(mut trial) = self.trial.take() {
             self.remote.rollback();
-            if let Some(monitor) = &mut trial.acceleration {
-                let _ = monitor.read().await;
-                self.acceleration.output = monitor.observation.lines();
+            if let Some(monitor) = &mut trial.monitor {
+                monitor.drain();
+                if matches!(trial.reply, Reply::Acceleration(_)) {
+                    self.acceleration.output = monitor.lines();
+                }
             }
             let cleanup = trial.engine.shutdown().await;
-            let error = if trial.acceleration.is_some() {
+            let error = if matches!(trial.reply, Reply::Acceleration(_)) {
                 acceleration::cancelled(self.acceleration.output.clone())
             } else {
                 cleanup.map_or_else(AppError::from, |()| EngineSetupError::Cancelled.into())
@@ -333,7 +367,7 @@ impl Actor {
             // Keep candidate diagnostics local to this transaction.
             if let Err(error) = trial.engine.clone().shutdown().await {
                 reaped = false;
-                if trial.acceleration.is_some() {
+                if matches!(trial.reply, Reply::Acceleration(_)) {
                     result = Err(crate::AccelerationError::Failed {
                         reason: format!(
                             "candidate cleanup failed; previous engine was not restarted: {error}"

@@ -77,6 +77,37 @@ async fn cpu_enables_cuda_preserves_profile_identity_persists_and_disables_to_cp
 }
 
 #[tokio::test]
+async fn installed_backend_restarts_and_enables_again_without_archives_or_downloads() {
+    let mut fixture = Fixture::new(json!({"backend":"cuda"}), Duration::from_secs(3)).await;
+    let installed = within(fixture.core.enable_acceleration(AccelerationBackend::Cuda))
+        .await
+        .unwrap();
+    for archive in &fixture.archives {
+        std::fs::remove_file(archive).unwrap();
+    }
+    let restarted = within(fixture.core.restart_engine()).await.unwrap();
+    assert_eq!(restarted.engine, installed.engine);
+    let revision = within(
+        fixture
+            .core
+            .play(go_core::Move::Pass(go_core::Color::Black)),
+    )
+    .await
+    .unwrap();
+    analysis(&mut fixture.events, Some(revision)).await;
+    let enabled = within(fixture.core.enable_acceleration(AccelerationBackend::Cuda))
+        .await
+        .unwrap();
+    assert_eq!(enabled.engine, installed.engine);
+    assert!(fixture.archives.iter().all(|path| !path.exists()));
+    assert_eq!(
+        fixture.close().await,
+        2,
+        "installed runtime must not redownload archives"
+    );
+}
+
+#[tokio::test]
 async fn startup_failure_retains_tail_downloads_and_restarts_original_engine() {
     let message = (0..30)
         .map(|i| format!("startup error {i}"))

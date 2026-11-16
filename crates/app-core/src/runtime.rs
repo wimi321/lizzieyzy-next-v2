@@ -4,6 +4,8 @@ use crate::assets::RuntimeInstallation;
 use crate::{AppError, DiagnosticCheck, DiagnosticKind, DiagnosticRepair, DiagnosticStatus};
 use std::{collections::BTreeMap, ffi::OsString};
 
+pub(crate) mod home;
+
 pub(crate) fn supported() -> bool {
     cfg!(all(target_os = "windows", target_arch = "x86_64"))
 }

@@ -210,7 +210,7 @@ fn cancellation_cleans_staging_and_leaves_old_installation() {
         fs::read_dir(directory.path().join("runtimes").join(PROFILE))
             .unwrap()
             .count(),
-        1
+        2
     );
 }
 

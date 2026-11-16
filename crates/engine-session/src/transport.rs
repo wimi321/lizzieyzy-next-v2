@@ -217,6 +217,7 @@ async fn drive(
             line = stderr.next_line(), if stderr_open => {
                 match line {
                     Ok(Some(line)) => {
+                        let line = crate::startup::bounded_line(line);
                         if stderr_tail.len() == STDERR_LINES {
                             stderr_tail.pop_front();
                         }

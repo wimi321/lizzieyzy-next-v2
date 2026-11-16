@@ -6,6 +6,7 @@ mod delivery;
 pub mod gtp;
 mod remote;
 mod request;
+mod startup;
 mod transport;
 mod zhizi;
 
@@ -13,12 +14,13 @@ pub use bridge::BridgeError;
 pub use delivery::QuerySubscription;
 pub use remote::{RemoteTransportError, SshAuth, probe_remote};
 pub use request::AnalysisRequest;
+pub use startup::{StartupDeadline, startup_extension};
 pub use transport::spawn_process;
 pub use zhizi::{ZhiziConnection, ZhiziConnector};
 
 use katago_protocol::AnalysisResponse;
 use std::{collections::BTreeMap, ffi::OsString, path::PathBuf, time::Duration};
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
 pub type QueryId = String;
 
@@ -86,6 +88,8 @@ pub struct SessionConfig {
     /// Disable only the no-output watchdog; startup/process faults stay visible.
     pub auto_check_alive: bool,
     pub startup_timeout: Duration,
+    /// Absolute limit for a process attempt, including tuning extensions.
+    pub max_startup_duration: Duration,
     pub response_timeout: Duration,
     pub restart_backoff: Duration,
     pub max_restart_backoff: Duration,
@@ -102,6 +106,7 @@ impl Default for SessionConfig {
         Self {
             auto_check_alive: true,
             startup_timeout: Duration::from_secs(120),
+            max_startup_duration: Duration::from_secs(1800),
             response_timeout: Duration::from_secs(30),
             restart_backoff: Duration::from_millis(250),
             max_restart_backoff: Duration::from_secs(10),
@@ -117,6 +122,7 @@ impl SessionConfig {
     fn validate(&self) -> Result<(), SessionError> {
         let durations = [
             self.startup_timeout,
+            self.max_startup_duration,
             self.response_timeout,
             self.restart_backoff,
             self.max_restart_backoff,
@@ -195,17 +201,32 @@ pub enum EngineStatus {
 pub struct EngineHandle {
     commands: mpsc::Sender<actor::Command>,
     status: watch::Receiver<EngineStatus>,
+    stderr: broadcast::Sender<String>,
 }
 
 /// Must be called within a Tokio runtime.
 pub fn spawn(transport: TransportSpec, cfg: SessionConfig) -> EngineHandle {
+    spawn_with_stderr(transport, cfg).0
+}
+
+/// Subscribe before the actor starts, so even immediate startup diagnostics are
+/// observed. The bounded receiver reports lag instead of blocking the engine.
+pub fn spawn_with_stderr(
+    transport: TransportSpec,
+    cfg: SessionConfig,
+) -> (EngineHandle, broadcast::Receiver<String>) {
     let (commands, receiver) = mpsc::channel(64);
     let (status, status_rx) = watch::channel(EngineStatus::Starting);
-    tokio::spawn(actor::run(transport, cfg, receiver, status));
-    EngineHandle {
-        commands,
-        status: status_rx,
-    }
+    let (stderr, lines) = broadcast::channel(256);
+    tokio::spawn(actor::run(transport, cfg, receiver, status, stderr.clone()));
+    (
+        EngineHandle {
+            commands,
+            status: status_rx,
+            stderr,
+        },
+        lines,
+    )
 }
 
 impl EngineHandle {
@@ -241,6 +262,12 @@ impl EngineHandle {
 
     pub fn status(&self) -> watch::Receiver<EngineStatus> {
         self.status.clone()
+    }
+
+    /// Receives future stderr lines (at most 4 KiB each), across restarts.
+    /// Use spawn_with_stderr when the first startup line must not be missed.
+    pub fn subscribe_stderr(&self) -> broadcast::Receiver<String> {
+        self.stderr.subscribe()
     }
 
     /// Stops this entire session (including clones) and waits for process reaping.

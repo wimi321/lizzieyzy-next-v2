@@ -1,23 +1,6 @@
 use super::*;
 
 #[test]
-fn recognizes_documented_tuning_messages_without_guessing_from_generic_logs() {
-    for line in [
-        "Performing autotuning",
-        "Tuning xGemmDirect ...",
-        "Started OpenCL SGEMM tuner",
-        "This will take a while",
-        "This may take a long time",
-        "2026-11-15 12:00:00: Performing autotuning",
-    ] {
-        assert!(is_tuning_line(line), "{line}");
-    }
-    for line in ["", "Loading model", "Using OpenCL Device", "driver failure"] {
-        assert!(!is_tuning_line(line), "{line}");
-    }
-}
-
-#[test]
 fn backend_identity_comes_from_specific_engine_output() {
     for (line, backend) in [
         (

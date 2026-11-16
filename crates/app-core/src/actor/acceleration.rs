@@ -12,8 +12,7 @@ pub(super) struct State {
     download: Option<Download>,
     pub output: Vec<String>,
     pub backend_line: Option<String>,
-    // Keep the temporary logger alive until its adopted process is reaped.
-    pub log: Option<crate::acceleration::log::Observation>,
+    pub monitor: Option<crate::acceleration::monitor::Monitor>,
 }
 
 struct Download {
@@ -26,9 +25,20 @@ struct Download {
 pub(super) enum Update {
     Downloaded,
     Failed(AppError),
+    Output {
+        tail: Vec<String>,
+        backend_line: Option<String>,
+    },
 }
 
 pub(super) async fn receive(state: &mut State) -> Update {
+    if let Some(monitor) = &mut state.monitor {
+        monitor.next().await;
+        return Update::Output {
+            tail: monitor.lines(),
+            backend_line: monitor.backend_line.clone(),
+        };
+    }
     let Some(download) = &mut state.download else {
         return pending().await;
     };
@@ -78,6 +88,21 @@ fn cancelled() -> AppError {
 }
 
 impl Actor {
+    pub(super) fn acceleration_output(&mut self) -> Vec<String> {
+        if let Some(monitor) = &mut self.acceleration.monitor {
+            monitor.drain();
+            self.acceleration.output = monitor.lines();
+            self.acceleration.backend_line = monitor.backend_line.clone();
+        }
+        let mut lines = self.acceleration.output.clone();
+        if let Some(line) = &self.acceleration.backend_line
+            && !lines.contains(line)
+        {
+            lines.insert(0, line.clone());
+        }
+        lines
+    }
+
     pub(super) fn ensure_no_acceleration(&self) -> Result<(), AppError> {
         if self.acceleration.backend.is_some() {
             Err(AccelerationError::Busy.into())
@@ -132,11 +157,12 @@ impl Actor {
         };
         self.auto_setup.cancel();
         self.acceleration.backend = Some(backend);
+        self.acceleration.monitor = None;
         self.acceleration.output.clear();
         self.acceleration.backend_line = None;
         self.publish_acceleration(AccelerationPhase::Downloading);
         let status = handle.subscribe_status();
-        if let Err(error) = handle.install_runtime(backend.profile_id().into()).await {
+        if let Err(error) = handle.ensure_runtime(backend.profile_id().into()).await {
             let error = self.acceleration_failed(error.into(), true).await;
             let _ = reply.send(Err(error));
             return;
@@ -150,6 +176,11 @@ impl Actor {
     }
 
     pub(super) async fn acceleration_download(&mut self, update: Update) {
+        if let Update::Output { tail, backend_line } = update {
+            self.acceleration.output = tail;
+            self.acceleration.backend_line = backend_line;
+            return;
+        }
         let Some(download) = self.acceleration.download.take() else {
             return;
         };
@@ -170,7 +201,7 @@ impl Actor {
             let backend = self.acceleration.backend.ok_or(AccelerationError::Busy)?;
             let installation = download
                 .handle
-                .runtime_installation(backend.profile_id().into())
+                .runtime_installation_quick(backend.profile_id().into())
                 .await?;
             if !installation.ready {
                 return Err(failure("runtime failed its final integrity check"));
