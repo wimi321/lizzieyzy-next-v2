@@ -11,6 +11,7 @@ paths:
   - resources/katago/katago-assets.json
   - tools/fake-katago/**
   - crates/engine-session/**
+  - Cargo.toml
   - docs/ARCHITECTURE.md
 ---
 
@@ -145,3 +146,8 @@ Java 参考只学行为（`../lizzieyzy-next`，路径相对 `src/main/java/feat
 - 托管引擎和自带引擎的启动参数里有 `homeDataDir` 和 `logToStderr=true`，外部引擎没有；用户自己写了同名项时保留用户的。
 - 快速核对：改大小或修改时间、删文件、多文件、换 `katago.exe` 都判未就绪；删掉压缩包后已装好的后端照样能启动，证明启动不再读压缩包；没有记录的安装补写记录。
 - 真机测试最后再读一次方案，断言刚开启的后端仍是 `installed: true`，并打印读方案的用时。
+
+### CI 修复（2026-11-15）
+
+PR #129 的一次 Ubuntu 运行里，4 个用真实 fake-katago 的提速测试（`opencl_tuning_event_extends_real_trial_and_adopts_it_after_gate_release`、`startup_failure_retains_tail_downloads_and_restarts_original_engine`、`installed_backend_restarts_and_enables_again_without_archives_or_downloads`、`startup_timeout_preserves_diagnostics_downloads_and_restores_analysis`）超过了 5 秒的安全时限；同一提交的另一次 Ubuntu 运行通过，但这几个测试也要 13–15 秒才完成。找出慢在哪一步并去掉原因，不放宽 5 秒的安全时限。范围加上工作区 `Cargo.toml`，只用于开发和测试的编译配置（例如 `[profile.dev.package.<crate>]`），不改依赖。
+
