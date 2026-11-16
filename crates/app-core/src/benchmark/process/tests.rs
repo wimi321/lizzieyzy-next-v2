@@ -64,7 +64,7 @@ fn quick_arguments_use_analysis_config_with_gtp_alias_and_product_limits() {
         "numSearchThreads=1",
         "gpuToUse=1",
         "nnMaxBatchSize=64",
-        "logToStderr=false",
+        "logToStderr=true",
         "logAllGTPCommunication=false",
         "logSearchInfo=false",
     ] {
@@ -74,7 +74,6 @@ fn quick_arguments_use_analysis_config_with_gtp_alias_and_product_limits() {
         "numSearchThreads=32",
         "numAnalysisThreads=9",
         "numSearchThreadsPerAnalysisThread=8",
-        "logToStderr=true",
     ] {
         assert!(!overrides.contains(&stale));
     }

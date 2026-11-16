@@ -29,3 +29,9 @@ unsafe_code = "forbid"
 [workspace.lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"
+
+# Asset verification hashes engine binaries and archives several times. Keep
+# SHA-256 fast in tauri dev and tests (which inherit dev), without optimizing
+# application code or weakening the five-second test safety deadlines.
+[profile.dev.package."sha2@0.10.9"]
+opt-level = 3

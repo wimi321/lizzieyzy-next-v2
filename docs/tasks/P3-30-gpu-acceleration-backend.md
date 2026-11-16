@@ -10,6 +10,8 @@ paths:
   - apps/desktop/e2e/fixtures.ts
   - resources/katago/katago-assets.json
   - tools/fake-katago/**
+  - crates/engine-session/**
+  - Cargo.toml
   - docs/ARCHITECTURE.md
 ---
 
@@ -115,3 +117,37 @@ Java 参考只学行为（`../lizzieyzy-next`，路径相对 `src/main/java/feat
 - 新命令只授权给主窗口；生成的 TS 类型和 mock 同步。
 - `cargo test -p app-core --test acceleration_live -- --ignored` 在没有设环境变量时立即跳过并说明原因，不失败。
 - `scripts/verify.sh` 通过；`check_budgets.py` 通过。
+
+## 真机验收后的修改（2026-11-15）
+
+第一版在 Windows 真机（RTX 3070 笔记本，驱动 560.76）上 CUDA、TensorRT、OpenCL 三种都开启成功（各约 400 / 404 / 354 访问每秒，CPU 约 8），驱动低于 570.65 也能用。同时发现下面的问题，本卡一并修改（范围加上 `crates/engine-session/**`，但不改 P3-35 的 `transport/spawn.rs`）。
+
+1. **调优进度只在 stderr。** KataGo 的日志文件里只有开头的 `Performing autotuning` 和结尾的 `Done tuning, saved results to …`；逐步的 `Beginning GPU tuning …`、`Tuning xGemmDirect …`、`Testing 55 different configs`、`Tuning 40/55 …` 只写 stderr，不带时间戳，调优期间约每秒一行（RTX 3070 共 111 秒）。TensorRT 第一次生成计划缓存时（`Creating new plan cache` 到 `Saved new plan cache to …`，67 秒）没有任何输出。
+   - engine-session 公开 stderr 的实时订阅（照 GTP 会话的 `subscribe`）：有界广播，落后的订阅者丢旧行，绝不阻塞读 stderr；每行截到 4 KiB；重启后同一个订阅继续收。
+   - 去掉临时日志文件的观察方式（`logFile` 覆盖、临时目录）。候选启动只加 `logToStderr=true`，让带时间戳的日志行（包括后端行）也走 stderr。
+2. **启动期限的延长规则**（一个纯函数，engine-session 和提速的试启动共用）：
+   - `Performing autotuning`、`Creating new plan cache`：期限推到 max(当前期限, 现在 + 600 秒)；
+   - `Beginning GPU tuning`、以 `Tuning ` 开头、`Testing … different configs`：推到 max(当前期限, 现在 + 120 秒)；
+   - 从进程启动起最多 30 分钟；只在 Ready 之前；每次重启重新计算。
+   - 不再在原期限上累加。
+3. **普通启动也按这条规则延长。** OpenCL 调优结果和 TensorRT 计划缓存按显卡、模型等分别保存，换权重、换驱动后普通启动也会重新调优或重建缓存，而普通启动的时限是 120 秒。Java 在每次启动都按调优输出延长。engine-session 的启动期限照第 2 条延长；提速候选会话的 `startup_timeout` 取该后端的基础时限（CUDA 180 秒，TensorRT、OpenCL 600 秒），不再用 1802 秒的特例。
+4. **`homeDataDir`。** KataGo 在 Windows 上默认把 `KataGoData/opencltuning`、`KataGoData/trtcache` 写在 `katago.exe` 旁边，也就是写进了经过完整性核对的安装目录，下一次核对就判定「未安装」（真机上 OpenCL 开启后，方案里 `installed: false`）。照 Java（`KataGoRuntimeHelper` 1621–1640）：托管运行库里的引擎和自带引擎启动时，在同一个 `-override-config` 里加 `homeDataDir=<应用数据目录>/katago-home`（启动前建好目录）和 `logToStderr=true`；用户在自己的参数里写了同名项时不覆盖；用户自己的外部引擎不加。目录路径不能放进覆盖参数时（含逗号、等号、换行）不加 `homeDataDir`，记一条警告。还没有发布过能装上运行库的版本，不需要迁移已有的 `KataGoData`。
+5. **启动前的完整核对太慢。** CUDA 装好后，每次启动引擎前和每次读提速方案都在应用 actor 里等完整核对（压缩包 SHA-256、解压重建、安装文件哈希，约 3.7 GB）：方案从 0.8 秒变成 15.6 秒（依赖库已优化编译），期间应用的所有命令排队；TensorRT 更久。Java 启动时不核对。
+   - 完整核对只在安装发布前、显式的修复和诊断时做。
+   - 安装发布时由应用写一份记录，放在安装目录之外（例如 `runtimes/<profile>/<generation>.verified.json`，临时文件加原子改名）：每个文件的相对路径、大小、修改时间，以及 `katago.exe` 的 SHA-256。
+   - 启动引擎、读提速方案、开启已经装好的后端时只做快速核对：记录存在，文件集合、大小、修改时间一致，`katago.exe` 的 SHA-256 一致。不一致就是未就绪（启动失败提示修复；方案里 `installed: false`）。没有记录的旧安装做一次完整核对，通过后补写记录。
+   - 方案里的 `download_bytes` 只看压缩包是否存在、大小是否对，不算哈希；安装时照旧核对。
+   - 应用数据目录本来就由当前用户写，记录和安装目录受同样的保护；完整核对仍然保留在安装、修复、诊断里。ARCHITECTURE 里「安装完整性不信任本地自报的 manifest」一段照此改写。
+
+### 补充的验收标准
+
+- engine-session：fake-katago 打 stderr 时订阅者按顺序收到；订阅者落后时读 stderr 不被阻塞；调优行让启动期限延长、没有调优行时按原期限超时、30 分钟上限（暂停时间的测试里不要有活着的真实进程）。
+- 延长规则的纯函数测试用真机上的真实行做例子。
+- 托管引擎和自带引擎的启动参数里有 `homeDataDir` 和 `logToStderr=true`，外部引擎没有；用户自己写了同名项时保留用户的。
+- 快速核对：改大小或修改时间、删文件、多文件、换 `katago.exe` 都判未就绪；删掉压缩包后已装好的后端照样能启动，证明启动不再读压缩包；没有记录的安装补写记录。
+- 真机测试最后再读一次方案，断言刚开启的后端仍是 `installed: true`，并打印读方案的用时。
+
+### CI 修复（2026-11-15）
+
+PR #129 的一次 Ubuntu 运行里，4 个用真实 fake-katago 的提速测试（`opencl_tuning_event_extends_real_trial_and_adopts_it_after_gate_release`、`startup_failure_retains_tail_downloads_and_restarts_original_engine`、`installed_backend_restarts_and_enables_again_without_archives_or_downloads`、`startup_timeout_preserves_diagnostics_downloads_and_restores_analysis`）超过了 5 秒的安全时限；同一提交的另一次 Ubuntu 运行通过，但这几个测试也要 13–15 秒才完成。找出慢在哪一步并去掉原因，不放宽 5 秒的安全时限。范围加上工作区 `Cargo.toml`，只用于开发和测试的编译配置（例如 `[profile.dev.package.<crate>]`），不改依赖。
+

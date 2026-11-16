@@ -45,23 +45,19 @@ pub(crate) enum Update {
 impl Process {
     #[cfg(test)]
     pub async fn spawn(profile: &EngineProfile) -> Result<Self, BenchmarkError> {
-        Self::spawn_with_environment(profile, Default::default()).await
+        Self::spawn_prepared(benchmark_transport(profile)?).await
     }
 
-    pub async fn spawn_with_environment(
-        profile: &EngineProfile,
-        environment: std::collections::BTreeMap<OsString, OsString>,
-    ) -> Result<Self, BenchmarkError> {
+    pub async fn spawn_prepared(transport: TransportSpec) -> Result<Self, BenchmarkError> {
         let TransportSpec::LocalProcess {
             program,
             args,
             cwd,
-            mut env,
-        } = benchmark_transport(profile)?
+            env,
+        } = transport
         else {
             return Err(failed("remote engine does not support benchmark"));
         };
-        env.extend(environment);
         let (explicit_batch, explicit_server) = explicit_gpu_overrides(&args);
         let mut command = Command::new(program);
         command
@@ -240,7 +236,9 @@ fn failed(error: impl std::fmt::Display) -> BenchmarkError {
     BenchmarkError::Failed(error.to_string())
 }
 
-fn benchmark_transport(profile: &EngineProfile) -> Result<TransportSpec, BenchmarkError> {
+pub(crate) fn benchmark_transport(
+    profile: &EngineProfile,
+) -> Result<TransportSpec, BenchmarkError> {
     let TransportSpec::LocalProcess {
         program,
         args,
@@ -267,7 +265,6 @@ fn benchmark_transport(profile: &EngineProfile) -> Result<TransportSpec, Benchma
                     "numSearchThreads",
                     "numAnalysisThreads",
                     "numSearchThreadsPerAnalysisThread",
-                    "logToStderr",
                     "logAllGTPCommunication",
                     "logSearchInfo",
                 ];
@@ -286,7 +283,6 @@ fn benchmark_transport(profile: &EngineProfile) -> Result<TransportSpec, Benchma
         "numAnalysisThreads=".into(),
         "numSearchThreadsPerAnalysisThread=".into(),
         "numSearchThreads=1".into(),
-        "logToStderr=false".into(),
         "logAllGTPCommunication=false".into(),
         "logSearchInfo=false".into(),
     ]);

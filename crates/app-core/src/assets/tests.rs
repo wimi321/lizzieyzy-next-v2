@@ -422,7 +422,7 @@ fn acceleration_selection_matches_java_platform_and_nvidia_capability_rules() {
         assert_eq!(plan.recommended_assets.len(), 7);
         assert_eq!(plan.tensor_rt_supported, supported);
         assert_eq!(plan.tensor_rt_recommended, recommended);
-        assert_eq!(plan.optional_assets.len(), if supported { 2 } else { 0 });
+        assert_eq!(plan.optional_assets.len(), if supported { 3 } else { 1 });
         assert!(!plan.archives_only);
     }
     assert_eq!(

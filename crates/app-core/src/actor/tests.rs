@@ -24,6 +24,7 @@ pub(super) fn actor() -> (Actor, AppSubscription) {
     };
     (
         Actor {
+            acceleration: Default::default(),
             restriction: None,
             restricted_analysis: None,
             scoring: None,
@@ -314,7 +315,8 @@ async fn rejected_or_unpublished_snapshots_never_populate_the_graph() {
                 | AppEvent::CoachMoveRated(_)
                 | AppEvent::CoachSummary(_)
                 | AppEvent::CoachUpdated(_)
-                | AppEvent::AnalysisStateChanged(_) => {}
+                | AppEvent::AnalysisStateChanged(_)
+                | AppEvent::AccelerationProgress(_) => {}
             }
         }
         assert_eq!(documents, 1);

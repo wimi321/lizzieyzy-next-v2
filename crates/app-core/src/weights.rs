@@ -43,7 +43,12 @@ impl AppCore {
     }
 
     pub async fn cancel_asset_download(&self) -> Result<AssetDownloadStatus, AppError> {
-        Ok(self.asset_handle().await?.cancel().await?)
+        let (reply, response) = oneshot::channel();
+        self.commands
+            .send(Command::CancelAcceleration(reply))
+            .await
+            .map_err(|_| AppError::Closed)?;
+        response.await.map_err(|_| AppError::Closed)?
     }
 
     pub async fn asset_download_status(&self) -> Result<AssetDownloadStatus, AppError> {
@@ -51,7 +56,16 @@ impl AppCore {
     }
 
     pub async fn acceleration_plan(&self) -> Result<AccelerationPlan, AppError> {
-        Ok(self.asset_handle().await?.acceleration_plan().await?)
+        let settings = self.settings().await?;
+        let program = selected_entry(&settings)
+            .ok()
+            .filter(|entry| entry.profile.remote.is_none())
+            .map(|entry| entry.profile.program);
+        Ok(self
+            .asset_handle()
+            .await?
+            .acceleration_plan_for(program)
+            .await?)
     }
 
     pub async fn use_official_weight(&self, asset_id: String) -> Result<Settings, AppError> {

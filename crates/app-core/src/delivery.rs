@@ -25,6 +25,7 @@ struct Mailbox {
     analysis_state: Option<(u64, AppEvent)>,
     open_failed: Option<(u64, AppEvent)>,
     asset_download: Option<(u64, AppEvent)>,
+    acceleration: Option<(u64, AppEvent)>,
     update_download: Option<(u64, AppEvent)>,
 }
 
@@ -32,7 +33,7 @@ pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 19],
+    read: [Option<u64>; 20],
     console_read: u64,
 }
 
@@ -42,7 +43,7 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 19],
+            read: [None; 20],
             console_read: 0,
         },
     )
@@ -83,6 +84,7 @@ impl Delivery {
                 AppEvent::MatchUpdated(_) => &mut mailbox.match_game,
                 AppEvent::UpdateDownloadProgress(_) => &mut mailbox.update_download,
                 AppEvent::AssetDownloadProgress(_) => &mut mailbox.asset_download,
+                AppEvent::AccelerationProgress(_) => &mut mailbox.acceleration,
                 AppEvent::DocumentChanged { .. } => &mut mailbox.document,
                 AppEvent::AnalysisUpdated(_) => &mut mailbox.analysis,
                 AppEvent::EngineStatusChanged(_) => &mut mailbox.engine,
@@ -151,6 +153,7 @@ impl AppSubscription {
                     &mailbox.commentary,
                     &mailbox.display,
                     &mailbox.floating,
+                    &mailbox.acceleration,
                 ]
                 .into_iter()
                 .enumerate()

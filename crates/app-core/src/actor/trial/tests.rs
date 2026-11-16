@@ -31,6 +31,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
     config.session.shutdown_timeout = Duration::from_secs(60);
     (
         Actor {
+            acceleration: Default::default(),
             restriction: None,
             restricted_analysis: None,
             scoring: None,
@@ -109,6 +110,68 @@ async fn commit(actor: &mut Actor, profile: EngineSetupProfile) {
     let outcome = within(wait(&mut actor.trial)).await;
     within(actor.finish_trial(outcome)).await;
     within(receiver).await.unwrap().unwrap();
+}
+
+async fn wait(trial: &mut Option<PendingTrial>) -> Result<(), EngineSetupError> {
+    loop {
+        if let TrialSignal::Finished(result) = super::wait(trial).await {
+            return result;
+        }
+    }
+}
+
+#[tokio::test]
+async fn ordinary_trial_extends_from_real_stderr_without_a_temporary_log() {
+    let directory = TempDir::new().unwrap();
+    let gate = directory.path().join("ready");
+    let gate_text = gate.to_string_lossy().into_owned();
+    let candidate = profile(
+        directory.path(),
+        &[
+            "--backend",
+            "tensorrt",
+            "--tuning-lines",
+            "1",
+            "--tuning-interval-ms",
+            "1",
+            "--startup-gate-file",
+            &gate_text,
+        ],
+    );
+    let (mut actor, _) = actor(directory.path());
+    actor.config.engine_setup_timeout = Duration::from_millis(400);
+    let response = begin(&mut actor, candidate).await;
+    within(async {
+        loop {
+            match super::wait(&mut actor.trial).await {
+                TrialSignal::Output { tuning: true, tail } => {
+                    assert!(
+                        tail.iter()
+                            .any(|line| line.contains("Creating new plan cache"))
+                    );
+                    break;
+                }
+                TrialSignal::Output { .. } => {}
+                TrialSignal::Finished(result) => panic!("premature trial result: {result:?}"),
+            }
+        }
+    })
+    .await;
+    // A real process is alive: use a short real timeout to test survival past
+    // the base limit, rather than pausing the runtime's clock.
+    assert!(
+        within(tokio::time::timeout(
+            Duration::from_millis(600),
+            wait(&mut actor.trial)
+        ))
+        .await
+        .is_err()
+    );
+    std::fs::write(gate, "").unwrap();
+    let result = within(wait(&mut actor.trial)).await;
+    within(actor.finish_trial(result)).await;
+    within(response).await.unwrap().unwrap();
+    within(actor.stop_engine()).await.unwrap();
 }
 
 async fn ready(engine: &EngineHandle) {

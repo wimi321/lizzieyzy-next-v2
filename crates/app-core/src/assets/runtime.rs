@@ -1,6 +1,7 @@
 use super::{
     AssetCatalog, AssetError, RuntimeInstallation,
     runtime_archive::{self, Inventory},
+    runtime_record,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -41,7 +42,25 @@ pub(super) fn inspect_cancellable(
     profile_id: &str,
     cancellation: &watch::Receiver<bool>,
 ) -> Result<RuntimeInstallation, AssetError> {
-    inspect_generation(root, catalog, profile_id, cancellation, None)
+    inspect_generation(root, catalog, profile_id, cancellation, None, false)
+}
+
+pub(super) fn inspect_quick(
+    root: &Path,
+    catalog: &AssetCatalog,
+    profile_id: &str,
+) -> Result<RuntimeInstallation, AssetError> {
+    let (_cancel, cancellation) = watch::channel(false);
+    inspect_quick_cancellable(root, catalog, profile_id, &cancellation)
+}
+
+pub(super) fn inspect_quick_cancellable(
+    root: &Path,
+    catalog: &AssetCatalog,
+    profile_id: &str,
+    cancellation: &watch::Receiver<bool>,
+) -> Result<RuntimeInstallation, AssetError> {
+    inspect_generation(root, catalog, profile_id, cancellation, None, true)
 }
 
 fn inspect_generation(
@@ -50,6 +69,7 @@ fn inspect_generation(
     profile_id: &str,
     cancellation: &watch::Receiver<bool>,
     generation: Option<&Path>,
+    quick: bool,
 ) -> Result<RuntimeInstallation, AssetError> {
     let profile = catalog.profile(profile_id)?;
     let mut status = RuntimeInstallation {
@@ -88,17 +108,43 @@ fn inspect_generation(
     if candidates.is_empty() {
         return Ok(status);
     }
-    let expected = match runtime_archive::inventory(root, catalog, profile, None, cancellation) {
-        Ok(expected) => expected,
-        Err(AssetError::Cancelled) => return Err(AssetError::Cancelled),
-        Err(error) => {
-            status.error = Some(error.to_string());
-            return Ok(status);
-        }
-    };
+    let pin = catalog
+        .get(&profile.engine_asset)?
+        .executable_sha256
+        .as_deref()
+        .ok_or_else(|| AssetError::Catalog("runtime executable has no SHA-256".into()))?;
+    let mut expected = None;
     candidates.sort();
     for candidate in candidates.into_iter().rev() {
-        let missing = validate(&candidate, &expected, cancellation)?;
+        let checked = if quick {
+            runtime_record::check(&candidate, pin, cancellation)?
+        } else {
+            None
+        };
+        let missing = if let Some(missing) = checked {
+            missing
+        } else {
+            if expected.is_none() {
+                expected =
+                    match runtime_archive::inventory(root, catalog, profile, None, cancellation) {
+                        Ok(expected) => Some(expected),
+                        Err(AssetError::Cancelled) => return Err(AssetError::Cancelled),
+                        Err(error) => {
+                            status.error = Some(error.to_string());
+                            return Ok(status);
+                        }
+                    };
+            }
+            let missing = validate(
+                &candidate,
+                expected.as_ref().ok_or(AssetError::Verification)?,
+                cancellation,
+            )?;
+            if missing.is_empty() {
+                runtime_record::write(&candidate, cancellation)?;
+            }
+            missing
+        };
         status.directory = Some(candidate.join("bin"));
         status.program = Some(candidate.join("bin/katago.exe"));
         status.missing = missing;
@@ -179,6 +225,23 @@ pub(super) fn for_program(
     catalog: &AssetCatalog,
     program: &Path,
 ) -> Result<Option<RuntimeInstallation>, AssetError> {
+    for_program_mode(root, catalog, program, false)
+}
+
+pub(super) fn for_program_quick(
+    root: &Path,
+    catalog: &AssetCatalog,
+    program: &Path,
+) -> Result<Option<RuntimeInstallation>, AssetError> {
+    for_program_mode(root, catalog, program, true)
+}
+
+fn for_program_mode(
+    root: &Path,
+    catalog: &AssetCatalog,
+    program: &Path,
+    quick: bool,
+) -> Result<Option<RuntimeInstallation>, AssetError> {
     let (_cancel, cancellation) = watch::channel(false);
     let relative = program.strip_prefix(root.join("runtimes")).ok();
     let managed = relative
@@ -251,7 +314,14 @@ pub(super) fn for_program(
         .join("runtimes")
         .join(&profile_id)
         .join(parts[1].as_os_str());
-    match inspect_generation(root, catalog, &profile_id, &cancellation, Some(&generation)) {
+    match inspect_generation(
+        root,
+        catalog,
+        &profile_id,
+        &cancellation,
+        Some(&generation),
+        quick,
+    ) {
         Ok(selected) => {
             status.ready = selected.ready;
             status.missing = selected.missing;
@@ -335,6 +405,8 @@ pub(super) fn publish(
     }
     fs::rename(temporary.path(), &target)?;
     drop(temporary);
+    let (_cancel, cancellation) = watch::channel(false);
+    runtime_record::write(&target, &cancellation)?;
     Ok(target.join("bin"))
 }
 

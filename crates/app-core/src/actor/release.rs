@@ -63,6 +63,7 @@ impl Actor {
         self.shutdown_match().await;
         self.shutdown_gtp().await;
         self.auto_setup.cancel();
+        self.cancel_acceleration(false).await;
         self.cancel_trial().await;
         if let Some(assets) = &self.assets.handle {
             assets.cancel().await?;
@@ -156,7 +157,9 @@ impl Actor {
             ) => {
                 reject!(reply)
             }
-            Command::ReplaceMainEngine(_, _, _, reply) | Command::Engines(_, reply) => {
+            Command::EnableAcceleration(_, reply)
+            | Command::ReplaceMainEngine(_, _, _, reply)
+            | Command::Engines(_, reply) => {
                 reject!(reply)
             }
             Command::SetEngineSettings(_, reply) => reject!(reply),

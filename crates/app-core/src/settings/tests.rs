@@ -166,6 +166,7 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
         nickname: "latest nickname".into(),
     };
     let settings = Settings {
+        acceleration_hint_dismissed: false,
         version: 0,
         restriction_depths: Default::default(),
         search_params: None,
@@ -510,6 +511,34 @@ fn transport_without_user_overrides_still_sets_black_once() {
 }
 
 #[test]
+fn empty_home_and_stderr_overrides_preserve_user_key_deletions() {
+    for value in [
+        "homeDataDir=",
+        "logToStderr=",
+        "homeDataDir=,logToStderr=",
+        " HomeDataDir = , logToStderr = ",
+    ] {
+        let profile = EngineProfile {
+            extra_args: vec![format!("-override-config={value}")],
+            ..Default::default()
+        };
+        let TransportSpec::LocalProcess { args, .. } = profile.transport().unwrap() else {
+            panic!("expected local transport")
+        };
+        let index = args
+            .iter()
+            .position(|arg| arg == "-override-config")
+            .unwrap();
+        assert_eq!(
+            args[index + 1],
+            OsString::from(format!(
+                "{value},numAnalysisThreads=2,reportAnalysisWinratesAs=BLACK"
+            ))
+        );
+    }
+}
+
+#[test]
 fn extra_arguments_cannot_override_profile_paths_or_black_perspective() {
     for args in [
         vec!["-config", "elsewhere"],
@@ -523,6 +552,9 @@ fn extra_arguments_cannot_override_profile_paths_or_black_perspective() {
         vec!["-override-config"],
         vec!["-override-config", "badentry"],
         vec!["-override-config", "empty="],
+        vec!["-override-config", "numSearchThreads="],
+        vec!["-override-config", "numAnalysisThreads="],
+        vec!["-override-config", "reportAnalysisWinratesAs="],
         vec!["-override-config="],
         vec!["-override-config", "=missing_key"],
         vec!["-override-config", "valid=1,"],

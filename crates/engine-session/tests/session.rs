@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::future::Future;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use engine_session::{
@@ -22,6 +23,7 @@ fn configuration() -> SessionConfig {
     SessionConfig {
         auto_check_alive: true,
         startup_timeout: NON_TARGET_TIMEOUT,
+        max_startup_duration: Duration::from_secs(1800),
         response_timeout: NON_TARGET_TIMEOUT,
         restart_backoff: Duration::from_millis(40),
         max_restart_backoff: Duration::from_millis(80),
@@ -73,6 +75,7 @@ async fn advance_clock(duration: Duration) {
 }
 
 fn engine(arguments: &[&str], config: SessionConfig) -> EngineHandle {
+    static BINARY: OnceLock<PathBuf> = OnceLock::new();
     let mut args: Vec<OsString> = [
         "analysis",
         "-config",
@@ -86,7 +89,9 @@ fn engine(arguments: &[&str], config: SessionConfig) -> EngineHandle {
     args.extend(arguments.iter().map(OsString::from));
     spawn(
         TransportSpec::LocalProcess {
-            program: fake_katago::binary_path().expect("build the fake engine"),
+            program: BINARY
+                .get_or_init(|| fake_katago::binary_path().expect("build the fake engine"))
+                .clone(),
             args,
             cwd: None,
             env: BTreeMap::new(),

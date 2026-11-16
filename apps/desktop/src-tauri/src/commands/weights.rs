@@ -1,8 +1,8 @@
 //! Weight management and diagnostics are owned by AppCore. IPC accepts catalog
 //! IDs and repair kinds; bundled resource paths are resolved by the shell.
 use app_core::{
-    AccelerationPlan, AssetDownloadStatus, DiagnosticRepair, EngineDiagnostics, OfficialWeight,
-    Settings,
+    AccelerationBackend, AccelerationPlan, AssetDownloadStatus, DiagnosticRepair,
+    EngineDiagnostics, OfficialWeight, Settings,
 };
 use tauri::State;
 
@@ -73,4 +73,35 @@ pub async fn repair_engine(
         .core
         .repair_engine(repair, environment.repair_resources())
         .await?)
+}
+
+#[tauri::command]
+pub async fn enable_acceleration(
+    state: State<'_, DesktopState>,
+    backend: AccelerationBackend,
+) -> Result<Settings, CommandError> {
+    Ok(state.core.enable_acceleration(backend).await?)
+}
+
+#[tauri::command]
+pub async fn disable_acceleration(
+    state: State<'_, DesktopState>,
+    environment: State<'_, SetupEnvironment>,
+) -> Result<EngineDiagnostics, CommandError> {
+    Ok(state
+        .core
+        .disable_acceleration(environment.repair_resources())
+        .await?)
+}
+
+#[tauri::command]
+pub async fn dismiss_acceleration_hint(state: State<'_, DesktopState>) -> Result<(), CommandError> {
+    Ok(state.core.dismiss_acceleration_hint().await?)
+}
+
+#[tauri::command]
+pub async fn acceleration_output(
+    state: State<'_, DesktopState>,
+) -> Result<Vec<String>, CommandError> {
+    Ok(state.core.acceleration_output().await?)
 }

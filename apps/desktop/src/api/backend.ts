@@ -26,7 +26,7 @@ import type { MoveEditingCommands } from "./move-editing";
 import type { SaveSlotCommands } from "./save-slots";
 import type { DisplaySettingsCommands } from "./display-settings";
 import type { EngineCommands } from "./engines";
-import type { WeightCommands, AssetDownloadProgressListener } from "./weights";
+import type { WeightCommands, AssetDownloadProgressListener, AccelerationProgressListener } from "./weights";
 import type { AnalysisCacheCommands } from "./analysis-cache";
 import type { PreferenceCommands } from "./preferences";
 import type { UpdateCommands, UpdateDownloadProgressListener } from "./updates";
@@ -49,7 +49,7 @@ import type { VariationTreeView } from "./generated/VariationTreeView";
 
 /** Domain status subscriptions share one ordered IPC channel while existing
  * document/analysis UI consumers retain their original event set. */
-export type AppEvent = Exclude<WireAppEvent, { type: "FloatingBoardsChanged" | "DisplaySettingsChanged" | "CommentaryUpdated" | "CoachUpdated" | "CoachMoveRated" | "CoachSummary" | "MatchUpdated" | "GtpConsoleLine" | "GameUpdated" | "WholeGameProgress" | "BatchAnalysisProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" | "AssetDownloadProgress" | "UpdateDownloadProgress" }>;
+export type AppEvent = Exclude<WireAppEvent, { type: "FloatingBoardsChanged" | "DisplaySettingsChanged" | "CommentaryUpdated" | "CoachUpdated" | "CoachMoveRated" | "CoachSummary" | "MatchUpdated" | "GtpConsoleLine" | "GameUpdated" | "WholeGameProgress" | "BatchAnalysisProgress" | "BoardSyncStatusChanged" | "BenchmarkProgress" | "AnalysisStateChanged" | "OpenFailed" | "AssetDownloadProgress" | "AccelerationProgress" | "UpdateDownloadProgress" }>;
 export type OpenFailed = Extract<WireAppEvent, { type: "OpenFailed" }>["data"];
 export type OpenFailedListener = (failure: OpenFailed) => void;
 export type { EngineDisplayName };
@@ -181,6 +181,7 @@ export interface Backend extends WindowCommands, AnalysisToolsCommands, SaveSlot
   subscribeBoardSyncStatus(listener: BoardSyncStatusListener): Promise<number>;
   subscribeBenchmarkProgress(listener: BenchmarkProgressListener): Promise<number>;
   subscribeAnalysisState(listener: AnalysisStateListener): Promise<number>;
+  subscribeAccelerationProgress?(listener: AccelerationProgressListener): Promise<number>;
   subscribeAssetDownloadProgress(listener: AssetDownloadProgressListener): Promise<number>;
   subscribeUpdateDownloadProgress(listener: UpdateDownloadProgressListener): Promise<number>;
   unsubscribe(id: number): Promise<void>;
@@ -316,7 +317,7 @@ async function subscribeWire(listener: (event: WireAppEvent) => void): Promise<n
 }
 
 export const subscribe: Backend["subscribe"] = (listener) => subscribeWire((event) => {
-  if (event.type !== "FloatingBoardsChanged" && event.type !== "DisplaySettingsChanged" && event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "UpdateDownloadProgress") listener(event);
+  if (event.type !== "FloatingBoardsChanged" && event.type !== "DisplaySettingsChanged" && event.type !== "CommentaryUpdated" && event.type !== "CoachUpdated" && event.type !== "CoachMoveRated" && event.type !== "CoachSummary" && event.type !== "MatchUpdated" && event.type !== "GtpConsoleLine" && event.type !== "GameUpdated" && event.type !== "BatchAnalysisProgress" && event.type !== "WholeGameProgress" && event.type !== "BoardSyncStatusChanged" && event.type !== "BenchmarkProgress" && event.type !== "AnalysisStateChanged" && event.type !== "OpenFailed" && event.type !== "AssetDownloadProgress" && event.type !== "AccelerationProgress" && event.type !== "UpdateDownloadProgress") listener(event);
 });
 
 export const subscribeOpenFailed: Backend["subscribeOpenFailed"] =
@@ -403,4 +404,9 @@ export const subscribeFloatingBoardsChanged: NonNullable<Backend["subscribeFloat
 export const subscribeDisplaySettingsChanged: NonNullable<Backend["subscribeDisplaySettingsChanged"]> =
   (listener) => subscribeWire((event) => {
     if (event.type === "DisplaySettingsChanged") listener(event.data);
+  });
+
+export const subscribeAccelerationProgress: NonNullable<Backend["subscribeAccelerationProgress"]> =
+  (listener) => subscribeWire((event) => {
+    if (event.type === "AccelerationProgress") listener(event.data);
   });

@@ -64,6 +64,7 @@
     "windows-opencl": {
       "platform": "windows-x64",
       "backend": "opencl",
+      "runtimeProfile": "opencl",
       "assetName": "katago-source-47aadc08518b-windows-opencl.zip",
       "sizeBytes": 3127940,
       "sha256": "7b93dad8a7a186fd6e856291de532357bf5150988c5f2c0a39fcb9b0fdecd0ea",
@@ -199,7 +200,7 @@
   },
   "origin": "project-source-build",
   "engineReleaseRepository": "wimi321/lizzieyzy-next",
-  "engineReleaseTag": "next-2026-10-28.1",
+  "engineReleaseTag": "next-2026-10-24.2",
   "runtimePackages": {
     "cuda_cudart": {
       "fileName": "cuda_cudart-windows-x86_64-12.8.57-archive.zip",
@@ -253,6 +254,11 @@
   },
   "runtimePackageSource": "Java scripts/katago_cuda_dependencies.json and KataGoRuntimeHelper / NvidiaRuntimePins; CUDA 12.8 / cuDNN 9.8 / TensorRT 10.9 fixed pins",
   "runtimeProfiles": {
+    "opencl": {
+      "engineAsset": "windows-opencl",
+      "assets": ["windows-opencl"],
+      "requiredFiles": ["katago.exe", "OpenCL.dll"]
+    },
     "cuda12.8-cudnn9": {
       "engineAsset": "windows-nvidia",
       "assets": [

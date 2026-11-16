@@ -4,7 +4,7 @@ use crate::{
     WholeGameStatus,
     benchmark::{
         Request,
-        process::{Process, Update},
+        process::{Process, Update, benchmark_transport},
     },
     review::ReviewInput,
 };
@@ -100,8 +100,9 @@ impl Actor {
             .engine
             .clone()
             .ok_or(BenchmarkError::NoEngine)?;
-        profile.transport()?;
-        let environment = self.runtime_environment(&profile).await?;
+        let mut transport = benchmark_transport(&profile)?;
+        self.with_runtime_environment(&profile, &mut transport)
+            .await?;
         let fingerprint = profile.fingerprint().await?;
         self.auto_setup.cancel();
         self.cancel_trial().await;
@@ -119,7 +120,7 @@ impl Actor {
                 .await;
             return Err(error);
         }
-        match Process::spawn_with_environment(&profile, environment).await {
+        match Process::spawn_prepared(transport).await {
             Ok(process) => {
                 self.benchmark.process = Some(process);
                 self.publish_benchmark().await;

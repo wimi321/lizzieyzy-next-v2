@@ -2,6 +2,7 @@ mod benchmark;
 mod cli;
 mod model;
 mod play_script;
+mod startup;
 
 use std::fs::OpenOptions;
 use std::io::{self, BufRead, Write};
@@ -25,6 +26,8 @@ enum RunError {
     Script(#[from] play_script::ScriptError),
     #[error("injected crash")]
     Crash,
+    #[error("{0}")]
+    Startup(String),
     #[error("模型找不到")]
     MissingModel,
     #[error("injected human model load failure")]
@@ -125,7 +128,7 @@ impl<W: Write> Engine<W> {
         if let Some(action) = value.get("action") {
             match action.as_str() {
                 Some("query_version") => self.emit(json!({
-                    "id": id, "action": "query_version", "version": "1.16.5-fake", "git_hash": "fake-katago"
+                    "id": id, "action": "query_version", "version": fake_version(), "git_hash": "fake-katago"
                 }))?,
                 Some("terminate") => {
                     let Some(target) = value["terminateId"].as_str() else {
@@ -362,11 +365,13 @@ impl<W: Write> Engine<W> {
         let startup = self.options.startup_delay_ms as f64 / 1000.0;
         let mut crash = self.options.crash_after_ms.map(|ms| ms as f64 / 1000.0);
         let mut eof = false;
+        let mut tuning = startup::Tuning::default();
         // The input reader can queue lines, but no requests are consumed before readiness.
         loop {
             self.check_timed_crash(&mut crash)?;
             let now = self.now();
-            if now >= startup && self.startup_gate_released()? {
+            tuning.advance(&self.options, now)?;
+            if now >= startup && tuning.finished(&self.options) && self.startup_gate_released()? {
                 break;
             }
             let due = if now < startup {
@@ -374,7 +379,10 @@ impl<W: Write> Engine<W> {
             } else {
                 f64::INFINITY
             };
-            let mut wait = self.wait_duration(due.min(crash.unwrap_or(f64::INFINITY)));
+            let mut wait = self.wait_duration(
+                due.min(crash.unwrap_or(f64::INFINITY))
+                    .min(tuning.next(&self.options)),
+            );
             if self.options.startup_gate_file.is_some() {
                 wait = wait.min(Duration::from_millis(10));
             }
@@ -456,7 +464,15 @@ fn claim_fault(marker: Option<&Path>) -> Result<bool, RunError> {
     }
 }
 
-fn run(options: Options) -> Result<(), RunError> {
+fn fake_version() -> &'static str {
+    if env!("CARGO_BIN_NAME") == "fake-katago-cpu" {
+        "1.16.5-fake-cpu"
+    } else {
+        "1.16.5-fake"
+    }
+}
+
+fn run(mut options: Options) -> Result<(), RunError> {
     if let Some(path) = &options.launch_log {
         let mut log = OpenOptions::new().create(true).append(true).open(path)?;
         serde_json::to_writer(&mut log, &std::env::args().skip(1).collect::<Vec<_>>())?;
@@ -465,6 +481,13 @@ fn run(options: Options) -> Result<(), RunError> {
     }
     if options.benchmark {
         return benchmark::run(&options);
+    }
+    startup::load_script(&mut options)?;
+    startup::backend(&options)?;
+    if let Some(error) = &options.startup_error
+        && claim_fault(options.fault_once_file.as_deref())?
+    {
+        return Err(RunError::Startup(error.clone()));
     }
     if options.fail_startup && claim_fault(options.fault_once_file.as_deref())? {
         return Err(RunError::MissingModel);

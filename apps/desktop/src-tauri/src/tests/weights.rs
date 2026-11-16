@@ -138,8 +138,12 @@ async fn weight_and_diagnostic_commands_are_only_allowed_from_local_main() {
     let other = tauri::WebviewWindowBuilder::new(&harness.app, "weights-other", Default::default())
         .build()
         .unwrap();
+    let floating = tauri::WebviewWindowBuilder::new(&harness.app, "float-main", Default::default())
+        .build()
+        .unwrap();
     for (window, url) in [
         (&other, local_url()),
+        (&floating, local_url()),
         (&harness.main, "https://example.com/"),
     ] {
         for command in [
@@ -148,6 +152,10 @@ async fn weight_and_diagnostic_commands_are_only_allowed_from_local_main() {
             "cancel_asset_download",
             "asset_download_status",
             "acceleration_plan",
+            "enable_acceleration",
+            "acceleration_output",
+            "disable_acceleration",
+            "dismiss_acceleration_hint",
             "use_official_weight",
             "diagnose_engine",
             "repair_engine",
@@ -160,4 +168,69 @@ async fn weight_and_diagnostic_commands_are_only_allowed_from_local_main() {
         }
     }
     harness.finish().await;
+}
+
+#[tokio::test]
+async fn acceleration_hint_ipc_persists_and_invalid_backend_never_starts_a_download() {
+    let harness = Harness::new().await;
+    assert_eq!(
+        harness.invoke("settings", json!({})).await["acceleration_hint_dismissed"],
+        false
+    );
+    assert_eq!(
+        harness.invoke("dismiss_acceleration_hint", json!({})).await,
+        json!(null)
+    );
+    assert_eq!(
+        harness.invoke("settings", json!({})).await["acceleration_hint_dismissed"],
+        true
+    );
+    let saved: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(harness.directory.path().join("settings.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(saved["acceleration_hint_dismissed"], true);
+    assert!(
+        request(
+            &harness.main,
+            "enable_acceleration",
+            json!({"backend":"eigen"}),
+            local_url()
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(
+        harness.invoke("asset_download_status", json!({})).await["phase"],
+        "Idle"
+    );
+    harness.finish().await;
+}
+
+#[test]
+fn acceleration_errors_keep_their_kind_and_engine_output_across_ipc() {
+    let error = app_core::AccelerationError::Failed {
+        reason: "GPU initialization failed".into(),
+        stderr_tail: vec!["CUDA_ERROR_OUT_OF_MEMORY".into()],
+    };
+    let wire = crate::error::CommandError::from(app_core::AppError::from(error));
+    assert_eq!(
+        serde_json::to_value(wire).unwrap(),
+        json!({
+            "type": "Acceleration",
+            "data": {"type": "Failed", "data": {
+                "reason": "GPU initialization failed",
+                "stderr_tail": ["CUDA_ERROR_OUT_OF_MEMORY"]
+            }}
+        })
+    );
+    let busy = crate::error::CommandError::from(app_core::AppError::from(
+        app_core::AccelerationError::Busy,
+    ));
+    assert_eq!(
+        serde_json::to_value(busy).unwrap(),
+        json!({
+            "type": "Acceleration", "data": {"type": "Busy"}
+        })
+    );
 }

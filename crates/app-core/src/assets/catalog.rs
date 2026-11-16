@@ -88,7 +88,10 @@ impl AssetCatalog {
         }
         specs.sort_by_key(|entry| (entry.id != raw.default_model_id, entry.id.clone()));
         for (id, entry) in raw.assets {
-            if !matches!(id.as_str(), "windows-nvidia" | "windows-tensorrt") {
+            if !matches!(
+                id.as_str(),
+                "windows-nvidia" | "windows-tensorrt" | "windows-opencl"
+            ) {
                 continue;
             }
             let url = format!(

@@ -1,10 +1,10 @@
 use crate::{
     AnalysisRequest, EngineStatus, QueryError, QueryEvent, QueryId, QuerySubscription,
-    SessionConfig, SessionError, TransportSpec, delivery, transport,
+    SessionConfig, SessionError, StartupDeadline, TransportSpec, delivery, startup, transport,
 };
 use katago_protocol::{Action, ActionResponse, EngineLine, Request, parse_line};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::time::{Instant, sleep_until};
 
 const MAX_PENDING: usize = 128;
@@ -19,6 +19,9 @@ pub(crate) enum Command {
     Terminate(QueryId, oneshot::Sender<Result<(), SessionError>>),
     Shutdown(oneshot::Sender<Result<(), SessionError>>),
 }
+
+#[cfg(test)]
+mod tests;
 
 struct Pending {
     ordinal: u64,
@@ -35,6 +38,8 @@ struct Actor {
     cfg: SessionConfig,
     commands: mpsc::Receiver<Command>,
     status: watch::Sender<EngineStatus>,
+    stderr: broadcast::Sender<String>,
+    startup: StartupDeadline,
     pending: BTreeMap<QueryId, Pending>,
     outgoing: VecDeque<(Option<QueryId>, String)>,
     instance: uuid::Uuid,
@@ -61,12 +66,20 @@ pub(crate) async fn run(
     cfg: SessionConfig,
     commands: mpsc::Receiver<Command>,
     status: watch::Sender<EngineStatus>,
+    stderr: broadcast::Sender<String>,
 ) {
+    let startup = StartupDeadline::new(
+        Instant::now(),
+        cfg.startup_timeout,
+        cfg.max_startup_duration,
+    );
     let mut actor = Actor {
         remote: spec.is_remote(),
         cfg,
         commands,
         status,
+        stderr,
+        startup,
         pending: BTreeMap::new(),
         outgoing: VecDeque::new(),
         instance: uuid::Uuid::new_v4(),
@@ -110,7 +123,12 @@ impl Actor {
 
     async fn run_processes(&mut self, spec: TransportSpec) {
         loop {
-            let startup_deadline = Instant::now() + self.cfg.startup_timeout;
+            self.startup = StartupDeadline::new(
+                Instant::now(),
+                self.cfg.startup_timeout,
+                self.cfg.max_startup_duration,
+            );
+            let startup_deadline = self.startup.deadline();
             let cfg = self.cfg.clone();
             let starting = tokio::time::timeout_at(startup_deadline, transport::start(&spec, &cfg));
             tokio::pin!(starting);
@@ -173,7 +191,7 @@ impl Actor {
             self.queue_action(Action::QueryVersion {
                 id: self.version_id.clone(),
             });
-            let outcome = self.drive(&mut process, startup_deadline).await;
+            let outcome = self.drive(&mut process).await;
             let (reason, fatal, exit) = match outcome {
                 Outcome::Exited(exit) => {
                     let reason = exit.reason.clone().unwrap_or_else(|| match &exit.status {
@@ -242,18 +260,14 @@ impl Actor {
         true
     }
 
-    async fn drive(
-        &mut self,
-        process: &mut transport::Transport,
-        startup_deadline: Instant,
-    ) -> Outcome {
+    async fn drive(&mut self, process: &mut transport::Transport) -> Outcome {
         let mut driver_done = false;
         let mut input_open = true;
         loop {
             let deadline = if self.ready {
                 self.last_output + self.cfg.response_timeout
             } else {
-                startup_deadline
+                self.startup.deadline()
             };
             tokio::select! {
                 _ = &mut process.driver, if !driver_done => { driver_done = true; }
@@ -418,7 +432,12 @@ impl Actor {
         let line = match output {
             transport::Output::Stdout(line) => line,
             transport::Output::Stderr(line) => {
+                let line = startup::bounded_line(line);
                 tracing::debug!(stderr = %line, "engine stderr");
+                if accept_readiness && !self.ready {
+                    self.startup.observe(&line, Instant::now());
+                }
+                let _ = self.stderr.send(line);
                 return None;
             }
             transport::Output::Fault(reason) => {
