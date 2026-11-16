@@ -346,7 +346,7 @@ export function MenuBar({ menus, bindings, labels, label, actions, tray }: MenuB
                         key={`${entry.id}-${index}`}
                         id={`${uid}-${depthIndex}-${index}`}
                         entry={entry}
-                        text={labelOf(entry, labels)}
+                        text={bindings[entry.id]?.label ?? labelOf(entry, labels)}
                         enabled={selectable(entry, bindings)}
                         checked={entry.kind === "check" && bindings[entry.id]?.checked === true}
                         active={level.active === index}

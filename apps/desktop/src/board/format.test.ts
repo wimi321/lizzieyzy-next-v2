@@ -96,4 +96,15 @@ describe("labels", () => {
     expect(rowLabel(18, 19)).toBe("1");
     expect(rowLabel(0, 13)).toBe("13");
   });
+
+  test("the web board's styles: letters with I, and 野狐 counting rows from the top", () => {
+    expect(columnLabel(8, 19, "withI")).toBe("I");
+    expect(columnLabel(18, 19, "withI")).toBe("S");
+    expect(rowLabel(0, 19, "withI")).toBe("19");
+    expect(columnLabel(8, 19, "fox")).toBe("I");
+    expect(rowLabel(0, 19, "fox")).toBe("1");
+    expect(rowLabel(18, 19, "fox")).toBe("19");
+    expect(columnLabel(8, 19, "standard")).toBe("J");
+    expect(columnLabel(29, 30, "withI")).toBe("30");
+  });
 });

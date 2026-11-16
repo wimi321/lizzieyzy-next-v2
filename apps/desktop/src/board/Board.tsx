@@ -3,6 +3,7 @@ import type { AnalysisView, BoardView, ColorView, MarkupView, MoveRank, PointVie
 import { useBoardAssets, useElementSize } from "./assets";
 import { drawGoban, drawOverlay, drawStones, type Names, type NextMove, prepare } from "./draw";
 import { drawEstimate, type Estimate, underStones } from "./estimate";
+import type { CoordinateStyle } from "./format";
 import { computeGeometry, pixelToPoint, pointIndex } from "./geometry";
 import { drawMarkup } from "./markup";
 import { drawDragRect, drawRestriction, drawScoring, type Pixel, pointsInRect } from "./regions";
@@ -22,6 +23,8 @@ export interface BoardProps {
   board: BoardView;
   analysis: AnalysisView | null;
   coordinates: boolean;
+  /** The edge labels' style (the web board offers 野狐 and letters with I); standard GTP by default. */
+  coordinateStyle?: CoordinateStyle;
   /** Kata形势 on this board: the root's ownership in the chosen style, or null. */
   estimate: Estimate | null;
   /** 按选点显示评估: over a hovered candidate, show that move's ownership instead. */
@@ -92,6 +95,7 @@ export function Board({
   board,
   analysis,
   coordinates,
+  coordinateStyle,
   estimate,
   movesOwnership = false,
   policy = null,
@@ -158,8 +162,8 @@ export function Board({
   useEffect(() => {
     const canvas = gobanCanvas.current;
     const context = canvas && images && prepare(canvas, geometry);
-    if (context && images) drawGoban(context, geometry, images, { coordinates, names, toPlay: board.to_play, dpr: geometry.dpr });
-  }, [geometry, images, fonts, coordinates, names, board.to_play]);
+    if (context && images) drawGoban(context, geometry, images, { coordinates, coordinateStyle, names, toPlay: board.to_play, dpr: geometry.dpr });
+  }, [geometry, images, fonts, coordinates, coordinateStyle, names, board.to_play]);
 
   // 以棋子下大面积方块表示占有率: under the stones, over the wood.
   useEffect(() => {

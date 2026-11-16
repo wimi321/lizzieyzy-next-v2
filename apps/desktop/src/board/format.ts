@@ -43,16 +43,23 @@ export function formatScore(value: number): string {
   return `${rounded > 0 ? "+" : "−"}${Math.abs(rounded).toFixed(1)}`;
 }
 
+/**
+ * How the board edge is labelled (the web board's choices, after Java's `board.js`): GTP letters
+ * skip I with rows counted up from the bottom; `withI` keeps I; `fox` (野狐) keeps I and counts
+ * rows down from the top.
+ */
+export type CoordinateStyle = "standard" | "withI" | "fox";
+
 /** GTP column letters skip I. Boards wider than 25 fall back to numbers. */
-export function columnLabel(x: number, columns: number): string {
+export function columnLabel(x: number, columns: number, style: CoordinateStyle = "standard"): string {
   if (columns > 25) return String(x + 1);
-  const letters = "ABCDEFGHJKLMNOPQRSTUVWXYZ";
+  const letters = style === "standard" ? "ABCDEFGHJKLMNOPQRSTUVWXYZ" : "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   return letters[x] ?? String(x + 1);
 }
 
-/** Row 0 is the top line, labelled with the highest number as in GTP. */
-export function rowLabel(y: number, rows: number): string {
-  return String(rows - y);
+/** Row 0 is the top line, labelled with the highest number as in GTP (野狐: 1 at the top). */
+export function rowLabel(y: number, rows: number, style: CoordinateStyle = "standard"): string {
+  return String(style === "fox" ? y + 1 : rows - y);
 }
 
 function trimZero(text: string): string {
