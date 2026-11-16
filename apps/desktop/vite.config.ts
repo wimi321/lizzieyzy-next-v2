@@ -14,7 +14,17 @@ export default defineConfig(({ mode }) => ({
       ),
     },
   },
+  // Relative asset URLs: 网页旁观 serves the build under /<token>/, the app at its root.
+  base: "./",
   clearScreen: false,
   server: { host: "localhost", port: 1420, strictPort: true },
-  build: { outDir: mode === "e2e" ? "dist-e2e" : "dist" },
+  build: {
+    outDir: mode === "e2e" ? "dist-e2e" : "dist",
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        web: fileURLToPath(new URL("./web.html", import.meta.url)),
+      },
+    },
+  },
 }));

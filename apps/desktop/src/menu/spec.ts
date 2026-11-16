@@ -417,6 +417,8 @@ export const MENUS: readonly MenuSubmenu[] = [
     sub("webBoardMenu", "Menu.webBoard", [
       item("webBoardToggle", "Menu.webBoardStart"),
       item("webBoardCopyUrl", "Menu.webBoardCopyUrl"),
+      // Not in Java: withEditing puts the row's text in the interface language.
+      check("webBoardAllowTrial", null, undefined, "Allow viewers to try moves"),
       item("webBoardExitTrial", "Menu.webBoardForceExitTrial"),
     ]),
     SEP,
@@ -482,6 +484,8 @@ export interface EditingMenuText {
   redo: string;
   recentEmpty: string;
   clearRecent: string;
+  /** 网页旁观's row that Java does not have, in the interface language. */
+  webBoardAllowTrial?: string;
 }
 
 function fileName(path: string): string {
@@ -494,8 +498,9 @@ function rewrite(menu: MenuSubmenu, change: (entry: MenuEntry) => MenuEntry): Me
 
 /**
  * The entries that depend on the running app: 最近打开 lists the recent games by file name
- * (ids `recent0`…, the whole path on hover) above 清空列表, and Java's 撤销删除 / 恢复删除 are
- * worded for what they do here, which is undo and redo any edit.
+ * (ids `recent0`…, the whole path on hover) above 清空列表, Java's 撤销删除 / 恢复删除 are
+ * worded for what they do here, which is undo and redo any edit, and 网页旁观's own row is
+ * in the interface language.
  */
 export function withEditing(menus: readonly MenuSubmenu[], recent: readonly string[], text: EditingMenuText): MenuSubmenu[] {
   const files: MenuEntry[] =
@@ -512,6 +517,7 @@ export function withEditing(menus: readonly MenuSubmenu[], recent: readonly stri
       if (entry.id === "openRecent" && entry.kind === "submenu") return { ...entry, items: files };
       if (entry.id === "undoDelete") return item("undoDelete", null, undefined, text.undo);
       if (entry.id === "redoDelete") return item("redoDelete", null, undefined, text.redo);
+      if (entry.id === "webBoardAllowTrial" && text.webBoardAllowTrial) return { ...entry, text: text.webBoardAllowTrial };
       return entry;
     }),
   );

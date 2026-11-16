@@ -83,9 +83,11 @@ test("mock defaults old settings and status while every web command remains scri
   expect(web.mock.lastCall?.[0].viewers).toBe(3);
   expect(web.mock.lastCall?.[0].running).toBe(false);
   expect(ui).not.toHaveBeenCalled();
-  for (const call of [mock.startWebBoard, mock.stopWebBoard, mock.webBoardStatus, mock.forceEndWebTrial]) {
+  for (const call of [mock.startWebBoard, mock.stopWebBoard, mock.forceEndWebTrial]) {
     await expect(call()).rejects.toThrow("Expected mock command");
   }
+  // The status is a query: the main window reads it at start, unscripted it is "not running".
+  expect(await mock.webBoardStatus()).toEqual({ running: false, port: null, url: null, addresses: [], viewers: 0, trial: null });
   await expect(mock.setWebBoardOptions({ allow_trial: true })).rejects.toThrow("Expected mock command");
   for (const id of ids) await mock.unsubscribe(id);
 });

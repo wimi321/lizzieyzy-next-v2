@@ -1,6 +1,6 @@
 import type { AnalysisView, BoardView, CandidateView, ColorView, MoveRank, PointView, VariationPreviewView } from "@/api/backend";
 import { type BoardImages, type Context, disc, NUMBER_FONT, text, UI_FONT, wood } from "./canvas";
-import { columnLabel, forMover, rowLabel } from "./format";
+import { columnLabel, type CoordinateStyle, forMover, rowLabel } from "./format";
 import { DEFAULT_SUGGESTION_STYLE, drawSuggestionText, scoreLabel, type SuggestionStyle } from "./suggestionText";
 import { type Geometry, pointIndex, pointToPixel, starPoints } from "./geometry";
 import { drawEstimate, drawPolicy, type Estimate, underStones } from "./estimate";
@@ -36,6 +36,8 @@ export interface Names {
 
 export interface GobanLayer {
   coordinates: boolean;
+  /** The edge labels' style; standard GTP when absent. */
+  coordinateStyle?: CoordinateStyle;
   /** Player names under the bottom line; they replace the bottom coordinates. */
   names: Names | null;
   toPlay: ColorView;
@@ -94,23 +96,23 @@ export function drawGoban(context: Context, geometry: Geometry, images: BoardIma
     context.fill();
   }
 
-  if (layer.coordinates) drawCoordinates(context, geometry, layer.names === null);
+  if (layer.coordinates) drawCoordinates(context, geometry, layer.names === null, layer.coordinateStyle);
   if (layer.names) drawNames(context, geometry, images, layer.names, layer.toPlay, layer.dpr);
 }
 
-function drawCoordinates(context: Context, geometry: Geometry, bottom: boolean) {
+function drawCoordinates(context: Context, geometry: Geometry, bottom: boolean, style: CoordinateStyle = "standard") {
   const { boardX, boardY, boardWidth, boardHeight, margin, stoneRadius, columns, rows } = geometry;
   const inset = Math.trunc((margin * 4) / 10);
   const maximumHeight = Math.trunc((stoneRadius * 4) / 5);
   context.fillStyle = "#000";
   for (let x = 0; x < columns; x++) {
-    const label = columnLabel(x, columns);
+    const label = columnLabel(x, columns, style);
     const px = pointToPixel(geometry, { x, y: 0 }).x;
     text(context, label, px, boardY + inset, UI_FONT, maximumHeight, stoneRadius);
     if (bottom) text(context, label, px, boardY + boardHeight - inset, UI_FONT, maximumHeight, stoneRadius);
   }
   for (let y = 0; y < rows; y++) {
-    const label = rowLabel(y, rows);
+    const label = rowLabel(y, rows, style);
     const py = pointToPixel(geometry, { x: 0, y }).y;
     text(context, label, boardX + inset, py, UI_FONT, maximumHeight, stoneRadius);
     text(context, label, boardX + boardWidth - inset, py, UI_FONT, maximumHeight, stoneRadius);

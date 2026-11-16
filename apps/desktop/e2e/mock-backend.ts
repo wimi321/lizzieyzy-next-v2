@@ -552,7 +552,7 @@ export const tsumegoStatus: Backend["tsumegoStatus"] = () => command("tsumegoSta
  * are answered from the last document, unrecorded, so a UI that fetches its
  * tree after every structural change does not disturb scripted command lists.
  */
-function query<K extends "gameView" | "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "accelerationOutput" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound" | "clipboardLink">(
+function query<K extends "webBoardStatus" | "gameView" | "setAnalysisExtras" | "batchAnalysisStatus" | "flashAnalysis" | "officialWeights" | "assetDownloadStatus" | "accelerationPlan" | "accelerationOutput" | "diagnoseEngine" | "variationTree" | "previewVariation" | "engineDisplayName" | "wholeGameProgress" | "boardSyncStatus" | "benchmarkStatus" | "problemMoves" | "strengthEstimate" | "autoQuickAnalyzeOnLoad" | "analysisLimits" | "analysisState" | "recentFiles" | "stoneOrigin" | "cacheEnabled" | "updateDownloadStatus" | "fullLogStatus" | "logDirectory" | "automaticUpdateCheck" | "alwaysOnTop" | "uiScale" | "playSound" | "clipboardLink">(
   name: K,
   args: Parameters<NonNullable<Backend[K]>>,
   fallback: () => Awaited<ReturnType<NonNullable<Backend[K]>>>,
@@ -1071,7 +1071,8 @@ export const accelerationOutput: NonNullable<Backend["accelerationOutput"]> = ()
 
 export const startWebBoard: NonNullable<Backend["startWebBoard"]> = () => command("startWebBoard", []);
 export const stopWebBoard: NonNullable<Backend["stopWebBoard"]> = () => command("stopWebBoard", []);
-export const webBoardStatus: NonNullable<Backend["webBoardStatus"]> = () => command("webBoardStatus", []);
+export const webBoardStatus: NonNullable<Backend["webBoardStatus"]> = () =>
+  query("webBoardStatus", [], () => ({ running: false, port: null, url: null, addresses: [], viewers: 0, trial: null }));
 export const setWebBoardOptions: NonNullable<Backend["setWebBoardOptions"]> = (options) => command("setWebBoardOptions", [options]);
 export const forceEndWebTrial: NonNullable<Backend["forceEndWebTrial"]> = () => command("forceEndWebTrial", []);
 export const subscribeWebBoardChanged: NonNullable<Backend["subscribeWebBoardChanged"]> = async (listener) => {

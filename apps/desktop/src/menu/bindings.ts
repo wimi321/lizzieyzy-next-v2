@@ -10,6 +10,8 @@ export interface MenuBinding {
   checked?: boolean;
   /** A small button at the row's end, as Java's 自定义布局 rows carry 设置. */
   aside?: { label: string; run(): void };
+  /** Replaces the entry's text while it applies, as Java's 启动 / 停止 Web 旁观 does. */
+  label?: string;
 }
 
 export type MenuBindings = Readonly<Record<string, MenuBinding>>;

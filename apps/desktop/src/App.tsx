@@ -40,6 +40,7 @@ import { useClearing } from "./analysis/useClearing";
 import { ToolsPanel, ToolsTabs } from "./engines/EngineTools";
 import { AccelerationHint, AccelerationPanel } from "./acceleration/AccelerationPanel";
 import { useAcceleration } from "./acceleration/useAcceleration";
+import { useWebBoardHost } from "./webboard/useWebBoardHost";
 import { useEngines } from "./engines/useEngines";
 import { useRelease } from "./release/useRelease";
 import { useEveryday } from "./everyday/useEveryday";
@@ -286,6 +287,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   };
   const clearing = useClearing(backend, board !== null, messages.clearing);
   const modes = useBoardModes(backend, document, messages.modes);
+  const web = useWebBoardHost(backend, messages.webBoard, { settings: engines.settings, windows: WINDOWS, stopLabel: messages.menu["Menu.webBoardStop"], onTrialStart: modes.exit });
   const editing = useEditing(
     backend,
     document,
@@ -402,6 +404,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...analysisTools.bindings,
     ...layout.bindings,
     ...floating.bindings,
+    ...web.bindings,
     ...(remote.remote ? { autoSetup: { enabled: false } } : {}),
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
@@ -511,7 +514,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             {release.tray(messages.release)}
             {batch.tray()}
             {games.tray()}
-            {editing.trialChip}
+            {web.trial ? null : editing.trialChip}{web.chip}
             {analysisTools.chip}
             {modes.chip}
             {tsumego.status ? <TsumegoChip status={tsumego.status} labels={messages.tsumego} onExit={tsumego.exit} /> : null}
