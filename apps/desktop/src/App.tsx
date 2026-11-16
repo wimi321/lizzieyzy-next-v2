@@ -62,6 +62,7 @@ import { useWholeGame } from "./review/useWholeGame";
 import { useResearch } from "./research/useResearch";
 import { useAnalysisTools } from "./analysis/useAnalysisTools";
 import { useLayout } from "./layout/useLayout";
+import { useFloating } from "./floating/useFloating";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { connect, createStore, type Store, useAppState } from "./state/store";
 import { BottomToolbar, JUMP } from "./frame/BottomToolbar";
@@ -111,8 +112,10 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   // 显示: saved in the settings, read with them at start.
   const display = useDisplay(backend, messages.display);
   const loadDisplay = display.load;
-  // 布局模式, 放大小棋盘 / 胜率图, 主棋盘位置, 可视化面板设置 and 自定义布局.
-  const layout = useLayout(backend, display.display, display.set, messages.layout);
+  // 浮动主棋盘 / 浮动小棋盘; 布局模式, 放大小棋盘 / 胜率图, 主棋盘位置, 可视化面板设置 and 自定义布局.
+  const floating = useFloating(backend);
+  const loadFloating = floating.load;
+  const layout = useLayout(backend, display.display, display.set, messages.layout, floating);
   // The engines and the main one; a first run without one picks it by itself.
   const engines = useEngines(backend, engine, messages.frame.engineNames, messages.engines, messages.setup, (settings) => display.load(settings.display), {
     labels: messages.remote,
@@ -210,6 +213,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         loadEveryday(settings);
         loadBatch(settings);
         loadResearch(settings);
+        loadFloating(settings);
         loadAnalysisTools(settings);
         await loadEngines(settings, () => active);
       })
@@ -218,7 +222,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       active = false;
     };
     // A state setter: the settings are read once.
-  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease, loadEveryday, loadBatch, loadOnline, loadCommentary, loadResearch, loadAnalysisTools]);
+  }, [setTsumegoOptions, loadDisplay, loadEngines, loadRelease, loadEveryday, loadBatch, loadOnline, loadCommentary, loadResearch, loadAnalysisTools, loadFloating]);
 
   // A comment being edited is saved before the app moves to another move by itself.
   const comment = useCommentEdit(backend, document);
@@ -394,6 +398,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...research.bindings,
     ...analysisTools.bindings,
     ...layout.bindings,
+    ...floating.bindings,
     ...(remote.remote ? { autoSetup: { enabled: false } } : {}),
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
@@ -516,12 +521,12 @@ export default function App({ store: provided }: { store?: Store } = {}) {
       />
       {shown.show_top_toolbar && !combinedTop ? topToolbar : null}
       <MainPanel
-        hidden={hidden}
+        hidden={floating.hide(hidden)}
         boardSize={board?.width ?? 19}
         boardData={{ "data-revision": revision, "data-node-id": document?.tree.current }}
         boardOverlay={research.paintLayer}
         cover={analysisTools.cover ?? research.cover}
-        arrangement={layout.arrangement}
+        arrangement={{ ...layout.arrangement, ...floating.arrangement }}
         onBoardWheel={(event) => {
           // Lines (Firefox, some mice) count as whole notches.
           wheel.current += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * WHEEL_STEP;

@@ -2099,6 +2099,8 @@
       },
       "largeSubBoard": "大きいサブ碁盤",
       "largeWinrateGraph": "大きい勝率グラフ",
+      "floatMain": "メイン碁盤の独立表示",
+      "floatSub": "サブ碁盤の独立表示",
       "position": "碁盤の位置を調整",
       "apply": "適用",
       "cancel": "キャンセル"
@@ -2107,5 +2109,15 @@
       "thinking": "検討用の碁盤",
       "candidate": "候補 {n} の変化"
     }
+  },
+  "floating": {
+    "main": "メイン碁盤（独立）",
+    "sub": "サブ碁盤（独立）",
+    "loading": "読み込み中…",
+    "close": "閉じる",
+    "pin": "最前面に表示",
+    "unpin": "最前面表示をやめる",
+    "lock": "位置と大きさを固定",
+    "unlock": "固定を解除"
   }
 }

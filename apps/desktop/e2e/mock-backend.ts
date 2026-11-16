@@ -1020,6 +1020,10 @@ export const closeFloatingBoard: NonNullable<Backend["closeFloatingBoard"]> = (k
 export const setFloatingBoardOptions: NonNullable<Backend["setFloatingBoardOptions"]> = (kind, onTop, locked) => command("setFloatingBoardOptions", [kind, onTop, locked]);
 export const setFloatingLayout: NonNullable<Backend["setFloatingLayout"]> = (main, keepMainBoard, sub) => command("setFloatingLayout", [main, keepMainBoard, sub]);
 export const applyWindowLayout: NonNullable<Backend["applyWindowLayout"]> = (layout) => command("applyWindowLayout", [layout]);
+// The browser has no native window: these are recorded for the tests, never scripted.
+export const dragWindow: Backend["dragWindow"] = async () => void calls.push({ command: "dragWindow", args: [] });
+export const resizeWindow: Backend["resizeWindow"] = async (edge) => void calls.push({ command: "resizeWindow", args: [edge] });
+export const setWindowSquare: Backend["setWindowSquare"] = async (side) => void calls.push({ command: "setWindowSquare", args: [side] });
 export const subscribeFloatingBoardsChanged: NonNullable<Backend["subscribeFloatingBoardsChanged"]> = async (listener) => {
   const id = ++nextListenerId;
   listeners.set(id, (event) => { if (event.type === "FloatingBoardsChanged") listener(event.data); });
