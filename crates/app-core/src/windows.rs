@@ -272,6 +272,15 @@ pub fn fit_window_bounds(
     let mut valid = work_areas
         .iter()
         .filter(|area| area.width > 0 && area.height > 0);
+    // Preserve a fit on any monitor before resolving overlapping work areas.
+    // A nearer, larger monitor must not enlarge a previously capped dimension.
+    if valid.clone().any(|area| {
+        bounds.width >= minimum.0.max(1).min(area.width)
+            && bounds.height >= minimum.1.max(1).min(area.height)
+            && overlap(bounds, *area) == i128::from(bounds.width) * i128::from(bounds.height)
+    }) {
+        return bounds;
+    }
     let Some(primary) = valid.next() else {
         return bounds;
     };

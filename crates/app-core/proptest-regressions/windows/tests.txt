@@ -1,0 +1,2 @@
+# Seeds for window fitting regressions, replayed before generated proptest cases.
+cc 23ca8ce1da399cc1c3fa633281ac6ff56816059d6df24651234ee067d781b955

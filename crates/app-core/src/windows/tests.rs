@@ -233,6 +233,52 @@ fn fitting_uses_overlap_negative_monitors_clamping_and_primary_fallback() {
 }
 
 #[test]
+fn fitting_is_stable_when_overlapping_work_area_is_smaller_than_minimum() {
+    let screens = [bounds(6775, -442, 303, 6273), bounds(50, -2299, 7670, 2368)];
+    let minimum = (304, 1);
+    let fitted = fit_window_bounds(bounds(12331, -5127, 1, 1), &screens, minimum);
+    assert_eq!(fitted, bounds(6775, -442, 303, 1));
+    assert!(contains(screens[0], fitted));
+    assert_eq!(fit_window_bounds(fitted, &screens, minimum), fitted);
+}
+
+#[test]
+fn fitting_is_stable_when_overlapping_work_area_is_shorter_than_minimum() {
+    let screens = [bounds(-442, 6775, 6273, 303), bounds(-2299, 50, 2368, 7670)];
+    let minimum = (1, 304);
+    let fitted = fit_window_bounds(bounds(-5127, 12331, 1, 1), &screens, minimum);
+    assert_eq!(fitted, bounds(-442, 6775, 1, 303));
+    assert!(contains(screens[0], fitted));
+    assert_eq!(fit_window_bounds(fitted, &screens, minimum), fitted);
+}
+
+#[test]
+fn fitting_contained_windows_still_enforces_each_effective_minimum() {
+    for (screen, requested, expected) in [
+        (
+            bounds(0, 0, 800, 600),
+            bounds(20, 30, 1, 1),
+            bounds(20, 30, 304, 200),
+        ),
+        (
+            bounds(0, 0, 303, 600),
+            bounds(0, 30, 303, 1),
+            bounds(0, 30, 303, 200),
+        ),
+        (
+            bounds(0, 0, 800, 199),
+            bounds(20, 0, 1, 199),
+            bounds(20, 0, 304, 199),
+        ),
+    ] {
+        let fitted = fit_window_bounds(requested, &[screen], (304, 200));
+        assert_eq!(fitted, expected);
+        assert!(contains(screen, fitted));
+        assert_eq!(fit_window_bounds(fitted, &[screen], (304, 200)), fitted);
+    }
+}
+
+#[test]
 fn equal_overlap_selects_nearest_center_then_stable_monitor_order() {
     let first = bounds(0, 0, 1000, 1000);
     let second = bounds(1000, 0, 500, 1000);
