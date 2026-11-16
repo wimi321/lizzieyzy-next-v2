@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { ToolButton } from "./ToolButton";
+import { ToolButton, type ToolRole } from "./ToolButton";
+import { useToolbarFit } from "./toolbarFit";
 import type { ItemFilter } from "./toolbarItems";
 import type { AutoPlayButton } from "../research/useResearch";
 import type { AnalysisBottomBar } from "../analysis/useAnalysisTools";
@@ -102,8 +103,84 @@ const NAVIGATION: { key: keyof BottomToolbarLabels; text: string; steps: number 
   { key: "last", text: ">|", steps: JUMP },
 ];
 
-/** 更多: the buttons Java's bar has no room for at this width (终局点目, 纯网络). */
-function MoreButton({ labels, trial, hasBoard, onTrial, show, pure, onPure, tools }: { labels: BottomToolbarLabels; trial: boolean; hasBoard: boolean; onTrial(): void; show: ItemFilter; pure: boolean; onPure?(): void; tools?: AnalysisBottomBar }) {
+/** A button that gives way when the window is narrow, as the bar shows it and as 更多 lists it. */
+interface Optional {
+  id: string;
+  label: string;
+  testId: string;
+  enabled: boolean;
+  pressed?: boolean;
+  role?: ToolRole;
+  className?: string;
+  onClick?(): void;
+}
+
+/**
+ * The order the optional buttons keep their place in as the window narrows: 远程算力 first, then
+ * the everyday toggles; 自动播放 gives way first. What does not fit moves into 更多.
+ */
+const PRIORITY: readonly string[] = [
+  "remote",
+  "kataEstimateButton",
+  "coords",
+  "move",
+  "deleteMove",
+  "clearButton",
+  "openfile",
+  "savefile",
+  "badMoves",
+  "analyzeList",
+  "refresh",
+  "backMain",
+  "moveRank",
+  "downloadWeight",
+  "setMainButton",
+  "autoPlay",
+];
+const MORE = "more";
+
+function MenuEntry({ item, onChosen }: { item: Optional; onChosen(): void }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      data-on={item.pressed ? "true" : undefined}
+      disabled={!item.enabled}
+      data-testid={`more-${item.testId}`}
+      onClick={() => {
+        onChosen();
+        item.onClick?.();
+      }}
+    >
+      {item.label}
+    </button>
+  );
+}
+
+/** 更多: 试下, 终局点目 and 纯网络, and the bar's buttons that have no room at this width. */
+function MoreButton({
+  labels,
+  trial,
+  hasBoard,
+  onTrial,
+  show,
+  pure,
+  onPure,
+  tools,
+  overflow,
+  hidden,
+}: {
+  labels: BottomToolbarLabels;
+  trial: boolean;
+  hasBoard: boolean;
+  onTrial(): void;
+  show: ItemFilter;
+  pure: boolean;
+  onPure?(): void;
+  tools?: AnalysisBottomBar;
+  overflow: readonly Optional[];
+  hidden: boolean;
+}) {
   const [anchor, setAnchor] = useState<{ right: number; bottom: number } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -114,8 +191,9 @@ function MoreButton({ labels, trial, hasBoard, onTrial, show, pure, onPure, tool
     window.addEventListener("pointerdown", close);
     return () => window.removeEventListener("pointerdown", close);
   }, [anchor]);
+  const own = ["tryPlay", "finalScore", "heatMap"].some(show);
   return (
-    <div ref={root}>
+    <div ref={root} data-fit={MORE} className={hidden ? "jt-fit-hidden" : undefined}>
       <ToolButton
         label={labels.more}
         testId="tool-more"
@@ -126,6 +204,10 @@ function MoreButton({ labels, trial, hasBoard, onTrial, show, pure, onPure, tool
       />
       {anchor ? (
         <div className="jt-more-menu" role="menu" style={anchor} data-testid="tool-more-menu">
+          {overflow.map((item) => (
+            <MenuEntry key={item.id} item={item} onChosen={() => setAnchor(null)} />
+          ))}
+          {overflow.length > 0 && own ? <div className="jt-more-separator" role="separator" /> : null}
           {show("tryPlay") ? (
             <button
               type="button"
@@ -196,9 +278,57 @@ export function BottomToolbar({
   tools,
   ...on
 }: BottomToolbarProps) {
-  const more = ["tryPlay", "finalScore", "heatMap"].some(show);
+  const own = ["tryPlay", "finalScore", "heatMap"].some(show);
+  const when = (id: string, item: Omit<Optional, "id">): Optional[] => (show(id) ? [{ id, ...item }] : []);
+  const left: Optional[] = [
+    { id: "remote", role: "primary", label: labels.remote, enabled: true, testId: "tool-remote", onClick: on.onRemote },
+    { id: "downloadWeight", label: labels.downloadWeight, enabled: tools !== undefined, testId: "tool-weights", onClick: tools?.onWeights },
+    ...when("kataEstimateButton", { label: labels.kataEstimate, pressed: ownership, enabled: hasBoard, testId: "toggle-ownership", onClick: on.onToggleOwnership }),
+    ...when("openfile", { label: labels.open, enabled: on.onOpen !== undefined && !trial, testId: "bottom-open", onClick: on.onOpen }),
+    ...when("savefile", { label: labels.save, enabled: on.onSave !== undefined && hasBoard, testId: "bottom-save", onClick: on.onSave }),
+    ...when("badMoves", { label: labels.hawkEye, enabled: on.onHawkEye !== undefined && hasBoard, testId: "bottom-hawkeye", onClick: on.onHawkEye }),
+    ...when("analyzeList", { label: labels.list, enabled: on.onList !== undefined, testId: "bottom-list", onClick: on.onList }),
+    ...when("refresh", { label: labels.refresh, enabled: on.onRefresh !== undefined && hasBoard, testId: "bottom-refresh", onClick: on.onRefresh }),
+  ];
+  const center: Optional[] = when("autoPlay", { label: labels.autoPlay, enabled: hasBoard && autoPlay !== undefined, pressed: autoPlay?.playing, testId: "bottom-auto-play", onClick: autoPlay?.onClick });
+  const right: Optional[] = [
+    ...when("setMainButton", { label: labels.setMain, enabled: canSetMain, testId: "bottom-set-main", onClick: on.onSetMain }),
+    ...when("backMain", { label: labels.backMain, enabled: canBackMain, testId: "bottom-back-main", onClick: on.onBackMain }),
+    ...when("moveRank", { label: labels.moveRank, pressed: rankMarks, enabled: on.onMoveRank !== undefined, testId: "bottom-move-rank", onClick: on.onMoveRank }),
+    ...when("move", { label: labels.move, pressed: moveNumbers, enabled: on.onToggleMoveNumbers !== undefined, testId: "toggle-move-numbers", onClick: on.onToggleMoveNumbers }),
+    ...when("coords", { label: labels.coords, pressed: coordinates, enabled: true, testId: "toggle-coordinates", onClick: on.onToggleCoordinates }),
+    ...when("clearButton", { role: "danger", label: labels.clear, enabled: !trial, testId: "bottom-clear", onClick: on.onClear }),
+    ...when("deleteMove", { role: "danger", label: labels.delete, enabled: canDelete, testId: "bottom-delete", onClick: on.onDelete }),
+  ];
+
+  const bar = useRef<HTMLDivElement>(null);
+  const optional = [...left, ...center, ...right];
+  // What the bar holds, so the fit is measured again when buttons come or go.
+  const signature = [own, show("analyse"), show("batchOpen"), ...optional.map((item) => `${item.id}:${item.label}`)].join("|");
+  const fit = useToolbarFit(bar, signature, PRIORITY, MORE, own);
+  const hidden = new Set(fit?.hidden ?? (own ? [] : [MORE]));
+  const button = (item: Optional) => (
+    <ToolButton
+      key={item.id}
+      fit={item.id}
+      role={item.role}
+      className={hidden.has(item.id) ? "jt-fit-hidden" : undefined}
+      label={item.label}
+      pressed={item.pressed}
+      enabled={item.enabled}
+      testId={item.testId}
+      onClick={item.onClick}
+    />
+  );
   return (
-    <div className="jt-bottom" role="toolbar" data-testid="bottom-toolbar">
+    <div
+      ref={bar}
+      className="jt-bottom"
+      role="toolbar"
+      data-testid="bottom-toolbar"
+      data-fit-hidden={fit?.hidden.filter((id) => id !== MORE).join(" ") || undefined}
+      style={fit && !fit.centered ? { gridTemplateColumns: `${fit.leftTrack}px auto minmax(0, 1fr)` } : undefined}
+    >
       <div className="jt-group">
         {show("analyse") ? (
           <ToolButton
@@ -215,16 +345,7 @@ export function BottomToolbar({
           />
         ) : null}
         {show("batchOpen") ? autoAnalysis : null}
-        <ToolButton role="primary" className="jt-optional" label={labels.remote} testId="tool-remote" onClick={on.onRemote} />
-        <ToolButton className="jt-optional" label={labels.downloadWeight} enabled={tools !== undefined} testId="tool-weights" onClick={tools?.onWeights} />
-        {show("kataEstimateButton") ? (
-          <ToolButton label={labels.kataEstimate} pressed={ownership} enabled={hasBoard} testId="toggle-ownership" onClick={on.onToggleOwnership} />
-        ) : null}
-        {show("openfile") ? <ToolButton label={labels.open} enabled={on.onOpen !== undefined && !trial} testId="bottom-open" onClick={on.onOpen} /> : null}
-        {show("savefile") ? <ToolButton label={labels.save} enabled={on.onSave !== undefined && hasBoard} testId="bottom-save" onClick={on.onSave} /> : null}
-        {show("badMoves") ? <ToolButton label={labels.hawkEye} enabled={on.onHawkEye !== undefined && hasBoard} testId="bottom-hawkeye" onClick={on.onHawkEye} /> : null}
-        {show("analyzeList") ? <ToolButton label={labels.list} enabled={on.onList !== undefined} testId="bottom-list" onClick={on.onList} /> : null}
-        {show("refresh") ? <ToolButton label={labels.refresh} enabled={on.onRefresh !== undefined && hasBoard} testId="bottom-refresh" onClick={on.onRefresh} /> : null}
+        {left.map(button)}
       </div>
       <div className="jt-group">
         {NAVIGATION.map((item) => (
@@ -239,21 +360,22 @@ export function BottomToolbar({
           />
         ))}
         <GotoMove label={labels.gotoMove} enabled={hasBoard && on.onGotoMove !== undefined} onGo={(n) => on.onGotoMove?.(n)} />
-        {show("autoPlay") ? (
-          <ToolButton className="jt-optional" label={labels.autoPlay} enabled={hasBoard && autoPlay !== undefined} pressed={autoPlay?.playing} testId="bottom-auto-play" onClick={autoPlay?.onClick} />
-        ) : null}
+        {center.map(button)}
       </div>
       <div className="jt-group" data-align="end">
-        {show("setMainButton") ? <ToolButton className="jt-optional" label={labels.setMain} enabled={canSetMain} testId="bottom-set-main" onClick={on.onSetMain} /> : null}
-        {show("backMain") ? <ToolButton label={labels.backMain} enabled={canBackMain} testId="bottom-back-main" onClick={on.onBackMain} /> : null}
-        {show("moveRank") ? <ToolButton label={labels.moveRank} pressed={rankMarks} enabled={on.onMoveRank !== undefined} testId="bottom-move-rank" onClick={on.onMoveRank} /> : null}
-        {show("move") ? (
-          <ToolButton label={labels.move} pressed={moveNumbers} testId="toggle-move-numbers" enabled={on.onToggleMoveNumbers !== undefined} onClick={on.onToggleMoveNumbers} />
-        ) : null}
-        {show("coords") ? <ToolButton label={labels.coords} pressed={coordinates} testId="toggle-coordinates" onClick={on.onToggleCoordinates} /> : null}
-        {show("clearButton") ? <ToolButton role="danger" label={labels.clear} enabled={!trial} testId="bottom-clear" onClick={on.onClear} /> : null}
-        {show("deleteMove") ? <ToolButton role="danger" label={labels.delete} enabled={canDelete} testId="bottom-delete" onClick={on.onDelete} /> : null}
-        {more ? <MoreButton labels={labels} trial={trial} hasBoard={hasBoard} onTrial={on.onTrial} show={show} pure={pureNetwork} onPure={on.onPureNetwork} tools={tools} /> : null}
+        {right.map(button)}
+        <MoreButton
+          labels={labels}
+          trial={trial}
+          hasBoard={hasBoard}
+          onTrial={on.onTrial}
+          show={show}
+          pure={pureNetwork}
+          onPure={on.onPureNetwork}
+          tools={tools}
+          overflow={optional.filter((item) => hidden.has(item.id))}
+          hidden={hidden.has(MORE)}
+        />
       </div>
     </div>
   );
