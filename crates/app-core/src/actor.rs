@@ -21,12 +21,15 @@ mod board_sync;
 mod clear_analysis;
 mod coach;
 mod commentary;
+mod comparison;
+mod coordinators;
 mod display;
 mod document_view;
 mod editing;
 mod engine_settings;
 mod engines;
 mod everyday;
+mod focus;
 mod fox;
 mod game;
 mod game_files;
@@ -82,6 +85,7 @@ struct ViewFocus {
 }
 
 struct Actor {
+    comparison: comparison::State,
     web_board: web_board::State,
     restriction: Option<crate::AnalysisRestriction>,
     restricted_analysis: Option<crate::AnalysisView>,
@@ -147,6 +151,7 @@ pub(crate) async fn run(
         settings.cache_enabled,
     );
     let mut actor = Actor {
+        comparison: Default::default(),
         web_board: Default::default(),
         restriction: None,
         restricted_analysis: None,
@@ -203,6 +208,7 @@ pub(crate) async fn run(
         actor.failed(error.to_string());
     }
     actor.start_initial_engine().await;
+    actor.reconcile_comparison().await;
     actor.publish_sync();
     actor.publish_analysis_state();
     let period = actor
@@ -223,6 +229,7 @@ pub(crate) async fn run(
                 None => None,
               };
               match command {
+                Some(Command::ComparisonState(reply)) => { let _ = reply.send(actor.comparison_view()); }
                 Some(Command::WebBoard(request, reply)) => { let _ = reply.send(actor.web_board_command(request).await); }
                 Some(Command::EnableAcceleration(backend, reply)) => actor.begin_acceleration(backend, reply).await,
                 Some(Command::CancelAcceleration(reply)) => { let _ = reply.send(actor.cancel_asset_download().await); }
@@ -318,7 +325,9 @@ pub(crate) async fn run(
                     let assets_result = actor.assets.shutdown().await;
                     let benchmark_result = actor.stop_benchmark_process().await;
                     let sync_result = actor.stop_board_sync().await;
-                    let result = actor.stop_engine().await.and(sync_result).and(benchmark_result).and(assets_result).and(updates_result).and(web_result).map(|()| actor.revision);
+                    actor.cancel_comparison_trial().await;
+                    let comparison_result = actor.stop_comparison().await;
+                    let result = actor.stop_engine().await.and(sync_result).and(benchmark_result).and(assets_result).and(updates_result).and(web_result).and(comparison_result).map(|()| actor.revision);
                     if let Some(cache) = actor.cache.take() { cache.shutdown().await; }
                     if let Some(support) = actor.support.take() { let _ = support.shutdown().await; }
                     let _ = reply.send(result);
@@ -338,6 +347,8 @@ pub(crate) async fn run(
             () = web_board::deadline(web_deadline) => actor.expire_web_trial().await,
             progress = commentary::receive(&mut actor.commentary) => actor.commentary_progress(progress).await,
             line = gtp::receive(&mut actor.gtp) => actor.gtp_line(line),
+            signal = next_signal(&mut actor.comparison.running) => actor.comparison_signal(signal).await,
+            result = trial::wait(&mut actor.comparison.trial) => actor.comparison_trial_signal(result).await,
             signal = next_signal(&mut actor.running) => actor.cache_signal(signal).await,
             event = game::receive(&mut actor.game) => actor.game_signal(event).await,
             event = coach::receive(&mut actor.coach) => actor.coach_signal(event).await,
@@ -356,6 +367,8 @@ pub(crate) async fn run(
         actor.publish_analysis_state();
         actor.refresh_web_board();
     }
+    actor.cancel_comparison_trial().await;
+    let _ = actor.stop_comparison().await;
     actor.stop_commentary();
     actor.shutdown_match().await;
     actor.shutdown_gtp().await;
@@ -448,7 +461,7 @@ impl Actor {
                     document::Command::Step(_) | document::Command::GoTo(_)
                 );
                 let transformed_saved = matches!(command, document::Command::Transform(_))
-                    .then(|| self.valid_saved_nodes());
+                    .then(|| self.valid_all_saved_nodes());
                 let before = self.document.revision();
                 let before_content = self.document.content_revision();
                 self.document.apply(command)?;
@@ -457,7 +470,7 @@ impl Actor {
                         self.file_state
                             .analysis_edits
                             .document_transform(nodes.clone());
-                        self.import_selected_saved_analysis(Some(nodes))?;
+                        self.import_transformed_saved_analysis(nodes)?;
                     } else {
                         self.file_state.analysis_edits.document_edit();
                     }
@@ -520,6 +533,16 @@ impl Actor {
         cached: HashMap<AnalysisKey, crate::StoredAnalysis>,
         import_saved: bool,
     ) -> Result<(), AppError> {
+        self.document_replaced_with_analysis(cached, import_saved, None)
+            .await
+    }
+
+    async fn document_replaced_with_analysis(
+        &mut self,
+        cached: HashMap<AnalysisKey, crate::StoredAnalysis>,
+        import_saved: bool,
+        comparison: Option<comparison::DocumentState>,
+    ) -> Result<(), AppError> {
         self.restriction = None;
         self.restricted_analysis = None;
         self.scoring = None;
@@ -556,6 +579,10 @@ impl Actor {
         }
         // Restore before the first focus: otherwise a fast live result could
         // establish a shallow snapshot before the deep cached payload is seeded.
+        self.reset_comparison_document().await;
+        if let Some(saved) = comparison {
+            self.restore_comparison_document(saved);
+        }
         self.restore_loaded_analysis(cached)?;
         if import_saved {
             self.import_saved_analysis()?;
@@ -574,112 +601,6 @@ impl Actor {
         self.publish_document()?;
         self.update_focus_with_resume(resume_limited).await;
         Ok(())
-    }
-
-    async fn update_focus(&mut self) {
-        self.update_focus_with_resume(false).await;
-    }
-
-    async fn update_focus_with_resume(&mut self, resume_limited: bool) {
-        if self.scoring.is_some() {
-            return;
-        }
-        self.publish_saved_focus();
-        if self.match_active() || self.game_owns_query() {
-            return;
-        }
-        if self.running.is_none() {
-            return;
-        }
-        let node_id = if let Some(node) = self.game_focus_node() {
-            node
-        } else if self.sync_active() && !self.config.analysis.pure_network {
-            self.board_sync
-                .resolved_node
-                .filter(|id| self.document.node(*id).is_ok())
-                .unwrap_or(self.document.current())
-        } else {
-            self.document.current()
-        };
-        let Ok(position) = self.document.position_at(node_id) else {
-            self.flush_cached_focus().await;
-            self.focus = None;
-            if let Some(running) = &self.running
-                && let Err(error) = running.coordinator.clear_focus().await
-            {
-                self.analysis_failed(error.to_string());
-            }
-            return;
-        };
-        let key = position.analysis_key();
-        let changed = self
-            .focus
-            .as_ref()
-            .is_none_or(|focus| focus.node_id != node_id.0 || focus.key != key);
-        if changed {
-            self.flush_cached_focus().await;
-        }
-        let restart_review = changed && self.review_running() && !self.zhizi_review_owns_engine();
-        if restart_review && let Err(error) = self.stop_review_query().await {
-            self.analysis_failed(error.to_string());
-        }
-        let view_focus = ViewFocus {
-            revision: self.revision,
-            node_id: node_id.0,
-            key,
-            size: position.board.size(),
-            to_play: position.board.to_play(),
-        };
-        let cached = if self.restriction.is_some() {
-            None
-        } else {
-            self.cached_focus(node_id, &position).await
-        };
-        let focus = Focus {
-            revision: self.revision,
-            node_id,
-            position,
-            key,
-        };
-        if let Some(running) = &self.running {
-            if self.game_playing() {
-                let _ = running.coordinator.set_pondering(self.pondering()).await;
-            }
-            // Cached review results establish the same depth floor as LRU hits.
-            // Submit live before rebuilding the low-priority batch, reserving a
-            // search slot even when background work occupied both threads.
-            match running
-                .coordinator
-                .focus_with_cached_and_resume(focus, cached, resume_limited)
-                .await
-            {
-                Ok(()) => {
-                    self.focus = Some(view_focus);
-                    if let Err(error) = running.coordinator.set_pondering(self.pondering()).await {
-                        self.analysis_failed(error.to_string());
-                    }
-                }
-                Err(error) => self.analysis_failed(error.to_string()),
-            }
-        }
-        if restart_review {
-            self.continue_review().await;
-        }
-    }
-
-    fn coordinator(
-        &self,
-        engine: &EngineHandle,
-        fingerprint: &str,
-    ) -> Result<(AnalysisHandle, AnalysisSubscription), AppError> {
-        let mut config = self.config.analysis.clone();
-        config.engine_fingerprint = self.evaluation_fingerprint(fingerprint)?;
-        config.live = self.live_settings();
-        config.pondering = self.pondering();
-        config.cache_enabled = self.settings.cache_enabled;
-        config.restriction = self.engine_restriction();
-        config.limits = self.settings.analysis_limits.into();
-        Ok(analysis::spawn(engine.clone(), config)?)
     }
 
     fn set_summary_fingerprint(&mut self, fingerprint: Option<String>) {

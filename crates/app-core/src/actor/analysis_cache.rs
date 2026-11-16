@@ -10,7 +10,10 @@ impl Actor {
     /// Version the persisted namespace independently of the in-memory profile
     /// identity. Include the runtime recommendations and requested payload shape.
     fn cache_fingerprint(&self) -> Option<String> {
-        let fingerprint = &self.running.as_ref()?.fingerprint;
+        self.cache_fingerprint_for(&self.running.as_ref()?.fingerprint)
+    }
+
+    pub(super) fn cache_fingerprint_for(&self, fingerprint: &str) -> Option<String> {
         let mut hash = blake3::Hasher::new();
         hash.update(b"lizzieyzy-next2:persistent-analysis:v1\0");
         hash.update(self.evaluation_fingerprint(fingerprint).ok()?.as_bytes());
@@ -21,6 +24,17 @@ impl Actor {
             u8::from(self.config.analysis.live.include_ownership),
             u8::from(self.config.analysis.live.include_policy),
         ]);
+        Some(hash.finalize().to_hex().to_string())
+    }
+
+    /// Equivalent profiles selected under different IDs still belong to
+    /// distinct comparison and primary slots. Keep the shared evaluation
+    /// identity, with a role namespace at the persistence boundary.
+    pub(super) fn comparison_cache_fingerprint(&self, profile: &str) -> Option<String> {
+        let fingerprint = self.cache_fingerprint_for(profile)?;
+        let mut hash = blake3::Hasher::new();
+        hash.update(b"lizzieyzy-next2:comparison-cache:v1\0");
+        hash.update(fingerprint.as_bytes());
         Some(hash.finalize().to_hex().to_string())
     }
 
@@ -35,9 +49,8 @@ impl Actor {
         if let Some(cache) = &self.cache {
             cache.set_enabled(enabled).await;
         }
-        if let Some(running) = &self.running {
-            running.coordinator.set_cache_enabled(enabled).await?;
-        }
+        self.update_coordinators(super::coordinators::Update::Cache(enabled))
+            .await?;
         Ok(())
     }
 

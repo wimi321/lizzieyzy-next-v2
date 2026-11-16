@@ -7,6 +7,8 @@ use tokio::sync::watch;
 struct Mailbox {
     serial: u64,
     web_board: Option<(u64, AppEvent)>,
+    comparison: Option<(u64, AppEvent)>,
+    comparison_analysis: Option<(u64, AppEvent)>,
     display: Option<(u64, AppEvent)>,
     floating: Option<(u64, AppEvent)>,
     commentary: Option<(u64, AppEvent)>,
@@ -34,7 +36,7 @@ pub(crate) struct Delivery(watch::Sender<Mailbox>);
 
 pub struct AppSubscription {
     receiver: watch::Receiver<Mailbox>,
-    read: [Option<u64>; 21],
+    read: [Option<u64>; 23],
     console_read: u64,
 }
 
@@ -44,7 +46,7 @@ pub(crate) fn channel() -> (Delivery, AppSubscription) {
         Delivery(sender),
         AppSubscription {
             receiver,
-            read: [None; 21],
+            read: [None; 23],
             console_read: 0,
         },
     )
@@ -78,6 +80,8 @@ impl Delivery {
                 return true;
             }
             let slot = match &event {
+                AppEvent::ComparisonChanged(_) => &mut mailbox.comparison,
+                AppEvent::ComparisonAnalysisUpdated(_) => &mut mailbox.comparison_analysis,
                 AppEvent::WebBoardChanged(_) => &mut mailbox.web_board,
                 AppEvent::DisplaySettingsChanged(_) => &mut mailbox.display,
                 AppEvent::FloatingBoardsChanged(_) => &mut mailbox.floating,
@@ -133,7 +137,22 @@ impl Delivery {
     }
 
     pub fn clear_analysis(&self) {
-        self.0.send_modify(|mailbox| mailbox.analysis = None);
+        self.0.send_modify(|mailbox| {
+            mailbox.analysis = None;
+            mailbox.comparison_analysis = None;
+            if let Some((_, AppEvent::ComparisonChanged(view))) = &mut mailbox.comparison {
+                view.analysis = None;
+            }
+        });
+    }
+
+    pub fn clear_comparison_analysis(&self) {
+        self.0.send_modify(|mailbox| {
+            mailbox.comparison_analysis = None;
+            if let Some((_, AppEvent::ComparisonChanged(view))) = &mut mailbox.comparison {
+                view.analysis = None;
+            }
+        });
     }
 
     /// A coalesced document can otherwise overtake its unread focus result.
@@ -183,6 +202,8 @@ impl AppSubscription {
                     &mailbox.floating,
                     &mailbox.acceleration,
                     &mailbox.web_board,
+                    &mailbox.comparison,
+                    &mailbox.comparison_analysis,
                 ]
                 .into_iter()
                 .enumerate()

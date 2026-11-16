@@ -1,12 +1,20 @@
 //! Sparse, iterative replay of the ancestor paths that carry saved analysis.
 
-use super::{SavedAnalysis, is_primary, parse};
+use super::{SavedAnalysis, is_comparison, is_primary, parse};
 use crate::{DocError, DocumentNode, GameDocument, GamePosition, NodeId, semantics};
 
 pub(super) fn at_position(node: &DocumentNode, position: &GamePosition) -> Option<SavedAnalysis> {
+    at_position_for_slot(node, position, is_primary)
+}
+
+pub(super) fn at_position_for_slot(
+    node: &DocumentNode,
+    position: &GamePosition,
+    matches_slot: fn(&str) -> bool,
+) -> Option<SavedAnalysis> {
     node.properties
         .iter()
-        .filter(|property| is_primary(&property.identifier))
+        .filter(|property| matches_slot(&property.identifier))
         .flat_map(|property| &property.values)
         .filter_map(|value| parse(value, position.board.size(), position.board.to_play()).ok())
         .next_back()
@@ -33,8 +41,25 @@ impl GameDocument {
         self.visit_saved_analysis_inner(visitor).map(|_| ())
     }
 
+    /// Visits the comparison engine's LZ2/LZOP2 results using the same sparse
+    /// replay and parser as the primary slot, without importing primary data.
+    pub fn visit_saved_comparison_analysis<E: From<DocError>>(
+        &self,
+        visitor: impl FnMut(NodeId, &GamePosition, SavedAnalysis) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.visit_saved_slot(is_comparison, visitor).map(|_| ())
+    }
+
     fn visit_saved_analysis_inner<E: From<DocError>>(
         &self,
+        visitor: impl FnMut(NodeId, &GamePosition, SavedAnalysis) -> Result<(), E>,
+    ) -> Result<Work, E> {
+        self.visit_saved_slot(is_primary, visitor)
+    }
+
+    fn visit_saved_slot<E: From<DocError>>(
+        &self,
+        matches_slot: fn(&str) -> bool,
         mut visitor: impl FnMut(NodeId, &GamePosition, SavedAnalysis) -> Result<(), E>,
     ) -> Result<Work, E> {
         let mut work = Work::default();
@@ -51,7 +76,7 @@ impl GameDocument {
             needed[id.0 as usize] |= node
                 .properties
                 .iter()
-                .any(|property| is_primary(&property.identifier));
+                .any(|property| matches_slot(&property.identifier));
             if needed[id.0 as usize]
                 && let Some(parent) = node.parent
             {
@@ -74,7 +99,7 @@ impl GameDocument {
         while let Some((mut id, mut position)) = pending.pop() {
             loop {
                 let node = self.node(id)?;
-                if let Some(saved) = at_position(node, &position) {
+                if let Some(saved) = at_position_for_slot(node, &position, matches_slot) {
                     visitor(id, &position, saved)?;
                 }
                 let mut children = node

@@ -197,7 +197,7 @@ impl Actor {
             || self.move_trial.is_some()
             || self.tsumego.is_some()
             || self.scoring.is_some()
-            || self.trial.is_some()
+            || (self.trial.is_some() || self.comparison.trial.is_some())
             || self.acceleration.backend.is_some()
             || self.sync_active()
             || self.config.analysis.pure_network

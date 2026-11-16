@@ -7,6 +7,18 @@ impl Actor {
         self.tree.refresh(&self.document, self.revision)?;
         self.refresh_graph_analysis();
         let mut view = DocumentView::from_document(&self.document, self.tree.revision)?;
+        view.has_comparison_analysis = self.document.variation_tree()?.iter().any(|node| {
+            !self.is_analysis_cleared(node.id)
+                && self.document.node(node.id).is_ok_and(|node| {
+                    node.properties()
+                        .iter()
+                        .any(|p| matches!(p.identifier.as_str(), "LZ2" | "LZOP2"))
+                })
+        }) || self
+            .comparison
+            .results
+            .keys()
+            .any(|node| self.comparison_stored(*node).is_some());
         view.file_name = self.file_name.clone();
         view.file_path = self
             .file_state
@@ -54,6 +66,10 @@ impl Actor {
         self.output
             .republish_analysis(self.revision, self.document.current().0);
         self.publish_saved_focus();
+        if self.double_engine() {
+            self.publish_comparison_changed();
+        }
+        self.publish_comparison_focus();
         Ok(())
     }
 }

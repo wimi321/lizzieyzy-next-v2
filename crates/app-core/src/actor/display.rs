@@ -18,6 +18,8 @@ impl Actor {
     ) -> Result<DisplaySettings, AppError> {
         display.validate().map_err(crate::SettingsError::from)?;
         display.normalize_toolbar_items();
+        let comparison_layout =
+            self.double_engine() || display.layout_mode == crate::LayoutMode::DoubleEngine;
         let changed = display != self.settings.display;
         let floating_changed = display.floating_boards != self.settings.display.floating_boards;
         let mut settings = self.settings.clone();
@@ -31,6 +33,11 @@ impl Actor {
         if floating_changed {
             self.output
                 .send(AppEvent::FloatingBoardsChanged(display.floating_boards));
+        }
+        self.reconcile_comparison().await;
+        if comparison_layout {
+            self.publish_comparison_changed();
+            self.publish_comparison_focus();
         }
         Ok(display)
     }

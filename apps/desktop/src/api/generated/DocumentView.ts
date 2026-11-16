@@ -9,7 +9,7 @@ import type { MarkupView } from "./MarkupView";
 import type { ScoringView } from "./ScoringView";
 import type { TreeView } from "./TreeView";
 
-export type DocumentView = { analysis_restriction?: AnalysisRestriction | null, restricted_analysis?: AnalysisView | null, scoring?: ScoringView | null, 
+export type DocumentView = { has_comparison_analysis?: boolean, analysis_restriction?: AnalysisRestriction | null, restricted_analysis?: AnalysisView | null, scoring?: ScoringView | null, 
 /**
  * Root SGF fields for the game information panel, independent of focus.
  */

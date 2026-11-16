@@ -17,6 +17,7 @@ mod coach_api;
 mod commentary;
 pub mod commentary_client;
 pub mod commentary_keys;
+mod comparison;
 mod delivery;
 mod diagnostics;
 mod display;
@@ -91,6 +92,7 @@ pub use board_sync::{
 pub use coach::*;
 pub use commentary::*;
 pub use commentary_keys::CommentaryKeyStatus;
+pub use comparison::ComparisonView;
 pub use delivery::AppSubscription;
 pub use diagnostics::{
     DiagnosticCheck, DiagnosticKind, DiagnosticRepair, DiagnosticStatus, EngineDiagnostics,

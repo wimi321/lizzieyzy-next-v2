@@ -299,9 +299,8 @@ impl Actor {
                     cache.clear_position(key).await;
                 }
             }
-            if let Some(running) = &self.running {
-                running.coordinator.discard_cached_analysis().await?;
-            }
+            self.update_coordinators(super::coordinators::Update::Discard)
+                .await?;
             self.output.clear_analysis();
         } else {
             self.restore_cached_review().await?;
@@ -347,14 +346,12 @@ impl Actor {
         self.is_zhizi_session() && self.review_running()
     }
 
-    async fn sync_zhizi_review_pondering(&self) -> Result<(), AppError> {
-        if self.is_zhizi_session()
-            && let Some(running) = &self.running
-        {
-            running
-                .coordinator
-                .set_pondering(self.pondering() && self.focus.is_some())
-                .await?;
+    async fn sync_zhizi_review_pondering(&mut self) -> Result<(), AppError> {
+        if self.is_zhizi_session() {
+            self.update_coordinators(super::coordinators::Update::Pondering(
+                self.pondering() && self.focus.is_some(),
+            ))
+            .await?;
             self.publish_analysis_state();
         }
         Ok(())

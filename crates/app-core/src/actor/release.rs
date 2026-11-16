@@ -80,6 +80,7 @@ impl Actor {
             .into());
         }
         self.stop_board_sync().await?;
+        self.stop_comparison().await?;
         self.stop_engine().await?;
         if let Some(cache) = &self.cache {
             cache.flush().await;
@@ -97,6 +98,7 @@ impl Actor {
         if !self.benchmark_active() && self.running.is_none() {
             self.start_engine().await;
         }
+        self.reconcile_comparison().await;
         if let Some(handle) = &self.updates.handle {
             self.output
                 .send(crate::AppEvent::UpdateDownloadProgress(handle.status()));

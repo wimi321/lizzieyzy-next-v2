@@ -1,4 +1,4 @@
-use super::Actor;
+use super::{Actor, coordinators::Update};
 use crate::{AnalysisExtras, AppError, WholeGameStatus};
 
 impl Actor {
@@ -17,15 +17,7 @@ impl Actor {
             self.stop_review_query().await?;
         }
         self.output.clear_analysis();
-        let result = if let Some(running) = &self.running {
-            running
-                .coordinator
-                .set_analysis_extras(extras)
-                .await
-                .map_err(AppError::from)
-        } else {
-            Ok(())
-        };
+        let result = self.update_coordinators(Update::Extras(extras)).await;
         if result.is_ok() {
             self.config.analysis.extras = extras;
         }
@@ -60,9 +52,7 @@ impl Actor {
             }
         }
         self.output.clear_analysis();
-        if let Some(running) = &self.running {
-            running.coordinator.set_pure_network(enabled).await?;
-        }
+        self.update_coordinators(Update::Pure(enabled)).await?;
         self.config.analysis.pure_network = enabled;
         // Pure network follows the displayed board, including local browsing
         // during board sync. The normal sync focus is restored on exit.

@@ -310,3 +310,161 @@ fn legacy_three_to_six_header_slots_keep_missing_values_unknown() {
         assert_eq!(reopened.wrn, None);
     }
 }
+
+#[test]
+fn comparison_golden_is_parsed_by_the_same_codec_without_primary_fallback() {
+    let doc = document(include_bytes!("../../../../fixtures/lz/java-analysis.sgf"));
+    let secondary = doc.saved_comparison_analysis(doc.root()).unwrap().unwrap();
+    assert!(doc.has_comparison_analysis());
+    assert_eq!(secondary.engine_name, "Second");
+    assert_eq!(secondary.visits, 23456);
+    close(secondary.winrate, 0.45);
+    assert_eq!(secondary.score_lead, Some(-2.5));
+    assert_eq!(secondary.wrn, Some(0.1));
+    assert_eq!(secondary.candidates[0].coordinate, "D4");
+    assert_eq!(secondary.candidates[0].edge_visits, Some(17));
+    assert_eq!(secondary.ownership, Some(vec![-0.4, 0.5]));
+    assert!(doc.saved_comparison_analysis(NodeId(1)).unwrap().is_none());
+    assert_eq!(doc.saved_analysis(NodeId(1)).unwrap().unwrap().visits, 2000);
+    let white = document(
+        b"(;SZ[5]PL[W]LZOP2[Second 45 30 3 1 0\nmove C3 visits 30 winrate 5500 scoreMean 3 pv C3 ownership 0.2])",
+    );
+    let secondary = white
+        .saved_comparison_analysis(white.root())
+        .unwrap()
+        .unwrap();
+    close(secondary.winrate, 0.45);
+    assert_eq!(secondary.score_lead, Some(-3.0));
+    close(secondary.candidates[0].winrate, 0.45);
+    assert_eq!(secondary.candidates[0].score_lead, Some(-3.0));
+    assert_eq!(secondary.ownership, Some(vec![-0.2]));
+    assert!(white.saved_analysis(white.root()).unwrap().is_none());
+}
+
+#[test]
+fn comparison_presence_tracks_active_nodes_and_malformed_raw_properties() {
+    let mut doc = document(b"(;SZ[5];B[aa]LZ2[malformed])");
+    assert!(doc.has_comparison_analysis());
+    assert!(doc.saved_comparison_analysis(NodeId(1)).unwrap().is_none());
+    assert_eq!(doc.warnings()[0].property, "LZ2");
+    doc.apply(Command::DeleteNode(NodeId(1))).unwrap();
+    assert!(!doc.has_comparison_analysis());
+    doc.undo().unwrap();
+    assert!(doc.has_comparison_analysis());
+}
+
+#[test]
+fn comparison_export_keeps_raw_without_new_result_and_only_replaces_with_deeper_analysis() {
+    let doc = document(
+        b"(;SZ[5]LZ[Main 30 10]LZOP2[Second  45  40 2.0 extra=kept]LZ2[bad];B[aa]LZ2[Untouched 55 80])",
+    );
+    let primary = BTreeMap::from([(doc.root(), doc.saved_analysis(doc.root()).unwrap().unwrap())]);
+    let original = doc.saved_comparison_analysis(doc.root()).unwrap().unwrap();
+    let before = doc.snapshot();
+    for visits in [0, 20, 40, 41] {
+        let mut fresh = original.clone();
+        fresh.engine_name = "NewComparison".into();
+        fresh.visits = visits;
+        let comparison = if visits == 0 {
+            BTreeMap::new()
+        } else {
+            BTreeMap::from([(doc.root(), fresh)])
+        };
+        let (tree, warnings) = doc
+            .to_sgf_with_analyses_and_warnings(&primary, &comparison)
+            .unwrap();
+        assert!(warnings.is_empty());
+        let text = serialized(tree);
+        assert!(text.contains("LZ[Main 30 10]"));
+        assert!(text.contains("LZ2[bad]"));
+        assert!(text.contains("LZ2[Untouched 55 80]"));
+        let reopened = document(text.as_bytes());
+        let saved = reopened
+            .saved_comparison_analysis(reopened.root())
+            .unwrap()
+            .unwrap();
+        if visits <= 40 {
+            assert!(text.contains("LZOP2[Second  45  40 2.0 extra=kept]"));
+            assert_eq!(saved, original);
+        } else {
+            assert!(!text.contains("LZOP2[Second"));
+            assert_eq!(saved.engine_name, "NewComparison");
+            assert_eq!(saved.visits, 41);
+        }
+        assert_eq!(doc.snapshot(), before);
+    }
+}
+
+#[test]
+fn comparison_export_maps_edited_variations_and_saturates_its_own_slot_only() {
+    let mut doc = document(b"(;SZ[5](;B[aa])(;B[bb]LZOP2[Old 45 1]))");
+    doc.apply(Command::DeleteNode(NodeId(1))).unwrap();
+    doc.apply(Command::GoTo(NodeId(2))).unwrap();
+    doc.apply(Command::Play(Move::Pass(Color::White))).unwrap();
+    let saved = SavedAnalysis {
+        engine_name: "Comparison".into(),
+        visits: u64::MAX,
+        winrate: 0.55,
+        ..SavedAnalysis::default()
+    };
+    let comparison = BTreeMap::from([(doc.current(), saved)]);
+    let (tree, warnings) = doc
+        .to_sgf_with_analyses_and_warnings(&BTreeMap::new(), &comparison)
+        .unwrap();
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(warnings[0].node, doc.current());
+    assert_eq!(warnings[0].property, "LZ2");
+    let reopened = GameDocument::from_sgf(&tree).unwrap();
+    let end = reopened.variation_tree().unwrap().last().unwrap().id;
+    assert_eq!(
+        reopened
+            .saved_comparison_analysis(end)
+            .unwrap()
+            .unwrap()
+            .visits,
+        JAVA_MAX_VISITS
+    );
+    assert!(reopened.saved_analysis(end).unwrap().is_none());
+    assert_eq!(
+        reopened
+            .saved_comparison_analysis(NodeId(1))
+            .unwrap()
+            .unwrap()
+            .engine_name,
+        "Old"
+    );
+    let clean = serialized(doc.to_clean_sgf(true, false));
+    assert!(!clean.contains("LZOP2["));
+    assert!(!clean.contains("LZ2["));
+}
+
+proptest! {
+    #[test]
+    fn comparison_roundtrip_keeps_black_values_and_does_not_create_primary_results(
+        black in any::<bool>(),
+        visits in 1_u32..1_000_000,
+        winrate in 0_u32..=10000,
+        score in -1000_i32..1000,
+    ) {
+        let doc = document(if black { b"(;SZ[5]PL[B])" } else { b"(;SZ[5]PL[W])" });
+        let analysis = SavedAnalysis {
+            engine_name: "Comparison".into(),
+            visits: u64::from(visits),
+            winrate: f64::from(winrate) / 10000.0,
+            score_lead: Some(f64::from(score) / 100.0),
+            ownership: Some(vec![0.2; 25]),
+            ..SavedAnalysis::default()
+        };
+        let (tree, warnings) = doc.to_sgf_with_analyses_and_warnings(
+            &BTreeMap::new(), &BTreeMap::from([(doc.root(), analysis.clone())]),
+        ).unwrap();
+        prop_assert!(warnings.is_empty());
+        let reopened = document(serialized(tree).as_bytes());
+        let parsed = reopened.saved_comparison_analysis(reopened.root()).unwrap().unwrap();
+        prop_assert_eq!(parsed.visits, analysis.visits);
+        prop_assert!((parsed.winrate - analysis.winrate).abs() < 1e-12);
+        prop_assert_eq!(parsed.score_lead, analysis.score_lead);
+        prop_assert_eq!(parsed.ownership, analysis.ownership);
+        prop_assert!(reopened.saved_analysis(reopened.root()).unwrap().is_none());
+    }
+}

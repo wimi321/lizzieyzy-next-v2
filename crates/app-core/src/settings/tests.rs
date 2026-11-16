@@ -213,6 +213,7 @@ async fn fox_history_and_move_rank_round_trip_together_with_history_normalizatio
         engines: Vec::new(),
         gtp_engines: Vec::new(),
         main_engine_id: None,
+        comparison_engine_id: None,
         engine_settings: crate::EngineSettings::default(),
     };
     settings.save(directory.path()).await.unwrap();

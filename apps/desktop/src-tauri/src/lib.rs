@@ -49,6 +49,12 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             floating::on_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
+            commands::comparison::comparison_state,
+            commands::comparison::select_comparison_engine,
+            commands::comparison::restart_comparison_engine,
+            commands::comparison::close_comparison_engine,
+            commands::comparison::close_other_engines,
+            commands::comparison::close_all_engines,
             commands::web_board::start_web_board,
             commands::web_board::stop_web_board,
             commands::web_board::web_board_status,

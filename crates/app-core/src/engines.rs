@@ -23,6 +23,11 @@ pub(crate) enum Request {
     Select(String),
     Restart,
     Close,
+    SelectComparison(Option<String>),
+    RestartComparison,
+    CloseComparison,
+    CloseOthers,
+    CloseAll,
 }
 
 impl AppCore {
@@ -64,6 +69,26 @@ impl AppCore {
         self.engines_request(Request::Close).await
     }
 
+    pub async fn select_comparison_engine(&self, id: Option<String>) -> Result<Settings, AppError> {
+        self.engines_request(Request::SelectComparison(id)).await
+    }
+
+    pub async fn restart_comparison_engine(&self) -> Result<Settings, AppError> {
+        self.engines_request(Request::RestartComparison).await
+    }
+
+    pub async fn close_comparison_engine(&self) -> Result<Settings, AppError> {
+        self.engines_request(Request::CloseComparison).await
+    }
+
+    pub async fn close_other_engines(&self) -> Result<Settings, AppError> {
+        self.engines_request(Request::CloseOthers).await
+    }
+
+    pub async fn close_all_engines(&self) -> Result<Settings, AppError> {
+        self.engines_request(Request::CloseAll).await
+    }
+
     async fn engines_request(&self, request: Request) -> Result<Settings, AppError> {
         let (reply, response) = oneshot::channel();
         self.commands
@@ -77,16 +102,16 @@ impl AppCore {
 impl Settings {
     pub(crate) fn normalize_engines(&mut self) -> Result<(), SettingsError> {
         // Old persisted settings and source callers that still supply only engine.
-        if self.engines.is_empty() && self.main_engine_id.is_none() {
-            if let Some(profile) = self.engine.clone() {
-                self.engines.push(EngineEntry {
-                    id: "legacy-engine".into(),
-                    name: "KataGo".into(),
-                    profile,
-                });
-                self.main_engine_id = Some("legacy-engine".into());
-            }
-            return Ok(());
+        if self.engines.is_empty()
+            && self.main_engine_id.is_none()
+            && let Some(profile) = self.engine.clone()
+        {
+            self.engines.push(EngineEntry {
+                id: "legacy-engine".into(),
+                name: "KataGo".into(),
+                profile,
+            });
+            self.main_engine_id = Some("legacy-engine".into());
         }
         let mut ids = HashSet::new();
         for entry in &self.engines {
@@ -108,6 +133,14 @@ impl Settings {
             }
         } else if self.engine.is_some() {
             return Err(invalid("enabled engine needs a main engine ID"));
+        }
+        if let Some(id) = &self.comparison_engine_id {
+            if self.main_engine_id.as_ref() == Some(id) {
+                return Err(SettingsError::SameAsMain);
+            }
+            if !self.engines.iter().any(|entry| &entry.id == id) {
+                return Err(invalid("comparison engine ID does not exist"));
+            }
         }
         Ok(())
     }

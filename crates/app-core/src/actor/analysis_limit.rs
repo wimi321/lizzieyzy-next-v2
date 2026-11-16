@@ -1,4 +1,4 @@
-use super::Actor;
+use super::{Actor, coordinators::Update};
 use crate::{AnalysisLimitSettings, AnalysisPauseReason, AnalysisState, AppError, AppEvent};
 use analysis::{AnalysisStatus, LimitReason};
 use document::NodeId;
@@ -29,6 +29,14 @@ impl Actor {
     pub(super) fn limit_reason(&self) -> Option<LimitReason> {
         self.running
             .as_ref()
+            .filter(|running| {
+                !matches!(
+                    *running.engine_status.borrow(),
+                    engine_session::EngineStatus::Failed { .. }
+                        | engine_session::EngineStatus::Stopped
+                )
+            })
+            .or(self.comparison.running.as_ref())
             .and_then(|running| match *running.analysis_status.borrow() {
                 AnalysisStatus::Limited(reason) => Some(reason),
                 _ => None,
@@ -50,9 +58,8 @@ impl Actor {
             settings.analysis_limits = limits;
             settings.save(&self.directory).await?;
             self.settings = settings;
-            if let Some(running) = &self.running {
-                running.coordinator.set_limits(limits.into()).await?;
-            }
+            self.update_coordinators(Update::Limits(limits.into()))
+                .await?;
         }
         Ok(self.settings.analysis_limits)
     }
@@ -67,7 +74,13 @@ impl Actor {
             self.settings = settings;
         }
         let sync_changed = self.sync_active() && self.board_sync.analysis_paused == enabled;
-        let limited = self.limit_reason().is_some();
+        let limited = self.limit_reason().is_some()
+            || self.comparison.running.as_ref().is_some_and(|running| {
+                matches!(
+                    *running.analysis_status.borrow(),
+                    AnalysisStatus::Limited(_)
+                )
+            });
         if changed || sync_changed || limited {
             if self.sync_active() {
                 self.board_sync.analysis_paused = !enabled;
@@ -77,19 +90,16 @@ impl Actor {
             if enabled && self.review_running() && !self.zhizi_review_owns_engine() {
                 self.stop_review_query().await?;
             }
-            if let Some(running) = &self.running {
-                running
-                    .coordinator
-                    .set_pondering(self.pondering() && self.focus.is_some())
-                    .await?;
-                if enabled && limited && self.focus.is_some() && !self.zhizi_review_owns_engine() {
-                    running.coordinator.resume().await?;
-                }
+            self.update_coordinators(Update::Pondering(self.pondering() && self.focus.is_some()))
+                .await?;
+            if enabled && limited && self.focus.is_some() && !self.zhizi_review_owns_engine() {
+                self.update_coordinators(Update::Resume).await?;
             }
             if enabled && !self.zhizi_review_owns_engine() {
                 self.continue_review().await;
             }
             self.publish_saved_focus();
+            self.publish_comparison_focus();
         }
         Ok(())
     }

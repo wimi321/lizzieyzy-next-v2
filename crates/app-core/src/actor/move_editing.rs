@@ -8,6 +8,7 @@ pub(super) struct TrialSession {
     original: GameDocument,
     original_file_name: Option<String>,
     original_file_state: FileState,
+    original_comparison: super::comparison::DocumentState,
 }
 
 impl Actor {
@@ -53,6 +54,7 @@ impl Actor {
             original,
             original_file_name,
             original_file_state,
+            original_comparison: self.take_comparison_document(),
         });
         self.document_replaced().await
     }
@@ -66,7 +68,10 @@ impl Actor {
             self.document = session.original;
             self.file_name = session.original_file_name;
             self.file_state = session.original_file_state;
+            return self
+                .document_replaced_with_comparison(session.original_comparison)
+                .await;
         }
-        self.document_replaced().await
+        Ok(())
     }
 }

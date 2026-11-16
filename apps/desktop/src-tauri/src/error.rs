@@ -8,6 +8,10 @@ use crate::tencent_error::{OpenUrlFailure, TencentFailure};
 #[derive(Debug, thiserror::Error, Serialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum CommandError {
+    #[error("the comparison engine cannot be the main engine")]
+    SameAsMain,
+    #[error("the main engine cannot be the comparison engine")]
+    SameAsComparison,
     #[error("{0}")]
     WebBoard(app_core::WebBoardError),
     #[error("{0}")]
@@ -104,6 +108,10 @@ pub enum PngRequestError {
 impl From<app_core::AppError> for CommandError {
     fn from(error: app_core::AppError) -> Self {
         match error {
+            app_core::AppError::Settings(app_core::SettingsError::SameAsMain) => Self::SameAsMain,
+            app_core::AppError::Settings(app_core::SettingsError::SameAsComparison) => {
+                Self::SameAsComparison
+            }
             app_core::AppError::WebBoard(error) => Self::WebBoard(error),
             app_core::AppError::Acceleration(error) => Self::Acceleration(error),
             app_core::AppError::AnalysisTools(error)

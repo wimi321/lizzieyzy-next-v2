@@ -200,6 +200,9 @@ impl From<document::DocumentWarning> for DocumentWarningView {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct DocumentView {
     #[serde(default)]
+    #[ts(as = "Option<bool>", optional)]
+    pub has_comparison_analysis: bool,
+    #[serde(default)]
     #[ts(optional = nullable)]
     pub analysis_restriction: Option<crate::AnalysisRestriction>,
     #[serde(default)]
@@ -261,6 +264,7 @@ impl DocumentView {
         };
         let (graph, branch_start_move_number) = GraphView::from_document_with_branch(document)?;
         Ok(Self {
+            has_comparison_analysis: document.has_comparison_analysis(),
             analysis_restriction: None,
             restricted_analysis: None,
             scoring: None,
@@ -475,6 +479,8 @@ impl From<engine_session::EngineStatus> for EngineStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum AppEvent {
+    ComparisonChanged(crate::ComparisonView),
+    ComparisonAnalysisUpdated(AnalysisView),
     WebBoardChanged(crate::WebBoardStatus),
     AccelerationProgress(crate::AccelerationProgress),
     DisplaySettingsChanged(crate::DisplaySettings),

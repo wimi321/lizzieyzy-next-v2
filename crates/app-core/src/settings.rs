@@ -72,6 +72,8 @@ pub struct Settings {
     pub gtp_engines: Vec<crate::GtpEngineEntry>,
     #[ts(optional = nullable)]
     pub main_engine_id: Option<String>,
+    #[ts(optional = nullable)]
+    pub comparison_engine_id: Option<String>,
     #[ts(as = "Option<crate::EngineSettings>", optional)]
     pub engine_settings: crate::EngineSettings,
     #[ts(as = "Option<crate::GameSetup>", optional)]
@@ -123,6 +125,7 @@ impl Default for Settings {
             engines: Vec::new(),
             gtp_engines: Vec::new(),
             main_engine_id: None,
+            comparison_engine_id: None,
             engine_settings: crate::EngineSettings::default(),
             game_setup: crate::GameSetup::default(),
             coach_setup: crate::CoachSetup::default(),
@@ -168,6 +171,10 @@ pub enum SettingsError {
     FlashAnalysis(#[from] crate::WholeGameError),
     #[error("invalid engine profile: {0}")]
     InvalidProfile(String),
+    #[error("comparison engine cannot be the selected main engine")]
+    SameAsMain,
+    #[error("main engine cannot be the selected comparison engine")]
+    SameAsComparison,
     #[error(transparent)]
     MoveRank(#[from] crate::MoveRankError),
     #[error(transparent)]

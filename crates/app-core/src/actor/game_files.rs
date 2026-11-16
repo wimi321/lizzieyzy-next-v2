@@ -6,6 +6,15 @@ use document::{GamePosition, SavedAnalysis, SavedCandidate};
 use katago_protocol::{AnalysisResponse, MoveInfo, Player, RootInfo};
 use std::{collections::BTreeMap, path::Path};
 
+/// Transform history keeps the two file slots separate: one slot's Saved
+/// result must never cause an already-replaced raw payload in the other slot
+/// to be imported again.
+#[derive(Clone)]
+pub(super) struct SavedNodes {
+    pub primary: Vec<document::NodeId>,
+    pub comparison: Vec<document::NodeId>,
+}
+
 pub(super) fn is_gib(path: &Path) -> bool {
     path.extension()
         .and_then(|value| value.to_str())
@@ -96,7 +105,18 @@ impl Actor {
         // already passed key/position validation. Do not replay them for the
         // first graph publication of the same content revision.
         graph_analysis.validated_content(document.content_revision());
+        if selected.is_none() {
+            self.import_comparison_saved(None)?;
+        }
         Ok(())
+    }
+
+    pub(super) fn import_transformed_saved_analysis(
+        &mut self,
+        nodes: &SavedNodes,
+    ) -> Result<(), AppError> {
+        self.import_selected_saved_analysis(Some(&nodes.primary))?;
+        self.import_comparison_saved(Some(&nodes.comparison))
     }
 
     /// Saved data belongs to the document, regardless of the cache switch or
@@ -200,6 +220,7 @@ impl Actor {
                 }
             }
         });
+        self.export_comparison_analysis(&mut tree, &mut warnings)?;
         Ok((tree, warnings))
     }
 }
@@ -212,7 +233,10 @@ pub(super) fn mark_saved_view(view: &mut AnalysisView, saved: &SavedAnalysis) {
     }
 }
 
-fn response_from_saved(saved: &SavedAnalysis, position: &GamePosition) -> AnalysisResponse {
+pub(super) fn response_from_saved(
+    saved: &SavedAnalysis,
+    position: &GamePosition,
+) -> AnalysisResponse {
     let to_play = if position.board.to_play() == go_core::Color::Black {
         Player::Black
     } else {
@@ -280,7 +304,7 @@ fn response_from_saved(saved: &SavedAnalysis, position: &GamePosition) -> Analys
     }
 }
 
-fn saved_from_response(response: &AnalysisResponse) -> SavedAnalysis {
+pub(super) fn saved_from_response(response: &AnalysisResponse) -> SavedAnalysis {
     SavedAnalysis {
         engine_name: "KataGo".into(),
         winrate: response.root_info.winrate,

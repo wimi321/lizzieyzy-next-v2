@@ -170,3 +170,48 @@ fn web_board_reconnect_replays_latest_viewers_and_trial() {
         false
     );
 }
+
+#[test]
+fn comparison_reconnect_keeps_latest_status_but_never_replays_analysis_frames() {
+    let mut replay = vec![];
+    for status in [
+        serde_json::json!({"type":"Starting"}),
+        serde_json::json!({"type":"Ready","data":{"version":"1.16.5-fake"}}),
+        serde_json::json!({"type":"Stopped"}),
+    ] {
+        let view = serde_json::from_value(serde_json::json!({
+            "engine_id":"secondary", "status":status, "analysis":null
+        }))
+        .unwrap();
+        remember_state(&mut replay, &AppEvent::ComparisonChanged(view));
+    }
+    let analysis: app_core::AnalysisView = serde_json::from_value(serde_json::json!({
+        "node_id":0, "revision":1, "winrate":0.6, "score_lead":2.5,
+        "visits":100, "visits_per_second":null,
+        "summary":{"winrate":0.6,"score_lead":2.5,"visits":100},
+        "candidates":[], "ownership":null, "is_during_search":false, "source":"Live"
+    }))
+    .unwrap();
+    remember_state(
+        &mut replay,
+        &AppEvent::ComparisonAnalysisUpdated(analysis.clone()),
+    );
+    let status_with_analysis = app_core::ComparisonView {
+        engine_id: Some("secondary".into()),
+        status: app_core::EngineStatus::Stopped,
+        analysis: Some(analysis),
+    };
+    remember_state(
+        &mut replay,
+        &AppEvent::ComparisonChanged(status_with_analysis.clone()),
+    );
+    // Current subscribers still receive the complete original event. A later
+    // subscriber must obtain analysis through the actor's fresh event/query.
+    assert!(status_with_analysis.analysis.is_some());
+    assert_eq!(replay.len(), 1);
+    assert_eq!(
+        serde_json::to_value(&replay[0]).unwrap()["data"]["status"]["type"],
+        "Stopped"
+    );
+    assert!(matches!(&replay[0], AppEvent::ComparisonChanged(view) if view.analysis.is_none()));
+}
