@@ -19,7 +19,7 @@ const rect = (x: number, y: number, width: number, height: number): Rect => ({ x
 const NONE: Rect = rect(0, 0, 0, 0);
 
 function empty(): FrameLayout {
-  return { board: NONE, captured: NONE, statistics: NONE, graph: NONE, comment: NONE, status: NONE, tree: NONE, list: NONE, subBoard: NONE, extra: NONE };
+  return { board: NONE, captured: NONE, statistics: NONE, graph: NONE, comment: NONE, status: NONE, tree: NONE, list: NONE, subBoard: NONE, extra: NONE, lines: NONE };
 }
 
 /** Rects stacked top to bottom in `area`, sharing its height by the given weights. */
@@ -99,6 +99,7 @@ function largeSubBoardLayout(width: number, height: number, boardSize: number, s
     status: rect(0, bottom, spaceW, show.status ? STATUS_HEIGHT : 0),
     subBoard: rect(div(spaceW - length, 2), bottom - length, length, length),
     extra: NONE,
+    lines: NONE,
   };
 }
 
@@ -129,6 +130,7 @@ function largeGraphLayout(width: number, height: number, boardSize: number, show
     status: rect(0, bottom, spaceW, show.status ? STATUS_HEIGHT : 0),
     subBoard: show.subBoard ? rect(div(panelW - length, 2), 0, length, length) : NONE,
     extra: NONE,
+    lines: NONE,
   };
 }
 
@@ -202,6 +204,20 @@ function floatedLayout(width: number, height: number, show: PanelFlags, position
   return layout;
 }
 
+/** Two lines of text under each board in 双引擎模式 (Java's engine, pondering, visits and win rate). */
+export const DOUBLE_ENGINE_LINES = 40;
+
+/**
+ * 双引擎模式 (Java's `LizzieFrame` Double_Engine paint): two equal squares side by side, the main
+ * engine's on the left, the comparison engine's on the right, and their status lines under them.
+ * No other panel shows.
+ */
+function doubleEngineLayout(width: number, height: number): FrameLayout {
+  const side = Math.max(0, Math.min(div(width, 2), height - DOUBLE_ENGINE_LINES));
+  const x = div(width - side * 2, 2);
+  return { ...empty(), board: rect(x, 0, side, side), extra: rect(x + side, 0, side, side), lines: rect(x, side, side * 2, DOUBLE_ENGINE_LINES) };
+}
+
 /**
  * The main panel's layout for the chosen mode. Normal is Java's `InFrameLayout` at the saved board
  * position; the enlarged layouts apply to landscape panels only, as in Java, and only when there is
@@ -216,6 +232,8 @@ export function frameLayout(width: number, height: number, boardSize: number, sh
     case "Thinking":
     case "MultiView":
       return sideBoardLayout(width, height, boardSize, show);
+    case "DoubleEngine":
+      return doubleEngineLayout(width, height);
     case "Normal":
       break;
   }

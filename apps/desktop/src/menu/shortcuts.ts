@@ -85,6 +85,7 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "minView", code: "Digit3", alt: true },
   { id: "extraMode3", code: "Digit4", alt: true },
   { id: "extraMode1", code: "Digit5", alt: true },
+  { id: "extraMode2", code: "Digit6", alt: true },
   { id: "customeMode1", code: "Digit8", alt: true },
   { id: "customeMode2", code: "Digit9", alt: true },
   { id: "largeSubBoard", code: "KeyF", control: true },

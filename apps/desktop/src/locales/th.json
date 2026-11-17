@@ -2245,5 +2245,33 @@
       },
       "rejected": "You cannot play there."
     }
+  },
+  "comparison": {
+    "mainEngine": "Main engine:",
+    "subEngine": "Comparison engine:",
+    "pondering": "Analysis",
+    "on": "on",
+    "off": "paused",
+    "hotkey": "Shortcut: Space",
+    "visits": "Visits:",
+    "winrate": "Black win rate:",
+    "none": "none chosen",
+    "status": {
+      "Starting": "starting…",
+      "Restarting": "restarting…",
+      "Failed": "did not start: {reason}",
+      "Stopped": "stopped"
+    },
+    "pick": "Choose a comparison engine in the second engine menu",
+    "boardLabel": "Comparison engine's board",
+    "linesLabel": "Both engines' status",
+    "prompt": "This game carries a second engine's analysis. Show it in the double engine layout?",
+    "enter": "Show",
+    "close": "Close",
+    "search": "Choose comparison engine",
+    "keywords": "second engine|secondary engine|comparison engine",
+    "unavailable": "Enable comparison mode before selecting the second engine.",
+    "sameEngine": "The comparison engine must differ from the main engine.",
+    "failed": "The comparison engine did not change: {reason}"
   }
 }

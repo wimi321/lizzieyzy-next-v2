@@ -12,6 +12,8 @@ export interface MenuBinding {
   aside?: { label: string; run(): void };
   /** Replaces the entry's text while it applies, as Java's 启动 / 停止 Web 旁观 does. */
   label?: string;
+  /** Why the entry cannot run now, which 搜索功能 shows instead of its general wording. */
+  reason?: string;
 }
 
 export type MenuBindings = Readonly<Record<string, MenuBinding>>;

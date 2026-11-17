@@ -2,7 +2,7 @@ import type { CustomLayout, LayoutPanels, WindowLayout } from "@/api/backend";
 import { type Display, PANEL_FIELDS } from "../display/settings";
 
 /** 显示 → 布局模式's entries, by their menu ids. */
-export type Preset = "defaultView" | "classicView" | "minView" | "extraMode3" | "extraMode1";
+export type Preset = "defaultView" | "classicView" | "minView" | "extraMode3" | "extraMode1" | "extraMode2";
 
 const ALL_PANELS_ON = Object.fromEntries(PANEL_FIELDS.map((field) => [field, true])) as Record<(typeof PANEL_FIELDS)[number], true>;
 
@@ -39,6 +39,8 @@ export const PRESETS: Record<Preset, { patch: Partial<Display>; ratio: number | 
     patch: { layout_mode: "MultiView", show_winrate_graph: true, show_comment: false, show_information_panel: true, show_list_pane: true, show_variation_graph: true, large_winrate_graph: false },
     ratio: 1.62,
   },
+  // Two boards side by side and nothing else: Java widens the window to twice the boards' height.
+  extraMode2: { patch: { layout_mode: "DoubleEngine" }, ratio: 1.75 },
 };
 
 /** The window as the page measures it: its content, the main panel, the bottom toolbar. */

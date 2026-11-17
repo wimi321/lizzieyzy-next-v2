@@ -69,7 +69,7 @@ export function FunctionSearch({ menus, bindings, menuLabels, labels, onClose }:
       onClose();
     }
   };
-  const reason = (entry: CatalogEntry) => (bindings[entry.id]?.run === undefined ? labels.notYet : labels.unavailable);
+  const reason = (entry: CatalogEntry) => bindings[entry.id]?.reason ?? (bindings[entry.id]?.run === undefined ? labels.notYet : labels.unavailable);
 
   return (
     <div className="dialog-backdrop search-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>

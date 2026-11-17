@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as backend from "@/api/backend";
 import type { AnalysisLimitSettings, ColorView, EngineStatus, MoveRank, PointView, ProblemMoveSort, ProblemMovesQuery } from "@/api/backend";
 import { Board } from "./board/Board";
@@ -41,6 +41,8 @@ import { ToolsPanel, ToolsTabs } from "./engines/EngineTools";
 import { AccelerationHint, AccelerationPanel } from "./acceleration/AccelerationPanel";
 import { useAcceleration } from "./acceleration/useAcceleration";
 import { useWebBoardHost } from "./webboard/useWebBoardHost";
+import { useComparison } from "./comparison/useComparison";
+import { useWheelSteps } from "./frame/useWheelSteps";
 import { useEngines } from "./engines/useEngines";
 import { useRelease } from "./release/useRelease";
 import { useEveryday } from "./everyday/useEveryday";
@@ -83,9 +85,6 @@ export { JUMP };
 
 /** Java shows the board synchronization tool on Windows only. */
 const WINDOWS = navigator.userAgent.includes("Windows");
-
-/** A wheel notch (or this much trackpad travel) moves one move, as on Java's board. */
-const WHEEL_STEP = 40;
 
 const report = (error: unknown) => console.error("Backend command failed", error);
 const fileName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
@@ -142,7 +141,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     { value: engines.options.read_komi, set: (read_komi) => void engines.saveOptions({ ...engines.options, read_komi }).catch(report) },
   );
   const loadEveryday = everyday.load;
-  const wheel = useRef(0);
+  const comparison = useComparison(backend, messages.comparison, { engines, document, mode: shown.layout_mode, enter: () => layout.bindings.extraMode2?.run?.() });
   // 野狐棋谱, 腾讯棋谱 and 打开在线链接; AI 解说.
   const online = useOnline(backend, messages);
   const loadOnline = online.load;
@@ -234,6 +233,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     comment.commit();
     backend.step(steps).catch(report);
   };
+  const onBoardWheel = useWheelSteps(step);
   const board = document?.board ?? null;
   const points = useMemo(() => (document ? liveGraph(document.graph, analysis) : []), [document, analysis]);
   const boardAnalysis = analysisTools.shown(analysis); // restricted while 选点限制 is on; the graph keeps the plain one
@@ -405,6 +405,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...layout.bindings,
     ...floating.bindings,
     ...web.bindings,
+    ...comparison.bindings,
     ...(remote.remote ? { autoSetup: { enabled: false } } : {}),
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
@@ -417,7 +418,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const frame = messages.frame;
   const engineLabel = remote.label(engines.label === "" ? null : engines.label);
   // "No engine" is for no engine: one that Rust has not named yet shows without a name.
-  const menus = useMenus(WINDOWS, editing.recent, messages.edit, remote.label(engines.label), shown.last_move_rank_marks, shown.next_move_min_visits, { names: engines.menuNames, main: engines.mainIndex }, messages.engines.importMenu, messages.gtp.menu);
+  const menus = useMenus(WINDOWS, editing.recent, messages.edit, remote.label(engines.label), shown.last_move_rank_marks, shown.next_move_min_visits, { names: engines.menuNames, main: engines.mainIndex }, messages.engines.importMenu, messages.gtp.menu, comparison.menus);
   const autoAnalyzing = quickRunning || wholeGameStatus === "Running";
   useWindowTitle(backend, {
     app: messages.app.title,
@@ -514,7 +515,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
             {release.tray(messages.release)}
             {batch.tray()}
             {games.tray()}
-            {web.trial ? null : editing.trialChip}{web.chip}
+            {web.trial ? null : editing.trialChip}{web.chip}{comparison.chip}
             {analysisTools.chip}
             {modes.chip}
             {tsumego.status ? <TsumegoChip status={tsumego.status} labels={messages.tsumego} onExit={tsumego.exit} /> : null}
@@ -533,14 +534,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
         boardOverlay={research.paintLayer}
         cover={analysisTools.cover ?? research.cover}
         arrangement={{ ...layout.arrangement, ...floating.arrangement }}
-        onBoardWheel={(event) => {
-          // Lines (Firefox, some mice) count as whole notches.
-          wheel.current += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * WHEEL_STEP;
-          if (Math.abs(wheel.current) < WHEEL_STEP) return;
-          const steps = Math.sign(wheel.current);
-          wheel.current = 0;
-          step(steps);
-        }}
+        onBoardWheel={onBoardWheel}
         regions={{
           captured: (
             <CapturedBox
@@ -658,7 +652,11 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           tree: (
             <MoveTree tree={tree} current={document?.tree.current ?? -1} line={line} boardSize={board?.width ?? 19} ranks={ranks} label={messages.tree.label} onJump={jump} />
           ),
-          extra: board ? layout.extra({ board, node: currentNode, revision, analysis: boardAnalysis, coordinates: shown.show_coordinates, onPlay: play }) : undefined,
+          extra: board
+            ? (comparison.board({ board, node: currentNode, revision, coordinates: shown.show_coordinates, estimate: estimate.board.estimate, maxCandidates: shown.max_suggestions > 0 ? shown.max_suggestions : board.width * board.height, onPlay: play }) ??
+              layout.extra({ board, node: currentNode, revision, analysis: boardAnalysis, coordinates: shown.show_coordinates, onPlay: play }))
+            : undefined,
+          lines: comparison.lines({ name: engineLabel, analysis: boardAnalysis, node: currentNode, pondering: livePondering }),
           subBoard: board ? <SubBoard board={board} node={currentNode} revision={revision} variation={replay} label={messages.tree.subBoard} {...estimate.subBoard} /> : null,
         }}
       />

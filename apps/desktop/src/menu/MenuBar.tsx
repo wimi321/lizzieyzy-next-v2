@@ -1,8 +1,8 @@
-import { type KeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { isEnabled, type MenuBindings } from "./bindings";
 import { splitHint } from "./hint";
-import { labelOf, type MenuEntry, type MenuSubmenu } from "./spec";
+import { labelOf, type MenuEntry, type MenuSubmenu, withoutSearchOnly } from "./spec";
 
 export interface MenuBarProps {
   menus: readonly MenuSubmenu[];
@@ -58,7 +58,8 @@ function nextSelectable(entries: readonly MenuEntry[], bindings: MenuBindings, f
  * Popups are fixed-position siblings in one layer, so long menus can scroll without
  * clipping their submenus.
  */
-export function MenuBar({ menus, bindings, labels, label, actions, tray }: MenuBarProps) {
+export function MenuBar({ menus: given, bindings, labels, label, actions, tray }: MenuBarProps) {
+  const menus = useMemo(() => withoutSearchOnly(given), [given]);
   const uid = useId();
   const [top, setTop] = useState<number | null>(null);
   const [focusTop, setFocusTop] = useState(0);

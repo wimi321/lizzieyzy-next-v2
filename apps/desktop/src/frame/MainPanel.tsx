@@ -18,6 +18,7 @@ const DATA_NAMES: Record<RegionName, string> = {
   list: "list",
   subBoard: "sub-board",
   extra: "extra",
+  lines: "lines",
 };
 
 /** A panel laid over some regions, as Java lays 存档与读档 over the list and the tree. */
@@ -94,8 +95,10 @@ export function MainPanel({ regions, hidden = [], boardSize, boardData, onBoardW
     },
     arrangement,
   );
-  // 思考模式 and 四方图 alone use the extra region.
-  const present = (name: RegionName) => shown(name) && (name !== "extra" || (regions.extra != null && layout.extra.width > 0));
+  // 思考模式, 四方图 and 双引擎模式 alone use the extra region; 双引擎模式 alone the lines.
+  // The status line overflows its region on purpose, so a layout without one (精简, 双引擎) leaves it out.
+  const present = (name: RegionName) =>
+    shown(name) && ((name !== "extra" && name !== "lines") || (regions[name] != null && layout[name].width > 0)) && (name !== "status" || layout.status.width > 0);
   // With neither region shown, the panel takes the right half, where they would be.
   const covered = cover ? (union(cover.regions.filter(shown).map((name) => layout[name])) ?? { x: size.width / 2, y: 0, width: size.width / 2, height: size.height }) : null;
   return (
