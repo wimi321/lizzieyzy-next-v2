@@ -1,0 +1,232 @@
+/* P3-40 抓取死活题: the instruction window and its settings in the main window, and the capture
+   window over the frozen screenshot with Java's colours (green crosshair, blue grid and box,
+   yellow and magenta dots). */
+
+.capture-dialog {
+  width: min(820px, calc(100vw - 32px));
+}
+
+.capture-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.capture-steps li {
+  display: grid;
+  grid-template-columns: 1fr 250px;
+  gap: 14px;
+  align-items: center;
+}
+
+.capture-steps img {
+  width: 250px;
+  height: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+}
+
+.capture-footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.capture-tip {
+  flex: 1;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.capture-settings-form {
+  display: grid;
+  gap: 8px;
+}
+
+.capture-field {
+  display: grid;
+  grid-template-columns: 9em 6em auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.capture-field .text-input {
+  flex: none;
+}
+
+.capture-range {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.capture-permission-dialog {
+  width: min(460px, calc(100vw - 32px));
+}
+
+.capture-toast {
+  position: fixed;
+  bottom: 44px;
+  left: 50%;
+  z-index: 60;
+  padding: 8px 14px;
+  color: #fff;
+  font-size: 13px;
+  background: rgba(30, 30, 32, 0.92);
+  border-radius: 8px;
+  transform: translateX(-50%);
+}
+
+.tsumego-capture {
+  margin-right: auto;
+}
+
+/* The capture window: the screenshot fills it, the overlay draws in the screenshot's pixels. */
+
+body:has(.capture-page) {
+  overflow: hidden;
+}
+
+.capture-page {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.capture-area,
+.capture-image,
+.capture-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.capture-image {
+  object-fit: fill;
+  pointer-events: none;
+}
+
+.capture-overlay {
+  pointer-events: none;
+}
+
+.capture-tint {
+  fill: rgba(0, 0, 0, 0.1);
+}
+
+.capture-crosshair line {
+  stroke: rgba(0, 245, 0, 0.8);
+  stroke-width: 2px;
+}
+
+.capture-preview line {
+  stroke: rgba(0, 0, 200, 0.47);
+  stroke-width: 4px;
+}
+
+.capture-box {
+  fill: none;
+  stroke: rgba(0, 0, 200, 0.78);
+  stroke-width: 3px;
+}
+
+.capture-grid line {
+  stroke: rgba(0, 0, 200, 0.6);
+  stroke-width: 1.5px;
+}
+
+.capture-dot {
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.capture-dot.black {
+  fill: rgb(255, 255, 0);
+}
+
+.capture-dot.white {
+  fill: rgb(255, 0, 255);
+}
+
+.capture-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 2;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  max-width: calc(100% - 24px);
+  padding: 8px 14px;
+  color: #f2f2f2;
+  font-size: 13px;
+  background: rgba(24, 24, 26, 0.88);
+  border-radius: 10px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  transform: translateX(-50%);
+  cursor: default;
+}
+
+/* The pointer is near the top: keep the problem there clear. */
+.capture-bar.low {
+  top: auto;
+  bottom: 12px;
+}
+
+.capture-hint {
+  margin: 0;
+  font-weight: 600;
+  text-align: center;
+}
+
+.capture-keys {
+  color: #b9b9be;
+  font-size: 12px;
+}
+
+.capture-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.capture-sizes {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.capture-sizes button {
+  padding: 2px 8px;
+  color: #f2f2f2;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.capture-sizes button[aria-checked="true"] {
+  color: #1a1306;
+  background: #e8b04a;
+  border-color: #e8b04a;
+}
+
+.capture-sizes button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.capture-error {
+  margin: 0;
+  color: #ff9b8f;
+  text-align: center;
+}

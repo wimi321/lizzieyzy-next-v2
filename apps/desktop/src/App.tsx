@@ -58,7 +58,7 @@ import { useBenchmark } from "./benchmark/useBenchmark";
 import { BoardSyncChip } from "./sync/BoardSyncChip";
 import { useBoardSync } from "./sync/useBoardSync";
 import { TsumegoChip } from "./tsumego/TsumegoChip";
-import { TsumegoDialog } from "./tsumego/TsumegoDialog";
+import { useCapture } from "./capture/useCapture";
 import { useTsumego } from "./tsumego/useTsumego";
 import { TIER_ORDER } from "./review/strength";
 import { useProblemMoves } from "./review/useProblemMoves";
@@ -111,6 +111,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   const [autoAnalysis, setAutoAnalysis] = useState<AutoAnalysisHandle | null>(null);
   const tsumego = useTsumego(backend, revision);
   const setTsumegoOptions = tsumego.setOptions;
+  const capture = useCapture(backend, messages.capture, { document, tsumego, tsumegoLabels: messages.tsumego });
   // 显示: saved in the settings, read with them at start.
   const display = useDisplay(backend, messages.display);
   const loadDisplay = display.load;
@@ -406,6 +407,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
     ...floating.bindings,
     ...web.bindings,
     ...comparison.bindings,
+    ...capture.bindings,
     ...(remote.remote ? { autoSetup: { enabled: false } } : {}),
     // 超级鹰眼: Java's problem-move window is the 问题手 page here.
     hawkEye: { run: toggleHawkEye, enabled: document !== null, checked: hawkEyeOpen },
@@ -413,7 +415,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
   });
   useShortcuts(
     bindings,
-    !(engines.dialogOpen || strengthOpen || online.dialogOpen || commentary.dialogOpen || remote.dialogOpen || aboutOpen || tsumego.open || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen || research.dialogOpen || analysisTools.dialogOpen || layout.dialogOpen),
+    !(engines.dialogOpen || strengthOpen || online.dialogOpen || commentary.dialogOpen || remote.dialogOpen || aboutOpen || tsumego.open || capture.dialogOpen || tuningOpen || settingsOpen || editing.dialogOpen || modes.dialogOpen || display.dialogOpen || clearing.dialogOpen || release.dialogOpen || everyday.dialogOpen || batch.dialogOpen || games.dialogOpen || coach.dialogOpen || research.dialogOpen || analysisTools.dialogOpen || layout.dialogOpen),
   );
   const frame = messages.frame;
   const engineLabel = remote.label(engines.label === "" ? null : engines.label);
@@ -784,9 +786,7 @@ export default function App({ store: provided }: { store?: Store } = {}) {
           onClose={() => setToolsTab(null)}
         />
       ) : null}
-      {tsumego.open ? (
-        <TsumegoDialog options={tsumego.options} labels={messages.tsumego} onConfirm={tsumego.generate} onClose={() => tsumego.setOpen(false)} />
-      ) : null}
+      {capture.dialogs}
       {engines.dialogs}
       {research.windows(menus, bindings)}
       {analysisTools.windows}
