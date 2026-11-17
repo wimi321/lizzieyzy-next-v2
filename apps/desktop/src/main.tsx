@@ -2,6 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import * as backend from "@/api/backend";
 import App from "./App";
+import { CapturePage } from "./capture/CapturePage";
+import { storedBoardSize } from "./capture/geometry";
 import { FloatingBoard } from "./floating/FloatingBoard";
 import { getMessages } from "./locales";
 import "./styles/app.css";
@@ -19,6 +21,7 @@ import "./styles/floating.css";
 import "./styles/acceleration.css";
 import "./styles/webboard.css";
 import "./styles/comparison.css";
+import "./styles/capture.css";
 
 const root = document.getElementById("root");
 if (!root) {
@@ -28,8 +31,27 @@ if (!root) {
 document.title = getMessages(navigator.language).app.title;
 document.documentElement.lang = navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
 
-// The shell opens 浮动主棋盘 and 浮动小棋盘 on the same page with `?window=float-main|float-sub`.
-const floating = new URLSearchParams(window.location.search).get("window");
+// The shell opens 浮动主棋盘 and 浮动小棋盘 on the same page with `?window=float-main|float-sub`,
+// and 抓取死活题's window with `?window=capture&session=<id>`.
+const params = new URLSearchParams(window.location.search);
+const floating = params.get("window");
 const kind = floating === "float-main" ? "Main" : floating === "float-sub" ? "Sub" : null;
+const sessionParam = params.get("session");
+const session = floating === "capture" && sessionParam !== null && sessionParam !== "" ? Number(sessionParam) : NaN;
 
-createRoot(root).render(<StrictMode>{kind ? <FloatingBoard kind={kind} backend={backend} /> : <App />}</StrictMode>);
+function windowStorage(): Storage | null {
+  try {
+    return localStorage;
+  } catch {
+    return null;
+  }
+}
+
+const page = Number.isInteger(session) ? (
+  <CapturePage backend={backend} session={session} labels={getMessages(navigator.language).capture} preferredSize={storedBoardSize(windowStorage())} />
+) : kind ? (
+  <FloatingBoard kind={kind} backend={backend} />
+) : (
+  <App />
+);
+createRoot(root).render(<StrictMode>{page}</StrictMode>);

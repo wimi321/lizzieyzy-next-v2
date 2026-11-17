@@ -54,6 +54,8 @@ const SHORTCUTS: readonly Shortcut[] = [
   { id: "scoreGame", code: "KeyQ", control: true },
   { id: "readBoard", code: "KeyO", alt: true },
   { id: "tsumeGoMenu", code: "KeyE", shift: true },
+  // 抓取死活题: Shift+T starts at once; the menu entry shows the steps first (Java).
+  { id: "captureTsumeGoNow", code: "KeyT", shift: true },
   { id: "jumpToFirst", code: "Home" },
   { id: "jumpToLast", code: "End" },
   { id: "jumpToLeft", code: "ArrowLeft", repeat: true },

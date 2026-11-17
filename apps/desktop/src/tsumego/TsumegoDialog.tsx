@@ -16,6 +16,8 @@ export interface TsumegoLabels {
   cancel: string;
   close: string;
   failed: string;
+  /** Java's 屏幕抓取 (`TsumeGoFrame.btnCapture`). */
+  capture: string;
 }
 
 export interface TsumegoDialogProps {
@@ -25,6 +27,8 @@ export interface TsumegoDialogProps {
   /** Generates the problem; rejects with the reason when it cannot. */
   onConfirm(options: TsumegoOptions): Promise<void>;
   onClose(): void;
+  /** 屏幕抓取: close this window and capture a problem from the screen instead. */
+  onCapture?(): void;
 }
 
 const TO_PLAY: readonly TsumegoToPlay[] = ["Inherit", "Black", "White"];
@@ -35,7 +39,7 @@ const KO_THREAT: readonly TsumegoKoThreat[] = ["Both", "Attacker", "Defender", "
  * LizzieYzy Next's 死活题 window (`TsumeGoFrame`): who plays first, who attacks, which side gets
  * ko threats and how far the wall stands. Confirming frames the current position.
  */
-export function TsumegoDialog({ options, labels, onConfirm, onClose }: TsumegoDialogProps) {
+export function TsumegoDialog({ options, labels, onConfirm, onClose, onCapture }: TsumegoDialogProps) {
   const [toPlay, setToPlay] = useState(options.to_play);
   const [attacker, setAttacker] = useState(options.attacker);
   const [koThreat, setKoThreat] = useState(options.ko_threat);
@@ -105,6 +109,11 @@ export function TsumegoDialog({ options, labels, onConfirm, onClose }: TsumegoDi
             </div>
           ) : null}
           <footer className="dialog-footer tsumego-footer">
+            {onCapture ? (
+              <button type="button" className="secondary-button tsumego-capture" data-testid="tsumego-capture" onClick={onCapture}>
+                {labels.capture}
+              </button>
+            ) : null}
             <button type="button" className="secondary-button" data-testid="tsumego-cancel" onClick={onClose}>
               {labels.cancel}
             </button>
