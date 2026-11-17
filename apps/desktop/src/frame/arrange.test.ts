@@ -14,7 +14,7 @@ const SIZES: [number, number][] = [
   [520, 400],
   [700, 1000],
 ];
-const MODES: LayoutMode[] = ["Normal", "Min", "Thinking", "MultiView"];
+const MODES: LayoutMode[] = ["Normal", "Min", "Thinking", "MultiView", "DoubleEngine"];
 
 const arrangement = (change: Partial<Arrangement>): Arrangement => ({ ...DEFAULT_ARRANGEMENT, ...change });
 const shown = (layout: FrameLayout) => (Object.entries(layout) as [keyof FrameLayout, Rect][]).filter(([, area]) => area.width > 0 && area.height > 0);
@@ -26,7 +26,7 @@ function overlaps(a: Rect, b: Rect): boolean {
 /** Whether MainPanel draws the region: the panel is switched on (the board and the square always). */
 function visible(name: keyof FrameLayout, flags: PanelFlags): boolean {
   if (name === "captured" || name === "statistics") return flags.info !== false;
-  if (name === "board" || name === "extra") return true;
+  if (name === "board" || name === "extra" || name === "lines") return true;
   return flags[name] !== false && flags[name] !== undefined;
 }
 

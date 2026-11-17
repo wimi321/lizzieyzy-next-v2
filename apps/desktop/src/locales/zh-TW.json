@@ -2245,5 +2245,33 @@
       },
       "rejected": "這裡不能落子。"
     }
+  },
+  "comparison": {
+    "mainEngine": "主引擎：",
+    "subEngine": "副引擎：",
+    "pondering": "分析",
+    "on": "開啟",
+    "off": "暫停",
+    "hotkey": "快捷鍵：空白鍵",
+    "visits": "計算量：",
+    "winrate": "黑勝率：",
+    "none": "未選擇",
+    "status": {
+      "Starting": "啟動中…",
+      "Restarting": "重新啟動中…",
+      "Failed": "沒能啟動：{reason}",
+      "Stopped": "未啟動"
+    },
+    "pick": "在「副引擎」選單裡選擇比較引擎",
+    "boardLabel": "副引擎的棋盤",
+    "linesLabel": "兩個引擎的狀態",
+    "prompt": "此棋譜為雙引擎分析棋譜，是否進入雙引擎模式檢視？",
+    "enter": "進入",
+    "close": "關閉",
+    "search": "選擇比較引擎",
+    "keywords": "第二引擎|副引擎|比較引擎|對比引擎|second engine|comparison engine",
+    "unavailable": "選擇第二引擎前，請先啟用比較模式。",
+    "sameEngine": "第一引擎不能與第二引擎相同",
+    "failed": "副引擎沒有切換成功：{reason}"
   }
 }

@@ -2245,5 +2245,33 @@
       },
       "rejected": "这里不能落子。"
     }
+  },
+  "comparison": {
+    "mainEngine": "主引擎：",
+    "subEngine": "副引擎：",
+    "pondering": "分析",
+    "on": "开启",
+    "off": "暂停",
+    "hotkey": "快捷键：空格",
+    "visits": "计算量：",
+    "winrate": "黑胜率：",
+    "none": "未选择",
+    "status": {
+      "Starting": "启动中…",
+      "Restarting": "重启中…",
+      "Failed": "没能启动：{reason}",
+      "Stopped": "未启动"
+    },
+    "pick": "在「副引擎」菜单里选择对比引擎",
+    "boardLabel": "副引擎的棋盘",
+    "linesLabel": "两个引擎的状态",
+    "prompt": "此棋谱为双引擎分析棋谱，是否进入双引擎模式查看？",
+    "enter": "进入",
+    "close": "关闭",
+    "search": "选择对比引擎",
+    "keywords": "第二引擎|副引擎|对比引擎|second engine|comparison engine",
+    "unavailable": "选择第二引擎前，请先启用对比模式。",
+    "sameEngine": "第一引擎不能与第二引擎相同",
+    "failed": "副引擎没有切换成功：{reason}"
   }
 }

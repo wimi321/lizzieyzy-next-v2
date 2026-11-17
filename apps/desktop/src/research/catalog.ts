@@ -11,6 +11,7 @@ const CATEGORY_OF: Readonly<Record<string, Category>> = {
   analyzeMenu: "analysis",
   gameMenu: "game",
   engineMenu: "engine",
+  engineMenu2: "engine",
   live: "sync",
   viewMenu: "view",
   helpMenu: "view",
@@ -79,7 +80,7 @@ export function buildCatalog(menus: readonly MenuSubmenu[], labels: Labels, engl
         path,
         shortcut,
         category: ENGINE_ENTRIES.has(entry.id) ? "engine" : category,
-        titles: unique([title, splitShortcut(other)[0]].map(normalize)),
+        titles: unique([title, splitShortcut(other)[0], ...(entry.keywords ?? [])].map(normalize)),
         paths: unique([...path, ...englishPath].map(normalize)),
       });
     }

@@ -97,6 +97,7 @@ export function useLayout(
     // A checked mode chosen again goes back to the default layout (Java only applied it again).
     extraMode3: { run: () => choose(mode === "Thinking" ? "defaultView" : "extraMode3"), checked: mode === "Thinking" },
     extraMode1: { run: () => choose(mode === "MultiView" ? "defaultView" : "extraMode1"), checked: mode === "MultiView" },
+    extraMode2: { run: () => choose(mode === "DoubleEngine" ? "defaultView" : "extraMode2"), checked: mode === "DoubleEngine" },
     largeSubBoard: { run: () => set({ large_sub_board: !largeSub }), checked: largeSub },
     largeWinrateGraph: { run: () => set({ large_winrate_graph: !largeGraph }), checked: largeGraph },
     leftMove: { run: () => set({ board_position: position - 1 }), enabled: position > 0 },
