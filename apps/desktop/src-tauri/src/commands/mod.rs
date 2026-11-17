@@ -4,6 +4,7 @@ pub mod batch_analysis;
 pub mod benchmark;
 pub mod board_sync;
 pub mod cache;
+pub mod capture;
 pub mod coach;
 pub mod commentary;
 pub mod comparison;

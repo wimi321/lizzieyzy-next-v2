@@ -1,0 +1,36 @@
+{
+  "source": "apps/desktop/e2e/display.spec.ts-snapshots/move-numbers-chromium-linux.png",
+  "source_sha256": "52a1447163e74ca85eed40444d503c0c71d506c7951458dffad6a67e97ba5589",
+  "crop_px": {
+    "left": 19,
+    "top": 19,
+    "width": 213,
+    "height": 213
+  },
+  "description": "Move-number baseline already contains the top-left board quarter; this crop retains its first 6x6 intersections, including move numbers 1, 12, 13 and 14.",
+  "points": [
+    [
+      19.5,
+      19.5
+    ],
+    [
+      54.5,
+      54.5
+    ],
+    [
+      194.5,
+      194.5
+    ]
+  ],
+  "corner": "TopLeft",
+  "rows": 6,
+  "columns": 6,
+  "cells": [
+    "......",
+    "......",
+    "....W.",
+    "...B.B",
+    "......",
+    "..B..."
+  ]
+}

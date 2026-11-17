@@ -18,6 +18,7 @@ mod auto_setup;
 mod batch;
 mod benchmark;
 mod board_sync;
+mod capture;
 mod clear_analysis;
 mod coach;
 mod commentary;
@@ -85,6 +86,7 @@ struct ViewFocus {
 }
 
 struct Actor {
+    capture: capture::State,
     comparison: comparison::State,
     web_board: web_board::State,
     restriction: Option<crate::AnalysisRestriction>,
@@ -151,6 +153,7 @@ pub(crate) async fn run(
         settings.cache_enabled,
     );
     let mut actor = Actor {
+        capture: Default::default(),
         comparison: Default::default(),
         web_board: Default::default(),
         restriction: None,
@@ -229,6 +232,7 @@ pub(crate) async fn run(
                 None => None,
               };
               match command {
+                Some(Command::Capture(request)) => actor.capture_command(request),
                 Some(Command::ComparisonState(reply)) => { let _ = reply.send(actor.comparison_view()); }
                 Some(Command::WebBoard(request, reply)) => { let _ = reply.send(actor.web_board_command(request).await); }
                 Some(Command::EnableAcceleration(backend, reply)) => actor.begin_acceleration(backend, reply).await,
@@ -405,6 +409,8 @@ async fn next_signal(running: &mut Option<Running>) -> Signal {
 impl Actor {
     async fn apply(&mut self, input: Input) -> Result<u64, AppError> {
         match input {
+            Input::SetCaptureSettings(settings) => self.set_capture_settings(settings).await?,
+            Input::FinishCapture(id, result) => self.finish_capture(id, result).await?,
             Input::DismissAccelerationHint => self.dismiss_acceleration_hint().await?,
             Input::EnsureNoBatch => self.ensure_no_batch()?,
             Input::SetFlashAnalysis(settings) => self.set_flash_analysis(settings).await?,

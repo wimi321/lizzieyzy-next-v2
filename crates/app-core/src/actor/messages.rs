@@ -1,6 +1,8 @@
 use super::*;
 
 pub(crate) enum Input {
+    SetCaptureSettings(crate::CaptureSettings),
+    FinishCapture(u32, crate::CaptureResult),
     DismissAccelerationHint,
     OpenBytes(Vec<u8>),
     OpenPath(PathBuf),
@@ -45,6 +47,7 @@ pub(crate) enum Input {
 }
 
 pub(crate) enum Command {
+    Capture(crate::capture::Request),
     ComparisonState(oneshot::Sender<crate::ComparisonView>),
     WebBoard(
         crate::web_board_api::Request,

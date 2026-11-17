@@ -914,3 +914,8 @@ export function fillComparisonDefaults(view: import("../src/api/backend").Compar
   view.status ??= { type: "Stopped" };
   view.analysis ??= null;
 }
+
+/** Java's five capture thresholds, supplied only by the scripted test backend. */
+export const defaultCaptureSettings: Required<import("../src/api/backend").CaptureSettings> = {
+  black_offset: 120, black_percent: 25, white_offset: 120, white_percent: 15, gray_offset: 80,
+};

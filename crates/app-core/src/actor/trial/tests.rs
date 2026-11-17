@@ -31,6 +31,7 @@ fn actor(directory: &Path) -> (Actor, AppSubscription) {
     config.session.shutdown_timeout = Duration::from_secs(60);
     (
         Actor {
+            capture: Default::default(),
             comparison: Default::default(),
             web_board: Default::default(),
             acceleration: Default::default(),

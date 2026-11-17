@@ -89,6 +89,7 @@ fn blocked_input(input: &Input) -> bool {
             | Input::Save(_)
             | Input::SaveCleanSgf(_, _, _)
             | Input::NewGame(_)
+            | Input::FinishCapture(_, _)
             | Input::PasteSgf
             | Input::ConvertToStartPosition
             | Input::StartTrial

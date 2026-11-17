@@ -1,0 +1,35 @@
+{
+  "source": "apps/desktop/e2e/board.spec.ts-snapshots/nine-chromium-linux.png",
+  "source_sha256": "a9a07f9af2fdf5f7d94da47af9101d4de39709e58c6e2ca0bd1fe93f95d4bea8",
+  "crop_px": {
+    "left": 338,
+    "top": 338,
+    "width": 355,
+    "height": 355
+  },
+  "description": "9x9 baseline; bottom-right 5x5 intersections (board x/y 4..8), black at original (4,4), white at original (6,6).",
+  "points": [
+    [
+      319.5,
+      319.5
+    ],
+    [
+      248.5,
+      248.5
+    ],
+    [
+      35.5,
+      35.5
+    ]
+  ],
+  "corner": "BottomRight",
+  "rows": 5,
+  "columns": 5,
+  "cells": [
+    "B....",
+    ".....",
+    "..W..",
+    ".....",
+    "....."
+  ]
+}

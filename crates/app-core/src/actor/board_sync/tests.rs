@@ -379,7 +379,8 @@ async fn synchronization_analyzes_remote_latest_without_overpainting_a_browsed_p
                 | AppEvent::AccelerationProgress(_)
                 | AppEvent::WebBoardChanged(_)
                 | AppEvent::ComparisonChanged(_)
-                | AppEvent::ComparisonAnalysisUpdated(_) => {}
+                | AppEvent::ComparisonAnalysisUpdated(_)
+                | AppEvent::CaptureEnded { .. } => {}
             }
         }
     })

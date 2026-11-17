@@ -5,6 +5,13 @@
   "local": true,
   "windows": ["main"],
   "permissions": [
+    "allow-start-screen-capture",
+    "allow-capture-permission",
+    "allow-request-capture-permission",
+    "allow-open-capture-permission-settings",
+    "allow-capture-settings",
+    "allow-set-capture-settings",
+    "allow-cancel-capture",
     "allow-comparison-state",
     "allow-select-comparison-engine",
     "allow-restart-comparison-engine",

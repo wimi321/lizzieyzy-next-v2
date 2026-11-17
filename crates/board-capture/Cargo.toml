@@ -1,0 +1,18 @@
+[package]
+name = "board-capture"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+go-core = { path = "../go-core" }
+thiserror = "2"
+
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
+proptest = { version = "1", default-features = false, features = ["std"] }
+serde_json = "1"
+
+[lints]
+workspace = true

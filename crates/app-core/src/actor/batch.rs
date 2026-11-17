@@ -390,6 +390,7 @@ fn blocked_input(input: &Input) -> bool {
         | Input::Save(_)
         | Input::PasteSgf
         | Input::NewGame(_)
+        | Input::FinishCapture(_, _)
         | Input::ConvertToStartPosition
         | Input::StartTrial
         | Input::EndTrial

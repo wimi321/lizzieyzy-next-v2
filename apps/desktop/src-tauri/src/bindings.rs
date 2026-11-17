@@ -28,6 +28,12 @@ pub struct LegacyControlPanelBounds(pub app_core::WindowBounds);
 pub fn export(directory: &Path) -> Result<(), ts_rs::ExportError> {
     fs::create_dir_all(directory)?;
     AppEvent::export_all_to(directory)?;
+    app_core::CaptureSession::export_all_to(directory)?;
+    app_core::CapturePoint::export_all_to(directory)?;
+    app_core::CaptureRecognition::export_all_to(directory)?;
+    app_core::CaptureResult::export_all_to(directory)?;
+    crate::capture::CapturePermission::export_all_to(directory)?;
+    crate::capture::ScreenCaptureStarted::export_all_to(directory)?;
     app_core::WebServerMessage::export_all_to(directory)?;
     app_core::WebClientMessage::export_all_to(directory)?;
     app_core::FloatingBoardKind::export_all_to(directory)?;

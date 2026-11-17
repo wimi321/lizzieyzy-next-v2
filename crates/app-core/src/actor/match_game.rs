@@ -197,6 +197,7 @@ fn blocked(input: &Input) -> bool {
             | Input::LoadSlot(_)
             | Input::OpenDroppedPaths(_)
             | Input::NewGame(_)
+            | Input::FinishCapture(_, _)
             | Input::PasteSgf
             | Input::ConvertToStartPosition
             | Input::StartTrial

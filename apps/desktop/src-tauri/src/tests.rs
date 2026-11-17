@@ -20,6 +20,7 @@ mod batch_analysis;
 mod benchmark;
 mod board_sync;
 mod cache;
+mod capture_access;
 mod coach;
 mod commentary;
 mod comparison;
@@ -206,6 +207,7 @@ impl Harness {
                         assert!(view.revision < revision, "analysis overtook its document");
                     }
                     AppEvent::OpenFailed { .. }
+                    | AppEvent::CaptureEnded { .. }
                     | AppEvent::EngineStatusChanged(_)
                     | AppEvent::BatchAnalysisProgress(_)
                     | AppEvent::WholeGameProgress(_)
