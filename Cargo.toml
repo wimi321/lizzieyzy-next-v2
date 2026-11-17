@@ -12,6 +12,7 @@ members = [
     "crates/strength",
     "crates/readboard",
     "crates/commentary",
+    "crates/board-capture",
     "crates/app-core",
     "tools/fake-katago",
     "apps/desktop/src-tauri",

@@ -1,6 +1,22 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-env-changed=LIZZIE_UPDATER_PUBKEY");
+    if std::env::var("CARGO_CFG_TARGET_OS")? == "macos" {
+        // ScreenCaptureKit's static Swift bridge needs the system Swift runtime.
+        // Dependency build-script link arguments do not propagate to our final
+        // binaries/tests; use the OS runtime, without an Xcode installation path.
+        println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
+    }
     let manifest = tauri_build::AppManifest::new().commands(&[
+        "capture_permission",
+        "request_capture_permission",
+        "open_capture_permission_settings",
+        "start_screen_capture",
+        "capture_image",
+        "recognize_capture",
+        "finish_capture",
+        "cancel_capture",
+        "capture_settings",
+        "set_capture_settings",
         "comparison_state",
         "select_comparison_engine",
         "restart_comparison_engine",

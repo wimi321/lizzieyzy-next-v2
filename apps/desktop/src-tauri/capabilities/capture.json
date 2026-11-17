@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "capture",
+  "description": "Local frozen capture window: image, recognition, corrections and completion only.",
+  "local": true,
+  "windows": ["capture"],
+  "permissions": [
+    "allow-capture-image",
+    "allow-recognize-capture",
+    "allow-finish-capture",
+    "allow-cancel-capture",
+    "allow-capture-settings"
+  ]
+}

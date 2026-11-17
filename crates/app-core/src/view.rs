@@ -479,6 +479,9 @@ impl From<engine_session::EngineStatus> for EngineStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "data")]
 pub enum AppEvent {
+    CaptureEnded {
+        outcome: crate::CaptureOutcome,
+    },
     ComparisonChanged(crate::ComparisonView),
     ComparisonAnalysisUpdated(AnalysisView),
     WebBoardChanged(crate::WebBoardStatus),

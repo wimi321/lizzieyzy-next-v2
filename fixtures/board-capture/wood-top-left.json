@@ -1,0 +1,36 @@
+{
+  "source": "apps/desktop/e2e/board.spec.ts-snapshots/mid-game-chromium-linux.png",
+  "source_sha256": "da26e115fdac834a56512e0b3c3b8de3db08ecc8785a1e3eaf96258682c5d41f",
+  "crop_px": {
+    "left": 28,
+    "top": 28,
+    "width": 220,
+    "height": 220
+  },
+  "description": "19x19 middle-game baseline; upper-left 6x6 intersections (board x/y 0..5). Rows are screen order; B=Black, W=White, .=Empty.",
+  "points": [
+    [
+      21.5,
+      21.5
+    ],
+    [
+      57.5,
+      57.5
+    ],
+    [
+      201.5,
+      201.5
+    ]
+  ],
+  "corner": "TopLeft",
+  "rows": 6,
+  "columns": 6,
+  "cells": [
+    "......",
+    "......",
+    "....W.",
+    "...B.B",
+    "......",
+    "..B..."
+  ]
+}

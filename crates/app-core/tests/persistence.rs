@@ -26,7 +26,8 @@ async fn document_event(output: &mut AppSubscription, revision: u64) -> Document
                 AppEvent::OpenFailed { .. } => {}
                 AppEvent::WebBoardChanged(_)
                 | AppEvent::ComparisonChanged(_)
-                | AppEvent::ComparisonAnalysisUpdated(_) => {}
+                | AppEvent::ComparisonAnalysisUpdated(_)
+                | AppEvent::CaptureEnded { .. } => {}
                 AppEvent::EngineStatusChanged(_) => {}
                 AppEvent::BoardSyncStatusChanged(_) => {}
                 AppEvent::AnalysisStateChanged(_) => {}

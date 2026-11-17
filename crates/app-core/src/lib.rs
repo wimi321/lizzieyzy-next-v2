@@ -12,6 +12,7 @@ mod auto_setup;
 mod batch;
 mod benchmark;
 mod board_sync;
+pub mod capture;
 mod coach;
 mod coach_api;
 mod commentary;
@@ -89,6 +90,7 @@ pub use benchmark::*;
 pub use board_sync::{
     BoardSyncError, BoardSyncLanguage, BoardSyncOptions, BoardSyncPhase, BoardSyncStatus,
 };
+pub use capture::*;
 pub use coach::*;
 pub use commentary::*;
 pub use commentary_keys::CommentaryKeyStatus;
@@ -148,6 +150,8 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error(transparent)]
+    Capture(#[from] CaptureError),
     #[error(transparent)]
     WebBoard(#[from] WebBoardError),
     #[error(transparent)]

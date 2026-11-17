@@ -1,6 +1,7 @@
 //! Desktop adapters; application state and all business decisions live in AppCore.
 pub mod bindings;
 pub mod board_sync;
+pub mod capture;
 mod clipboard;
 pub mod commands;
 mod drag_drop;
@@ -49,6 +50,16 @@ pub fn commands<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
             floating::on_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
+            commands::capture::capture_permission,
+            commands::capture::request_capture_permission,
+            commands::capture::open_capture_permission_settings,
+            commands::capture::start_screen_capture,
+            commands::capture::capture_image,
+            commands::capture::recognize_capture,
+            commands::capture::finish_capture,
+            commands::capture::cancel_capture,
+            commands::capture::capture_settings,
+            commands::capture::set_capture_settings,
             commands::comparison::comparison_state,
             commands::comparison::select_comparison_engine,
             commands::comparison::restart_comparison_engine,
@@ -353,6 +364,10 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             app.manage(window_preferences);
             app.manage(DesktopState::new(core.clone(), subscription));
             app.manage(floating::FloatingWindows::for_app(
+                app.handle().clone(),
+                core.clone(),
+            ));
+            app.manage(capture::ScreenCapture::for_app(
                 app.handle().clone(),
                 core.clone(),
             ));

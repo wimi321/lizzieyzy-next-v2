@@ -37,6 +37,8 @@ pub struct EngineProfile {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default)]
 pub struct Settings {
+    #[ts(as = "Option<crate::CaptureSettings>", optional)]
+    pub capture: crate::CaptureSettings,
     #[ts(as = "Option<crate::WebBoardOptions>", optional)]
     pub web_board: crate::WebBoardOptions,
     #[ts(as = "Option<bool>", optional)]
@@ -108,6 +110,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             version: SETTINGS_VERSION,
+            capture: Default::default(),
             web_board: Default::default(),
             acceleration_hint_dismissed: false,
             search_params: None,
@@ -148,6 +151,8 @@ impl Default for Settings {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SettingsError {
+    #[error(transparent)]
+    Capture(#[from] crate::CaptureError),
     #[error(transparent)]
     AnalysisTools(#[from] crate::AnalysisToolsError),
     #[error(transparent)]
@@ -251,6 +256,7 @@ impl Settings {
         crate::edit::normalize_recent_files(&mut self.recent_files);
         self.move_rank.validate()?;
         self.tsumego.validate()?;
+        self.capture.validate()?;
         self.analysis_limits.validate()?;
         self.flash_analysis.validate()?;
         self.game_setup.validate()?;

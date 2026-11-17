@@ -25,6 +25,7 @@ crates/
   strength/                棋力特征、XGBoost 推理、残差校准与统计（纯同步）
   fox-kifu/                野狐公开账号、分页棋谱及 SGF 的 HTTP 客户端（不依赖工作区 crate）
   readboard/               棋盘同步的纯同步行协议解码和命令编码
+  board-capture/           RGBA 棋盘网格拟合、棋子识别与按角放置（纯同步）
   app-core/                应用内核 actor：持有文档、协调器、设置；对外唯一入口（tokio，不依赖 tauri）
 apps/desktop/
   src-tauri/               Tauri 壳（包名 lizzieyzy-desktop）；commands/<领域>.rs 只做转发
@@ -49,6 +50,7 @@ katago-protocol ← engine-session ←───┘
 go-core ← commentary ← app-core
 fox-kifu ← app-core
 go-core ← readboard ← app-core
+go-core ← board-capture ← app-core
 go-core ← gtp ← engine-session / app-core
 katago-protocol ← fake-katago（engine-session / analysis / app-core / desktop 仅在测试里依赖它）
 strength ← app-core（strength 无 workspace 内部依赖）
@@ -540,6 +542,20 @@ pub enum EngineStatus {
 - 生成、替换题目和退出均增加应用 revision、发布 DocumentChanged，并重建分析协调器，隔离不同文档中相同节点 ID 的缓存；原分析记录保守清空后重新计算，取消旧整盘任务，避免把题目分析用于原局面。保持现有 pondering 开关，不额外启动真实 KataGo 或改变用户引擎配置。
 - `tsumego_status()` / `tsumegoStatus()` 返回 `TsumegoStatus { revision, active, source_node, options, attacker, ko_warnings }`，用于界面恢复模式、已存选项与警告；调用方先订阅 DocumentChanged 再读取，丢弃旧 revision/旧请求回复。三个命令仅授权本地 main 窗口，DTO 全部由 Rust 生成。TS API 只转发命令，mock 只回放脚本。设置窗口、菜单与快捷键由后续界面实现接入；屏幕抓取不在本卡范围。生成根保留原有效规则，其他对局元信息不继承；如果 Java 算法产生无气摆子，仍由 document 的既有局面校验拒绝，不能绕过规则向引擎发送非法局面。
 
+### P3-39 屏幕抓取死活题后端
+
+- `board-capture` 只接收行优先 RGBA8 像素，不解码文件、不进行 I/O、不依赖异步运行时。三个像素点确定网格：点 1→2 的绝对 x/y 距离提供初始格宽高，方向确定 TopLeft/TopRight/BottomLeft/BottomRight；点 1→3 的跨度分别按 `round(span/gap)` 拟合格数，再均分跨度得到实际间距。`origin` 为屏幕上选区最左上交叉点，cells 始终是屏幕左上起行优先；place 只按角平移到目标方盘，不翻转或转置图像。零跨度保留初始间距，表示单行或单列；非有限/负坐标、零初始间距、反向第三点、非零跨度却拟合零格等输入返回类型化错误。
+- 每个交叉点取实际格宽高的采样矩形，越过图像边界时平移回图内；整格比图像还大时拒绝。RGB 三对差值都严格小于 gray_offset 才计入灰色；黑、白、纯白、近白分别使用全部通道 ≤black_offset、≥255−white_offset、≥225、≥190，百分比的分母为整格面积，取整数。黑达到阈值优先；白达到阈值还须 trueWhite 或近白百分比减纯白百分比 ≥10。trueWhite 检查 Java 四舍五入的 h/4 行及前 w×2/6 列，任一通道 <225 即成立。alpha 不参与 RGB 阈值判断，屏幕适配器提供不透明像素。代码生成图、逐规则测试、随机布局和从本仓库 e2e 基线裁出的 PNG 金样本验证识别；PNG 仅由测试的 image dev-dependency 解码。
+- `Settings.capture` 默认 black_offset=120、black_percent=25、white_offset=120、white_percent=15、gray_offset=80；三个偏色接受 0..=255，两个占比接受 1..=100。旧设置缺对象/字段补默认，版本仍为 1，生成 TS 设置属性可选。`capture_settings` / `set_capture_settings` 经 app actor 查询和原子保存，保存成功才更新内存。
+- app actor 独占唯一抓取会话，`begin_capture` 接收内存 RGBA 图并替换旧会话，返回不复用的 ID、实际像素宽高和 scale_factor。`capture_image` 取当前图像，`recognize_capture(id, points)` 取得图像及阈值快照，在 `spawn_blocking` 计算，完成后再次核验 ID，取消或新会话后的旧结果不能作为当前结果返回。图像不写盘。`CaptureCells { rows, columns, cells }` 明确维度，拒绝数组长度不符、越界尺寸及超过目标棋盘的选区。
+- `finish_capture(id, CaptureResult { corner, cells, board_size })` 使用界面修正后的 cells，目标方盘 2..=25，复用新棋局元数据构造及 generate_tsumego 的根属性物化方式，再走现有文档替换事务，AB/AW、PL[B]、手数零；不会调用自动补围墙算法。规则/贴目取当前引擎默认设置；FollowSgf 新局使用 Chinese，document 不支持的额外命名/自定义规则返回 UnsupportedRules，默认贴目对小棋盘无效时沿 new_game 拒绝；文档替换仍受现有模式保护。成功完成或取消释放会话图像；错误不制造半盘结果。未保存确认和随后打开死活题对话框由 P3-40 负责。
+- 外壳捕获流程由单个串行任务持有窗口恢复状态：先检查权限、按主窗口中心选择显示器，再隐藏主窗口及原先可见的浮动棋盘，有界确认全部隐藏后，再固定等待 150ms，留出窗口管理器完成淡出帧的时间，然后截取一次静止图像，建立核心会话并打开 `capture`。窗口页面为 `index.html?window=capture&session=<id>`，其中 ID 来自开窗前已经完成的 `begin_capture`；抓取窗口从地址的 `session` 参数读取本次会话 ID，用于图像、识别、完成和取消命令。窗口无边框、置顶、不可缩放，按所选显示器逻辑位置/尺寸覆盖；回复 `ScreenCaptureStarted { session, logical_width, logical_height }`。抓取窗口按自身逻辑大小和截图实际像素大小换算显示尺寸与点击坐标；`scale_factor` 表示每个逻辑单位对应的截图像素数（像素宽度 / 逻辑宽度），不能把截图像素尺寸直接当作 CSS 尺寸。图像以 `png::Compression::Fast` 编码，通过 `tauri::ipc::Response` 返回 PNG 原始二进制，API 返回 ArrayBuffer，不转 JSON 数字数组。重复开始只聚焦已有捕获窗口并返回 Busy。关闭通知绑定创建该窗口时的会话 ID，旧窗口的迟到通知不得取消新会话。完成、取消、关闭捕获窗口或失败均关闭捕获窗口、恢复此前可见窗口并聚焦主窗口；恢复步骤即使单步失败也继续执行其余步骤。
+- `CaptureEnded { outcome: Finished | Cancelled | Failed { reason } }` 经原有有序 AppEvent Channel 交主窗口，TS `subscribeCaptureEnded` 单独分流并共享 unsubscribe；普通文档订阅不接收此事件。抓取窗口 capability 仅含 image/recognize/finish/cancel/settings 五个应用命令；main 仅新增 start、权限三个命令、settings/set_settings/cancel；浮动窗口不获得抓取权限。所有命令在 `commands/capture.rs`，图像会话错误和外壳 PermissionMissing/Unsupported/Busy/显示器/平台错误均保留类型。
+- macOS 14+ 使用 `screencapturekit` 11.1.2（MIT OR Apache-2.0）的安全 `SCScreenshotManager::capture_image`；发布源码的 Swift bridge 明确调用系统 `SCScreenshotManager.captureImage(contentFilter:configuration:)`，不再调用已废弃的 CGDisplayCreateImage。按 CGDisplay ID 选择 SCDisplay，filter 的逻辑矩形乘 point_pixel_scale 指定实际像素尺寸，返回 CGImage 经安全 helper 转 RGBA。低于 14 的安全 feature 检查返回 Unsupported；发布配置最低 macOS 15，不额外保留旧截图 API。现有 `core-graphics` 只负责显示器枚举和 safe `ScreenCaptureAccess::preflight/request`；权限请求仍只在显式命令执行，系统设置入口为固定屏幕录制地址。
+- Windows 使用 target 专属 `xcap` 0.9.10（Apache-2.0，关闭默认 features），按所选显示器 ID 返回实际 RGBA 并把全屏 alpha 统一为 255。主窗口中心和显示器矩形均以物理桌面坐标比较，选中后才按该显示器 DPI 换算捕获页逻辑尺寸，避免混合 DPI 的全局坐标错位；窗口用物理位置和尺寸覆盖目标显示器。两个平台均检查图像尺寸及 128MiB 上限；只有库明确的功能不可用映射 Unsupported，其他库错误保留原因为 Failed，并走既有窗口恢复。
+- Linux 暂不启用 xcap，X11/Wayland 均返回 Unsupported：该版本 Linux 后端不可选地依赖 PipeWire 等系统开发库，而官方 Ubuntu 24.04 基镜像缺少 libpipewire-0.3-dev 及所需 libspa 开发头，现有 CI 安装列表也未补齐；按任务补充约束不修改 CI。测试仅用 Fake、构造像素和内存 CGImage；真实截屏、权限与原生开窗函数只编译不运行。macOS 内存转换测试用同一 ScreenCaptureKit 传递依赖 apple-cf 的安全离屏位图 API，未新增第三个截屏库。
+- API/mock 只转发和回放；captureSettings、capturePermission 无脚本时返回默认阈值、NotNeeded，其余入口必须脚本化，结束事件可用 pushEvents 推送。捕获交互、逐点修正界面和权限提示均属于 P3-40；本卡不修改前端页面。
+
 ### 4.11 Windows 棋盘同步（readboard）
 
 - 协议来源为 [qiyi71w/readboard](https://github.com/qiyi71w/readboard/tree/a292eea71caaf0cc2f087d3a7563e35db01684b4) 的 `Program.cs`、`MainForm.WebView.cs`、[LaunchOptions.cs](https://github.com/qiyi71w/readboard/blob/a292eea71caaf0cc2f087d3a7563e35db01684b4/readboard/Core/Models/LaunchOptions.cs)、[OutboundBoardSnapshotEmitter.cs](https://github.com/qiyi71w/readboard/blob/a292eea71caaf0cc2f087d3a7563e35db01684b4/readboard/Core/Protocol/OutboundBoardSnapshotEmitter.cs) 和 `SyncSessionCoordinator*`，以及只读 Java 参考仓库的 `analysis/ReadBoard.java`、`ReadBoardStream.java`、`SyncSnapshotClassifier`、`SyncSnapshotRebuildPolicy`、`SyncSnapshotDiffChecker`、`SyncRemoteContext`。以该上游提交的实际发包源码为准，不将旧 fixture 中没有逗号的简写当成当前协议。
@@ -708,4 +724,4 @@ Windows PowerShell 使用 `Get-AuthenticodeSignature '<installer>.exe'` 和 `sig
 
 ## 9. 暂不做
 
-人机对局界面、陪练界面、智子云算力及远程算力界面、弈客、HumanSL 棋力评估、AI 解说界面、死活题屏幕抓取、网页棋盘，见 ROADMAP 的 P3。readboard 本阶段仅实现 4.11 的 Windows 同步后端。
+人机对局界面、陪练界面、智子云算力及远程算力界面、弈客、HumanSL 棋力评估、AI 解说界面、死活题屏幕抓取界面、网页棋盘，见 ROADMAP 的 P3。readboard 本阶段仅实现 4.11 的 Windows 同步后端。

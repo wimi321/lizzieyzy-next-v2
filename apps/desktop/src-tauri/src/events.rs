@@ -109,6 +109,7 @@ fn remember_state(replay: &mut Vec<AppEvent>, event: &AppEvent) {
             | AppEvent::CoachMoveRated(_)
             | AppEvent::GtpConsoleLine(_)
             | AppEvent::OpenFailed { .. }
+            | AppEvent::CaptureEnded { .. }
     ) {
         return;
     }
