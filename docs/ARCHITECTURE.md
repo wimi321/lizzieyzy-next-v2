@@ -642,6 +642,7 @@ UI  ◀──Channel──    重绘候选点
 - CI（`.github/workflows/fuzz.yml`，Linux）：PR 和推到 main 时，只在 `fuzz/` 或上述 crate（含 go-core）有改动时运行，编译全部目标，每个目标跑 30 秒；每周一次和手动触发时每个目标跑 15 分钟，目标之间并行。发现崩溃时任务失败，原始和最小化输入作为 artifact 上传。
 - 发现的问题在对应 crate 里修好，最小化输入放进 `fixtures/fuzz/<目标>/`，并在该 crate 的普通测试里加回归测试读取它，稳定版 `cargo test` 也一直覆盖；`seed_corpus.py` 同时把这些输入加入种子。
 
+- Linux 桌面端 E2E 的运行库由 Verify 任务在安装开发依赖前下载为 `.deb`，随 `tauri-e2e-Linux` artifact 传递；E2E 任务仅离线安装这些包，不访问 Ubuntu 镜像。
 - Windows 原生 E2E 由测试进程用普通构建产物启动应用，再以 `browserName: webview2` 和 `ms:edgeOptions.debuggerAddress` 附加到 `127.0.0.1:9222`，不向驱动提交应用启动参数。启动前确认端口空闲，等待 CDP 端点就绪；每个场景结束后关闭会话并回收应用进程树。Linux 继续由 tauri-driver 启动和管理应用。
 - GitHub Windows runner 的提权宿主会忽略 `WEBVIEW2_*` 环境覆盖，因此只有 Windows CI 包装脚本临时设置 HKLM WebView2 `AdditionalBrowserArguments` 策略，值名精确匹配 `lizzieyzy-desktop.exe`。原值、类型和存在性在修改前持久化，`finally` 恢复，工作流另以 `always()` 步骤幂等恢复；恢复错误使 CI 失败。普通启动诊断在策略设置前运行，使用默认设置。正式构建配置、应用代码和发布工作流均不包含调试端口，测试脚本不进入产品包。
 
