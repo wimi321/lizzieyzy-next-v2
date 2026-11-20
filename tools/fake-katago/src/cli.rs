@@ -6,6 +6,7 @@ pub const USAGE: &str = "Usage: fake-katago analysis|benchmark -config FILE -mod
 Options:\n\
   --visits-per-sec N       Visits per simulated second (default 1000)\n\
   --time-scale N           Simulated seconds per real second (default 1)\n\
+  --instant-response      Complete analysis without simulated search/report delays\n\
   --startup-delay-ms N     Delay readiness in simulated milliseconds\n\
   --startup-gate-file PATH Wait for an externally created file before readiness\n\
   --backend NAME          Emit a cuda/tensorrt/opencl/eigen startup line\n\
@@ -63,6 +64,7 @@ pub struct Options {
     pub benchmark_pid_file: Option<PathBuf>,
     pub visits_per_sec: f64,
     pub time_scale: f64,
+    pub instant_response: bool,
     pub startup_delay_ms: u64,
     pub startup_gate_file: Option<PathBuf>,
     pub backend: Option<String>,
@@ -103,6 +105,7 @@ impl Default for Options {
             benchmark_pid_file: None,
             visits_per_sec: 1000.0,
             time_scale: 1.0,
+            instant_response: false,
             startup_delay_ms: 0,
             startup_gate_file: None,
             backend: None,
@@ -165,6 +168,10 @@ impl Options {
             }
             if key == "--fail-startup" {
                 opts.fail_startup = true;
+                continue;
+            }
+            if key == "--instant-response" {
+                opts.instant_response = true;
                 continue;
             }
             if key == "--startup-gbk-path" {

@@ -56,6 +56,28 @@ fn max_time_and_max_visits_finish_at_the_first_simulated_limit() {
 }
 
 #[test]
+fn instant_response_finishes_at_start_without_advancing_simulated_time() {
+    for enabled in [false, true] {
+        let mut engine = engine();
+        engine.options.instant_response = enabled;
+        engine.receive(&query(10_000, 2.0).to_string()).unwrap();
+        engine.start_pending();
+        engine.running[0].start = 0.0;
+        engine.running[0].next_report = 1.0;
+        engine.advance_at(0.0).unwrap();
+        if enabled {
+            let final_result: Value = serde_json::from_slice(&engine.output).unwrap();
+            assert_eq!(final_result["isDuringSearch"], false);
+            assert_eq!(final_result["rootInfo"]["visits"], 2000);
+            assert!(engine.running.is_empty());
+        } else {
+            assert!(engine.output.is_empty());
+            assert_eq!(engine.running.len(), 1);
+        }
+    }
+}
+
+#[test]
 fn malformed_max_time_is_an_analysis_error_instead_of_an_unbounded_search() {
     for invalid in [json!(0), json!(-1), json!("2"), Value::Null] {
         let mut engine = engine();

@@ -154,6 +154,7 @@ dependencies = [
  "image",
  "katago-protocol",
  "keyring",
+ "nix 0.31.3",
  "png",
  "proptest",
  "readboard",
