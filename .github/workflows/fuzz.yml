@@ -67,7 +67,10 @@ jobs:
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           rustup toolchain install "$FUZZ_TOOLCHAIN" --profile minimal
-          cargo +"$FUZZ_TOOLCHAIN" install cargo-fuzz --version '=0.13.1' --locked
+          # cargo-fuzz is only a cargo subcommand: build it with the project's stable
+          # toolchain (its locked dependencies do not all compile on this nightly).
+          rustup toolchain install 1.96.0 --profile minimal
+          cargo +1.96.0 install cargo-fuzz --version '=0.13.1' --locked
           cargo +"$FUZZ_TOOLCHAIN" fetch --locked --manifest-path fuzz/Cargo.toml
 
       - name: Generate seed corpus
