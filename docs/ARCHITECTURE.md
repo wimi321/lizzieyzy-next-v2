@@ -625,6 +625,22 @@ UI  ◀──Channel──    重绘候选点
 | 前端逻辑 | Vitest | 坐标换算、颜色映射、store |
 | 界面 | Playwright + mock 后端 | 交互、截图基线、主线程无长任务 |
 | 全栈 | tauri-driver（Linux）/ Edge WebDriver 附加（Windows CI）+ fake-katago | 主流程 |
+| 外部输入 | cargo-fuzz（`fuzz/`，固定日期的 nightly） | 解析器不 panic、SGF 写出一轮后稳定 |
+
+### 供应链检查
+
+- `.github/workflows/supply-chain.yml` 在每个 PR、推到 main、每周定时和手动触发时，在 Linux 上分三个 job 运行 `cargo deny --locked check`、`pnpm -C apps/desktop audit --audit-level high` 和独立 SBOM 测试；失败直接使对应 job 失败。联网漏洞检查独立于 `scripts/verify.sh`，本地门禁不依赖漏洞数据库或审计服务。
+- cargo-deny 固定 0.20.2，以 `deny.toml` 检查主工作区全部 features、目标以及构建/开发依赖，不包含独立 `fuzz/` 工作区。许可证采用 GPL-3.0-only 兼容允许列表；维护者已允许 ICU4X/unicode-ident 使用的 Unicode-3.0，以及 webpki-roots/webpki-root-certs 的 Mozilla 根证书数据使用的 CDLA-Permissive-2.0，理由记录在 allow 条目旁，OpenSSL 许可证仍未允许。元数据缺失时须用固定许可证文件哈希的 clarify。已知漏洞与 yanked 拒绝，检查 unmaintained/unsound；暂时无法升级的 advisory 只在 `advisories.ignore` 逐条注明原因。非 path 通配版本、未知 registry 和 git 来源拒绝，多版本仅警告。
+- pnpm 审计包含开发依赖，因为它们参与发布构建；无法在本卡允许的补丁/锁文件升级内消除的漏洞，以精确 CVE 记录在 `apps/desktop/package.json` 的 `pnpm.auditConfig.ignoreCves`，原因见相邻的 `auditIgnoreReasons`。不使用跳过开发依赖或忽略审计请求错误的选项。所有非 `actions/*` 第三方 Action 固定完整 commit SHA，并注释对应版本；GitHub 官方 Action 保留主版本标签。
+
+### 模糊测试
+
+- `fuzz/` 是独立的 cargo-fuzz 项目：自己的 `[workspace]` 和 `Cargo.lock`，根工作区 `exclude` 它，`scripts/verify.sh` 不编译它。工具链固定在 `fuzz/rust-toolchain.toml`（nightly 日期），cargo-fuzz 固定 0.13.1。
+- 目标只调用生产入口，不复制解析逻辑：`sgf_roundtrip`（`sgf::parse` 成功时写出再解析必须成功，第二次写出与第一次相同）、`gib`、`document_walk`（每盘 `GameDocument::from_sgf`，遍历全部节点的 `GoTo`、局面重放、标记和已存分析）、`lz`（`document::lz::parse`，棋盘大小和轮走方由输入前三个字节决定，也解析 SGF 里的 LZ/LZOP/LZ2/LZOP2 值）、`katago_line`、`gtp`（整段回复、增量解码、`genmove`、`kata-analyze`）、`fox_replies`（野狐和腾讯的 JSON 回复、棋谱整理）、`readboard`（单行和整段会话）。为此 `fox-kifu` 以 `#[doc(hidden)]` 导出回复解析函数，下载路径改为调用同一个函数。
+- 网页旁观里浏览器发来的消息是 serde 派生的解析，用 app-core 的 property 测试覆盖（任意文本、命令形状的文本），不建 fuzz 目标：那会把 app-core 的整个异步栈带进 fuzz 项目。
+- 本机运行：`python3 fuzz/seed_corpus.py` 从 `fixtures/` 生成一次性种子（不提交），然后 `python3 fuzz/run.py [--seconds N] [目标…]`。SGF 类目标使用 `fuzz/sgf.dict`。崩溃输入写到 `fuzz/artifacts/<目标>/raw/`，并自动最小化到 `minimized/`；运行日志在 `fuzz/logs/`。这些目录都被忽略。
+- CI（`.github/workflows/fuzz.yml`，Linux）：PR 和推到 main 时，只在 `fuzz/` 或上述 crate（含 go-core）有改动时运行，编译全部目标，每个目标跑 30 秒；每周一次和手动触发时每个目标跑 15 分钟，目标之间并行。发现崩溃时任务失败，原始和最小化输入作为 artifact 上传。
+- 发现的问题在对应 crate 里修好，最小化输入放进 `fixtures/fuzz/<目标>/`，并在该 crate 的普通测试里加回归测试读取它，稳定版 `cargo test` 也一直覆盖；`seed_corpus.py` 同时把这些输入加入种子。
 
 - Windows 原生 E2E 由测试进程用普通构建产物启动应用，再以 `browserName: webview2` 和 `ms:edgeOptions.debuggerAddress` 附加到 `127.0.0.1:9222`，不向驱动提交应用启动参数。启动前确认端口空闲，等待 CDP 端点就绪；每个场景结束后关闭会话并回收应用进程树。Linux 继续由 tauri-driver 启动和管理应用。
 - GitHub Windows runner 的提权宿主会忽略 `WEBVIEW2_*` 环境覆盖，因此只有 Windows CI 包装脚本临时设置 HKLM WebView2 `AdditionalBrowserArguments` 策略，值名精确匹配 `lizzieyzy-desktop.exe`。原值、类型和存在性在修改前持久化，`finally` 恢复，工作流另以 `always()` 步骤幂等恢复；恢复错误使 CI 失败。普通启动诊断在策略设置前运行，使用默认设置。正式构建配置、应用代码和发布工作流均不包含调试端口，测试脚本不进入产品包。
@@ -682,7 +698,10 @@ UI  ◀──Channel──    重绘候选点
 - macOS 公证凭据齐全且证书已导入时，由 Tauri 使用 `notarytool` 公证并 staple app，之后才封装 DMG；后置 helper 验证 app 票据，再对 DMG 公证、staple、验证。缺公证凭据时保留已签名但未公证的包，并明确记录。空或部分 Apple 环境变量会在构建包装器中真正移除，避免 Tauri 把空字符串当成凭据。配置齐全但导入、签名、公证或验证失败时流程失败，不悄悄降级。
 - `native_signing.py setup/build/notarize/cleanup` 管理临时 keychain / Windows 当前用户证书存储；P12/PFX 导入后立即删除临时文件，密码不写入配置、状态或 `GITHUB_ENV`，always 步骤恢复原 keychain 列表并移除本次导入的证书和私钥。上传仅白名单安装资产与诊断文件，不上传签名状态目录。`bundle.py prepare --release-signing` 是显式发布选项，未指定时沿用原行为。
 - `release_assets.py collect` 从验包后的安装目录生成 portable ZIP / macOS 更新归档，再核对资源和安装包哈希；Windows ZIP 排除卸载器，保留已安装的主程序及全部资源。便携版指免安装解压运行，配置仍使用正常应用数据目录；WebView2 Runtime 仍需系统提供。macOS tar 保留 app 布局、权限和内部 framework 链接。Linux 继续直接使用通过原验包流程的 AppImage/deb。
-- 聚合 job 只接受四个平台的完整八个资产，统一名称含版本、平台和架构。在所有原生签名、公证及 staple 完成后，用锁定的 Tauri CLI `signer sign --app-version <版本>` 给八个文件各生成 `.sig`；有公钥时再以 Node 内置 Ed25519 验证实际字节、可信注释和公私钥匹配。`latest.json` 含 version、notes、RFC3339 pub_date 和 URL/signature/sha256；平台键包含 Windows NSIS、macOS app、Linux AppImage/deb 的 bundle 类型键及四个兼容回退键。已锁定的 updater 2.14.1 支持 deb 按类型安装，因此 deb 不会收到 AppImage。所有可更新文件强制不超过 P2-14 的 1 GiB 上限。`SHA256SUMS` 总会生成；有签名时也覆盖 `.sig` 和 `latest.json`。
+- 聚合 job 要求四个平台的完整八个安装资产，统一名称含版本、平台和架构。在所有原生签名、公证及 staple 完成后，用锁定的 Tauri CLI `signer sign --app-version <版本>` 给八个文件各生成 `.sig`；有公钥时再以 Node 内置 Ed25519 验证实际字节、可信注释和公私钥匹配。`latest.json` 含 version、notes、RFC3339 pub_date 和 URL/signature/sha256；平台键包含 Windows NSIS、macOS app、Linux AppImage/deb 的 bundle 类型键及四个兼容回退键。已锁定的 updater 2.14.1 支持 deb 按类型安装，因此 deb 不会收到 AppImage。所有可更新文件强制不超过 P2-14 的 1 GiB 上限。`SHA256SUMS` 总会生成；有签名时也覆盖 `.sig` 和 `latest.json`。
+- 正式发布的 draft job 在签名和生成校验和之前调用 `scripts/packaging/sbom.py --version <版本> --output target/release-assets`，生成 `LizzieYzy-Next-2_<版本>_sbom.cdx.json`（CycloneDX 1.6）。包含 Windows x64、macOS arm64/x64、Linux x64 的桌面生产 Rust 依赖并逐组件标记目标平台，排除 dev、构建专用、proc-macro 专用依赖和 tools；使用与打包相同的 `--no-default-features --features custom-protocol`。同时记录前端生产依赖闭包、实际捆绑的四份 KataGo 引擎和默认权重，提供 purl、可得许可证和固定清单/锁文件中的哈希；这些是来源归档/原始文件的哈希，不冒充原生签名后的文件哈希。
+- SBOM 按稳定顺序序列化，时间戳取构建提交时间而非生成时钟；同一输入和版本重复生成相同字节。小样本与官方 JSON Schema 保存在 `fixtures/sbom/`，独立测试文件为 `scripts/packaging/sbom_tests.py`。供应链工作流的 `sbom` job 使用 Ubuntu 24.04 和 Python 3.12，运行 `python -m unittest discover -s scripts/packaging -p 'sbom_tests.py' -v`；普通 CI/preview 的 `Test packaging helpers without network` 保持 `test_*.py` 自动发现，仅使用 Python 标准库，不安装 SBOM 第三方依赖。
+- SBOM job 和 release draft 都用 `python -m pip install --require-hashes --only-binary :all: -r scripts/packaging/sbom-requirements.txt` 安装工具；该文件锁定直接及全部间接依赖的版本和 wheel SHA-256。CI 使用 Python 3.12 自带的 tomllib，锁定文件不含 tomli；本地 Python 3.9/3.10 的可选 tomli 回退保留。SBOM 总是上传并列入 `SHA256SUMS`，无需 updater 私钥，不作为更新安装包签名。草稿上传前校验八个安装资产、SBOM、完整可选签名组和每项摘要，缺失、额外或摘要不符均拒绝；手动 preview 构建不生成 SBOM。
 - updater 私钥或非空密码缺失时跳过全部更新签名和 `latest.json`，继续上传安装包及 SHA256SUMS；公钥缺失时日志明确写「本次构建的程序不会检查更新」，即使独立的签名组齐全仍可为既有客户端生成签名。公钥只通过构建环境嵌入，`tauri.conf.json` 的空 `pubkey` 保持不变。
 - 只创建 GitHub Release **草稿**，权限仅聚合上传 job 为 `contents: write`。允许重跑更新同一提交的草稿；已发布 release、提交不一致或草稿多出旧资产（例如此前有 latest.json、本次缺私钥）均拒绝修改，交维护者审查。不会自动公开、自动删除旧资产或推送本地 git。发布说明可由手动 `notes` 输入，空时用版本和提交说明；若维护者修改说明，需要同时更新清单中的 notes。含预发布版本的草稿默认 prerelease；固定 `/releases/latest/download/latest.json` 不会跟随 GitHub prerelease，只有维护者发布可成为 latest 的正式 release 后才能完整验收自动更新。
 

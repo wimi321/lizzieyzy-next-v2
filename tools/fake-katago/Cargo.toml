@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-katago-protocol = { path = "../../crates/katago-protocol" }
+katago-protocol = { version = "0.1.0", path = "../../crates/katago-protocol" }
 serde_json = "1"
 thiserror = "2"
 

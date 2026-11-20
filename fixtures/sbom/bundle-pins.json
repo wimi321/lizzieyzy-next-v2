@@ -1,0 +1,11 @@
+{
+  "engineDownload": {
+    "releaseTag": "pinned-release"
+  },
+  "licenses": [
+    {
+      "id": "katago-network",
+      "sourceUrl": "https://example.org/network-license"
+    }
+  ]
+}

@@ -24,7 +24,7 @@ pub(super) fn success(value: &Value) -> Result<(), TencentError> {
     Ok(())
 }
 
-pub(super) fn page(value: &Value, cursor: &str) -> Result<TencentPage, TencentError> {
+pub fn page(value: &Value, cursor: &str) -> Result<TencentPage, TencentError> {
     success(value)?;
     let rows = value
         .get("chesslist")
@@ -39,6 +39,16 @@ pub(super) fn page(value: &Value, cursor: &str) -> Result<TencentPage, TencentEr
         return Err(FoxError::InvalidResponse("non-advancing cursor").into());
     }
     Ok(TencentPage { games, next_cursor })
+}
+
+pub fn download(value: &Value) -> Result<String, TencentError> {
+    success(value)?;
+    let sgf = value
+        .get("chess")
+        .and_then(Value::as_str)
+        .filter(|sgf| !sgf.trim().is_empty())
+        .ok_or(FoxError::InvalidResponse("chess"))?;
+    Ok(crate::normalize::normalize_sgf(sgf)?)
 }
 
 fn game(value: &Value) -> Result<TencentGame, TencentError> {
