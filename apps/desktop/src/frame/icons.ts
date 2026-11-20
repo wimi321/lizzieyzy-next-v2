@@ -1,6 +1,6 @@
 // LizzieYzy Next's own toolbar icons (GPL-3.0, from its src/main/resources/assets).
 // `?no-inline` keeps each one a file: Vite would inline files this small as data: URIs,
-// which the packaged window's Content-Security-Policy refuses (img-src 'self').
+// which the packaged window's Content-Security-Policy refuses (img-src allows 'self' and blob:).
 import alternately from "../assets/java/hb.png?no-inline";
 import allow from "../assets/java/blueallow.png?no-inline";
 import avoid from "../assets/java/redavoid.png?no-inline";

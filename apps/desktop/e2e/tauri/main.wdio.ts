@@ -54,15 +54,16 @@ async function ready(browser: Browser) {
 
 const ONE_PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
-// The capture window shows its screenshot through a blob: URL and 保存胜率图 draws the graph
-// through a data: SVG image. Both must pass the application's real CSP, which the web E2E
-// (Vite, mock backend) never applies.
+// The capture window shows its PNG screenshot through a blob: URL, and 保存胜率图 draws the
+// graph's SVG through one. Both must pass the application's real CSP, which the web E2E (Vite,
+// mock backend) never applies.
 async function imagesLoad(browser: Browser) {
   const loaded = await browser.execute(async (png: string) => {
     const bytes = Uint8Array.from(atob(png), (char) => char.charCodeAt(0));
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="3" height="2"/>';
     const sources = [
-      ["blob", URL.createObjectURL(new Blob([bytes], { type: "image/png" }))],
-      ["data", `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="3" height="2"/>')}`],
+      ["png", URL.createObjectURL(new Blob([bytes], { type: "image/png" }))],
+      ["svg", URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }))],
     ];
     return Promise.all(sources.map(async ([name, source]) => {
       const image = new Image();
@@ -75,7 +76,7 @@ async function imagesLoad(browser: Browser) {
       }
     }));
   }, ONE_PIXEL_PNG);
-  assert.deepEqual(loaded, ["blob: 1", "data: 3"], "the CSP blocks images the app creates itself");
+  assert.deepEqual(loaded, ["png: 1", "svg: 3"], "the CSP blocks images the app creates itself");
 }
 
 async function navigation(browser: Browser) {
