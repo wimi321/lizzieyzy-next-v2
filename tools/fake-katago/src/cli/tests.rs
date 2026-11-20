@@ -138,3 +138,45 @@ fn startup_options_validate_backend_and_bounds() {
         assert!(Options::parse(args.map(str::to_owned)).is_err());
     }
 }
+
+#[test]
+fn raw_output_options_validate_query_numbers_and_paired_line_size() {
+    let options = parse(&[
+        "--startup-gbk-path",
+        "--stdout-line-before-query",
+        "2",
+        "--stdout-line-bytes",
+        "8388608",
+        "--stdout-invalid-before-query",
+        "3",
+        "--stderr-invalid-flood-bytes",
+        "1048576",
+    ]);
+    assert!(options.startup_gbk_path);
+    assert_eq!(options.stdout_line_before_query, Some(2));
+    assert_eq!(options.stdout_line_bytes, Some(8388608));
+    assert_eq!(options.stdout_invalid_before_query, Some(3));
+    assert_eq!(options.stderr_invalid_flood_bytes, Some(1048576));
+    for args in [
+        vec![
+            "--stdout-line-before-query",
+            "0",
+            "--stdout-line-bytes",
+            "32",
+        ],
+        vec![
+            "--stdout-line-before-query",
+            "1",
+            "--stdout-line-bytes",
+            "31",
+        ],
+        vec!["--stdout-line-before-query", "1"],
+        vec!["--stdout-line-bytes", "32"],
+        vec!["--stdout-invalid-before-query", "0"],
+        vec!["--stderr-invalid-flood-bytes", "-1"],
+    ] {
+        assert!(
+            Options::parse(std::iter::once("analysis").chain(args).map(str::to_owned)).is_err()
+        );
+    }
+}

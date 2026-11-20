@@ -288,6 +288,10 @@ impl Actor {
         match output {
             Output::Stderr(line) => self.log(GtpDirection::Stderr, line),
             Output::Fault(error) => self.fail(GtpSessionError::Process(error)),
+            Output::MalformedStdout(reason) => {
+                self.log(GtpDirection::Received, reason.into());
+                self.fail(GtpSessionError::Protocol(reason.into()));
+            }
             Output::Stdout(line) => {
                 self.log(GtpDirection::Received, line.clone());
                 if self.failure.is_some() {
@@ -407,3 +411,6 @@ impl Actor {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

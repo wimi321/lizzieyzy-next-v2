@@ -75,3 +75,43 @@ async fn cleanup_stderr_is_broadcast_without_extending_a_failed_attempt() {
     assert_eq!(actor.startup.deadline(), initial);
     assert_eq!(lines.try_recv().unwrap(), "Performing autotuning");
 }
+
+#[tokio::test]
+async fn malformed_transport_lines_share_counters_and_nonfatal_threshold_before_ready() {
+    let (mut actor, _) = actor();
+    actor.cfg.max_consecutive_bad_lines = 1;
+    assert!(
+        actor
+            .output(
+                transport::Output::MalformedStdout("stdout line is not UTF-8"),
+                true
+            )
+            .is_none()
+    );
+    assert_eq!((actor.bad_lines, actor.total_bad_lines), (1, 1));
+    // Normal parser errors and transport-rejected lines share the same count.
+    assert!(matches!(
+        actor.output(transport::Output::Stdout("bad JSON".into()), true),
+        Some(Outcome::Fault { fatal: false, .. })
+    ));
+    assert_eq!((actor.bad_lines, actor.total_bad_lines), (2, 2));
+    assert!(
+        actor
+            .output(
+                transport::Output::Stdout(r#"{"warning":"valid"}"#.into()),
+                true
+            )
+            .is_none()
+    );
+    assert_eq!((actor.bad_lines, actor.total_bad_lines), (0, 2));
+    assert!(
+        actor
+            .output(
+                transport::Output::MalformedStdout("stdout line exceeds 8 MiB"),
+                true
+            )
+            .is_none()
+    );
+    assert_eq!((actor.bad_lines, actor.total_bad_lines), (1, 3));
+    assert!(!actor.ready);
+}

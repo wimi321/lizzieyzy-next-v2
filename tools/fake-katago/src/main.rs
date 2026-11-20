@@ -1,6 +1,7 @@
 mod benchmark;
 mod cli;
 mod model;
+mod output_injection;
 mod play_script;
 mod startup;
 
@@ -162,6 +163,7 @@ impl<W: Write> Engine<W> {
             }
         }
         self.queries = self.queries.saturating_add(1);
+        output_injection::before_query(&self.options, self.queries, &mut self.output)?;
         if self
             .options
             .crash_after_queries
@@ -483,6 +485,7 @@ fn run(mut options: Options) -> Result<(), RunError> {
         return benchmark::run(&options);
     }
     startup::load_script(&mut options)?;
+    output_injection::startup(&options)?;
     startup::backend(&options)?;
     if let Some(error) = &options.startup_error
         && claim_fault(options.fault_once_file.as_deref())?

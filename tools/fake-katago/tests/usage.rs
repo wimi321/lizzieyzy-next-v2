@@ -17,6 +17,15 @@ fn prints_usage_and_exits_successfully() {
     assert!(help.contains("analysis"));
     assert!(help.contains("--time-scale"));
     assert!(help.contains("--garbage-every"));
+    for flag in [
+        "--startup-gbk-path",
+        "--stdout-line-before-query",
+        "--stdout-line-bytes",
+        "--stdout-invalid-before-query",
+        "--stderr-invalid-flood-bytes",
+    ] {
+        assert!(help.contains(flag), "missing help for {flag}");
+    }
     assert!(output.stderr.is_empty());
 }
 
