@@ -1,7 +1,7 @@
 #![cfg(windows)]
 #![allow(clippy::expect_used)]
 
-use std::{process::Stdio, time::Duration};
+use std::{path::Path, process::Stdio, time::Duration};
 
 use engine_session::spawn_process;
 use tokio::{process::Command, time::timeout};
@@ -10,33 +10,12 @@ const DETACHED_PROCESS: u32 = 0x0000_0008;
 const CHILD_MODE_ENV: &str = "LIZZIE_P3_35_DETACHED_TEST_CHILD";
 const RESULT_PREFIX: &str = "NO_CONSOLE_RESULT ";
 
-const CONSOLE_PROBE: &str = r#"
-$ErrorActionPreference = 'Stop'
-Add-Type -TypeDefinition 'using System;
-using System.Runtime.InteropServices;
-public static class ConsoleProbe {
-    [DllImport("kernel32.dll")]
-    public static extern IntPtr GetConsoleWindow();
-}'
-if ([ConsoleProbe]::GetConsoleWindow() -eq [IntPtr]::Zero) {
-    [Console]::WriteLine('console:none')
-} else {
-    [Console]::WriteLine('console:present')
-}
-"#;
-
-async fn console_window(use_spawn_process: bool) -> String {
+async fn console_window(program: &Path, use_spawn_process: bool) -> String {
     // Each probe gets a fresh command so the control cannot inherit the flags
     // applied by spawn_process to the other command.
-    let mut command = Command::new("powershell.exe");
+    let mut command = Command::new(program);
     command
-        .args([
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            CONSOLE_PROBE,
-        ])
+        .arg("--console-probe")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -48,7 +27,7 @@ async fn console_window(use_spawn_process: bool) -> String {
         } else {
             command.spawn()
         }
-        .expect("start the PowerShell console probe");
+        .expect("start the native console probe");
         child.wait_with_output().await
     })
     .await
@@ -68,13 +47,17 @@ async fn console_window(use_spawn_process: bool) -> String {
 
 #[tokio::test]
 async fn spawn_process_suppresses_console_while_plain_spawn_has_one() {
-    if std::env::var_os(CHILD_MODE_ENV).is_some() {
-        let plain = console_window(false).await;
-        let spawned = console_window(true).await;
+    if let Some(program) = std::env::var_os(CHILD_MODE_ENV) {
+        let plain = console_window(Path::new(&program), false).await;
+        let spawned = console_window(Path::new(&program), true).await;
         // Start a new line even if libtest printed its test-name prefix first.
         println!("\n{RESULT_PREFIX}plain={plain} spawn_process={spawned}");
         return;
     }
+
+    // Build outside all safety deadlines. Pass the path to the detached child
+    // so its fresh process does not invoke Cargo again during the timed probe.
+    let program = fake_katago::binary_path().expect("build the native console probe");
 
     // CI can itself run inside a windowless console. Detach the probe's parent
     // entirely to reproduce a GUI application's lack of an attached console.
@@ -85,24 +68,20 @@ async fn spawn_process_suppresses_console_while_plain_spawn_has_one() {
             "--exact",
             "--nocapture",
         ])
-        .env(CHILD_MODE_ENV, "1")
+        .env(CHILD_MODE_ENV, program)
         .creation_flags(DETACHED_PROCESS)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
 
-    // The detached child runs two independently bounded PowerShell probes.
-    let output = timeout(Duration::from_secs(15), async {
-        command
-            .spawn()
-            .expect("start the detached test child")
-            .wait_with_output()
-            .await
-    })
-    .await
-    .expect("detached test child must exit within the safety deadline")
-    .expect("collect the detached test child output");
+    // Start the detached harness outside its completion deadline; both native
+    // probes and the harness exit must then finish within five seconds.
+    let child = command.spawn().expect("start the detached test child");
+    let output = timeout(Duration::from_secs(5), child.wait_with_output())
+        .await
+        .expect("detached test child must exit within the safety deadline")
+        .expect("collect the detached test child output");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(

@@ -10,8 +10,16 @@ katago-protocol = { version = "0.1.0", path = "../../crates/katago-protocol" }
 serde_json = "1"
 thiserror = "2"
 
-[lints]
-workspace = true
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
+
+# Keep unsafe denied except the narrow Windows console probe.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
 
 [[bin]]
 name = "fake-katago-cpu"

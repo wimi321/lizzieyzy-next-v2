@@ -5,12 +5,17 @@ use serde_json::json;
 use std::{future::Future, time::Duration};
 use support::{Fixture, analysis};
 
+mod download_service;
 mod support;
 
-async fn within<T>(future: impl Future<Output = T>) -> T {
-    tokio::time::timeout(Duration::from_secs(5), future)
-        .await
-        .expect("safety deadline")
+#[track_caller]
+fn within<T>(future: impl Future<Output = T>) -> impl Future<Output = T> {
+    let caller = std::panic::Location::caller();
+    async move {
+        tokio::time::timeout(Duration::from_secs(5), future)
+            .await
+            .unwrap_or_else(|error| panic!("safety deadline at {caller}: {error}"))
+    }
 }
 
 #[tokio::test]
