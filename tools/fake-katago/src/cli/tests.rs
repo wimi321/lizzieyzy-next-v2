@@ -13,6 +13,16 @@ fn parse(args: &[&str]) -> Options {
 }
 
 #[test]
+fn instant_response_is_opt_in_and_cannot_be_repeated() {
+    assert!(!parse(&[]).instant_response);
+    assert!(parse(&["--instant-response"]).instant_response);
+    assert!(
+        Options::parse(["analysis", "--instant-response", "--instant-response"].map(str::to_owned))
+            .is_err()
+    );
+}
+
+#[test]
 fn analysis_thread_override_is_used_unless_test_thread_count_is_explicit() {
     assert_eq!(parse(&[]).threads, 1);
     assert_eq!(

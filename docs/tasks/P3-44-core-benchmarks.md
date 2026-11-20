@@ -39,11 +39,11 @@ ROADMAP 工程线的性能基准分两步。这张卡做第一步：不启动界
    | 落子后的分析 | 落一手，到新局面的第一个分析事件 |
 
    - 每个场景先热身 1 次，再测 7 次，记录中位数和最大值。
-   - 内存：两个打开棋谱的场景和「第一条分析结果」场景，各在一个单独的子进程里运行（基准程序用参数启动自己），记录峰值常驻内存。macOS 和 Linux 用 `getrusage`，Windows 用 `GetProcessMemoryInfo`。需要新依赖时只作为 app-core 的开发依赖，并在汇报里写理由。
+   - 内存：两个打开棋谱的场景和「第一条分析结果」场景，各在一个单独的子进程里运行（基准程序用参数启动自己），记录峰值常驻内存。macOS 和 Linux 用 `getrusage`。Windows 不测峰值内存（2026-11-19 维护者决定：app-core 禁止 unsafe，安全封装的 crate 不够可靠；CI 只在 Linux 上跑基准），结果记为不可用。需要新依赖时只作为 app-core 的开发依赖，并在汇报里写理由。
 4. 输出和上限：
    - 结果写成 JSON（`target/bench/performance.json`），同时打印一张表。传 `--summary <文件>` 时，追加一张 Markdown 表，供 CI 写进 step summary。
    - 上限文件 `crates/app-core/benches/limits.json`，按平台（linux、macos、windows）和场景给出中位数上限和内存上限。传 `--check` 时，超过上限就以非零状态退出，并列出超出的项。
-   - 初始上限：本机中位数的 5 倍、峰值内存的 2 倍，取整到好读的数。CI 的实际数据维护者在 PR 上看过以后再调。
+   - 初始上限：本机中位数的 5 倍、峰值内存的 2 倍，取整到好读的数；时间上限不低于 50 ms（共享 CI 机器上几毫秒的计时噪声太大）。CI 的实际数据维护者在 PR 上看过以后再调。
    - 基准自己的逻辑（统计、上限比较、JSON 读写、棋谱生成器的确定性）有普通单元测试，在 `cargo test` 里运行，不计时、不依赖机器速度。`harness = false` 的基准目标不会被 `cargo test` 运行，所以把这些逻辑放在 `benches/` 下的模块里，由 `crates/app-core/tests/performance_support.rs` 用 `#[path]` 引入后测试。
 5. CI 新增 `.github/workflows/bench.yml`：
    - 触发：pull_request、推到 main、workflow_dispatch。

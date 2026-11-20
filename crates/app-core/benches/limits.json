@@ -1,0 +1,80 @@
+{
+  "linux": {
+    "open_reviewed_game": {
+      "median_ms": 110,
+      "peak_rss_bytes": 57671680
+    },
+    "open_large_tree": {
+      "median_ms": 125,
+      "peak_rss_bytes": 73400320
+    },
+    "jump_to_last_move": {
+      "median_ms": 50,
+      "peak_rss_bytes": null
+    },
+    "engine_ready": {
+      "median_ms": 50,
+      "peak_rss_bytes": null
+    },
+    "first_analysis": {
+      "median_ms": 50,
+      "peak_rss_bytes": 37748736
+    },
+    "analysis_after_move": {
+      "median_ms": 50,
+      "peak_rss_bytes": null
+    }
+  },
+  "macos": {
+    "open_reviewed_game": {
+      "median_ms": 110,
+      "peak_rss_bytes": 57671680
+    },
+    "open_large_tree": {
+      "median_ms": 75,
+      "peak_rss_bytes": 73400320
+    },
+    "jump_to_last_move": {
+      "median_ms": 50,
+      "peak_rss_bytes": null
+    },
+    "engine_ready": {
+      "median_ms": 50,
+      "peak_rss_bytes": null
+    },
+    "first_analysis": {
+      "median_ms": 50,
+      "peak_rss_bytes": 31457280
+    },
+    "analysis_after_move": {
+      "median_ms": 50,
+      "peak_rss_bytes": null
+    }
+  },
+  "windows": {
+    "open_reviewed_game": {
+      "median_ms": 110,
+      "peak_rss_bytes": null
+    },
+    "open_large_tree": {
+      "median_ms": 125,
+      "peak_rss_bytes": null
+    },
+    "jump_to_last_move": {
+      "median_ms": 50,
+      "peak_rss_bytes": null
+    },
+    "engine_ready": {
+      "median_ms": 50,
+      "peak_rss_bytes": null
+    },
+    "first_analysis": {
+      "median_ms": 50,
+      "peak_rss_bytes": null
+    },
+    "analysis_after_move": {
+      "median_ms": 50,
+      "peak_rss_bytes": null
+    }
+  }
+}

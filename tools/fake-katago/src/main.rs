@@ -267,6 +267,11 @@ impl<W: Write> Engine<W> {
     }
 
     fn search_deadline(&self, search: &Running) -> f64 {
+        // App-core benchmarks measure IPC and application work, without the
+        // fake's simulated search time or periodic report cadence.
+        if self.options.instant_response {
+            return search.start;
+        }
         search.start
             + (search.job.query.max_visits as f64 / self.options.visits_per_sec)
                 .min(search.job.query.max_time.unwrap_or(f64::INFINITY))

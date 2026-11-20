@@ -633,6 +633,17 @@ UI  ◀──Channel──    重绘候选点
 - cargo-deny 固定 0.20.2，以 `deny.toml` 检查主工作区全部 features、目标以及构建/开发依赖，不包含独立 `fuzz/` 工作区。许可证采用 GPL-3.0-only 兼容允许列表；维护者已允许 ICU4X/unicode-ident 使用的 Unicode-3.0，以及 webpki-roots/webpki-root-certs 的 Mozilla 根证书数据使用的 CDLA-Permissive-2.0，理由记录在 allow 条目旁，OpenSSL 许可证仍未允许。元数据缺失时须用固定许可证文件哈希的 clarify。已知漏洞与 yanked 拒绝，检查 unmaintained/unsound；暂时无法升级的 advisory 只在 `advisories.ignore` 逐条注明原因。非 path 通配版本、未知 registry 和 git 来源拒绝，多版本仅警告。
 - pnpm 审计包含开发依赖，因为它们参与发布构建；无法在本卡允许的补丁/锁文件升级内消除的漏洞，以精确 CVE 记录在 `apps/desktop/package.json` 的 `pnpm.auditConfig.ignoreCves`，原因见相邻的 `auditIgnoreReasons`。不使用跳过开发依赖或忽略审计请求错误的选项。所有非 `actions/*` 第三方 Action 固定完整 commit SHA，并注释对应版本；GitHub 官方 Action 保留主版本标签。
 
+### 性能基准
+
+- `crates/app-core/benches/performance.rs` 是 `harness = false` 的独立基准目标，只通过生产公开 `AppCore` API 和 `AppSubscription` 驱动真实核心。六个场景为打开复盘谱、打开大树、跳到复盘谱最后一手、保存设置后的引擎就绪、就绪后第一条分析、落子后的第一条分析。打开和跳转等待命令返回的 revision 对应的 `DocumentChanged`；分析核对当前 revision、node_id、Live 来源和非零 visits；就绪等待真正的 `EngineStatus::Ready` 握手。
+- 父进程以固定 SplitMix64 种子生成两份 19 路 SGF，复盘谱含 400 手主线、每手评论及有效 LZ、30 条各 10 手的变化，大树精确 20,000 个节点（含根），采用浅四叉分支。合法着手复用 go-core，LZ 复用 document writer，生成后用 `sgf::parse` 验证，文件仅在临时目录存在。没有提交大棋谱或基准结果。
+- 每个场景串行运行一次热身和七次测量，每次启动新的基准子进程和临时数据目录。计时从相应 API 调用到事件消费完成，排除子进程创建、数据生成、fake 构建和准备设置；引擎就绪的计时包含加载已保存设置和 AppCore 启动。为隔离场景关闭自动速览和自动存档，保存 pondering=false，在 Ready 后显式开启分析；持久缓存保持默认开启，但每次目录全新。落子场景在空盘首条分析后实际下黑 D16，并等待新节点的分析。
+- 引擎路径由父进程在计时前调用 `fake_katago::binary_path()` 得到；该既有 helper 构建 debug fake，核心基准本身为 release。`--instant-response` 让 fake 沿原队列和结果生成路径立即完成查询，去掉模拟搜索/报告延迟，不改默认测试行为，不使用真实 KataGo、模型或 GPU。
+- macOS/Linux 的打开复盘谱、打开大树和第一条分析同时记录各自子进程的峰值常驻内存，经已有 nix 的安全 `getrusage(RUSAGE_SELF)` 读取（macOS 字节、Linux KiB 转字节）。在目标事件后、shutdown 前读取，七次取最大值；这是该核心 worker 从启动以来的绝对峰值，包含运行时与核心初始化，不含生成器、父进程、fake 引擎子进程、桌面外壳或 WebView，也不表示净增内存。Windows 不测峰值内存：`peak_rss_bytes()` 返回 Unsupported，runner 仅在 Windows 将它转为不可用，JSON 的 `peak_rss_bytes` 为 null、原始内存样本为空，Markdown 显示「—」并注明「Windows 不测」。不增加替代 crate、不放开 app-core 的 unsafe 禁令；macOS/Linux 读取失败仍明确报错。
+- 本机运行：`PATH="$HOME/.cargo/bin:$PATH" cargo bench -p app-core --bench performance --locked -- --check`。默认将原始七次样本、中位数、最大值和峰值内存写入仓库的 `target/bench/performance.json`，并打印表格；加 `--summary <文件>` 会追加 Markdown 表。输出先落盘再比较上限，超出时逐项报告并非零退出，CI 失败也可上传结果。
+- 上限位于 `crates/app-core/benches/limits.json`，按 linux/macos/windows 和六个场景分别配置 `median_ms` 与可空 `peak_rss_bytes`；只对中位耗时和三个场景的最大峰值内存设门槛，最大耗时用于观察调度抖动。初值取 Apple Silicon M4 Pro 本机七次中位数的 5 倍、最大峰值内存的 2 倍，再向上取便于阅读的数；所有时间上限至少为 50 ms，配置校验也拒绝更低值。CI 共享机器上几毫秒的计时噪声很大，本基准只防数量级退步。Linux 先用同一组推算值，2026-11-19 按第一次 Linux CI 实测（ubuntu-24.04 x86_64：打开复盘谱 28 ms / 22 MiB，打开大树 24 ms / 28 MiB，第一条分析 1.2 ms / 17.5 MiB）调整：打开大树的时间上限 125 ms（CI 中位数 5 倍），第一条分析的内存上限 36 MiB（CI 实测 2 倍），其余推算值对 CI 实测已有足够余量。Windows 采用和 Linux 相同的时间上限、所有内存上限为 null，没有实测数据，CI 也不跑。`--check` 对 null 内存上限跳过比较；上限有值而测量为 null 时必须失败并列出缺失项，避免悄悄丢失 macOS/Linux 的测量。调整时在固定场景、同一构建配置下重新运行 1+7，保留失败诊断，不自动抬高上限。
+- `.github/workflows/bench.yml` 在每个 PR、推到 main 和手动触发时于 Ubuntu 24.04 运行上述 release `--check`，追加 step summary，并始终尝试上传 JSON artifact。未加入 `scripts/verify.sh`。统计、阈值、JSON 读写、生成器确定性与棋谱结构的普通行为测试通过 `tests/performance_support.rs` 的 `#[path]` 引入共享模块，由 `cargo test -p app-core` 执行，无机器速度断言。桌面冷启动、整进程内存、Java 对比与安装包测量另行验收。
+
 ### 模糊测试
 
 - `fuzz/` 是独立的 cargo-fuzz 项目：自己的 `[workspace]` 和 `Cargo.lock`，根工作区 `exclude` 它，`scripts/verify.sh` 不编译它。工具链固定在 `fuzz/rust-toolchain.toml`（nightly 日期），cargo-fuzz 固定 0.13.1。
