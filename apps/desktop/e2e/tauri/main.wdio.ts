@@ -52,8 +52,35 @@ async function ready(browser: Browser) {
   return first;
 }
 
+const ONE_PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+// The capture window shows its screenshot through a blob: URL and 保存胜率图 draws the graph
+// through a data: SVG image. Both must pass the application's real CSP, which the web E2E
+// (Vite, mock backend) never applies.
+async function imagesLoad(browser: Browser) {
+  const loaded = await browser.execute(async (png: string) => {
+    const bytes = Uint8Array.from(atob(png), (char) => char.charCodeAt(0));
+    const sources = [
+      ["blob", URL.createObjectURL(new Blob([bytes], { type: "image/png" }))],
+      ["data", `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="3" height="2"/>')}`],
+    ];
+    return Promise.all(sources.map(async ([name, source]) => {
+      const image = new Image();
+      image.src = source!;
+      try {
+        await image.decode();
+        return `${name}: ${image.naturalWidth}`;
+      } catch (error) {
+        return `${name}: ${String(error)}`;
+      }
+    }));
+  }, ONE_PIXEL_PNG);
+  assert.deepEqual(loaded, ["blob: 1", "data: 3"], "the CSP blocks images the app creates itself");
+}
+
 async function navigation(browser: Browser) {
   const initial = await ready(browser);
+  await imagesLoad(browser);
   // One real keypress per acknowledged document change; never wait for a search
   // to finish between keys. The observer watches all intervening DOM updates.
   // Down is the next move, as in LizzieYzy Next; left and right switch branches.
