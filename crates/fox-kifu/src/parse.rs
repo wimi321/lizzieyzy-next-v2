@@ -5,6 +5,11 @@ use crate::{
     FoxScoreUnit,
 };
 
+/// Decode the response body after transport size and HTTP status checks.
+pub fn json(bytes: &[u8]) -> Result<Value, FoxError> {
+    Ok(serde_json::from_slice(bytes)?)
+}
+
 pub(crate) fn status(value: &Value) -> Result<i64, FoxError> {
     if value.get("result").is_some() {
         integer(value, "result")
@@ -22,7 +27,7 @@ pub(crate) fn success(value: &Value) -> Result<(), FoxError> {
     }
 }
 
-pub(crate) fn account(value: &Value, query: &str) -> Result<FoxAccount, FoxError> {
+pub fn account(value: &Value, query: &str) -> Result<FoxAccount, FoxError> {
     let code = status(value)?;
     let uid = text(value, "uid").unwrap_or_default();
     if code != 0 {
@@ -42,7 +47,7 @@ pub(crate) fn account(value: &Value, query: &str) -> Result<FoxAccount, FoxError
     Ok(FoxAccount { uid, nickname })
 }
 
-pub(crate) fn page(value: &Value, cursor: &str) -> Result<FoxPage, FoxError> {
+pub fn page(value: &Value, cursor: &str) -> Result<FoxPage, FoxError> {
     success(value)?;
     let rows = value
         .get("chesslist")
@@ -58,6 +63,16 @@ pub(crate) fn page(value: &Value, cursor: &str) -> Result<FoxPage, FoxError> {
         return Err(FoxError::InvalidResponse("non-advancing cursor"));
     }
     Ok(FoxPage { games, next_cursor })
+}
+
+pub fn download(value: &Value) -> Result<String, FoxError> {
+    success(value)?;
+    let sgf = value
+        .get("chess")
+        .and_then(Value::as_str)
+        .filter(|text| !text.trim().is_empty())
+        .ok_or(FoxError::InvalidResponse("chess"))?;
+    crate::normalize::normalize_sgf(sgf)
 }
 
 fn game(value: &Value) -> Result<FoxGame, FoxError> {

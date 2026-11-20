@@ -1,0 +1,115 @@
+name: Parser fuzzing
+
+on:
+  pull_request:
+    paths:
+      - 'fuzz/**'
+      - 'crates/sgf/**'
+      - 'crates/document/**'
+      - 'crates/katago-protocol/**'
+      - 'crates/gtp/**'
+      - 'crates/fox-kifu/**'
+      - 'crates/readboard/**'
+      - 'crates/go-core/**'
+  push:
+    branches: [main]
+    paths:
+      - 'fuzz/**'
+      - 'crates/sgf/**'
+      - 'crates/document/**'
+      - 'crates/katago-protocol/**'
+      - 'crates/gtp/**'
+      - 'crates/fox-kifu/**'
+      - 'crates/readboard/**'
+      - 'crates/go-core/**'
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["sgf_roundtrip","gib","document_walk","lz","katago_line","gtp","fox_replies","readboard"]' || '["all"]') }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      FUZZ_TARGET: ${{ matrix.target }}
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Read fixed fuzz toolchain
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          import tomllib
+          from pathlib import Path
+          pin = tomllib.loads(Path('fuzz/rust-toolchain.toml').read_text())
+          print('FUZZ_TOOLCHAIN=' + pin['toolchain']['channel'])
+          PY
+
+      - name: Install fixed nightly and cargo-fuzz
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup toolchain install "$FUZZ_TOOLCHAIN" --profile minimal
+          # cargo-fuzz is only a cargo subcommand: build it with the project's stable
+          # toolchain (its locked dependencies do not all compile on this nightly).
+          rustup toolchain install 1.96.0 --profile minimal
+          cargo +1.96.0 install cargo-fuzz --version '=0.13.1' --locked
+          cargo +"$FUZZ_TOOLCHAIN" fetch --locked --manifest-path fuzz/Cargo.toml
+
+      - name: Generate seed corpus
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          python3 fuzz/seed_corpus.py
+
+      - name: Build fuzz targets
+        env:
+          CARGO_NET_OFFLINE: 'true'
+        working-directory: fuzz
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cp Cargo.lock "$RUNNER_TEMP/fuzz-Cargo.lock"
+          if [ "$FUZZ_TARGET" = all ]; then
+            cargo +"$FUZZ_TOOLCHAIN" fuzz build
+          else
+            cargo +"$FUZZ_TOOLCHAIN" fuzz build "$FUZZ_TARGET"
+          fi
+          cmp Cargo.lock "$RUNNER_TEMP/fuzz-Cargo.lock"
+
+      - name: Fuzz and minimize failures
+        env:
+          CARGO_NET_OFFLINE: 'true'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          if [ "$FUZZ_TARGET" = all ]; then
+            python3 fuzz/run.py --seconds 30
+          else
+            python3 fuzz/run.py --seconds 900 "$FUZZ_TARGET"
+          fi
+
+      - name: Upload run logs and raw/minimized failures
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: fuzz-${{ matrix.target }}-${{ github.run_attempt }}
+          path: |
+            fuzz/logs/
+            fuzz/artifacts/
+          if-no-files-found: ignore
+          retention-days: 14

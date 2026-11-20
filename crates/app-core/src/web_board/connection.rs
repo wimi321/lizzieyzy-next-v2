@@ -183,7 +183,7 @@ async fn drive(
                 };
                 match frame {
                     Message::Text(text) => {
-                        let Ok(message) = serde_json::from_str(&text) else {
+                        let Ok(message) = WebClientMessage::parse(&text) else {
                             // Malformed commands never reach the document actor.
                             let rejected = WebServerMessage::TrialRejected {
                                 reason: "invalid message".into(),
