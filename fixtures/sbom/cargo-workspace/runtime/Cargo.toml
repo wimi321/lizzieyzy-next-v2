@@ -1,0 +1,14 @@
+[package]
+name = "runtime"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+release-only = { path = "../release-only", optional = true }
+dev-leak = { path = "../dev-leak", optional = true }
+build-leak = { path = "../build-leak", optional = true }
+[features]
+release = ["dep:release-only"]
+dev = ["dep:dev-leak"]
+build = ["dep:build-leak"]

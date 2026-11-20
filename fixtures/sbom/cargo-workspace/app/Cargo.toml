@@ -1,0 +1,26 @@
+[package]
+name = "lizzieyzy-desktop"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+runtime = { path = "../runtime" }
+codegen = { path = "../codegen" }
+dev-tools = { path = "../dev-tools", optional = true }
+[features]
+default = ["dev-tools"]
+custom-protocol = ["runtime/release"]
+[dev-dependencies]
+runtime = { path = "../runtime", features = ["dev"] }
+fake-katago = { path = "../tools/fake-katago" }
+[build-dependencies]
+runtime = { path = "../runtime", features = ["build"] }
+[target.'cfg(windows)'.dependencies]
+windows-only = { path = "../windows-only" }
+[target.'cfg(target_os = "macos")'.dependencies]
+macos-only = { path = "../macos-only" }
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
+macos-arm-only = { path = "../macos-arm-only" }
+[target.'cfg(target_os = "linux")'.dependencies]
+linux-only = { path = "../linux-only" }

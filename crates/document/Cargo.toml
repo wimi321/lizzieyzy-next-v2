@@ -6,8 +6,8 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-go-core = { path = "../go-core" }
-sgf = { path = "../sgf" }
+go-core = { version = "0.1.0", path = "../go-core" }
+sgf = { version = "0.1.0", path = "../sgf" }
 thiserror = "2"
 blake3 = "1"
 

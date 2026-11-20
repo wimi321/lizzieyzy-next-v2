@@ -16,7 +16,7 @@ from acceptance import AcceptanceError, digest
 from release_assets import (
     BUNDLE_TARGETS, EXTENSIONS, PLATFORMS, ReleaseError,
     asset_inventory, asset_name, collect, macos_update_archive, manifest,
-    sign_asset, signature_version, tauri_command, validate_version,
+    sbom_name, sign_asset, signature_version, tauri_command, validate_version,
     verify_signature, version_from_tag, windows_portable,
 )
 
@@ -37,6 +37,10 @@ class ReleaseAssetsTests(unittest.TestCase):
             for suffix in EXTENSIONS[platform]:
                 name = asset_name(VERSION, platform, suffix)
                 (assets / name).write_bytes(("payload for " + name).encode())
+        (assets / sbom_name(VERSION)).write_text(json.dumps({
+            "bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
+            "metadata": {"component": {"type": "application", "name": "LizzieYzy Next 2", "version": VERSION}},
+        }) + "\n", encoding="utf-8")
         return assets
 
     def payload(self, platform):
@@ -192,7 +196,7 @@ class ReleaseAssetsTests(unittest.TestCase):
 
     def test_inventory_requires_every_platform_and_no_unknown_or_stale_files(self):
         assets = self.inventory()
-        self.assertEqual(len(asset_inventory(assets, VERSION)), 8)
+        self.assertEqual(len(asset_inventory(assets, VERSION)), 9)
         missing = next(assets.iterdir())
         missing.unlink()
         with self.assertRaisesRegex(ReleaseError, "missing="):
@@ -201,6 +205,17 @@ class ReleaseAssetsTests(unittest.TestCase):
         (assets / "stale.sig").write_bytes(b"signature")
         with self.assertRaisesRegex(ReleaseError, "unexpected="):
             asset_inventory(assets, VERSION)
+
+    def test_inventory_requires_the_current_version_sbom(self):
+        assets = self.inventory()
+        sbom = assets / sbom_name(VERSION)
+        sbom.rename(assets / sbom_name("0.1.0"))
+        with self.assertRaisesRegex(ReleaseError, "inventory mismatch"):
+            asset_inventory(assets, VERSION)
+        (assets / sbom_name("0.1.0")).unlink()
+        with self.assertRaisesRegex(ReleaseError, "missing="):
+            manifest(assets, VERSION, "v" + VERSION, "owner/project", "notes", env={})
+        self.assertFalse((assets / "SHA256SUMS").exists())
 
     def test_inventory_rejects_updater_larger_than_one_gib_including_deb(self):
         assets = self.inventory()
@@ -224,7 +239,9 @@ class ReleaseAssetsTests(unittest.TestCase):
                 self.assertIn("跳过更新签名和 latest.json", output.getvalue())
                 self.assertFalse((assets / "latest.json").exists())
                 self.assertEqual(list(assets.glob("*.sig")), [])
-                self.assertEqual(len((assets / "SHA256SUMS").read_text(encoding="utf-8").splitlines()), 8)
+                checksum_entries = (assets / "SHA256SUMS").read_text(encoding="utf-8").splitlines()
+                self.assertEqual(len(checksum_entries), 9)
+                self.assertIn(f"{digest(assets / sbom_name(VERSION))}  {sbom_name(VERSION)}", checksum_entries)
 
     def test_manifest_rejects_bad_metadata_before_writing(self):
         assets = self.inventory()
@@ -233,7 +250,7 @@ class ReleaseAssetsTests(unittest.TestCase):
                                                 (VERSION, "v" + VERSION, "owner/repo", "2026-11-12")):
             with self.subTest(tag=tag, repository=repository, date=date), self.assertRaises(ReleaseError):
                 manifest(assets, version, tag, repository, "notes", date, {})
-        self.assertEqual(len(list(assets.iterdir())), 8)
+        self.assertEqual(len(list(assets.iterdir())), 9)
 
 
 class SignedManifestTests(unittest.TestCase):
@@ -271,7 +288,9 @@ class SignedManifestTests(unittest.TestCase):
             self.assertEqual(signature_version(entry["signature"]), VERSION)
             self.assertEqual(entry["signature"], (assets / (name + ".sig")).read_text(encoding="utf-8").strip())
         checksum_entries = (assets / "SHA256SUMS").read_text(encoding="utf-8").splitlines()
-        self.assertEqual(len(checksum_entries), 17)
+        self.assertEqual(len(checksum_entries), 18)
+        self.assertIn(f"{digest(assets / sbom_name(VERSION))}  {sbom_name(VERSION)}", checksum_entries)
+        self.assertFalse((assets / (sbom_name(VERSION) + ".sig")).exists())
         for line in checksum_entries:
             expected, name = line.split("  ", 1)
             self.assertEqual(digest(assets / name), expected)
