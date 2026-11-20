@@ -7,6 +7,8 @@ paths:
   - .github/workflows/**
   - scripts/packaging/sbom.py
   - scripts/packaging/test_sbom.py
+  - scripts/packaging/sbom_tests.py
+  - scripts/packaging/sbom-requirements.txt
   - scripts/packaging/release_assets.py
   - scripts/packaging/test_release_assets.py
   - scripts/packaging/release_workflow.py

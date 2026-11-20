@@ -76,6 +76,15 @@ def asset_name(version: str, platform: str, suffix: str) -> str:
     return f"LizzieYzy-Next-2_{version}_{platform}{suffix}"
 
 
+def sbom_name(version: str) -> str:
+    return f"LizzieYzy-Next-2_{validate_version(version)}_sbom.cdx.json"
+
+
+def installer_names(version: str) -> set[str]:
+    return {asset_name(version, platform, suffix)
+            for platform in PLATFORMS for suffix in EXTENSIONS[platform]}
+
+
 def regular(path: Path) -> Path:
     if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
         raise ReleaseError(f"Expected nonempty regular file: {path}")
@@ -174,8 +183,7 @@ def collect(platform: str, version: str, bundle_dir: Path, staged: Path,
 
 
 def asset_inventory(assets: Path, version: str) -> list[Path]:
-    expected = {asset_name(version, platform, suffix)
-                for platform in PLATFORMS for suffix in EXTENSIONS[platform]}
+    expected = installer_names(version) | {sbom_name(version)}
     found = {path.name for path in assets.iterdir()}
     if found != expected:
         raise ReleaseError(f"Release asset inventory mismatch; missing={sorted(expected - found)}, "
@@ -266,7 +274,10 @@ def manifest(assets: Path, version: str, tag: str, repository: str, notes: str,
         return None
     if not env.get("LIZZIE_UPDATER_PUBKEY", "").strip():
         print("LIZZIE_UPDATER_PUBKEY 缺失：本次构建的程序不会检查更新；继续生成签名供既有客户端使用。")
-    signatures = {path.name: sign_asset(path, version, env) for path in paths}
+    # The SBOM is a release attachment, not an updater installation package.
+    # Its bytes are covered by SHA256SUMS with or without updater credentials.
+    installers = [path for path in paths if path.name in installer_names(version)]
+    signatures = {path.name: sign_asset(path, version, env) for path in installers}
     platforms = {}
     targets = {TARGETS[platform]: (platform, UPDATER_SUFFIX[platform]) for platform in PLATFORMS}
     targets.update(BUNDLE_TARGETS)
@@ -279,8 +290,8 @@ def manifest(assets: Path, version: str, tag: str, repository: str, notes: str,
     result = {"version": version, "notes": notes, "pub_date": pub_date, "platforms": platforms}
     latest = assets / "latest.json"
     latest.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    write_checksums(assets, [*paths, latest, *(path.with_name(path.name + ".sig") for path in paths)])
-    print(f"release manifest: ok; {len(paths)} signed assets, {len(platforms)} updater targets")
+    write_checksums(assets, [*paths, latest, *(path.with_name(path.name + ".sig") for path in installers)])
+    print(f"release manifest: ok; {len(installers)} signed assets, {len(platforms)} updater targets, 1 SBOM")
     return result
 
 

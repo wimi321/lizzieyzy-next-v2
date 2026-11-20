@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 2,
+  "katagoVersion": "1.2.3",
+  "katagoSourceCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "engineReleaseTag": "unpublished",
+  "engineReleaseRepository": "example/engine",
+  "defaultModelId": "default",
+  "models": {
+    "default": {
+      "fileName": "network-s123.bin.gz",
+      "downloadUrl": "https://example.org/model.bin.gz",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "unused": {
+      "fileName": "unused.bin.gz",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
+  },
+  "assets": {
+    "windows-cpu": {
+      "platform": "windows-x64",
+      "backend": "eigen",
+      "assetName": "windows-cpu.zip",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "executableSha256": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    "linux-cpu": {
+      "platform": "linux-x64",
+      "backend": "eigen",
+      "assetName": "linux-cpu.zip",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "executableSha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "macos-arm64": {
+      "platform": "macos-arm64",
+      "backend": "metal",
+      "assetName": "macos-arm64.zip",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "executableSha256": "7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    "macos-amd64": {
+      "platform": "macos-amd64",
+      "backend": "metal",
+      "assetName": "macos-amd64.zip",
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "executableSha256": "8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    "unused-gpu": {
+      "assetName": "not-bundled.zip"
+    }
+  }
+}

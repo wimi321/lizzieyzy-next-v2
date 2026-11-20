@@ -47,6 +47,20 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
-    ]
+    ],
+    "auditConfig": {
+      "ignoreCves": [
+        "CVE-2026-56876",
+        "CVE-2026-19693",
+        "CVE-2026-40345",
+        "CVE-2026-102990"
+      ]
+    }
+  },
+  "auditIgnoreReasons": {
+    "CVE-2026-56876": "extract-zip 2.0.1 via webdriverio > @wdio/utils > @puppeteer/browsers: no patched release; archive symlink target traversal remains a risk in browser provisioning. Recheck when upstream replaces or fixes extract-zip.",
+    "CVE-2026-19693": "extract-zip 2.0.1 via webdriverio > @wdio/utils > @puppeteer/browsers: no patched release; duplicate symlink/file entries can write outside extraction. Recheck when upstream replaces or fixes extract-zip.",
+    "CVE-2026-40345": "deepmerge-ts 7.1.6 via webdriverio > @wdio/config: recursive object graphs exhaust the stack; the fix requires 8.0.0, outside @wdio/config and @wdio/utils ^7.0.3 even in webdriverio 9.27.2. A major override is outside this card patch-only upgrade scope.",
+    "CVE-2026-102990": "basic-ftp 5.3.1 via webdriverio > @wdio/utils > @puppeteer/browsers > proxy-agent > pac-proxy-agent > get-uri 6.0.5: malicious FTP listings cause regex CPU exhaustion; fix 6.2.1 exceeds get-uri ^5.0.2. A major override is outside this card patch-only upgrade scope."
   }
 }

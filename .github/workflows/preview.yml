@@ -118,7 +118,7 @@ jobs:
           rustup toolchain install 1.96.0 --profile minimal --component rustfmt --component clippy
           rustup show active-toolchain
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
       # rust-cache saves target/ and empties the directories it does not know,
       # so the next run on the branch restores an empty bundled-resources that
@@ -130,7 +130,7 @@ jobs:
             target/release-assets target/native-signing target/release-version.json \
             target/release/bundle
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           package_json_file: apps/desktop/package.json
           run_install: false

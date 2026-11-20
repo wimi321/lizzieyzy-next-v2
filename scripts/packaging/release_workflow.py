@@ -10,7 +10,9 @@ import re
 import subprocess
 from urllib.parse import quote
 
-from release_assets import ReleaseError, validate_version, version_from_tag
+from release_assets import (
+    ReleaseError, digest, installer_names, regular, sbom_name, validate_version, version_from_tag,
+)
 
 
 def metadata(env: dict[str, str], config: Path) -> tuple[str, str]:
@@ -50,17 +52,37 @@ def require_success(result: subprocess.CompletedProcess) -> None:
         raise ReleaseError(result.stderr.strip() or "GitHub command failed")
 
 
+def draft_inventory(assets: Path, version: str) -> list[Path]:
+    installers = installer_names(version)
+    expected = installers | {sbom_name(version)}
+    found = {path.name for path in assets.iterdir()}
+    if "latest.json" in found:
+        expected |= {"latest.json"} | {name + ".sig" for name in installers}
+    if found != expected | {"SHA256SUMS"}:
+        raise ReleaseError("Release asset inventory must contain all installers, the SBOM, "
+                           "SHA256SUMS, and either all updater signatures/manifest or none")
+    files = [regular(assets / name) for name in sorted(found)]
+    checksums = {}
+    for line in (assets / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
+        match = re.fullmatch(r"([0-9a-f]{64})  (.+)", line)
+        if not match or match[2] in checksums:
+            raise ReleaseError("Invalid or duplicate release checksum entry")
+        checksums[match[2]] = match[1]
+    if set(checksums) != expected:
+        raise ReleaseError("Release checksums must cover every attachment including the SBOM")
+    for name in sorted(expected):
+        if digest(assets / name) != checksums[name]:
+            raise ReleaseError(f"Release attachment changed after checksum generation: {name}")
+    return files
+
+
 def draft(repository: str, tag: str, commit: str, assets: Path, notes: Path, run=gh) -> None:
     version = version_from_tag(tag)
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
         raise ReleaseError("Expected owner/repository")
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ReleaseError("Release target must be an exact commit SHA")
-    files = sorted(assets.iterdir())
-    if not files or any(not p.is_file() or p.is_symlink() for p in files):
-        raise ReleaseError("Release assets must be regular files")
-    if not (assets / "SHA256SUMS").is_file():
-        raise ReleaseError("Release asset checksums are missing")
+    files = draft_inventory(assets, version)
     # Refuse to attach newly built bytes to a tag that names another commit.
     ref = run(["api", f"repos/{repository}/git/ref/tags/{quote(tag, safe='')}",
                "--jq", '.object | [.type,.sha] | @tsv'])
