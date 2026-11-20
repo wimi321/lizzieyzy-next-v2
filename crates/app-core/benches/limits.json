@@ -5,7 +5,7 @@
       "peak_rss_bytes": 57671680
     },
     "open_large_tree": {
-      "median_ms": 75,
+      "median_ms": 125,
       "peak_rss_bytes": 73400320
     },
     "jump_to_last_move": {
@@ -18,7 +18,7 @@
     },
     "first_analysis": {
       "median_ms": 50,
-      "peak_rss_bytes": 31457280
+      "peak_rss_bytes": 37748736
     },
     "analysis_after_move": {
       "median_ms": 50,
@@ -57,7 +57,7 @@
       "peak_rss_bytes": null
     },
     "open_large_tree": {
-      "median_ms": 75,
+      "median_ms": 125,
       "peak_rss_bytes": null
     },
     "jump_to_last_move": {
