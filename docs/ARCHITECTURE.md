@@ -626,6 +626,7 @@ UI  ◀──Channel──    重绘候选点
 | 界面 | Playwright + mock 后端 | 交互、截图基线、主线程无长任务 |
 | 全栈 | tauri-driver（Linux）/ Edge WebDriver 附加（Windows CI）+ fake-katago | 主流程 |
 
+- Linux 桌面端 E2E 的运行库由 Verify 任务在安装开发依赖前下载为 `.deb`，随 `tauri-e2e-Linux` artifact 传递；E2E 任务仅离线安装这些包，不访问 Ubuntu 镜像。
 - Windows 原生 E2E 由测试进程用普通构建产物启动应用，再以 `browserName: webview2` 和 `ms:edgeOptions.debuggerAddress` 附加到 `127.0.0.1:9222`，不向驱动提交应用启动参数。启动前确认端口空闲，等待 CDP 端点就绪；每个场景结束后关闭会话并回收应用进程树。Linux 继续由 tauri-driver 启动和管理应用。
 - GitHub Windows runner 的提权宿主会忽略 `WEBVIEW2_*` 环境覆盖，因此只有 Windows CI 包装脚本临时设置 HKLM WebView2 `AdditionalBrowserArguments` 策略，值名精确匹配 `lizzieyzy-desktop.exe`。原值、类型和存在性在修改前持久化，`finally` 恢复，工作流另以 `always()` 步骤幂等恢复；恢复错误使 CI 失败。普通启动诊断在策略设置前运行，使用默认设置。正式构建配置、应用代码和发布工作流均不包含调试端口，测试脚本不进入产品包。
 

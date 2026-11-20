@@ -38,6 +38,37 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Test offline Linux runtime installer
+        if: runner.os == 'Linux'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          python3 apps/desktop/e2e/tauri/install-linux-runtime.test.py -v
+
+      - name: Download Linux desktop E2E runtime packages
+        if: runner.os == 'Linux'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          # Resolve dependencies against the clean runner, before any development
+          # packages or Playwright dependencies can hide required runtime packages.
+          runtime_cache=$(mktemp -d "$RUNNER_TEMP/tauri-e2e-apt.XXXXXX")
+          chmod 755 "$runtime_cache"
+          sudo apt-get update
+          sudo apt-get install --download-only --reinstall --no-install-recommends -y \
+            -o Dir::Cache::archives="$runtime_cache" \
+            libwebkit2gtk-4.1-0 libayatana-appindicator3-1 libxdo3 \
+            webkit2gtk-driver xvfb xauth dbus-x11
+          shopt -s nullglob
+          runtime_packages=("$runtime_cache"/*.deb)
+          if [ "${#runtime_packages[@]}" -eq 0 ]; then
+            echo '::error::No Linux runtime .deb packages were downloaded.' >&2
+            exit 1
+          fi
+          # Only packages enter the artifact, never apt's root-owned lock/partial.
+          mkdir -p "$RUNNER_TEMP/tauri-e2e/runtime-debs"
+          cp "${runtime_packages[@]}" "$RUNNER_TEMP/tauri-e2e/runtime-debs/"
+          # Reuse these downloads in the unchanged development-dependency step.
+          sudo cp "${runtime_packages[@]}" /var/cache/apt/archives/
+
       - name: Install Linux Tauri prerequisites
         if: runner.os == 'Linux'
         run: |
@@ -99,7 +130,7 @@ jobs:
 
       # verify.sh already builds the real, embedded-frontend application with
       # `pnpm -C apps/desktop tauri build --debug --no-bundle` and fake-katago.
-      # Keep compilation outside the five-minute desktop E2E job.
+      # Keep compilation outside the short desktop E2E job.
       - name: Prepare desktop E2E binaries
         if: runner.os != 'macOS'
         run: |
@@ -133,6 +164,25 @@ jobs:
           $env:PATH = "$HOME/.cargo/bin;$env:PATH"
           & ./apps/desktop/e2e/tauri/windows-policy.test.ps1
 
+      - name: Report Linux desktop E2E artifact size
+        if: runner.os == 'Linux'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import os
+          from pathlib import Path
+
+          artifact = Path(os.environ["RUNNER_TEMP"]) / "tauri-e2e"
+          packages = list((artifact / "runtime-debs").glob("*.deb"))
+          runtime_bytes = sum(path.stat().st_size for path in packages)
+          total_bytes = sum(path.stat().st_size for path in artifact.rglob("*") if path.is_file())
+          print(f"Linux E2E runtime: {len(packages)} .deb files, {runtime_bytes:,} bytes "
+                f"({runtime_bytes / 1024**2:.2f} MiB).")
+          print(f"tauri-e2e-Linux payload: {total_bytes - runtime_bytes:,} bytes before runtime, "
+                f"{total_bytes:,} bytes ({total_bytes / 1024**2:.2f} MiB) including runtime.")
+          print("Compressed artifact size is reported by the following upload step.")
+          PY
+
       - name: Upload desktop E2E binaries
         if: runner.os != 'macOS'
         uses: actions/upload-artifact@v6
@@ -146,11 +196,15 @@ jobs:
     name: Desktop E2E (${{ matrix.os }})
     needs: verify
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 5
+    timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-latest]
+        include:
+          - os: ubuntu-24.04
+            timeout_minutes: 6
+          - os: windows-latest
+            timeout_minutes: 5
     defaults:
       run:
         shell: bash
@@ -186,10 +240,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libwebkit2gtk-4.1-0 libayatana-appindicator3-1 libxdo3 \
-            webkit2gtk-driver xvfb xauth dbus-x11
+          bash apps/desktop/e2e/tauri/install-linux-runtime.sh target/debug/runtime-debs
 
       - name: Install WebView2-matched Microsoft Edge WebDriver
         if: runner.os == 'Windows'
@@ -309,6 +360,15 @@ jobs:
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           tauri_e2e_elapsed=$(( $(date +%s) - TAURI_E2E_STARTED_AT ))
-          printf 'Desktop E2E steps, including setup and diagnostics: %s seconds (job limit: 300 seconds).\n' \
-            "$tauri_e2e_elapsed" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            tauri_e2e_apt_seconds=${TAURI_E2E_APT_SECONDS:-0}
+            printf 'Desktop E2E total: %s seconds; offline runtime installation: %s seconds (job limit: 360 seconds).\n' \
+              "$tauri_e2e_elapsed" "$tauri_e2e_apt_seconds" | tee -a "$GITHUB_STEP_SUMMARY"
+            tauri_e2e_elapsed=$(( tauri_e2e_elapsed - tauri_e2e_apt_seconds ))
+            printf 'Desktop E2E steps excluding runtime installation: %s seconds (budget: 300 seconds).\n' \
+              "$tauri_e2e_elapsed" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'Desktop E2E steps, including setup and diagnostics: %s seconds (job limit: 300 seconds).\n' \
+              "$tauri_e2e_elapsed" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
           test "$tauri_e2e_elapsed" -lt 300
