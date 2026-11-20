@@ -208,7 +208,7 @@ pub(super) async fn analysis(events: &mut crate::AppSubscription, revision: Opti
     .await
 }
 
-async fn serve(
+pub(super) async fn serve(
     listener: TcpListener,
     bodies: BTreeMap<String, Vec<u8>>,
     mut stop: oneshot::Receiver<()>,
@@ -216,32 +216,47 @@ async fn serve(
 ) -> usize {
     let mut count = 0;
     loop {
-        let accepted = within(async {
-            tokio::select! {
-                _ = &mut stop => None,
-                accepted = listener.accept() => Some(accepted),
-            }
-        })
-        .await;
+        // The service lives across multiple bounded test operations. Its idle
+        // lifetime is controlled by stop, not by a request safety deadline.
+        let accepted = tokio::select! {
+            _ = &mut stop => None,
+            accepted = listener.accept() => Some(accepted),
+        };
         let Some(accepted) = accepted else {
             return count;
         };
         let (mut socket, _) = accepted.unwrap();
         let mut request = Vec::new();
-        within(async {
+        let complete = within(async {
             while !request.ends_with(b"\r\n\r\n") {
-                request.push(socket.read_u8().await.unwrap());
+                match socket.read_u8().await {
+                    Ok(byte) => request.push(byte),
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::UnexpectedEof
+                                | std::io::ErrorKind::ConnectionReset
+                                | std::io::ErrorKind::ConnectionAborted
+                        ) =>
+                    {
+                        return false;
+                    }
+                    Err(error) => panic!("download request header read failed: {error}"),
+                }
             }
+            true
         })
         .await;
+        // Cancellation can close the connection before all headers arrive.
+        // It must not consume the response gate or count as a served request.
+        if !complete {
+            continue;
+        }
         if let Some(mut ready) = gate.take() {
-            let released = within(async {
-                tokio::select! {
-                    _ = &mut stop => false,
-                    _ = &mut ready => true,
-                }
-            })
-            .await;
+            let released = tokio::select! {
+                _ = &mut stop => false,
+                _ = &mut ready => true,
+            };
             if !released {
                 return count;
             }

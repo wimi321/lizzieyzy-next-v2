@@ -1,5 +1,7 @@
 mod benchmark;
 mod cli;
+#[cfg(windows)]
+mod console_probe;
 mod model;
 mod output_injection;
 mod play_script;
@@ -533,6 +535,17 @@ fn run(mut options: Options) -> Result<(), RunError> {
 mod scheduler_tests;
 
 fn main() -> std::process::ExitCode {
+    // A native probe avoids PowerShell/CLR startup in the Windows process test.
+    // Return before starting the fake engine or its stdin reader.
+    #[cfg(windows)]
+    if std::env::args_os()
+        .skip(1)
+        .eq([std::ffi::OsString::from("--console-probe")])
+    {
+        println!("{}", console_probe::window());
+        return std::process::ExitCode::SUCCESS;
+    }
+
     let options = match Options::parse(std::env::args().skip(1)) {
         Ok(Some(options)) => options,
         Ok(None) => {
