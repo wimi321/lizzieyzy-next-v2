@@ -169,6 +169,7 @@ P2 按功能清单里定为 MVP 的项分 5 批，每批先后端（Codex）、�
 | P3-42 | 工程线：解析器的模糊测试——cargo-fuzz、PR 冒烟、每周长跑 | P3-41 |
 | P3-43 | 工程线：供应链检查——cargo-deny、pnpm audit、发布附 SBOM、第三方 action 固定到 commit | P3-42 |
 | P3-44 | 工程线：核心性能基准——打开大棋谱、第一条分析结果、内存，进 CI 并设上限 | P3-43 |
+| P3-45 | 工程线：网页旁观页面的安全头——CSP、禁止被嵌入 | P3-44 |
 
 分工照旧：界面卡（P3-03）和用户文档由 Claude 做，其余由 Codex 做，Claude 负责全部验收。第 2 批起的卡在前一批验收后再写。
 
@@ -191,7 +192,7 @@ P2 按功能清单里定为 MVP 的项分 5 批，每批先后端（Codex）、�
 - 界面反馈：2026-11-16 维护者要求底部工具栏的「远程算力」默认显示，窗口缩小时不要藏起来。原来低于 1300 宽一律隐藏四个按钮，按钮在多数宽度下还会互相重叠；改成照 Java 按实际宽度和优先级排布，放不下的进「更多」（P3-38，界面卡，Claude 做）。
 - 性能基准：冷启动、第一条分析结果的延迟、内存占用、打开大棋谱的耗时；进 CI 并给每项设上限；同样的项目在 Java 版上测一遍，对比表放进 README。2026-11-19 维护者选了工程线，排在第 11 批之后。Claude 的决定：分两步。先不启动界面，用 app-core 和 fake-katago 测打开大棋谱、引擎就绪、第一条分析结果和内存（P3-44），作为 app-core 的 `cargo bench` 目标，不新建 crate；测试棋谱用固定种子在运行时生成；CI 的上限按平台给出，只防数量级的退步，CI 的实际数据出来后再收紧。桌面程序的冷启动和整个进程的内存在正式版安装包的打包冒烟里测，另开卡。和 Java 版的对比由 Claude 在维护者的 Mac 上测，用同样的棋谱和同一个 KataGo。
 - 健壮性：SGF / GIB 解析器的模糊测试；扩展 fake-katago，模拟引擎崩溃、卡死和乱码输出。2026-11-19 核对：fake-katago 已经能模拟崩溃、卡死和乱码行，相关测试已经在用。审查时发现，引擎的 transport 按 UTF-8 逐行读：stderr 里一个非 UTF-8 字节（中文 Windows 上带中文的路径可能就是这样）会让引擎启动失败，之后也不再读 stderr；单行长度没有上限。所以先修这个（P3-41），再做覆盖率引导的模糊测试（P3-42）：cargo-fuzz 放在独立的 `fuzz/` 项目，用固定日期的 nightly；除了 SGF 和 GIB，也覆盖打开棋谱之后的处理、LZ 分析、KataGo 和 GTP 输出、野狐和腾讯的回复、readboard，以及网页旁观里局域网浏览器发来的消息；PR 上每个目标跑 30 秒，每周每个目标跑 15 分钟；发现的问题留下普通 `cargo test` 也会运行的回归测试。
-- 供应链：CI 加 `cargo-deny`、`cargo-audit`、`pnpm audit`；发布附 SBOM；复查 Tauri 权限和 CSP。2026-11-19 Claude 的决定（P3-43）：`cargo-deny` 的 advisories 和 `cargo-audit` 用同一个 RustSec 漏洞库，只用 `cargo-deny`；许可证只允许和 GPL-3.0-only 兼容的，拿不准的由维护者决定；检查在 PR、推到 main 和每周运行，不进离线的 `verify.sh`；SBOM 用 CycloneDX，只附在正式发布上，包括四个平台的 Rust crate、前端生产依赖和打包的 KataGo；第三方 action 固定到 commit，GitHub 官方的 `actions/*` 保持主版本标签。Tauri 权限和 CSP 由 Claude 复查，需要修改时另开卡。
+- 供应链：CI 加 `cargo-deny`、`cargo-audit`、`pnpm audit`；发布附 SBOM；复查 Tauri 权限和 CSP。2026-11-19 Claude 的决定（P3-43）：`cargo-deny` 的 advisories 和 `cargo-audit` 用同一个 RustSec 漏洞库，只用 `cargo-deny`；许可证只允许和 GPL-3.0-only 兼容的，拿不准的由维护者决定；检查在 PR、推到 main 和每周运行，不进离线的 `verify.sh`；SBOM 用 CycloneDX，只附在正式发布上，包括四个平台的 Rust crate、前端生产依赖和打包的 KataGo；第三方 action 固定到 commit，GitHub 官方的 `actions/*` 保持主版本标签。Tauri 权限和 CSP 由 Claude 复查，需要修改时另开卡。2026-11-19 复查结果：各窗口的权限清单按窗口划分，抓取窗口和浮动窗口只有各自需要的命令，没有 fs、shell 之类的通用插件权限；问题在 CSP。桌面窗口的 `img-src` 只允许 `'self'` 和 asset 协议，抓取死活题窗口用 `blob:` 地址显示截图，「保存胜率图截图」经 `data:` 图片绘制，安装版里两者都被拦下（截图窗口一片黑、胜率图保存失败）；网页 E2E 跑在没有这个 CSP 的 Vite 上，所以没测出来。已修（#142）：`img-src` 加 `blob:`，胜率图也改走 `blob:`，`data:` 仍然拒绝；桌面 WebDriver E2E 在真实程序里检查这两种图片，修之前在 Linux（WebKitGTK）和 Windows（WebView2）上都失败。网页旁观页面由 app-core 的服务器发出，不带 Tauri 的 CSP，也没有禁止被嵌入，另开 P3-45。
 - 覆盖率报告（Rust 和前端），只用来看，不作为合并门槛。
 - 精简安装包：不含权重，首次运行时下载；源码里的版本号跟随发布版本。
 
