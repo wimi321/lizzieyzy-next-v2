@@ -25,6 +25,11 @@ Options:\n\
   --hang-after-queries N   Silence output from the Nth analysis query\n\
   --fault-once-file PATH   Inject crash/hang/startup faults only when creating this marker\n\
   --garbage-every N        Insert an invalid line after every N output lines\n\
+  --startup-gbk-path       Emit a hard-coded GBK model path on stderr before readiness\n\
+  --stdout-line-before-query N  Emit one padded JSON warning before analysis query N (1-based)\n\
+  --stdout-line-bytes N    Exact warning line bytes, excluding newline (minimum 32)\n\
+  --stdout-invalid-before-query N  Emit a non-UTF-8 stdout line before query N (1-based)\n\
+  --stderr-invalid-flood-bytes N  On the first query, write bad stderr then N log bytes\n\
   --threads N              Concurrent searches (overrides numAnalysisThreads, default 1)\n\
   -override-config K=V,... One comma-separated list of configuration overrides\n\
   --default-perspective-to-play  Simulate an unset reportAnalysisWinratesAs\n\
@@ -35,7 +40,7 @@ Benchmark options (accepted but ignored by analysis):\n\
   --benchmark-gate-file PATH Wait after the first progress row until this file exists\n\
   --benchmark-fail          Report an injected failure and exit with code 1\n\
   --benchmark-pid-file PATH Write process ID before emitting output\n\
-Config/model paths are accepted but are not read. Zero query thresholds fire immediately.";
+Config/model paths are accepted but are not read. Zero crash/hang query thresholds fire immediately.";
 
 #[derive(Debug, Error)]
 #[error("{0}")]
@@ -77,6 +82,11 @@ pub struct Options {
     pub hang_after_queries: Option<u64>,
     pub fault_once_file: Option<PathBuf>,
     pub garbage_every: Option<u64>,
+    pub startup_gbk_path: bool,
+    pub stdout_line_before_query: Option<u64>,
+    pub stdout_line_bytes: Option<u64>,
+    pub stdout_invalid_before_query: Option<u64>,
+    pub stderr_invalid_flood_bytes: Option<u64>,
     pub threads: usize,
     pub default_perspective_to_play: bool,
     pub report_perspective: Option<ReportPerspective>,
@@ -112,6 +122,11 @@ impl Default for Options {
             hang_after_queries: None,
             fault_once_file: None,
             garbage_every: None,
+            startup_gbk_path: false,
+            stdout_line_before_query: None,
+            stdout_line_bytes: None,
+            stdout_invalid_before_query: None,
+            stderr_invalid_flood_bytes: None,
             threads: 1,
             default_perspective_to_play: false,
             report_perspective: None,
@@ -150,6 +165,10 @@ impl Options {
             }
             if key == "--fail-startup" {
                 opts.fail_startup = true;
+                continue;
+            }
+            if key == "--startup-gbk-path" {
+                opts.startup_gbk_path = true;
                 continue;
             }
             if key == "--fail-human-model" {
@@ -233,6 +252,27 @@ impl Options {
                 "--crash-after-ms" => opts.crash_after_ms = Some(integer(&key, &value)?),
                 "--hang-after-queries" => opts.hang_after_queries = Some(integer(&key, &value)?),
                 "--fault-once-file" => opts.fault_once_file = Some(value.into()),
+                "--stdout-line-before-query" | "--stdout-invalid-before-query" => {
+                    let n = integer(&key, &value)?;
+                    if n == 0 {
+                        return Err(CliError(format!("{key} must be positive")));
+                    }
+                    if key == "--stdout-line-before-query" {
+                        opts.stdout_line_before_query = Some(n);
+                    } else {
+                        opts.stdout_invalid_before_query = Some(n);
+                    }
+                }
+                "--stdout-line-bytes" => {
+                    let n = integer(&key, &value)?;
+                    if n < crate::output_injection::PADDED_WARNING.len() as u64 {
+                        return Err(CliError(format!("{key} must be at least 32")));
+                    }
+                    opts.stdout_line_bytes = Some(n);
+                }
+                "--stderr-invalid-flood-bytes" => {
+                    opts.stderr_invalid_flood_bytes = Some(integer(&key, &value)?);
+                }
                 "--garbage-every" => {
                     let n = integer(&key, &value)?;
                     if n == 0 {
@@ -253,6 +293,12 @@ impl Options {
         }
         if let Some(threads) = explicit_threads {
             opts.threads = threads;
+        }
+        if opts.stdout_line_before_query.is_some() != opts.stdout_line_bytes.is_some() {
+            return Err(CliError(
+                "--stdout-line-before-query and --stdout-line-bytes must be supplied together"
+                    .into(),
+            ));
         }
         Ok(Some(opts))
     }

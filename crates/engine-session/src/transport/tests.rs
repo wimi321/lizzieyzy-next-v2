@@ -42,6 +42,7 @@ async fn next_line(incoming: &mut mpsc::Receiver<Output>) -> Value {
         Output::Stdout(line) => serde_json::from_str(&line).unwrap(),
         Output::Stderr(line) => panic!("unexpected stderr: {line}"),
         Output::Fault(error) => panic!("unexpected I/O error: {error}"),
+        Output::MalformedStdout(reason) => panic!("unexpected malformed output: {reason}"),
     }
 }
 
@@ -52,6 +53,7 @@ async fn drain(incoming: &mut mpsc::Receiver<Output>) -> Vec<String> {
             Output::Stdout(_) => {}
             Output::Stderr(line) => stderr.push(line),
             Output::Fault(error) => panic!("unexpected I/O error: {error}"),
+            Output::MalformedStdout(reason) => panic!("unexpected malformed output: {reason}"),
         }
     }
     stderr
@@ -232,4 +234,92 @@ fn nonexistent_working_directory_is_a_spawn_error() {
         runtime.block_on(start(&transport, &config())).is_err(),
         "invalid cwd must fail"
     );
+}
+
+async fn padded_stdout(bytes: usize) -> Vec<Output> {
+    let bytes = bytes.to_string();
+    let transport = start(
+        &spec(&[
+            "--stdout-line-before-query",
+            "1",
+            "--stdout-line-bytes",
+            &bytes,
+        ]),
+        &config(),
+    )
+    .await
+    .unwrap();
+    timeout(SAFETY_TIMEOUT, async move {
+        let Transport {
+            outgoing,
+            mut incoming,
+            exited,
+            stop: _stop,
+            driver,
+        } = transport;
+        let exchange = async move {
+            outgoing
+                .send(
+                    json!({
+                        "id":"padded", "moves":[], "rules":"chinese",
+                        "boardXSize":19, "boardYSize":19, "maxVisits":1
+                    })
+                    .to_string(),
+                )
+                .await
+                .unwrap();
+            drop(outgoing);
+            let mut outputs = Vec::new();
+            while let Some(output) = incoming.recv().await {
+                outputs.push(output);
+            }
+            assert!(exited.await.unwrap().status.unwrap().success());
+            outputs
+        };
+        let ((), outputs) = tokio::join!(driver, exchange);
+        outputs
+    })
+    .await
+    .expect("padded output must be drained within five seconds")
+}
+
+#[tokio::test]
+async fn stdout_at_eight_mib_is_preserved_and_parsed() {
+    let outputs = padded_stdout(8 * 1024 * 1024).await;
+    assert_eq!(outputs.len(), 2);
+    let Output::Stdout(line) = &outputs[0] else {
+        panic!("expected valid stdout")
+    };
+    assert_eq!(line.len(), 8 * 1024 * 1024);
+    assert!(matches!(
+        katago_protocol::parse_line(line).unwrap(),
+        katago_protocol::EngineLine::Warning(_)
+    ));
+    let Output::Stdout(line) = &outputs[1] else {
+        panic!("expected final result")
+    };
+    assert!(matches!(
+        katago_protocol::parse_line(line).unwrap(),
+        katago_protocol::EngineLine::Analysis(_)
+    ));
+}
+
+#[tokio::test]
+async fn stdout_nine_mib_is_one_malformed_line_then_final_at_eof() {
+    let outputs = padded_stdout(9 * 1024 * 1024).await;
+    assert_eq!(outputs.len(), 2, "one bad line, then one final result");
+    assert!(
+        matches!(
+            &outputs[0],
+            Output::MalformedStdout("stdout line exceeds 8 MiB")
+        ),
+        "oversized valid JSON must be rejected as malformed"
+    );
+    let Output::Stdout(line) = &outputs[1] else {
+        panic!("expected final result")
+    };
+    assert!(matches!(
+        katago_protocol::parse_line(line).unwrap(),
+        katago_protocol::EngineLine::Analysis(_)
+    ));
 }

@@ -431,6 +431,7 @@ impl Actor {
         self.last_output = Instant::now();
         let line = match output {
             transport::Output::Stdout(line) => line,
+            transport::Output::MalformedStdout(reason) => return self.malformed_line(reason),
             transport::Output::Stderr(line) => {
                 let line = startup::bounded_line(line);
                 tracing::debug!(stderr = %line, "engine stderr");
@@ -452,27 +453,7 @@ impl Actor {
                 self.bad_lines = 0;
                 parsed
             }
-            Err(error) => {
-                self.bad_lines = self.bad_lines.saturating_add(1);
-                self.total_bad_lines = self.total_bad_lines.saturating_add(1);
-                if self.remote {
-                    // Serde type errors can quote arbitrary remote values,
-                    // including a credential echoed in a numeric field.
-                    tracing::warn!(
-                        consecutive = self.bad_lines,
-                        total = self.total_bad_lines,
-                        "invalid remote engine output"
-                    );
-                } else {
-                    tracing::warn!(consecutive = self.bad_lines, total = self.total_bad_lines, %error, "invalid engine output");
-                }
-                return (self.bad_lines > self.cfg.max_consecutive_bad_lines).then(|| {
-                    Outcome::Fault {
-                        reason: format!("too many consecutive malformed lines: {}", self.bad_lines),
-                        fatal: false,
-                    }
-                });
-            }
+            Err(error) => return self.malformed_line(error),
         };
         match parsed {
             EngineLine::Action(ActionResponse::QueryVersion { id, version, .. })
@@ -562,6 +543,26 @@ impl Actor {
             EngineLine::Action(_) => {}
         }
         None
+    }
+
+    fn malformed_line(&mut self, error: impl std::fmt::Display) -> Option<Outcome> {
+        self.bad_lines = self.bad_lines.saturating_add(1);
+        self.total_bad_lines = self.total_bad_lines.saturating_add(1);
+        if self.remote {
+            // Serde type errors can quote arbitrary remote values, including
+            // credentials. Keep the remote log free of output and error text.
+            tracing::warn!(
+                consecutive = self.bad_lines,
+                total = self.total_bad_lines,
+                "invalid remote engine output"
+            );
+        } else {
+            tracing::warn!(consecutive = self.bad_lines, total = self.total_bad_lines, %error, "invalid engine output");
+        }
+        (self.bad_lines > self.cfg.max_consecutive_bad_lines).then(|| Outcome::Fault {
+            reason: format!("too many consecutive malformed lines: {}", self.bad_lines),
+            fatal: false,
+        })
     }
 
     fn stable_id(&self, wire_id: &str) -> Option<QueryId> {

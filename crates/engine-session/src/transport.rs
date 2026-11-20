@@ -8,24 +8,28 @@ use std::pin::Pin;
 use std::process::{ExitStatus, Stdio};
 use std::time::Duration;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::AsyncWriteExt;
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{Instant, sleep_until, timeout};
 
 use crate::{SessionConfig, TransportSpec};
 
+mod lines;
 mod socketio;
 mod spawn;
 mod ssh;
 mod websocket;
+use lines::{ByteLines, STDERR_LIMIT, STDOUT_LIMIT};
 pub use spawn::spawn_process;
 
 pub(crate) const CHANNEL_CAPACITY: usize = 64;
 const STDERR_LINES: usize = 200;
 
+#[derive(Debug)]
 pub(crate) enum Output {
     Stdout(String),
+    MalformedStdout(&'static str),
     Stderr(String),
     Fault(String),
 }
@@ -109,8 +113,8 @@ pub(crate) async fn start(spec: &TransportSpec, cfg: &SessionConfig) -> io::Resu
         let report = drive(
             child,
             writer,
-            BufReader::new(stdout).lines(),
-            BufReader::new(stderr).lines(),
+            ByteLines::new(stdout, STDOUT_LIMIT),
+            ByteLines::new(stderr, STDERR_LIMIT),
             received,
             stopping,
             shutdown_timeout,
@@ -159,8 +163,8 @@ async fn shutdown_deadline(deadline: Option<Instant>) {
 async fn drive(
     mut child: Child,
     writer: Writer,
-    mut stdout: tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
-    mut stderr: tokio::io::Lines<BufReader<tokio::process::ChildStderr>>,
+    mut stdout: ByteLines<tokio::process::ChildStdout>,
+    mut stderr: ByteLines<tokio::process::ChildStderr>,
     received: mpsc::Sender<Output>,
     mut stop: oneshot::Receiver<()>,
     shutdown_timeout: Duration,
@@ -206,7 +210,7 @@ async fn drive(
             }
             line = stdout.next_line(), if stdout_open => {
                 match line {
-                    Ok(Some(line)) => { let _ = received.send(Output::Stdout(line)).await; }
+                    Ok(Some(line)) => { let _ = received.send(line.stdout()).await; }
                     Ok(None) => stdout_open = false,
                     Err(error) => {
                         stdout_open = false;
@@ -217,7 +221,7 @@ async fn drive(
             line = stderr.next_line(), if stderr_open => {
                 match line {
                     Ok(Some(line)) => {
-                        let line = crate::startup::bounded_line(line);
+                        let line = line.stderr();
                         if stderr_tail.len() == STDERR_LINES {
                             stderr_tail.pop_front();
                         }
