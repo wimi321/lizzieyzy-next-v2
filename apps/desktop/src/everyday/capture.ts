@@ -76,9 +76,15 @@ export async function svgPng(testId: string): Promise<Uint8Array> {
     target[index]?.setAttribute("style", STYLE.map((name) => `${name}:${style.getPropertyValue(name)}`).join(";"));
   });
   copy.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  // A blob: URL, not data:: the packaged window's CSP allows only blob: for images made here.
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(copy)], { type: "image/svg+xml" }));
   const image = new Image();
-  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(copy))}`;
-  await image.decode();
+  image.src = url;
+  try {
+    await image.decode();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
   const scale = window.devicePixelRatio || 1;
   const out = document.createElement("canvas");
   out.width = Math.round(width * scale);
