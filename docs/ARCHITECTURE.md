@@ -625,6 +625,16 @@ UI  ◀──Channel──    重绘候选点
 | 前端逻辑 | Vitest | 坐标换算、颜色映射、store |
 | 界面 | Playwright + mock 后端 | 交互、截图基线、主线程无长任务 |
 | 全栈 | tauri-driver（Linux）/ Edge WebDriver 附加（Windows CI）+ fake-katago | 主流程 |
+| 外部输入 | cargo-fuzz（`fuzz/`，固定日期的 nightly） | 解析器不 panic、SGF 写出一轮后稳定 |
+
+### 模糊测试
+
+- `fuzz/` 是独立的 cargo-fuzz 项目：自己的 `[workspace]` 和 `Cargo.lock`，根工作区 `exclude` 它，`scripts/verify.sh` 不编译它。工具链固定在 `fuzz/rust-toolchain.toml`（nightly 日期），cargo-fuzz 固定 0.13.1。
+- 目标只调用生产入口，不复制解析逻辑：`sgf_roundtrip`（`sgf::parse` 成功时写出再解析必须成功，第二次写出与第一次相同）、`gib`、`document_walk`（每盘 `GameDocument::from_sgf`，遍历全部节点的 `GoTo`、局面重放、标记和已存分析）、`lz`（`document::lz::parse`，棋盘大小和轮走方由输入前三个字节决定，也解析 SGF 里的 LZ/LZOP/LZ2/LZOP2 值）、`katago_line`、`gtp`（整段回复、增量解码、`genmove`、`kata-analyze`）、`fox_replies`（野狐和腾讯的 JSON 回复、棋谱整理）、`readboard`（单行和整段会话）。为此 `fox-kifu` 以 `#[doc(hidden)]` 导出回复解析函数，下载路径改为调用同一个函数。
+- 网页旁观里浏览器发来的消息是 serde 派生的解析，用 app-core 的 property 测试覆盖（任意文本、命令形状的文本），不建 fuzz 目标：那会把 app-core 的整个异步栈带进 fuzz 项目。
+- 本机运行：`python3 fuzz/seed_corpus.py` 从 `fixtures/` 生成一次性种子（不提交），然后 `python3 fuzz/run.py [--seconds N] [目标…]`。SGF 类目标使用 `fuzz/sgf.dict`。崩溃输入写到 `fuzz/artifacts/<目标>/raw/`，并自动最小化到 `minimized/`；运行日志在 `fuzz/logs/`。这些目录都被忽略。
+- CI（`.github/workflows/fuzz.yml`，Linux）：PR 和推到 main 时，只在 `fuzz/` 或上述 crate（含 go-core）有改动时运行，编译全部目标，每个目标跑 30 秒；每周一次和手动触发时每个目标跑 15 分钟，目标之间并行。发现崩溃时任务失败，原始和最小化输入作为 artifact 上传。
+- 发现的问题在对应 crate 里修好，最小化输入放进 `fixtures/fuzz/<目标>/`，并在该 crate 的普通测试里加回归测试读取它，稳定版 `cargo test` 也一直覆盖；`seed_corpus.py` 同时把这些输入加入种子。
 
 - Windows 原生 E2E 由测试进程用普通构建产物启动应用，再以 `browserName: webview2` 和 `ms:edgeOptions.debuggerAddress` 附加到 `127.0.0.1:9222`，不向驱动提交应用启动参数。启动前确认端口空闲，等待 CDP 端点就绪；每个场景结束后关闭会话并回收应用进程树。Linux 继续由 tauri-driver 启动和管理应用。
 - GitHub Windows runner 的提权宿主会忽略 `WEBVIEW2_*` 环境覆盖，因此只有 Windows CI 包装脚本临时设置 HKLM WebView2 `AdditionalBrowserArguments` 策略，值名精确匹配 `lizzieyzy-desktop.exe`。原值、类型和存在性在修改前持久化，`finally` 恢复，工作流另以 `always()` 步骤幂等恢复；恢复错误使 CI 失败。普通启动诊断在策略设置前运行，使用默认设置。正式构建配置、应用代码和发布工作流均不包含调试端口，测试脚本不进入产品包。

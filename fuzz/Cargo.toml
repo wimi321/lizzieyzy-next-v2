@@ -1,0 +1,79 @@
+[package]
+name = "lizzieyzy-parser-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+license = "GPL-3.0-only"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+members = ["."]
+resolver = "3"
+
+[dependencies]
+libfuzzer-sys = "=0.4.13"
+sgf = { path = "../crates/sgf" }
+document = { path = "../crates/document" }
+go-core = { path = "../crates/go-core" }
+katago-protocol = { path = "../crates/katago-protocol" }
+gtp = { path = "../crates/gtp" }
+fox-kifu = { path = "../crates/fox-kifu" }
+readboard = { path = "../crates/readboard" }
+
+[[bin]]
+name = "sgf_roundtrip"
+path = "fuzz_targets/sgf_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "gib"
+path = "fuzz_targets/gib.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "document_walk"
+path = "fuzz_targets/document_walk.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lz"
+path = "fuzz_targets/lz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "katago_line"
+path = "fuzz_targets/katago_line.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "gtp"
+path = "fuzz_targets/gtp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fox_replies"
+path = "fuzz_targets/fox_replies.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "readboard"
+path = "fuzz_targets/readboard.rs"
+test = false
+doc = false
+bench = false

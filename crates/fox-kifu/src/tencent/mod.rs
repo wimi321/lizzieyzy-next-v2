@@ -2,6 +2,8 @@
 mod parse;
 mod types;
 
+#[doc(hidden)]
+pub use parse::{download as parse_download_response, page as parse_page_response};
 pub use types::*;
 
 use std::time::Duration;
@@ -9,7 +11,7 @@ use std::time::Duration;
 use reqwest::Client;
 use thiserror::Error;
 
-use crate::{FoxError, normalize, transport, validate_game_id};
+use crate::{FoxError, transport, validate_game_id};
 
 #[derive(Debug, Error)]
 pub enum TencentError {
@@ -102,13 +104,7 @@ impl TencentClient {
                 .query(&[("chessid", chessid)]),
         )
         .await?;
-        parse::success(&response)?;
-        let sgf = response
-            .get("chess")
-            .and_then(serde_json::Value::as_str)
-            .filter(|sgf| !sgf.trim().is_empty())
-            .ok_or(FoxError::InvalidResponse("chess"))?;
-        Ok(normalize::normalize_sgf(sgf)?)
+        parse::download(&response)
     }
 }
 
