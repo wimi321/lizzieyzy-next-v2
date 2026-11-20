@@ -9,7 +9,14 @@ mod transport;
 mod types;
 
 pub use error::FoxError;
+#[doc(hidden)]
+pub use normalize::normalize_sgf;
 pub use parse::format_rank;
+#[doc(hidden)]
+pub use parse::{
+    account as parse_account_response, download as parse_download_response,
+    json as parse_json_response, page as parse_page_response,
+};
 pub use types::*;
 
 use std::time::Duration;
@@ -166,14 +173,7 @@ impl FoxClient {
                 .form(&[("chessid", game_id)])
         };
         let response = self.json(request).await?;
-        parse::success(&response)?;
-        let sgf = response
-            .get("chess")
-            .and_then(Value::as_str)
-            .filter(|text| !text.trim().is_empty())
-            .ok_or(FoxError::InvalidResponse("chess"))?
-            .to_owned();
-        Ok((normalize::normalize_sgf(&sgf)?, response))
+        Ok((parse::download(&response)?, response))
     }
 
     async fn json(&self, request: RequestBuilder) -> Result<Value, FoxError> {

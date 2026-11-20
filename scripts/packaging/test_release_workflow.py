@@ -7,7 +7,11 @@ import subprocess
 import tempfile
 import unittest
 
+from release_assets import installer_names, sbom_name, write_checksums
 from release_workflow import ReleaseError, configure, draft, metadata
+
+
+VERSION = "1.2.3-preview.1"
 
 
 class ReleaseWorkflowTests(unittest.TestCase):
@@ -20,8 +24,9 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.sha = "a" * 40
         self.assets = self.root / "assets"
         self.assets.mkdir()
-        (self.assets / "SHA256SUMS").write_text("checksum", encoding="utf-8")
-        (self.assets / "app.exe").write_bytes(b"installer")
+        for name in installer_names(VERSION) | {sbom_name(VERSION)}:
+            (self.assets / name).write_bytes(("payload for " + name).encode())
+        write_checksums(self.assets, list(self.assets.iterdir()))
         self.notes = self.root / "notes.md"
         self.notes.write_text("Release notes\nsecond line", encoding="utf-8")
 
@@ -86,6 +91,50 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("--prerelease", create)
         self.assertEqual(create[create.index("--target") + 1], self.sha)
         self.assertEqual(create[create.index("--notes-file") + 1], str(self.notes))
+        self.assertIn(str(self.assets / sbom_name(VERSION)), create)
+        self.assertIn(str(self.assets / "SHA256SUMS"), create)
+
+    def test_incomplete_or_changed_sbom_rejected_before_github_access(self):
+        sbom = self.assets / sbom_name(VERSION)
+        for contents in (b"changed SBOM", None):
+            with self.subTest(contents=contents):
+                if contents is None:
+                    sbom.unlink()
+                else:
+                    sbom.write_bytes(contents)
+                with self.assertRaises(ReleaseError):
+                    self.publish([])
+                self.assertEqual(self.calls, [])
+
+    def test_checksums_cannot_omit_sbom_or_duplicate_an_attachment(self):
+        checksum_path = self.assets / "SHA256SUMS"
+        original = checksum_path.read_text(encoding="utf-8")
+        without_sbom = "".join(line + "\n" for line in original.splitlines()
+                               if not line.endswith(sbom_name(VERSION)))
+        for contents in (without_sbom, original + original.splitlines()[0] + "\n"):
+            with self.subTest(contents=contents), self.assertRaises(ReleaseError):
+                checksum_path.write_text(contents, encoding="utf-8")
+                self.publish([])
+            self.assertEqual(self.calls, [])
+
+    def test_signed_inventory_includes_sbom_and_all_updater_attachments(self):
+        for name in installer_names(VERSION):
+            (self.assets / (name + ".sig")).write_bytes(b"signature")
+        (self.assets / "latest.json").write_text("{}", encoding="utf-8")
+        write_checksums(self.assets, [path for path in self.assets.iterdir() if path.name != "SHA256SUMS"])
+        self.publish([(1, "", "HTTP 404"), (1, "", "release not found"), (0, "", "")])
+        self.assertIn(str(self.assets / sbom_name(VERSION)), self.calls[-1])
+        self.assertIn(str(self.assets / "latest.json"), self.calls[-1])
+
+    def test_partial_signatures_and_unexpected_files_are_rejected(self):
+        for name in (next(iter(installer_names(VERSION))) + ".sig", "unexpected.json"):
+            with self.subTest(name=name):
+                extra = self.assets / name
+                extra.write_bytes(b"unexpected")
+                with self.assertRaisesRegex(ReleaseError, "inventory"):
+                    self.publish([])
+                self.assertEqual(self.calls, [])
+                extra.unlink()
 
     def test_refuses_existing_tag_at_another_commit_before_mutation(self):
         with self.assertRaisesRegex(ReleaseError, "different commit"):
@@ -98,7 +147,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertEqual(len(self.calls), 2)
 
     def test_rerun_updates_only_same_draft_and_asset_set(self):
-        existing = {"isDraft": True, "targetCommitish": self.sha, "assets": [{"name": "app.exe"}]}
+        existing = {"isDraft": True, "targetCommitish": self.sha, "assets": [{"name": sbom_name(VERSION)}]}
         self.publish([(0, "commit\t" + self.sha, ""), (0, json.dumps(existing), ""), (0, "", ""), (0, "", "")])
         self.assertEqual(self.calls[-2][:2], ["release", "edit"])
         self.assertEqual(self.calls[-1][:2], ["release", "upload"])

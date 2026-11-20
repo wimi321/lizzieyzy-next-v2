@@ -33,7 +33,7 @@ struct Move {
 /// Match the Java downloader's transport cleanup, root metadata selection,
 /// preferred variation and move ordering without a second Go rules engine.
 /// In particular, never rewrite KM: document owns its source-aware conversion.
-pub(crate) fn normalize_sgf(input: &str) -> Result<String, FoxError> {
+pub fn normalize_sgf(input: &str) -> Result<String, FoxError> {
     let clean = sanitize(input);
     let trees = Parser::new(&clean).parse()?;
     let nodes = main_line(&trees);

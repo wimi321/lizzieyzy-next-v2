@@ -181,3 +181,10 @@ pub enum WebClientMessage {
         index: usize,
     },
 }
+
+impl WebClientMessage {
+    /// Decode one WebSocket text message after the transport's size/UTF-8 checks.
+    pub(crate) fn parse(text: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(text)
+    }
+}

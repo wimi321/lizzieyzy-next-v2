@@ -55,7 +55,7 @@ async fn json_with_retries(http: &Client, request: Request) -> Result<Value, Fox
         let result: Result<Value, FoxError> = async {
             let response = http.execute(request).await?;
             let bytes = body(response).await?;
-            Ok(serde_json::from_slice(&bytes)?)
+            crate::parse::json(&bytes)
         }
         .await;
         match result {

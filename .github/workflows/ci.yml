@@ -90,9 +90,9 @@ jobs:
         if: runner.os == 'Windows'
         run: echo "RUST_TEST_THREADS=2" >> "$GITHUB_ENV"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           package_json_file: apps/desktop/package.json
           run_install: false
@@ -305,7 +305,7 @@ jobs:
             $versions | Tee-Object -FilePath (Join-Path $diagnostics 'windows-versions.txt')
           }
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           package_json_file: apps/desktop/package.json
           run_install: false

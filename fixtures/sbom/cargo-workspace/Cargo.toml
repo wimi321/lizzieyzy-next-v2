@@ -1,0 +1,3 @@
+[workspace]
+resolver = "3"
+members = ["app", "runtime", "release-only", "dev-leak", "build-leak", "dev-tools", "windows-only", "macos-only", "linux-only", "macos-arm-only", "codegen", "tools/fake-katago"]

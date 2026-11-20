@@ -4,6 +4,7 @@ use super::{TestConfig, protocol::*};
 use crate::test_support::within;
 use crate::{AppConfig, AppCore, AppEvent, AppSubscription, DocumentView};
 use futures_util::{SinkExt, StreamExt};
+use proptest::strategy::Strategy;
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
@@ -288,4 +289,35 @@ async fn options_default_persist_but_running_state_and_tokens_do_not() {
         WebBoardStatus::default()
     );
     within(app.shutdown()).await.unwrap();
+}
+
+proptest::proptest! {
+    // Spectators' browsers are untrusted. Any text a socket delivers either decodes to one
+    // command or is rejected; it never panics. (P3-42: serde-derived, so a property test here
+    // rather than a cargo-fuzz target, which would pull app-core's whole async stack in.)
+    #[test]
+    fn any_client_text_decodes_or_is_rejected(text in "\\PC{0,512}") {
+        let _ = WebClientMessage::parse(&text);
+    }
+
+    #[test]
+    fn command_shaped_text_decodes_or_is_rejected(
+        kind in proptest::sample::select(vec![
+            "EnterTrial", "ExitTrial", "TrialMove", "TrialBack", "TrialForward", "TrialToAnchor",
+            "TrialChild", "trialmove", "",
+        ]),
+        data in proptest::prop_oneof![
+            proptest::strategy::Just("null".to_owned()),
+            (proptest::num::i64::ANY, proptest::num::i64::ANY)
+                .prop_map(|(x, y)| format!(r#"{{"x":{x},"y":{y}}}"#)),
+            proptest::num::u64::ANY.prop_map(|index| format!(r#"{{"index":{index}}}"#)),
+            "\\PC{0,64}".prop_map(|text| serde_json::Value::String(text).to_string()),
+        ],
+    ) {
+        let text = format!(r#"{{"type":"{kind}","data":{data}}}"#);
+        if let Ok(WebClientMessage::TrialMove { x, y }) = WebClientMessage::parse(&text) {
+            let point = format!(r#""x":{x},"y":{y}"#);
+            proptest::prop_assert!(text.contains(&point));
+        }
+    }
 }

@@ -1,0 +1,57 @@
+# Checked with cargo-deny 0.20.2 (the version pinned in supply-chain.yml).
+# Check the whole main workspace, including build/dev dependencies and every
+# target. The independent cargo-fuzz workspace is intentionally not part of it.
+[graph]
+all-features = true
+
+[advisories]
+# Vulnerability advisories are errors in cargo-deny 0.20.2; there is no separate
+# vulnerability lint setting. Keep yank checking and all unmaintained/unsound
+# advisories enabled as well.
+yanked = "deny"
+unmaintained = "all"
+unsound = "all"
+ignore = [
+    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error 1.0.4 is required by gtk3-macros 0.18 through Tauri's GTK3 stack; removing it requires an upstream GTK dependency migration." },
+    { id = "RUSTSEC-2024-0429", reason = "Tauri's GTK3/webkit2gtk stack requires glib 0.18; the fixed glib >=0.20 is not compatible with that stack. Retain the upstream constraint until Tauri migrates it." },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant 5.12 is required by zbus 5 through tauri-plugin-opener/single-instance; replacing it with zbus 6 needs upstream plugin changes." },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names 4.3 is required by zbus 5 through tauri-plugin-opener/single-instance; its replacement is the incompatible zbus 6 names module." },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive 5.12 is required by zbus 5 through tauri-plugin-opener/single-instance; its replacement is in zbus 6 and needs upstream plugin changes." },
+    { id = "RUSTSEC-2026-0543", reason = "All chrono releases are unmaintained. app-core and fox-kifu use its date/time APIs; replacing them needs Rust source changes outside this supply-chain task's paths." },
+]
+
+[licenses]
+# This allowlist follows the actual workspace metadata inventory. OR-licensed
+# packages may use an approved alternative; AND clauses must all be satisfied.
+# The OpenSSL license remains outside this allowlist.
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    # Maintainer-approved: Mozilla root certificate data in webpki-roots/webpki-root-certs; attribution is the only condition.
+    "CDLA-Permissive-2.0",
+    "GPL-3.0-only",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    # Maintainer-approved: permissive Unicode license recognized by the FSF as GPL-compatible (ICU4X and unicode-ident).
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.93
+
+[licenses.private]
+ignore = false
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
